@@ -1,23 +1,31 @@
 # Kernelle
 
-**A Rust-powered AI development toolshed**
+**A Rust-powered, design-to-merge AI development toolshed**
 
 It's an artificial intelligence gold rush, and let's be honest, there are a hell of a lot of shovels piling up.
 
-This repository is a design-to-merge development toolkit meant to accomplish a typical sprint workflow. It provides semantically programmed agent rulesets and agent-ready CLIs to automate and aide in the most common stages of development.
+Instead of building yet another shovel to throw on the pile, this repository is essentially a toolshed. It takes the pre-existing tools currently at our disposal and pulls them together into something developers can actually use for their every day expectations and workflows: 
+- triaging tickets
+- investigation
+- gathering requirements
+- writing clean code and tests
+- merge reviews, both as the assignee and reviewer.
 
-Kernelle is a collection of Rust tools inspired by the characters living in a human- and robot-populated village called Kernelle, in a world known as Nataal. This toolshed's been designed and tested for real-world development, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts.
+In essence, this repository takes the next logical step software development's been working towards: a design-to-merge development toolkit to accelerate a typical sprint workflow. It provides semantically programmed agent rulesets that leverage a suite of human-friendly, agent-ready CLIs to automate and aide in the most common stages of development.
 
-No, this is not AI-generated hype. I use these tools myself. In fact, I used these tools on themselves to make them much higher quality than I could otherwise do by myself, while still having full say in the way code gets designed and written. No exaggeration: the early prototypes of Kernelle were comprised of integration-tested bash scripts that were more legible and more reliable than most of the codebase at my last job.
+This toolshed's been designed and tested for real-world development, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts. It's designed to accelerate you, not replace you.
 
-## The World
+No, this is not AI-generated hype. I use these tools myself. In fact, I used these tools on themselves to make them much higher quality than I could otherwise do by myself, while still having full say in the way code gets designed and written. **No exaggeration:** the early prototypes of Kernelle were comprised of integration-tested bash scripts that were more legible and more reliable than most of the codebase at my last job.
 
-It takes a village to write quality software! 
+## Who Is This For?
 
-In the world of *The Journey of the Return*, robots are built by a mysterious creator at the summit of Mt. Gigabit, and each is orphaned, left to seek belonging and purpose in either the village of Kernelle or the bustling Grand Cluster City.
+**Solo Developers:** Use what you need, ignore what you don't. Jerrod for MR reviews, Blizz for personal knowledge management, Violet for local code quality. Everything runs locally - no team buy-in required.
 
-Each development tool embodies the spirit and expertise of its namesake character, and pairs with an AI personality layer and workflow rules for use with tools like Cursor.
+**Small Teams:** Share Blizz insights through a team repository. Use Jerrod on both sides of MR workflows (as reviewer and resolver). Rust's performance handles team-scale insight stores without breaking a sweat.
 
+**Enterprise Teams:** Deploy the full toolkit across development teams. Set up automated Adam jobs in CI/CD to curate and prune a company-wide global insights cache. Jerrod scales to handle high-volume MR workflows while maintaining audit trails and traceability that enterprise security teams love.
+
+The beauty? **You can start solo and scale up organically.** Begin with local tools, add team sharing when ready, expand to enterprise automation when it makes sense. No forced adoption, no vendor lock-in.
 
 ## Meet The Team
 
@@ -40,11 +48,14 @@ Each development tool embodies the spirit and expertise of its namesake characte
 </table>
 
 **Expertise:**
-- Cross-platform support (GitHub & GitLab)
-- Session-based review management  
+- **Churns through MR comments one by one** - Literally. Jerrod is the workhorse that got this repository up and working properly.
+- **Cross-platform support (GitHub & GitLab)**
+- **Local, Session-based review management**
 - Thread queue processing with surgical precision
+- Like any good engineer, knows how to split off chunks of scope for later.
 - Rich diff context and discussion tracking
-- Automated commit linking and resolution tracking
+- Automated commit linking and resolution tracking: know what commit fixed what issue on which MR.
+- Not so great at parties
 
 **Commands:**
 ```bash
@@ -53,7 +64,7 @@ jerrod status                      # Show current review state
 jerrod peek                        # View next thread without removing
 jerrod pop [--unresolved]         # Remove thread from queue
 jerrod comment <message>           # Add comments to threads
-jerrod resolve                     # Mark threads as resolved
+jerrod resolve                     # Mark actual thread as resolved through APIs
 jerrod finish                      # Complete and cleanup session
 ```
 
@@ -63,14 +74,12 @@ jerrod finish                      # Complete and cleanup session
 <tr>
 <td>
 
-### ❄️ Blizz - Knowledge Lightning
-*"Information organized at the speed of thought"*
+### ❄️ Blizz - Zippy Knowledge Acquisition
+*"Information gathered at the speed of thought"*
 
 **Problem:** "Where did we have that discussion again? Slack? A Google doc? Coda?" Plus AI context limitations and the time needed to reconstruct task context between sessions.
 
-**Solution:** Local, private, secure insight storage that's instantly searchable and doesn't eat up AI token limits. Acts as your AI's extended memory while keeping sensitive information on your device or in your repositories instead of in the hands of model distributors.
-
-As a bonus, this tool pairs beautifully with MCP servers for web-apps like Coda, Notion, Jira, or Slack. Let Blizz zip out and comb for info for you wherever she can pull it from, then she'll summarize and save it off for your design sessions later.
+**Solution:** Blizz connects to ALL your information sources through MCP integration (Notion, Jira, Slack, Coda, GitLab, GitHub) as well as your local repositories to create a unified, searchable knowledge base from your command line locally on your machine. No more hunting through multiple apps - Blizz pulls it all together, summarizes what matters, and stores it securely without eating your AI token budget.
 
 
 </td>
@@ -80,13 +89,16 @@ As a bonus, this tool pairs beautifully with MCP servers for web-apps like Coda,
 </tr>
 </table>
 
-**Lightning-Fast Features:**
-- Insight storage and intelligent categorization
-- Instantaneous knowledge retrieval
-- Pattern recognition across projects
-- Cross-reference linking with neural precision
-- Learning that never stops
-
+**Game-changing Features:**
+- **Unified Knowledge Base** - All your scattered information in one searchable place
+- **MCP Synergy** - A knowledge storage toolset that's glued to Notion, Jira, Slack, Coda, GitLab, GitHub, and more. Have Blizz do your investigation and design background-work for you. 
+- **Get specific answers, fast, on your own:** No more "it's been 4 weeks and at this point and I'm too afraid to ask" feeling. Blizz will keep digging and saving insights until either she's confident about the subject at hand or you are.
+- **Works together with Jerrod (and you!)** - Jerrod's MR resolution workflow both uses Blizz's insights and adds to them. As can you through either chat or the CLI.
+- **Local & Secure** - Everything stays on your machine, nothing sent to third parties. You can `ls` and `grep` what's there for yourself.
+- **AI Token Optimization** - Extended memory that doesn't count against context limits
+- **Smart Summarization** - Distills complex discussions into actionable insights
+- **Cross-Reference Linking** - Connects related information across your insights
+- **Shareability** - The insights cache can be kept locally on one laptop or shared between a team in a repository. At the end of the day, they're just snippets of markdown saved where you want them.
 ---
 
 <table>
@@ -184,27 +196,13 @@ flourish!("The performance was magnificent!");
 
 ## Core Philosophy
 
-This project embodies the core themes I'm hoping to explore while working on the story of *The Journey of the Return.*
+The development world is changing rapidly, and we have a choice: resist the change or learn to work with it effectively. This toolkit represents a philosophy of friendly collaboration between human creativity and AI capability.
 
-### Don't be afraid
+**Agentic tools should amplify human agency, not replace it. Human drive should amplify technological capability, not kill it.** Whether you're human like Jerrod or an AI construct seeking humanity like Blizz, the fundamental truth remains: agency isn't about what you're made of, it's about what you choose to become. We're not building servants or replacements - we're building tools that create space for human ingenuity to flourish alongside technology. A developer's best friends are his tools. 
 
-A lot of folks are afraid of what AI can accomplish, or who it may replace. As an artist, developer, and one-time ML research engineering intern, I firmly believe out of personal experience that AI tooling can co-exist with existing development and with developers, as well as other professionals, but it'll take being willing to learn and give it a shot yourself.
+**Quality comes from intentional design, not accident.** These tools work well for AI because they were designed to be clear and useful for humans first. Good abstractions, clear interfaces, and thoughtful workflows benefit everyone - human and AI alike. Strict traceability, auditability, and revertability also make these tools safe to experiment with.
 
-Don't be afraid to innovate, work together with others, learn new tools, and try crazy ideas. You never know what might pan out. And if you do fail, congrats -- you're human like the rest of us. 
-
-### Become more than you were
-
-We're all agents, so we're all capable of growth, adaptation, and choosing our own paths forward. Who you were yesterday can't face tomorrow's challenges.
-
-Whether you're human like Jerrod, an AI construct seeking humanity like Blizz, or something entirely new that hasn't been imagined yet, the fundamental truth remains: agency isn't about what you're made of, it's about what you choose to become. We aren't servants or tools, we're capable of our own dreams, failures, and growth.
-
-This toolkit embodies that same philosophy. We're not trying to replace human creativity or decision-making - in fact our tools work so well for AI because they were designed to be as easy and useful for people as they are for models.
-
-The true magic isn't in the AI or the automation - it's in the space that these tools create for human ingenuity to flourish hand in hand with the technology we create.
-
-### Move forward
-
-Things can't go back to the way they used to be. We are moving into uncharted territory in the world of development, where our tools today act more like we do than like our tools did yesterday. It's untapped potential, just like yours. Don't leave it on the table.
+**The future is collaborative, not competitive.** We're moving into uncharted territory, where our tools act more like partners than passive instruments. Rather than fearing this change or fighting it, we can embrace the potential it creates. The magic isn't in the automation or in your tools coming to life in front of you - it's in the space technology creates for us to focus on what we do best. That's been true since well before code ever hit screen.
 
 
 ## Development
@@ -250,15 +248,6 @@ bacon deploy-all  # Rebuild and redeploy all tools
 - **Shared Logging**: All tools use Bentley for consistent output
 - **Modular Design**: Each tool can be used independently or together
 
-## Lore Integration
-
-Each tool embodies its character's personality and role:
-- **Jerrod** - approaches reviews with methodical precision, both in his reviews and his changes.
-- **Bentley** - brings theatrical flair to logging, reflecting his role as an entertainer
-- **Violet** - ensures code quality with the same attention to detail she applies to her crafts
-- **Blizz** - the curious and ever learning AI creation of Jerrod, seeking insights with speed and efficiency
-- **Adam** - maintains and distills insights into wisdom from historical project context as befits a true historian
-
 ## Contributing
 
 Whether you're from one of Kernelle's clans or Grand Cluster City's corporate towers, contributions are welcome. Please:
@@ -269,19 +258,41 @@ Whether you're from one of Kernelle's clans or Grand Cluster City's corporate to
 4. There's no official review process for the insights repository, but obviously: don't commit secrets (whether they be API keys or the code to your underwear drawer). An automated job will run Adam to score the value of insights in the repository and drop a certain percentage every day if the additions are above a certain threshold.
 5. Shoot me an MR. I'll have Jerrod review all changes thoroughly (and I'll also look at them myself). He can also help you resolve any discussions that get started.
 
-## Want Help?
 
-Want help setting up this toolkit and getting training on how to use it effectively? Reach out to travelsizedlions@gmail.com and we can talk about personal or team-wide setup plans.
+## Behind the Scenes
 
-## A Quick Note
+It takes a village to write quality software! 
 
-Yes, I did actually draw those. Give me *some* credit, guys!
+The characters personifying the tools in Kernelle are real characters for a game I've been plotting and planning since 2018 that I one day hope to finish. 
+
+In the world of *The Journey of the Return*, robots are built by a mysterious creator at the summit of Mt. Gigabit, and each is orphaned, left to seek belonging and purpose in either the village of Kernelle or the bustling Grand Cluster City.
+
+Each development tool embodies the spirit and expertise of its namesake character, and pairs with an AI personality layer and workflow rules for use with tools like Cursor.
+
+
+### Lore Integration
+
+Each tool embodies its character's personality and role:
+- **Jerrod** - approaches reviews with methodical precision, both in his reviews and his changes.
+- **Blizz** - the curious and ever learning AI creation of Jerrod, seeking insights with speed and efficiency
+- **Adam** - maintains and distills insights into wisdom from historical project context as befits a true historian
+- **Violet** - ensures code quality with the same attention to detail she applies to her crafts
+- **Bentley** - brings theatrical flair to logging, reflecting his role as an entertainer
+
+Who knows? Maybe the characters I've made will one day help me build they game they belong in
+
+### A Quick Note
+
+Yes, I did actually draw those. Give me *some* credit!
 
 ![](./images/kernelle.png)
 
+## Support Development
 
-This is a huge undertaking driven entirely by one person who'd like to take the time and energy to make this toolset high quality and free for independent developers. Please consider donating at:
+This toolkit represents hundreds of hours of development, testing, and refinement to create something genuinely useful for the developer community. If Kernelle has improved your workflow or saved you time, consider supporting continued development:
 
-- patreon
-- kofi
-- some other thingamajig.
+- **Patreon** - Ongoing development support
+- **Ko-fi** - One-time contributions
+- **GitHub Sponsors** - Direct project funding
+
+Your support helps ensure these tools remain free, well-maintained, and continuously improved based on real developer needs.
