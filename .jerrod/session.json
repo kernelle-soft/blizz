@@ -22,37 +22,23 @@
     "target_branch": "dev",
     "url": "https://github.com/TravelSizedLions/kernelle/pull/1",
     "created_at": "2025-06-22T12:29:54Z",
-    "updated_at": "2025-06-22T17:02:07Z"
+    "updated_at": "2025-06-22T19:13:02Z"
   },
   "platform": "github",
   "thread_queue": [
     "2994301650",
     "2994302411",
-    "2994323941"
+    "2994323941",
+    "2994384517",
+    "2994384587",
+    "2994384664",
+    "2994384707",
+    "2994384782",
+    "2994384830",
+    "2994384974"
   ],
   "unresolved_threads": [],
   "discussions": {
-    "2994300521": {
-      "id": "2994300521",
-      "resolved": false,
-      "resolvable": false,
-      "file_path": null,
-      "line_number": null,
-      "notes": [
-        {
-          "id": "2994300521",
-          "author": {
-            "id": "35467792",
-            "username": "jaredstorm",
-            "display_name": "jaredstorm",
-            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
-          },
-          "body": "One of the issues I kept running into with the bash scripts from the v1 implementation of Jerrod (just merge-reviews back then) was:\r\n- comments onto threads would often get cut off (probably due to bash string weirdnesss)\r\n- resolving threads often straight up would not work\r\n  - That had something to do with A.) top level MR comments not working quite the same way as discussion threads despite being able to spawn discussion threads AND optionally start as discussion threads\r\n  - discussion threads having this \"edge-level\" resolved property that made it so you have to iterate through the entire discussion history to know if the thread was resolved or not. \r\n  \r\n  I don't know about github's implementation, but I imagine that it has some odd quirks like this too.",
-          "created_at": "2025-06-22T16:19:30Z",
-          "updated_at": "2025-06-22T16:19:30Z"
-        }
-      ]
-    },
     "2994301650": {
       "id": "2994301650",
       "resolved": false,
@@ -71,6 +57,27 @@
           "body": "Also, hey. Where are we storing the global session folder? I figure we should probably put it under `$HOME/kernelle/code-reviews` or something like that.",
           "created_at": "2025-06-22T16:22:05Z",
           "updated_at": "2025-06-22T16:22:05Z"
+        }
+      ]
+    },
+    "2994323941": {
+      "id": "2994323941",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994323941",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "> Also, hey. Where are we storing the global session folder? I figure we should probably put it under `$HOME/kernelle/code-reviews` or something like that.\r\n\r\nReplied",
+          "created_at": "2025-06-22T17:02:07Z",
+          "updated_at": "2025-06-22T17:02:07Z"
         }
       ]
     },
@@ -95,29 +102,176 @@
         }
       ]
     },
-    "2994323941": {
-      "id": "2994323941",
+    "2994384974": {
+      "id": "2994384974",
       "resolved": false,
       "resolvable": false,
       "file_path": null,
       "line_number": null,
       "notes": [
         {
-          "id": "2994323941",
+          "id": "2994384974",
           "author": {
             "id": "35467792",
             "username": "jaredstorm",
             "display_name": "jaredstorm",
             "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
           },
-          "body": "> Also, hey. Where are we storing the global session folder? I figure we should probably put it under `$HOME/kernelle/code-reviews` or something like that.\r\n\r\nReplied",
-          "created_at": "2025-06-22T17:02:07Z",
-          "updated_at": "2025-06-22T17:02:07Z"
+          "body": "`acknowledge` this comment, then add a second unrelated `comment` after.",
+          "created_at": "2025-06-22T19:11:43Z",
+          "updated_at": "2025-06-22T19:13:02Z"
+        }
+      ]
+    },
+    "2994384830": {
+      "id": "2994384830",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994384830",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "`-d` this comment",
+          "created_at": "2025-06-22T19:11:26Z",
+          "updated_at": "2025-06-22T19:11:26Z"
+        }
+      ]
+    },
+    "2994384517": {
+      "id": "2994384517",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994384517",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "`--complete` this comment",
+          "created_at": "2025-06-22T19:10:42Z",
+          "updated_at": "2025-06-22T19:10:42Z"
+        }
+      ]
+    },
+    "2994384587": {
+      "id": "2994384587",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994384587",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "`-c` this comment",
+          "created_at": "2025-06-22T19:10:51Z",
+          "updated_at": "2025-06-22T19:10:51Z"
+        }
+      ]
+    },
+    "2994384707": {
+      "id": "2994384707",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994384707",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "`-q` this comment",
+          "created_at": "2025-06-22T19:11:09Z",
+          "updated_at": "2025-06-22T19:11:09Z"
+        }
+      ]
+    },
+    "2994384782": {
+      "id": "2994384782",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994384782",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "`--defer` this comment",
+          "created_at": "2025-06-22T19:11:19Z",
+          "updated_at": "2025-06-22T19:11:19Z"
+        }
+      ]
+    },
+    "2994384664": {
+      "id": "2994384664",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994384664",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "`--question` this comment",
+          "created_at": "2025-06-22T19:11:01Z",
+          "updated_at": "2025-06-22T19:11:01Z"
+        }
+      ]
+    },
+    "2994300521": {
+      "id": "2994300521",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994300521",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "One of the issues I kept running into with the bash scripts from the v1 implementation of Jerrod (just merge-reviews back then) was:\r\n- comments onto threads would often get cut off (probably due to bash string weirdnesss)\r\n- resolving threads often straight up would not work\r\n  - That had something to do with A.) top level MR comments not working quite the same way as discussion threads despite being able to spawn discussion threads AND optionally start as discussion threads\r\n  - discussion threads having this \"edge-level\" resolved property that made it so you have to iterate through the entire discussion history to know if the thread was resolved or not. \r\n  \r\n  I don't know about github's implementation, but I imagine that it has some odd quirks like this too.",
+          "created_at": "2025-06-22T16:19:30Z",
+          "updated_at": "2025-06-22T16:19:30Z"
         }
       ]
     }
   },
   "pipelines": [],
-  "created_at": "2025-06-22T17:03:00.181870Z",
-  "updated_at": "2025-06-22T17:03:11.846401Z"
+  "created_at": "2025-06-22T19:56:08.572860Z",
+  "updated_at": "2025-06-22T19:56:45.166847Z"
 }

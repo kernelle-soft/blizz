@@ -15,10 +15,8 @@ pub async fn handle() -> Result<()> {
   let current_thread_id = session.thread_queue.front()
     .ok_or_else(|| anyhow!("No threads in queue"))?;
 
-  // Create GitHub client - for now, use environment variable
-  let token = std::env::var("GITHUB_TOKEN")
-    .map_err(|_| anyhow!("GITHUB_TOKEN environment variable not set"))?;
-  let github = GitHubPlatform::new(Some(token))?;
+  // Create GitHub client with credential lookup
+  let github = GitHubPlatform::new().await?;
 
   // Add eyes reaction
   let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();

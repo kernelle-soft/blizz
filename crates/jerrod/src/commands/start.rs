@@ -46,8 +46,8 @@ pub async fn handle(
   // Create platform client with automatic credential setup
   let platform: Box<dyn GitPlatform> = match platform_type {
     PlatformType::GitHub => {
-      let token = get_or_setup_credential("github", "token", github_token).await?;
-      Box::new(GitHubPlatform::new(Some(token))?)
+      let _token = get_or_setup_credential("github", "token", github_token).await?;
+      Box::new(GitHubPlatform::new().await?)
     }
     PlatformType::GitLab => {
       let _token = get_or_setup_credential("gitlab", "token", gitlab_token).await?;

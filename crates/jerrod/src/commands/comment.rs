@@ -11,49 +11,58 @@ pub async fn handle(
 ) -> Result<()> {
   // Validate that only one reaction flag is set
   let reaction_flags = [complete, question, defer];
-  let reaction_count = reaction_flags.iter().filter(|&&flag| flag).count();
-  
-  if reaction_count > 1 {
-    return Err(anyhow!("Only one reaction flag can be used at a time"));
+  if reaction_flags.iter().filter(|&&flag| flag).count() > 1 {
+    return Err(anyhow!("Cannot specify multiple reaction flags (--complete, --question, --defer)"));
   }
 
   let session_manager = SessionManager::new()?;
   let session = session_manager.load_session()?
     .ok_or_else(|| anyhow!("No active review session found"))?;
 
-  // Determine reaction type if any
-  let reaction_type = if complete {
-    Some(ReactionType::CheckMark)
-  } else if question {
-    Some(ReactionType::Question)
-  } else if defer {
-    Some(ReactionType::Memo)
-  } else {
+  if session.platform != "github" {
+    return Err(anyhow!("Comment system currently only supported for GitHub"));
+  }
+
+  // Get the current thread (if not creating a new comment)
+  let current_thread_id = if new {
     None
+  } else {
+    session.thread_queue.front().cloned()
   };
 
-  // For GitHub, handle reactions
-  if session.platform == "github" && reaction_type.is_some() {
-    // Get the current thread
-    let current_thread_id = session.thread_queue.front()
-      .ok_or_else(|| anyhow!("No threads in queue"))?;
+  if !new && current_thread_id.is_none() {
+    return Err(anyhow!("No threads in queue"));
+  }
 
-    // Create GitHub client - for now, use environment variable
-    let token = std::env::var("GITHUB_TOKEN")
-      .map_err(|_| anyhow!("GITHUB_TOKEN environment variable not set"))?;
-    let github = GitHubPlatform::new(Some(token))?;
+  // Create GitHub client
+  let github = GitHubPlatform::new().await?;
 
-    let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
-    if repo_parts.len() != 2 {
-      return Err(anyhow!("Invalid repository format"));
-    }
+  // Parse repository
+  let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
+  if repo_parts.len() != 2 {
+    return Err(anyhow!("Invalid repository format"));
+  }
 
-    // Add reaction
-    if let Some(ref reaction) = reaction_type {
+  // TODO: Implement actual comment creation
+  bentley::info("Comment creation not yet implemented");
+
+  // Add reaction if specified
+  if let Some(thread_id) = &current_thread_id {
+    let reaction = if complete {
+      Some(ReactionType::CheckMark)
+    } else if question {
+      Some(ReactionType::Question)
+    } else if defer {
+      Some(ReactionType::Memo)
+    } else {
+      None
+    };
+
+    if let Some(reaction) = reaction {
       let success = github.add_reaction(
         repo_parts[0],
-        repo_parts[1], 
-        current_thread_id,
+        repo_parts[1],
+        thread_id,
         reaction.clone()
       ).await?;
 
@@ -65,23 +74,6 @@ pub async fn handle(
     }
   }
 
-  // Format comment with linkback if needed
-  let final_comment = if reaction_type.is_some() {
-    format!("{}: {} - {}", 
-      reaction_type.as_ref().unwrap().emoji(),
-      session.merge_request.url, 
-      text
-    )
-  } else {
-    text
-  };
-
-  // TODO: Implement actual comment creation
-  if new {
-    bentley::info(&format!("Would add MR-level comment: {}", final_comment));
-  } else {
-    bentley::info(&format!("Would add thread reply: {}", final_comment));
-  }
-
+  bentley::info(&format!("Comment: {}", text));
   Ok(())
 }

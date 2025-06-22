@@ -2,6 +2,7 @@ use crate::platform::{
   Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType, Repository,
   User,
 };
+use crate::auth::get_github_token;
 use anyhow::{anyhow, Result};
 use octocrab::Octocrab;
 
@@ -12,14 +13,9 @@ pub struct GitHubPlatform {
 
 impl GitHubPlatform {
   /// Create a new GitHub platform client with authentication
-  pub fn new(token: Option<String>) -> Result<Self> {
-    let client = if let Some(token) = token {
-      Octocrab::builder().personal_token(token).build()?
-    } else {
-      // Try to use environment variable or default
-      Octocrab::default()
-    };
-
+  pub async fn new() -> Result<Self> {
+    let token = get_github_token().await?;
+    let client = Octocrab::builder().personal_token(token).build()?;
     Ok(Self { client })
   }
 
@@ -198,18 +194,32 @@ impl GitPlatform for GitHubPlatform {
       _ => return Err(anyhow!("Unsupported reaction type")),
     };
 
-    let result = self.client
+    self.client
       .issues(owner, repo)
       .create_comment_reaction(comment_id, octocrab_reaction)
-      .await;
+      .await
+      .map_err(|e| {
+        // Check if this is a permission error and provide helpful guidance
+        let error_msg = format!("{:?}", e);
+        if error_msg.contains("403") || error_msg.contains("Resource not accessible") {
+          anyhow!(
+            "Failed to add reaction {} to comment {}: Permission denied.\n\n\
+            Possible causes:\n\
+            1. Token missing 'public_repo' scope (or 'repo' for private repos)\n\
+            2. Token type mismatch (fine-grained vs classic)\n\
+            3. Organization-level restrictions on personal access tokens\n\
+            4. Repository-level access restrictions\n\n\
+                         Repository: TravelSizedLions/kernelle\n\
+             Comment ID: {}\n\n\
+             Original error: {:?}",
+             reaction.emoji(), comment_id, comment_id, e
+          )
+        } else {
+          anyhow!("Failed to add reaction {} to comment {}: {:?}", reaction.emoji(), comment_id, e)
+        }
+      })?;
     
-    match result {
-      Ok(_) => Ok(true),
-      Err(e) => {
-        bentley::warn(&format!("Failed to add reaction {}: {}", reaction.emoji(), e));
-        Ok(false)
-      }
-    }
+    Ok(true)
   }
 
   async fn remove_reaction(
