@@ -54,6 +54,15 @@ enum Commands {
     /// Create a new MR-level comment instead of replying to current thread
     #[arg(long)]
     new: bool,
+    /// Mark as complete/resolved with checkmark reaction
+    #[arg(short, long)]
+    complete: bool,
+    /// Mark as question/follow-up with question reaction
+    #[arg(short, long)]
+    question: bool,
+    /// Mark as deferred to separate task with memo reaction
+    #[arg(short, long)]
+    defer: bool,
   },
   /// Commit changes with automatic MR/thread linking
   Commit {
@@ -66,25 +75,8 @@ enum Commands {
     #[arg(short, long)]
     thread_id: Option<String>,
   },
-  /// Mark the current thread as resolved
-  Resolve {
-    /// Optional comment to add with linkback
-    #[arg(short, long)]
-    comment: Option<String>,
-  },
-  /// Acknowledge a non-actionable comment
+  /// Acknowledge a non-actionable comment (eyes reaction only)
   Acknowledge,
-  /// Defer a comment to separate task
-  Defer {
-    /// Optional comment about the separate task
-    #[arg(short, long)]
-    comment: Option<String>,
-  },
-  /// Mark a comment as having a follow-up question
-  Question {
-    /// Required comment with question/clarification
-    comment: String,
-  },
   /// Finish the review session
   Finish,
   /// Refresh session data (clean and re-download)
@@ -103,12 +95,11 @@ async fn main() -> Result<()> {
     Commands::Status => commands::status::handle().await,
     Commands::Peek => commands::peek::handle().await,
     Commands::Pop { unresolved } => commands::pop::handle(unresolved).await,
-    Commands::Comment { text, new } => commands::comment::handle(text, new).await,
+    Commands::Comment { text, new, complete, question, defer } => {
+      commands::comment::handle(text, new, complete, question, defer).await
+    }
     Commands::Commit { message, details, thread_id } => commands::commit::handle(message, details, thread_id).await,
-    Commands::Resolve { comment } => commands::resolve::handle(comment).await,
     Commands::Acknowledge => commands::acknowledge::handle().await,
-    Commands::Defer { comment } => commands::defer::handle(comment).await,
-    Commands::Question { comment } => commands::question::handle(comment).await,
     Commands::Finish => commands::finish::handle().await,
     Commands::Refresh => commands::refresh::handle().await,
   }
