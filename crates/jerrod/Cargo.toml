@@ -53,6 +53,11 @@ async-trait = "0.1"
 # URL parsing and regex matching
 regex = "1.0"
 
+# AES encryption for secure credential storage
+aes-gcm = "0.10"
+base64 = "0.20"
+rand = "0.8"
+
 [dev-dependencies]
 tempfile.workspace = true
 tokio-test.workspace = true 
