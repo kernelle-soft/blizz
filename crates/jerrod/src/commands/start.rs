@@ -16,6 +16,7 @@ pub async fn handle(
   github_token: Option<String>,
   gitlab_token: Option<String>,
 ) -> Result<()> {
+  bentley::announce("Jerrod - The Reliable Guardian of Code Quality");
   bentley::info("Starting new merge request review session");
 
   // Check if there's already an active session

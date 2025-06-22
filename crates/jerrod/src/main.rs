@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod commands;
+mod display;
 mod github;
 mod platform;
 mod session;
@@ -54,6 +55,17 @@ enum Commands {
     #[arg(long)]
     new: bool,
   },
+  /// Commit changes with automatic MR/thread linking
+  Commit {
+    /// Commit message
+    message: String,
+    /// Optional detailed description
+    #[arg(short, long)]
+    details: Option<String>,
+    /// Thread ID being addressed (optional)
+    #[arg(short, long)]
+    thread_id: Option<String>,
+  },
   /// Mark the current thread as resolved
   Resolve,
   /// Finish the review session
@@ -64,8 +76,6 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-  bentley::announce("Jerrod - The Reliable Guardian of Code Quality");
-
   let cli = Cli::parse();
 
   match cli.command {
@@ -77,6 +87,7 @@ async fn main() -> Result<()> {
     Commands::Peek => commands::peek::handle().await,
     Commands::Pop { unresolved } => commands::pop::handle(unresolved).await,
     Commands::Comment { text, new } => commands::comment::handle(text, new).await,
+    Commands::Commit { message, details, thread_id } => commands::commit::handle(message, details, thread_id).await,
     Commands::Resolve => commands::resolve::handle().await,
     Commands::Finish => commands::finish::handle().await,
     Commands::Refresh => commands::refresh::handle().await,
