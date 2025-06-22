@@ -17,7 +17,7 @@ reqwest.workspace = true
 clap = { workspace = true }
 
 # Async runtime
-tokio = { workspace = true }
+tokio = { workspace = true, version = "1.0", features = ["full", "process"] }
 
 # JSON handling
 serde = { workspace = true }
@@ -45,6 +45,7 @@ tracing-subscriber.workspace = true
 url = { workspace = true }
 
 bentley = { workspace = true }
+sentinel = { path = "../sentinel" }
 octocrab = "0.44.1"
 
 async-trait = "0.1"

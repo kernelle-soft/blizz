@@ -5,6 +5,7 @@ members = [
     "crates/bentley", 
     "crates/blizz",
     "crates/jerrod",
+    "crates/sentinel",
     "crates/violet"
 ]
 
