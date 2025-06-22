@@ -1,0 +1,39 @@
+# System files
+.DS_Store
+
+# Rust build artifacts
+/target/
+**/target/
+Cargo.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Development directories
+.cursor/merge-reviews/
+.cursor/insights/
+
+# Node.js (for any future web components)
+node_modules/
+
+# Test coverage
+coverage/
+**/coverage/
+**/*.lcov
+**/lcov-report/
+**/lcov.info
+**/junit.xml
+
+# Temporary files
+*.tmp
+*.temp
+.env.local
+.env.*.local
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
