@@ -1,0 +1,7 @@
+[term]
+# Reduce build verbosity
+verbose = false
+
+[cargo-new]
+# Default settings for new projects
+vcs = "git" 

@@ -46,8 +46,6 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
     .status()?;
 
   if commit_status.success() {
-    bentley::success("Commit created successfully!");
-    bentley::info("Commit message:");
     println!("---");
     println!("{}", commit_msg);
     println!("---");
