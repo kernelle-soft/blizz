@@ -1,0 +1,57 @@
+# Bacon configuration for Kernelle workspace
+# Run with: bacon --job <job-name>
+
+[jobs.default]
+command = ["cargo", "check", "--workspace"]
+need_stdout = false
+watch = ["crates/"]
+
+[jobs.jerrod]
+command = ["cargo", "install", "--path", "crates/jerrod", "--force"]
+need_stdout = false
+watch = ["crates/jerrod/"]
+
+[jobs.bentley]
+command = ["cargo", "build", "-p", "bentley"]
+need_stdout = false
+watch = ["crates/bentley/"]
+
+[jobs.violet]
+command = ["cargo", "install", "--path", "crates/violet", "--force"]
+need_stdout = false
+watch = ["crates/violet/"]
+
+[jobs.blizz]
+command = ["cargo", "install", "--path", "crates/blizz", "--force"]
+need_stdout = false
+watch = ["crates/blizz/"]
+
+[jobs.adam]
+command = ["cargo", "install", "--path", "crates/adam", "--force"]
+need_stdout = false
+watch = ["crates/adam/"]
+
+[jobs.all]
+command = ["cargo", "build", "--workspace"]
+need_stdout = false
+watch = ["crates/"]
+
+[jobs.jerrod-install]
+command = ["cargo", "install", "--path", "crates/jerrod", "--force"]
+need_stdout = false
+watch = ["crates/jerrod/"]
+
+[jobs.watch-all]
+command = ["sh", "-c", "cargo build --workspace && cargo install --path crates/jerrod --force && cargo install --path crates/violet --force && cargo install --path crates/blizz --force && cargo install --path crates/adam --force"]
+need_stdout = false
+watch = ["crates/"]
+
+[jobs.test]
+command = ["cargo", "test", "--workspace"]
+need_stdout = true
+watch = ["crates/"]
+
+[jobs.clippy]
+command = ["cargo", "clippy", "--workspace", "--", "-D", "warnings"]
+need_stdout = false
+watch = ["crates/"] 
