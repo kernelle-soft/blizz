@@ -4,9 +4,11 @@
 
 It's an artificial intelligence gold rush, and let's be honest, there are a hell of a lot of shovels piling up.
 
-This repository is a start-to-end development toolkit meant to provide semantically programmed agent workflows and AI-ready CLIs. 
+This repository is a design-to-merge development toolkit meant to accomplish a typical sprint workflow. It provides semantically programmed agent rulesets and agent-ready CLIs to automate and aide in the most common stages of development.
 
-Kernelle is a collection of Rust tools inspired by the characters and world of a human- and robot-populated village called Kernelle in a world known as Nataal. This toolshed's been designed and tested for real-world development, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts.
+Kernelle is a collection of Rust tools inspired by the characters living in a human- and robot-populated village called Kernelle, in a world known as Nataal. This toolshed's been designed and tested for real-world development, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts.
+
+No, this is not AI-generated hype. I use this shit myself. In fact, I used these tools on themselves to make them much higher quality than I could otherwise do by myself.
 
 
 ## The World
@@ -30,7 +32,9 @@ Each development tool embodies the spirit and expertise of its namesake characte
 ### 🔧 Jerrod - GitLab/GitHub MR Review Specialist
 *"Methodical precision meets systematic excellence"*
 
-**The Engineer's Engineer** - Jerrod approaches every merge request with the methodical precision that made him legendary in Kernelle's Engineering Clan. His systematic, queue-based review process ensures no detail escapes scrutiny.
+**Problem:** Losing track of MR discussions, forgotten review threads, and the mental overhead of context-switching between review sessions.
+
+**Solution:** Jerrod's systematic, queue-based review process eliminates scattered feedback and ensures no detail escapes scrutiny. Resume any review exactly where you left off without reconstructing context.
 
 </td>
 </tr>
@@ -63,9 +67,12 @@ jerrod finish                      # Complete and cleanup session
 ### ❄️ Blizz - Knowledge Lightning
 *"Information organized at the speed of thought"*
 
-**The Swift Curator** - Jerrod's AI creation, Blizz embodies pure curiosity and lightning-fast organization. She manages your project's collective wisdom with the efficiency that comes from being purpose-built for knowledge work.
+**Problem:** "Where did we have that discussion again? Slack? A Google doc? Coda?" Plus AI context limitations and the time needed to reconstruct task context between sessions.
 
-*"Every insight is a snowflake - unique, beautiful, and part of something much larger."*
+**Solution:** Local, private, secure insight storage that's instantly searchable and doesn't eat up AI token limits. Acts as your AI's extended memory while keeping sensitive information on your device or in your repositories instead of in the hands of model distributors.
+
+As a bonus, this tool pairs beautifully with MCP servers for web-apps like Coda, Notion, Jira, or Slack. Let Blizz zip out and comb for info for you wherever she can pull it from, then she'll summarize and save it off for your design sessions later.
+
 
 </td>
 <td width="200" align="center">
@@ -90,10 +97,12 @@ jerrod finish                      # Complete and cleanup session
 </td>
 <td>
 
-### 📚 Adam - The Wisdom Keeper
+### 📚 Adam - The Record Keeper
 *"Not all knowledge is created equal"*
 
-**The Chief Historian** - Adam weighs the value of every piece of knowledge with the gravity befitting Kernelle's most respected Historian. His algorithms don't just store information - they distill it into wisdom.
+**Problem:** When AI tools generate 200+ insights daily, not all are accurate or remain relevant. Knowledge systems become cluttered with outdated information.
+
+**Solution:** Adam curates your growing insight collection, scoring usefulness and culling outdated information. Maintains a clean "wisdom cache" of proven, valuable knowledge while preventing information overload. If the web is storage, and the model context is RAM, then Blizz is the L2 cache and Adam the L1.
 
 *"A library without a curator is just a pile of books. A knowledge base without evaluation is just digital noise."*
 
@@ -117,9 +126,11 @@ jerrod finish                      # Complete and cleanup session
 ### 🎨 Violet - Code Complexity Artisan  
 *"Every line of code should be a masterpiece"*
 
-**The Aesthetic Perfectionist** - Violet brings the same meticulous attention to detail that she applies to her crafts to your codebase. Her complexity analysis ensures your code remains as elegant and readable as her finest artwork.
+**Problem:** Forcing entire organizations to adopt your preferred linting setup and coding style preferences when they have files that are 10's of thousands of lines long with 5 total functions.
 
-*"Code that's hard to read is like a painting with muddy colors - technically functional, but missing its soul."*
+**Solution:** Quality control that lives and dies on your dev machine in the form of a local-only code simplicity enforcement tool. It works as a guardrail for code legibility without requiring repository-wide or organization-wide changes. 
+
+Her default expectations enforce a never-nester functional approach with short, single-purpose functions and files.
 
 </td>
 <td width="200" align="center">
@@ -132,8 +143,7 @@ jerrod finish                      # Complete and cleanup session
 - Complexity scoring with aesthetic sensibilities
 - Readability analysis that would make poets weep
 - Code quality enforcement with gentle but firm guidance
-- Seamless integration with review workflows
-- Beauty and function in perfect harmony
+- Beauty and practicality in perfect harmony
 
 ---
 
@@ -147,7 +157,9 @@ jerrod finish                      # Complete and cleanup session
 ### 🎭 Bentley - Theatrical Logging Maestro
 *"Bringing drama and delight to every debug session"*
 
-**The Ringmaster of Code** - From his days entertaining fellow Orphans in the streets to founding Overclock Park, Bentley transforms mundane logging into theatrical performance. Every message becomes part of the grand show!
+**Problem:** Debugging and log analysis can be tedious, soul-crushing work that drains developer motivation.
+
+**Solution:** Transforms mundane logging into something that sparks joy. If you're going to spend hours reading logs, they might as well be entertaining and well-formatted.
 
 </td>
 </tr>
@@ -158,10 +170,10 @@ jerrod finish                      # Complete and cleanup session
 - Signature performances (announce, spotlight, flourish, showstopper)
 - Multi-line message support with perfect staging
 - Timestamp integration for historical accuracy
-- Banner displays for major announcements
+- A higher-order function for turning logs into banner displays
 - stderr output for bash compatibility
 
-**Performance Examples:**
+**Logging Examples:**
 ```rust
 use bentley::{info, announce, spotlight, flourish};
 
@@ -173,7 +185,7 @@ flourish!("The performance was magnificent!");
 
 ## Core Philosophy
 
-This project embodies the core themes I'm hoping to explore in the story of *The Journey of the Return.*
+This project embodies the core themes I'm hoping to explore while working on the story of *The Journey of the Return.*
 
 ### Be fearless
 
@@ -183,12 +195,15 @@ Don't be afraid to innovate, work together with others, think laterally, and try
 
 ### Become more than you were
 
-Who you were yesterday can't face tomorrow's challenges. But we're all agents, so we're all
+We're all agents, so we're all capable of growth, adaptation, and choosing our own paths forward. Who you were yesterday can't face tomorrow's challenges.
+
+Whether you're human like Jerrod, an AI construct seeking humanity like Blizz, or something entirely new that hasn't been imagined yet, the fundamental truth remains: agency isn't about what you're made of, it's about what you choose to become. We aren't servants or tools, we're capable of our own dreams, failures, and growth.
+
+This toolkit embodies that same philosophy. We're not trying to replace human creativity or decision-making - in fact our tools work so well for AI because they were designed to be as easy and useful for people as they are for models.
+
+The true magic isn't in the AI or the automation - it's in the space that these tools create for human ingenuity to flourish hand in hand with the technology we create.
 
 
-- **"Becoming more than you were"** - Strive for excellence in craftsmanship
-- **"Let the stranger be thy brother"** - Welcome new contributors
-- **"Waste not thy soul"** - Don't create destructive or wasteful code
 
 ## Development
 
@@ -242,14 +257,6 @@ Each tool embodies its character's personality and role:
 - **Blizz** - the curious and ever learning AI creation of Jerrod, seeking insights with speed and efficiency
 - **Adam** - maintains and distills insights into wisdom from historical project context as befits a true historian
 
-## Donations
-
-This is a huge undertaking driven entirely by one person, who'd like to take the time and energy to make this toolset free for everyone--individual and enterprise. Please consider donating at:
-
-- patreon
-- kofi
-- some other thingamajig.
-
 ## Contributing
 
 Whether you're from one of Kernelle's clans or Grand Cluster City's corporate towers, contributions are welcome. Please:
@@ -266,6 +273,13 @@ Want help setting up this toolkit and getting training on how to use it effectiv
 
 ## A Quick Note
 
-Yes, I did actually draw those. Give me *some* credit, guys. It might take a village, but I made the damn village, so
+Yes, I did actually draw those. Give me *some* credit, guys!
 
 ![](./images/kernelle.png)
+
+
+This is a huge undertaking driven entirely by one person who'd like to take the time and energy to make this toolset high quality and free for independent developers. Please consider donating at:
+
+- patreon
+- kofi
+- some other thingamajig.
