@@ -296,3 +296,9 @@ This toolkit represents hundreds of hours of development, testing, and refinemen
 - **GitHub Sponsors** - Direct project funding
 
 Your support helps ensure these tools remain free, well-maintained, and continuously improved based on real developer needs.
+
+## Recent Updates
+
+- Added automatic commit linking to merge requests and discussion threads
+- Implemented lean display formatting for better readability
+- Enhanced GitHub API integration with real discussion fetching
