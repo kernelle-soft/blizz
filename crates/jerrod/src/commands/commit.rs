@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::process::Command;
 use crate::session::SessionManager;
+use crate::display;
 
 pub async fn handle(message: String, details: Option<String>, thread_id: Option<String>) -> Result<()> {
   // Get current session info if available
@@ -40,18 +41,76 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
     return Err(anyhow!("Failed to stage changes"));
   }
 
-  // Create commit
+  // Create commit quietly
   let commit_status = Command::new("git")
-    .args(["commit", "-m", &commit_msg])
+    .args(["commit", "--quiet", "-m", &commit_msg])
     .status()?;
 
   if commit_status.success() {
-    println!("---");
-    println!("{}", commit_msg);
-    println!("---");
+    // Get commit stats
+    let stats_output = Command::new("git")
+      .args(["show", "--stat", "--format=", "HEAD"])
+      .output()?;
+    
+    if stats_output.status.success() {
+      let stats_text = String::from_utf8_lossy(&stats_output.stdout);
+      display_commit_banner(&commit_msg, &stats_text);
+    } else {
+      // Fallback to simple display
+      println!("---");
+      println!("{}", commit_msg);
+      println!("---");
+    }
   } else {
     return Err(anyhow!("Failed to create commit"));
   }
 
   Ok(())
+}
+
+/// Display commit information in banner format
+fn display_commit_banner(commit_msg: &str, stats_text: &str) {
+  let width = 80;
+  let line = display::banner_line(width, '=');
+  
+  println!("{}", line);
+  
+  // Parse stats for summary line
+  let stats_summary = parse_git_stats(stats_text);
+  if !stats_summary.is_empty() {
+    println!("📝 {}", stats_summary);
+  }
+  
+  println!("{}", line);
+  println!("{}", commit_msg);
+  println!("{}", line);
+}
+
+/// Parse git stats output into a human-readable summary
+fn parse_git_stats(stats_text: &str) -> String {
+  let lines: Vec<&str> = stats_text.trim().lines().collect();
+  
+  // Look for the summary line (usually the last non-empty line)
+  for line in lines.iter().rev() {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+      continue;
+    }
+    
+    // Check if this looks like a stats summary line
+    if trimmed.contains("file") && (trimmed.contains("insertion") || trimmed.contains("deletion")) {
+      return trimmed.to_string();
+    }
+  }
+  
+  // Fallback: try to count files from the output
+  let file_count = lines.iter()
+    .filter(|line| line.contains(" | "))
+    .count();
+  
+  if file_count > 0 {
+    return format!("{} file{} changed", file_count, if file_count == 1 { "" } else { "s" });
+  }
+  
+  String::new()
 } 
