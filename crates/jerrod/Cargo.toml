@@ -17,7 +17,7 @@ reqwest.workspace = true
 clap = { workspace = true }
 
 # Async runtime
-tokio = { workspace = true, version = "1.0", features = ["full", "process"] }
+tokio = { workspace = true, features = ["full", "process"] }
 
 # JSON handling
 serde = { workspace = true }
