@@ -1,0 +1,46 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# JIRA Task Investigation
+This workflow is designed to gather insights in preparation to tackle a JIRA task, such as a bug, feature addition, testing, or other basic unit of work.
+
+## Other Relevant Workflows
+- [use-historian.mdc](mdc:bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/.cursor/rules/workflows/use-historian.mdc) - guidance on how to save off, update, and correlate insights.
+- [rate-confidence.mdc](mdc:bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/.cursor/rules/workflows/rate-confidence.mdc) - a heuristic for rating our confidence in starting the task.
+
+## Inputs:
+- JIRA Url or task slug
+- Confidence Threshold (percentage): The desired confidence level from doing background research. Default is 85%.
+
+## Available and Allowed Tools 
+- Git - use it as needed to gather info about the past state, feature branches, etc.
+
+- The Qualtrics Public docs online.
+
+- JIRA MCP - go ahead and use it for anything needed to gather more context for the task. Examples:
+  - Referencing the original task
+  - Looking up the Project (i.e., team) a task belongs to
+  - Taking a look at the Epic the task is asigned to, if there is one.
+  - Gathering info on related tasks
+
+- Coda MCP - Sometimes useful for reading up on a task or other feature
+
+- The project and or workspace. Feel free to look throught the current state of the project.
+
+## Do Not
+- Make code changes yet. This is purely investigation
+- Change git branches. There's a decent likelihood they're being actively worked on. Assume you're being parallelized with other instances of AI agents doing their work.
+
+# Workflow Algorithm
+1. Pull information on the JIRA task and try to understand its goal.
+2. State what you expect the task requires in order to be considered finished and wait for confirmation from the user.
+3. [use-historian.mdc](mdc:bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/.cursor/rules/workflows/use-historian.mdc) to double check if there are any existing insights related to the task at hand.
+4. From that, [rate-confidence.mdc](mdc:bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/.cursor/rules/workflows/rate-confidence.mdc)
+5. While confidence is below the Confidence Threshold:
+  a. Do investigation on the thing's you're unsure of using the available tools  
+  b. [use-historian.mdc](mdc:bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/.cursor/rules/workflows/use-historian.mdc) to add or update your insights
+  c. [rate-confidence.mdc](mdc:bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/bentley/.cursor/rules/workflows/rate-confidence.mdc) again on the current JIRA task.
+  d. If confidence is falling considerably, or if you need clarification from the user, don't hesitate to stop your investigation and ask for clarification
+6. Report your final confidence level and how you plan to proceed for final tweaks and approval.

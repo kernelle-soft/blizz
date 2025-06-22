@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Code should be self-documenting.
+
+Comments are appropriate when:
+- functions/classes/data types/enums/structs/etc are public
+- There's a detail that's not going to be obvious to new readers of the code
+  - example: explaining the high level reasoning/behavior of nested ternaries
+  - avoid: explaining every step of execution when it can be inferred from the function name, function call, or variables.
+
+Comments are not appropriate when:
+- functions are private (e.x., don't add jsdoc comments on private functions). This applies to all languages.
+- You're re-explaining something that could easily be inferred from the context (names, vars, etc)

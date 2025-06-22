@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+When writing functions, use never-nester patterns:
+- prefer many single-purpose reusable functions over a few large multi-purpose functions
+- perform input validation and early returns before getting to the actual logic of the function body
+- early throws, late catches, throw only when necessary
+- inverting if-statements to avoid additional nesting
+
+This applies when writing code for any language.

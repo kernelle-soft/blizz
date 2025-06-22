@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+We always use `yarn` when dealing with TS/JS.

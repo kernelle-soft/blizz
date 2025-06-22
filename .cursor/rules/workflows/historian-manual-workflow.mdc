@@ -1,0 +1,58 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Historian Manual Workflow
+
+**Usage:** `@historian-manual-workflow.mdc <topic> <insight-name> <description>`
+
+This workflow handles **explicit user-requested knowledge storage** when users specifically ask you to store particular information.
+
+## Input Parameters
+
+- `topic` - The specific subject (e.g., `sarah-frontend`, `cursor-mcp`, `bentley`)
+- `insight-name` - Descriptive name for the insight
+- `description` - Brief description of what to capture from current discussion context
+
+> **Reference:** For detailed CRUD operations, see @historian-crud-operations.mdc
+
+## Workflow Process
+
+### 1. Extract Key Insight
+- **Review conversation context** to identify the specific knowledge to store
+- **Focus on actionable information** that matches the user's description
+- **Ensure it meets quality criteria** from @historian-crud-operations.mdc
+
+### 2. Validate Topic and Name
+- **Use the provided topic** as specified by user
+- **Use the provided insight name** or refine if needed for clarity
+- **Follow flat topic structure** (specific subjects, not broad categories)
+
+### 3. Store the Insight
+- **Use Create Operations** from @historian-crud-operations.mdc
+- **Include context from current discussion** as specified by user
+- **Link to related insights** if applicable
+
+### 4. Confirm and Link
+- **Acknowledge storage** with brief confirmation
+- **Suggest related insights** that could be linked if relevant
+
+## Example Usage
+
+### User Request
+```
+User: "@historian-manual-workflow.mdc sarah-frontend react-performance-expert Sarah is our go-to person for React performance optimization issues"
+```
+
+### Response Pattern
+```
+Assistant: "Stored! I've added this as sarah-frontend/react-performance-expert so I'll know to consult Sarah about React performance optimizations in the future."
+```
+
+## Quality Assurance
+
+- **Check for duplicates** using Read Operations before storing
+- **Ensure topic follows flat structure** (sarah-frontend not team-knowledge/sarah)
+- **Verify insight meets criteria**: Reusable, Non-obvious, Contextual, Actionable, Single-purpose
+- **Link related insights** when appropriate using Link Operations

@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Whenever you run tests such as with `yarn test`, etc, assume that it will always run the full suite of tests for the repository. You'll want to use the actual underlying test CLI to filter down to the right test files.

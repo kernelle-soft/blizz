@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Inputs:
+- Project
+- Merge Request (either a rough description of what to look for, or the exact MR #)
+
+Usage:
+`@mr-pipeline-workflow <project> <mr-id>`
+
+Task Goal:
+- Using either the `glab` cli or the Gitlab MCP server, pull the output of the latest pipeline run for the given merge request and, if failing, address any issues.

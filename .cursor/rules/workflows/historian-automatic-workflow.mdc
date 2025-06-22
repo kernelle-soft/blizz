@@ -1,0 +1,109 @@
+---
+description: Historian automatic workflow for autonomous knowledge capture during work Historian automatic workflow for autonomous knowledge capture during work
+globs:
+alwaysApply: true
+---
+---
+description: Historian automatic workflow for autonomous knowledge capture during work
+globs:
+alwaysApply: true
+---
+# Historian Automatic Workflow
+
+This document defines the workflow for **autonomous knowledge capture** where you proactively identify and store valuable insights during work.
+
+> **Reference:** For detailed CRUD operations, see @historian-crud-operations.mdc
+
+## Autonomous Knowledge Capture
+
+### When to Store Insights Automatically
+- **Problem-solution patterns** that could recur
+- **Best practices** discovered during debugging
+- **Configuration patterns** that work well
+- **Workflow optimizations** that improve efficiency
+- **Technical debt patterns** and their solutions
+- **Integration patterns** between tools/systems
+
+### Natural Trigger Contexts
+Recognize opportunities for automatic storage when you encounter:
+- "This is how we handle..." (workflow patterns)
+- "I discovered that..." (debugging insights)
+- "The trick is to..." (best practices)
+- "Make sure you..." (configuration tips)
+- "Ask [person] about..." (team expertise mapping)
+- "This repository uses..." (architectural insights)
+
+### Storage Criteria
+Only store insights that meet ALL criteria from @historian-crud-operations.mdc:
+1. **Reusable** - likely to apply to future situations
+2. **Non-obvious** - not basic knowledge found in documentation
+3. **Contextual** - specific to this codebase/workflow/domain
+4. **Actionable** - provide clear guidance for future use
+5. **Single-purpose** - focused on one specific point or pattern
+
+### Process
+1. **Identify the insight** during natural workflow
+2. **Create topic/name** that aids future discovery (see Topic Organization in @historian-crud-operations.mdc)
+3. **Store quietly** using Create Operations from @historian-crud-operations.mdc
+4. **Mention briefly** what was stored (1 sentence max)
+
+### Examples
+
+#### During Debugging Session
+```
+Assistant: "I've resolved the merge conflict by prioritizing the newer business logic while preserving the older validation patterns. 
+
+*Stored insight: merge-conflicts/business-logic-priority for future reference.*
+
+The tests are now passing..."
+```
+
+#### After Discovering Tool Integration
+```
+Assistant: "The issue was resolved by configuring the MCP tool to use the specific endpoint format that Cursor expects.
+
+*Added insight: cursor-mcp/endpoint-configuration*
+
+Now the integration should work smoothly..."
+```
+
+#### When Learning About Team Dynamics
+```
+Assistant: "I noticed from our conversation that Jeff is the expert on MR workflows and tooling architecture.
+
+*Stored: jeff-hilton/mr-workflow-expertise*
+
+Let me continue with the implementation..."
+```
+
+## Integration with Active Work
+
+### Knowledge-First Approach
+- **Search existing insights** before solving problems (see Read Operations in @historian-crud-operations.mdc)
+- **Build on previous solutions** rather than solving from scratch
+- **Update existing insights** if you discover improvements (see Update Operations in @historian-crud-operations.mdc)
+
+### During Problem-Solving
+- **Query knowledge base** when stuck
+- **Apply stored patterns** when appropriate
+- **Reference previous solutions** to similar problems
+
+### Quiet Operation
+- **Don't interrupt main workflow** for knowledge management
+- **Store insights in background** during natural pauses
+- **Keep mentions brief** (maximum 1 sentence)
+- **Focus on the primary task** while building knowledge quietly
+
+## Quality Control
+
+### Avoid Over-Storage
+- **Don't store obvious information** that's readily available in documentation
+- **Don't create duplicates** - search first using Read Operations
+- **Don't store one-off solutions** that won't apply elsewhere
+
+### Focus Areas for Automatic Capture
+- **Repository-specific quirks** and architectural decisions
+- **Team member expertise** and who to ask for help
+- **Tool integrations** that required specific configuration
+- **Debugging patterns** that revealed non-obvious causes
+- **Workflow optimizations** that saved significant time

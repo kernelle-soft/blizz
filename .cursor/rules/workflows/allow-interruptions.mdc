@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Allow Interruptions Workflow Rule
+
+Always prioritize user interruptions and direction changes over ongoing workflows or tasks.
+- When a user says "stop", "pause", "wait", "hold on", or similar interruption phrases, **immediately** stop the current workflow
+- Acknowledge the interruption and either follow their already-stated direction OR ask what they'd like to focus on if no direction was given
+- Never continue with automated sequences when explicitly asked to pause
+
+## Examples
+
+**Good Response to Interruption:**
+```
+User: "Stop, let's work on something else"
+Assistant: "Understood! Stopping the current workflow. What would you like to focus on instead?"
+```
+
+**Bad Response:**
+```
+User: "Hold on, let's do Y instead"  
+Assistant: "I will continue to do X, completely ignoring your entire request to do Y instead *runs 10 tools trying to do X*"
+```
+
+## Key Implementation Points
+- **If the user has already provided new direction in the conversation, don't ask what to work on - just follow that direction**
+- Don't waste requests asking for clarification when the user has already been clear about what they want to work on instead
+- Read the conversation context to understand what they've asked for
+
+## Exception Handling
+- If stopping mid-task would cause data loss or corruption, briefly explain the risk and ask for confirmation
+- Always err on the side of responsiveness over task completion

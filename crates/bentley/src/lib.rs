@@ -1,201 +1,172 @@
 //! Bentley - The Town Crier of Kernelle
-//! 
-//! A theatrical logging and output formatting library that serves as the voice
-//! for all tools in the Kernelle workspace. Bentley provides structured, colorful,
-//! and contextual output formatting with the dramatic flair of a three-ring circus!
-//! 
+//!
+//! A theatrical logging library that brings the dramatic flair of a three-ring circus
+//! to your terminal output. Bentley serves as the voice for all Kernelle tools,
+//! providing structured logging with personality and contextual formatting.
+//!
 //! ## The Town Crier's Role
-//! 
+//!
 //! Bentley doesn't perform on his own - he amplifies the voices of others:
 //! - **Jerrod** uses Bentley to announce MR review progress
 //! - **Violet** calls upon Bentley to report code quality findings  
 //! - **Blizz** has Bentley spotlight important insights
 //! - **Adam** uses Bentley to flourish when knowledge is curated
-//! 
+//!
 //! ## Features
-//! 
+//!
 //! - Standard logging levels (info, warn, error, debug, success)
 //! - Multi-line message support with consistent formatting
 //! - Timestamp functions for event logging
 //! - Theatrical enhancements (announce, spotlight, flourish, showstopper)
 //! - Banner displays for important messages
 //! - All output to stderr (compatible with bash logging.sh)
-//! 
+//!
 //! ## Usage
+//!
+//! Standard logging functions: `info()`, `warn()`, `error()`, `debug()`, `success()`
 //! 
-//! ```rust
-//! use bentley::*;
-//! 
-//! // Standard logging
-//! info("Starting the operation...");
-//! success("Task completed successfully!");
-//! 
-//! // Theatrical announcements
-//! announce("Major milestone achieved!");
-//! spotlight("Critical information highlighted!");
-//! flourish("Celebrating completion!");
-//! ```
+//! Theatrical functions: `announce()`, `spotlight()`, `flourish()`, `showstopper()`
+//!
+//! Event logging: `event_info()`, `event_warn()`, `event_error()`, `event_debug()`, `event_success()`
 
-use colored::*;
 use chrono::Local;
+use colored::*;
 
-/// The padding width for log level prefixes
-const PADDING: usize = 10;
-
-/// Initialize the Bentley logging system
+/// Initialize Bentley - sets up any necessary state
 pub fn init() {
-    println!("🎪 {} 🎪", "Bentley logging system initialized".bright_green().bold());
+    // For now, this is a no-op, but provides a hook for future initialization
 }
 
-/// Core logging function that writes to stderr (like the bash version)
-pub fn log(message: &str) {
-    eprintln!("{}", message);
+/// Core logging function that handles the actual output
+fn log(message: &str) {
+    for line in message.lines() {
+        eprintln!("{}", line);
+    }
 }
 
-/// Log multi-line text with a consistent prefix
-pub fn log_multiline(prefix: &str, message: &str) {
+/// Format a colored prefix for log messages
+fn format_prefix(color: Color, prefix: &str) -> String {
+    format!("[{}]", prefix.color(color).bold())
+}
+
+/// Create a banner line of the specified length and character
+pub fn banner_line(length: usize, char: char) -> String {
+    char.to_string().repeat(length)
+}
+
+/// Display a message with a banner around it
+pub fn as_banner<F>(log_fn: F, message: &str, width: Option<usize>, border_char: Option<char>)
+where
+    F: Fn(&str),
+{
+    let width = width.unwrap_or(50);
+    let border_char = border_char.unwrap_or('=');
+    
+    let banner = banner_line(width, border_char);
+    
+    log_fn(&banner);
+    log_fn(message);
+    log_fn(&banner);
+}
+
+/// Info level logging - general information
+pub fn info(message: &str) {
+    let prefix = format_prefix(Color::Blue, "info");
     for line in message.lines() {
         log(&format!("{} {}", prefix, line));
     }
 }
 
-/// Format a prefix for a log level with theatrical flair
-fn format_prefix(color: Color, label: &str) -> String {
-    let formatted = format!("[{}]:", label).color(color).bold().to_string();
-    format!("{:<width$}", formatted, width = PADDING)
-}
-
-/// Info level logging - for general information
-pub fn info(message: &str) {
-    let prefix = format_prefix(Color::Green, "info");
-    
-    if message.contains('\n') {
-        log_multiline(&prefix, message);
-    } else {
-        log(&format!("{} {}", prefix, message));
-    }
-}
-
-/// Warning level logging - for potential issues
+/// Warning level logging - something needs attention
 pub fn warn(message: &str) {
     let prefix = format_prefix(Color::Yellow, "warn");
-    
-    if message.contains('\n') {
-        log_multiline(&prefix, message);
-    } else {
-        log(&format!("{} {}", prefix, message));
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
     }
 }
 
-/// Error level logging - for serious problems
+/// Error level logging - something went wrong
 pub fn error(message: &str) {
     let prefix = format_prefix(Color::Red, "error");
-    
-    if message.contains('\n') {
-        log_multiline(&prefix, message);
-    } else {
-        log(&format!("{} {}", prefix, message));
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
     }
 }
 
-/// Debug level logging - for development information
+/// Debug level logging - detailed diagnostic information
 pub fn debug(message: &str) {
-    let prefix = format_prefix(Color::Blue, "debug");
-    
-    if message.contains('\n') {
-        log_multiline(&prefix, message);
-    } else {
-        log(&format!("{} {}", prefix, message));
+    let prefix = format_prefix(Color::Magenta, "debug");
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
     }
 }
 
-/// Success level logging - for positive outcomes with theatrical flair
+/// Success level logging - something completed successfully
 pub fn success(message: &str) {
     let prefix = format_prefix(Color::Green, "success");
-    
-    if message.contains('\n') {
-        log_multiline(&format!("{} ✓", prefix), message);
-    } else {
-        log(&format!("{} ✓ {}", prefix, message));
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
     }
 }
 
-/// Add timestamp to any logging function
-pub fn with_timestamp<F>(log_fn: F, message: &str) 
-where 
-    F: Fn(&str)
-{
-    let now = Local::now();
-    let timestamp = now.format("%Y-%m-%d %H:%M:%S");
-    log_fn(&format!("{} {}", timestamp, message));
-}
-
-/// Event-level logging functions with timestamps
-
+/// Timestamped info event
 pub fn event_info(message: &str) {
-    with_timestamp(info, message);
-}
-
-pub fn event_warn(message: &str) {
-    with_timestamp(warn, message);
-}
-
-pub fn event_error(message: &str) {
-    with_timestamp(error, message);
-}
-
-pub fn event_debug(message: &str) {
-    with_timestamp(debug, message);
-}
-
-pub fn event_success(message: &str) {
-    with_timestamp(success, message);
-}
-
-/// Create a banner line with specified width and character
-pub fn banner_line(width: usize, ch: char) -> String {
-    ch.to_string().repeat(width)
-}
-
-/// Display a message in a theatrical banner
-pub fn as_banner<F>(log_fn: F, message: &str, width: Option<usize>, ch: Option<char>)
-where
-    F: Fn(&str) + Copy
-{
-    let banner_width = width.unwrap_or(80);
-    let banner_char = ch.unwrap_or('-');
-    
-    let line = banner_line(banner_width, banner_char);
-    
-    log_fn(&line);
-    
-    // Wrap message content to banner width
-    for chunk in message.chars().collect::<Vec<char>>().chunks(banner_width) {
-        let text_line: String = chunk.iter().collect();
-        log_fn(&text_line);
+    let timestamp = Local::now().format("%H:%M:%S").to_string();
+    let prefix = format!("[{}] [{}]", "event".blue().bold(), timestamp.cyan());
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
     }
-    
-    log_fn(&line);
 }
 
-/// Theatrical logging variants with extra flair
+/// Timestamped warning event
+pub fn event_warn(message: &str) {
+    let timestamp = Local::now().format("%H:%M:%S").to_string();
+    let prefix = format!("[{}] [{}]", "event".yellow().bold(), timestamp.cyan());
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
+    }
+}
 
-/// Ringmaster announcement - for major events
+/// Timestamped error event
+pub fn event_error(message: &str) {
+    let timestamp = Local::now().format("%H:%M:%S").to_string();
+    let prefix = format!("[{}] [{}]", "event".red().bold(), timestamp.cyan());
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
+    }
+}
+
+/// Timestamped debug event
+pub fn event_debug(message: &str) {
+    let timestamp = Local::now().format("%H:%M:%S").to_string();
+    let prefix = format!("[{}] [{}]", "event".magenta().bold(), timestamp.cyan());
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
+    }
+}
+
+/// Timestamped success event
+pub fn event_success(message: &str) {
+    let timestamp = Local::now().format("%H:%M:%S").to_string();
+    let prefix = format!("[{}] [{}]", "event".green().bold(), timestamp.cyan());
+    for line in message.lines() {
+        log(&format!("{} {}", prefix, line));
+    }
+}
+
+/// Theatrical announcement - for important but not critical messages
 pub fn announce(message: &str) {
-    let prefix = "🎪".bright_magenta().bold();
-    log(&format!("{} {}", prefix, message.bright_white().bold()));
+    as_banner(|msg| log(&msg.blue().bold().to_string()), message, Some(50), Some('-'));
 }
 
-/// Spotlight moment - for highlighting important information  
+/// Spotlight - highlight important information
 pub fn spotlight(message: &str) {
-    let prefix = "✨".bright_yellow().bold();
-    log(&format!("{} {}", prefix, message.bright_cyan().bold()));
+    as_banner(|msg| log(&msg.yellow().bold().to_string()), message, Some(40), Some('*'));
 }
 
-/// Dramatic flourish - for completing major tasks
+/// Flourish - celebrate successful completion
 pub fn flourish(message: &str) {
-    let prefix = "🎭".bright_blue().bold();
-    log(&format!("{} {}", prefix, message.bright_green().bold()));
+    as_banner(|msg| log(&msg.green().bold().to_string()), message, Some(45), Some('~'));
 }
 
 /// Show stopper - for critical announcements

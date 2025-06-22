@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Regardless of the coding task, apply DRY (Don't Repeat Yourself) principles:
+- create small, generic, reusable elements
+- reuse them as building blocks for other, higher level functions
+
+Whatever you do, NEVER resort to inside-out DRY patterns:
+- forcing multiple disparate features into one massive function
+- appending unrelated functionality to an existing function and adding a flag to enable/disable that part of the function

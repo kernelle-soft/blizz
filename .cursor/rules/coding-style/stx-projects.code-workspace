@@ -1,0 +1,23 @@
+{
+	"folders": [
+		{
+			"path": "../../.."
+		},
+		{
+			"path": "../../../../jfe"
+		},
+		{
+			"path": "../../../../frontend-jfe"
+		},
+		{
+			"path": "../../../../lfe"
+		},
+		{
+			"path": "../../../../rushmore"
+		},
+		{
+			"path": "../../../../agent-stack"
+		}
+	],
+  "settings": {}
+}
