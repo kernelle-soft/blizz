@@ -105,12 +105,14 @@ pub trait GitPlatform {
   async fn get_discussions(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<Discussion>>;
 
   /// Get file diffs for a merge request
+  #[allow(dead_code)]
   async fn get_diffs(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<FileDiff>>;
 
   /// Get pipeline/workflow information
   async fn get_pipelines(&self, owner: &str, repo: &str, sha: &str) -> Result<Vec<Pipeline>>;
 
   /// Add a comment to a discussion thread
+  #[allow(dead_code)]
   async fn add_comment(
     &self,
     owner: &str,
@@ -120,5 +122,6 @@ pub trait GitPlatform {
   ) -> Result<Note>;
 
   /// Mark a discussion as resolved (where supported)
+  #[allow(dead_code)]
   async fn resolve_discussion(&self, owner: &str, repo: &str, discussion_id: &str) -> Result<bool>;
 }

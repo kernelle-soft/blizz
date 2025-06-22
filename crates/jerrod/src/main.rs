@@ -15,11 +15,11 @@ struct Cli {
   /// GitHub personal access token (or use GITHUB_TOKEN env var)
   #[arg(long, env = "GITHUB_TOKEN")]
   github_token: Option<String>,
-  
+
   /// GitLab personal access token (or use GITLAB_TOKEN env var)
   #[arg(long, env = "GITLAB_TOKEN")]
   gitlab_token: Option<String>,
-  
+
   #[command(subcommand)]
   command: Commands,
 }
@@ -70,7 +70,8 @@ async fn main() -> Result<()> {
 
   match cli.command {
     Commands::Start { repository, mr_number, platform } => {
-      commands::start::handle(repository, mr_number, platform, cli.github_token, cli.gitlab_token).await
+      commands::start::handle(repository, mr_number, platform, cli.github_token, cli.gitlab_token)
+        .await
     }
     Commands::Status => commands::status::handle().await,
     Commands::Peek => commands::peek::handle().await,

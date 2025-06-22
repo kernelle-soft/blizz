@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 When solving problems or starting a new conversation:
 1. start out by using `historian` to find out and remember the context of related insights.

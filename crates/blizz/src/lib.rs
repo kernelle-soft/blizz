@@ -7,7 +7,7 @@ pub fn init() {
   println!("⚡ Blizz knowledge system initialized");
 }
 
-pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) {
+pub fn add_insight(topic: &str, name: &str, _overview: &str, _details: &str) {
   println!("⚡ Adding insight: {}/{}", topic, name);
 }
 

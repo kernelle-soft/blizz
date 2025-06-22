@@ -4,7 +4,9 @@ use sentinel::{services, Sentinel};
 
 #[derive(Parser)]
 #[command(name = "sentinel")]
-#[command(about = "Secure credential storage for Kernelle tools - the watchful guardian of secrets")]
+#[command(
+  about = "Secure credential storage for Kernelle tools - the watchful guardian of secrets"
+)]
 struct Cli {
   #[command(subcommand)]
   command: Commands,
@@ -158,7 +160,7 @@ async fn handle_setup(sentinel: &Sentinel, service_name: &str, force: bool) -> R
   for cred_spec in &service_config.required_credentials {
     if force || missing.contains(&cred_spec.key) {
       bentley::info(&format!("\n📝 Setting up: {}", cred_spec.description));
-      
+
       if let Some(example) = &cred_spec.example {
         bentley::info(&format!("   Example format: {}", example));
       }
@@ -300,20 +302,18 @@ async fn handle_delete(
     // For arbitrary services, we can't enumerate keys easily with the current keyring API
     // So we'll try to delete common keys and let the user know
     bentley::info(&format!("Attempting to delete all credentials for service: {}", service));
-    
+
     // Try common credential keys
     let common_keys = ["token", "api_key", "password", "secret", "key", "pat", "access_token"];
     let mut deleted_count = 0;
-    
+
     for key in &common_keys {
-      if sentinel.get_credential(service, key).is_ok() {
-        if sentinel.delete_credential(service, key).is_ok() {
-          deleted_count += 1;
-          bentley::info(&format!("Deleted: {}/{}", service, key));
-        }
+      if sentinel.get_credential(service, key).is_ok() && sentinel.delete_credential(service, key).is_ok() {
+        deleted_count += 1;
+        bentley::info(&format!("Deleted: {}/{}", service, key));
       }
     }
-    
+
     if deleted_count > 0 {
       bentley::success(&format!("Deleted {} credentials for service: {}", deleted_count, service));
     } else {
@@ -324,24 +324,28 @@ async fn handle_delete(
   Ok(())
 }
 
-async fn handle_list(sentinel: &Sentinel, service_filter: Option<String>, show_keys: bool) -> Result<()> {
+async fn handle_list(
+  sentinel: &Sentinel,
+  service_filter: Option<String>,
+  show_keys: bool,
+) -> Result<()> {
   bentley::announce("Credential Vault Contents");
 
   if let Some(service) = service_filter {
     // List credentials for specific service
     bentley::info(&format!("Service: {}", service));
-    
+
     if show_keys {
       // Try common credential keys to see what exists
       let common_keys = ["token", "api_key", "password", "secret", "key", "pat", "access_token"];
       let mut found_keys = Vec::new();
-      
+
       for key in &common_keys {
         if sentinel.get_credential(&service, key).is_ok() {
           found_keys.push(key);
         }
       }
-      
+
       if found_keys.is_empty() {
         bentley::info("  No credentials found");
       } else {
@@ -356,7 +360,7 @@ async fn handle_list(sentinel: &Sentinel, service_filter: Option<String>, show_k
     // List all services (predefined + any we can discover)
     let predefined_services = ["github", "gitlab", "jira", "notion"];
     let mut found_services = Vec::new();
-    
+
     for service_name in &predefined_services {
       let service_config = match *service_name {
         "github" => services::github(),
@@ -368,12 +372,15 @@ async fn handle_list(sentinel: &Sentinel, service_filter: Option<String>, show_k
 
       let missing = sentinel.verify_service_credentials(&service_config)?;
       let configured = service_config.required_credentials.len() - missing.len();
-      
+
       if configured > 0 {
         found_services.push(service_name);
         let total = service_config.required_credentials.len();
-        bentley::success(&format!("📋 {}: {}/{} credentials", service_config.name, configured, total));
-        
+        bentley::success(&format!(
+          "📋 {}: {}/{} credentials",
+          service_config.name, configured, total
+        ));
+
         if show_keys {
           for cred_spec in &service_config.required_credentials {
             if !missing.contains(&cred_spec.key) {
@@ -385,7 +392,7 @@ async fn handle_list(sentinel: &Sentinel, service_filter: Option<String>, show_k
         }
       }
     }
-    
+
     if found_services.is_empty() {
       bentley::info("No predefined services configured");
       bentley::info("Use 'sentinel setup <service>' for GitHub, GitLab, Jira, or Notion");
@@ -408,11 +415,11 @@ async fn handle_clear(sentinel: &Sentinel, force: bool) -> Result<()> {
   }
 
   bentley::info("Clearing credential vault...");
-  
+
   // Clear predefined services
   let services = ["github", "gitlab", "jira", "notion"];
   let mut cleared_count = 0;
-  
+
   for service_name in &services {
     let service_config = match *service_name {
       "github" => services::github(),
@@ -421,25 +428,25 @@ async fn handle_clear(sentinel: &Sentinel, force: bool) -> Result<()> {
       "notion" => services::notion(),
       _ => continue,
     };
-    
+
     for cred_spec in &service_config.required_credentials {
-      if sentinel.get_credential(&service_config.name, &cred_spec.key).is_ok() {
-        if sentinel.delete_credential(&service_config.name, &cred_spec.key).is_ok() {
-          cleared_count += 1;
-        }
+      if sentinel.get_credential(&service_config.name, &cred_spec.key).is_ok() && sentinel.delete_credential(&service_config.name, &cred_spec.key).is_ok() {
+        cleared_count += 1;
       }
     }
   }
-  
+
   // Note: We can't easily enumerate all arbitrary credentials with the keyring API
   // So we inform the user about this limitation
   if cleared_count > 0 {
     bentley::success(&format!("Cleared {} predefined service credentials", cleared_count));
   }
-  
-  bentley::info("Note: Any arbitrary credentials (not from predefined services) must be deleted individually");
+
+  bentley::info(
+    "Note: Any arbitrary credentials (not from predefined services) must be deleted individually",
+  );
   bentley::info("Use 'sentinel delete <service> <key>' to remove specific credentials");
-  
+
   bentley::flourish("Vault clearing complete!");
   Ok(())
 }
@@ -462,11 +469,21 @@ async fn handle_verify(sentinel: &Sentinel, service_name: &str) -> Result<()> {
   let missing = sentinel.verify_service_credentials(&service_config)?;
 
   if missing.is_empty() {
-    bentley::success(&format!("✅ All required credentials configured for {}", service_config.name));
+    bentley::success(&format!(
+      "✅ All required credentials configured for {}",
+      service_config.name
+    ));
   } else {
-    bentley::warn(&format!("❌ Missing credentials for {}: {}", service_config.name, missing.join(", ")));
-    bentley::info(&format!("Run 'sentinel setup {}' to configure missing credentials", service_name));
+    bentley::warn(&format!(
+      "❌ Missing credentials for {}: {}",
+      service_config.name,
+      missing.join(", ")
+    ));
+    bentley::info(&format!(
+      "Run 'sentinel setup {}' to configure missing credentials",
+      service_name
+    ));
   }
 
   Ok(())
-} 
+}

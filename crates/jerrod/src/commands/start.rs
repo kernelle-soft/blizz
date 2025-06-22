@@ -117,19 +117,22 @@ async fn get_or_setup_credential(
   }
 
   // 4. No credential found - trigger Sentinel setup
-  bentley::warn(&format!("No {} token found in CLI args, keychain, or environment variables", service));
+  bentley::warn(&format!(
+    "No {} token found in CLI args, keychain, or environment variables",
+    service
+  ));
   bentley::info(&format!("🔐 Setting up {} credentials...", service));
 
   // Spawn Sentinel setup command
   let mut child = Command::new("cargo")
-    .args(&["run", "--bin", "sentinel", "--", "setup", service])
+    .args(["run", "--bin", "sentinel", "--", "setup", service])
     .stdin(Stdio::inherit())
     .stdout(Stdio::inherit())
     .stderr(Stdio::inherit())
     .spawn()?;
 
   let status = child.wait().await?;
-  
+
   if !status.success() {
     anyhow::bail!("Credential setup failed or was cancelled");
   }

@@ -12,6 +12,7 @@ pub struct RepositoryInfo {
   pub platform: PlatformType,
   pub owner: String,
   pub repo: String,
+  #[allow(dead_code)]
   pub host: Option<String>, // For self-hosted instances
 }
 
@@ -61,10 +62,10 @@ fn parse_url(url: Url) -> Result<RepositoryInfo> {
     platform,
     owner: owner.to_string(),
     repo: repo.to_string(),
-    host: if matches!(platform, PlatformType::GitHub) && host == "github.com" {
-      None // Use default GitHub host
-    } else if matches!(platform, PlatformType::GitLab) && host == "gitlab.com" {
-      None // Use default GitLab host
+    host: if (matches!(platform, PlatformType::GitHub) && host == "github.com")
+      || (matches!(platform, PlatformType::GitLab) && host == "gitlab.com")
+    {
+      None // Use default host
     } else {
       Some(host.to_string()) // Custom host
     },
@@ -89,6 +90,7 @@ fn detect_platform_from_host(host: &str) -> Result<PlatformType> {
 }
 
 /// Extract PR/MR number from a URL if present
+#[allow(dead_code)]
 pub fn extract_mr_number_from_url(input: &str) -> Option<u64> {
   if let Ok(url) = Url::parse(input) {
     let path = url.path();

@@ -6,6 +6,7 @@ use anyhow::{anyhow, Result};
 use octocrab::Octocrab;
 
 pub struct GitHubPlatform {
+  #[allow(dead_code)]
   client: Octocrab,
 }
 
@@ -23,6 +24,7 @@ impl GitHubPlatform {
   }
 
   /// Create a GitHub platform client from an existing Octocrab instance
+  #[allow(dead_code)]
   pub fn from_client(client: Octocrab) -> Self {
     Self { client }
   }
