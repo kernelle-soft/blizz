@@ -8,8 +8,7 @@ This repository is a design-to-merge development toolkit meant to accomplish a t
 
 Kernelle is a collection of Rust tools inspired by the characters living in a human- and robot-populated village called Kernelle, in a world known as Nataal. This toolshed's been designed and tested for real-world development, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts.
 
-No, this is not AI-generated hype. I use this shit myself. In fact, I used these tools on themselves to make them much higher quality than I could otherwise do by myself.
-
+No, this is not AI-generated hype. I use these tools myself. In fact, I used these tools on themselves to make them much higher quality than I could otherwise do by myself, while still having full say in the way code gets designed and written. No exaggeration: the early prototypes of Kernelle were comprised of integration-tested bash scripts that were more legible and more reliable than most of the codebase at my last job.
 
 ## The World
 
@@ -187,11 +186,11 @@ flourish!("The performance was magnificent!");
 
 This project embodies the core themes I'm hoping to explore while working on the story of *The Journey of the Return.*
 
-### Be fearless
+### Don't be afraid
 
-A lot of folks are afraid of what AI can accomplish, or who it can replace. As an artist, developer, and one-time ML research engineer, I firmly believe out of both faith and personal experience that AI tooling can co-exist with existing development and with developers, but it'll take being willing to learn and give it a shot yourself.
+A lot of folks are afraid of what AI can accomplish, or who it may replace. As an artist, developer, and one-time ML research engineering intern, I firmly believe out of personal experience that AI tooling can co-exist with existing development and with developers, as well as other professionals, but it'll take being willing to learn and give it a shot yourself.
 
-Don't be afraid to innovate, work together with others, think laterally, and try crazy ideas. You never know what might pan out. And if you do fail, congrats -- you're human like the rest of us. 
+Don't be afraid to innovate, work together with others, learn new tools, and try crazy ideas. You never know what might pan out. And if you do fail, congrats -- you're human like the rest of us. 
 
 ### Become more than you were
 
@@ -203,6 +202,9 @@ This toolkit embodies that same philosophy. We're not trying to replace human cr
 
 The true magic isn't in the AI or the automation - it's in the space that these tools create for human ingenuity to flourish hand in hand with the technology we create.
 
+### Move forward
+
+Things can't go back to the way they used to be. We are moving into uncharted territory in the world of development, where our tools today act more like we do than like our tools did yesterday. It's untapped potential, just like yours. Don't leave it on the table.
 
 
 ## Development
