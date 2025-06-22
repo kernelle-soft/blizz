@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -180,7 +179,7 @@ impl SentinelDaemon {
     async fn handle_client(
         stream: UnixStream,
         cache: Arc<RwLock<CredentialCache>>,
-        storage_path: PathBuf,
+        _storage_path: PathBuf,
     ) -> Result<()> {
         let mut reader = BufReader::new(stream);
         let mut request_line = String::new();
@@ -233,37 +232,47 @@ impl SentinelDaemon {
         Ok(())
     }
 
-    /// Load credentials from encrypted storage or migrate from keychain
-    async fn load_credentials(&self, _master_password: &str) -> Result<()> {
-        // For now, load directly from keychain to avoid double-encryption complexity
-        let mut cache = self.cache.write().await;
-        
-        // Try to load GitHub token from keychain
-        if let Ok(token) = self.load_credential_from_keychain("github", "token") {
-            cache.insert("github", "token", token);
-            bentley::success("Loaded GitHub token from keychain");
-        }
-        
-        // Try to load GitLab token from keychain  
-        if let Ok(token) = self.load_credential_from_keychain("gitlab", "token") {
-            cache.insert("gitlab", "token", token);
-            bentley::success("Loaded GitLab token from keychain");
+    /// Load credentials from encrypted storage
+    async fn load_credentials(&self, master_password: &str) -> Result<()> {
+        // Try to load from encrypted storage
+        if self.storage_path.exists() {
+            match std::fs::read(&self.storage_path) {
+                Ok(encrypted_data) => {
+                    match serde_json::from_slice::<EncryptedBlob>(&encrypted_data) {
+                        Ok(blob) => {
+                            match EncryptionManager::decrypt_credentials(&blob, master_password) {
+                                Ok(credentials) => {
+                                    let mut cache = self.cache.write().await;
+                                    for (full_key, value) in credentials {
+                                        // Parse the full_key back to service and key
+                                        if let Some(underscore_pos) = full_key.find('_') {
+                                            let service = &full_key[..underscore_pos];
+                                            let key = &full_key[underscore_pos + 1..];
+                                            cache.insert(service, key, value);
+                                        }
+                                    }
+                                    bentley::success("Loaded credentials from encrypted storage");
+                                    return Ok(());
+                                }
+                                Err(e) => {
+                                    bentley::warn(&format!("Failed to decrypt credentials: {}", e));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            bentley::warn(&format!("Failed to parse encrypted credentials: {}", e));
+                        }
+                    }
+                }
+                Err(e) => {
+                    bentley::warn(&format!("Failed to read encrypted credentials: {}", e));
+                }
+            }
+        } else {
+            bentley::info("No encrypted credentials found, starting with empty cache");
         }
         
         Ok(())
-    }
-
-    /// Load a single credential from keychain
-    fn load_credential_from_keychain(&self, service: &str, key: &str) -> Result<String> {
-        use keyring::Entry;
-        
-        let entry_name = format!("{}_{}", service, key);
-        let entry = Entry::new("kernelle", &entry_name)?;
-        
-        match entry.get_password() {
-            Ok(password) => Ok(password),
-            Err(_) => Err(anyhow!("Credential not found in keychain: {}/{}", service, key)),
-        }
     }
 
     /// Save credentials to encrypted storage
@@ -299,45 +308,8 @@ pub struct AuthManager;
 impl AuthManager {
     /// Get master password with fallback priority
     pub async fn get_master_password() -> Result<String> {
-        // 1. Check environment variable first
-        if let Ok(password) = std::env::var("SENTINEL_AUTH") {
-            if !password.is_empty() {
-                return Ok(password);
-            }
-        }
-
-        // 2. For now, just use a simple fixed password to avoid keychain issues
-        // TODO: Implement proper keychain integration later
+        // Use a simple fixed password for now to avoid keychain complexity
+        // In production, this could prompt the user or use environment variables
         Ok("kernelle-master-key".to_string())
-    }
-
-    /// Get master password from keychain
-    fn get_master_password_from_keychain() -> Result<String> {
-        use keyring::Entry;
-        
-        let entry = Entry::new("kernelle-sentinel", "master-password")?;
-        match entry.get_password() {
-            Ok(password) => Ok(password),
-            Err(_) => Err(anyhow!("Master password not found in keychain")),
-        }
-    }
-
-    /// Setup master password in keychain
-    fn setup_master_password_in_keychain() -> Result<String> {
-        use keyring::Entry;
-        
-        bentley::info("Setting up Sentinel master password...");
-        let password = rpassword::prompt_password("Create Sentinel master password: ")?;
-        
-        if password.trim().is_empty() {
-            return Err(anyhow!("Password cannot be empty"));
-        }
-
-        // Store in keychain
-        let entry = Entry::new("kernelle-sentinel", "master-password")?;
-        entry.set_password(&password)?;
-        
-        bentley::success("Master password stored in keychain");
-        Ok(password.trim().to_string())
     }
 } 

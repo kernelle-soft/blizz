@@ -43,8 +43,32 @@ pub async fn handle(
     return Err(anyhow!("Invalid repository format"));
   }
 
-  // TODO: Implement actual comment creation
-  bentley::info("Comment creation not yet implemented");
+  // Create the comment
+  if new {
+    // Create a new MR-level comment
+    let pr_number = session.merge_request.number.to_string();
+    let _note = github.add_comment(
+      repo_parts[0],
+      repo_parts[1],
+      &pr_number,
+      &text
+    ).await?;
+    bentley::success("Added new comment to MR");
+  } else {
+    // For GitHub, we can't reply to specific comments directly
+    // Instead, we'll create a new comment with a reference
+    if let Some(thread_id) = &current_thread_id {
+      let referenced_text = format!("Re: comment {}\n\n{}", thread_id, text);
+      let pr_number = session.merge_request.number.to_string();
+      let _note = github.add_comment(
+        repo_parts[0],
+        repo_parts[1],
+        &pr_number,
+        &referenced_text
+      ).await?;
+      bentley::success("Added comment with reference to thread");
+    }
+  }
 
   // Add reaction if specified
   if let Some(thread_id) = &current_thread_id {

@@ -5,16 +5,13 @@ use crate::platform::{
 };
 use crate::session::{ReviewSession, SessionManager};
 use anyhow::{anyhow, Result};
-use sentinel::Sentinel;
-use std::process::Stdio;
-use tokio::process::Command;
 
 pub async fn handle(
   repository: String,
   mr_number: u64,
   platform_override: Option<String>,
-  github_token: Option<String>,
-  gitlab_token: Option<String>,
+  _github_token: Option<String>,
+  _gitlab_token: Option<String>,
 ) -> Result<()> {
   bentley::announce("Jerrod - The Reliable Guardian of Code Quality");
   bentley::info("Starting new merge request review session");
@@ -46,11 +43,9 @@ pub async fn handle(
   // Create platform client with automatic credential setup
   let platform: Box<dyn GitPlatform> = match platform_type {
     PlatformType::GitHub => {
-      let _token = get_or_setup_credential("github", "token", github_token).await?;
       Box::new(GitHubPlatform::new().await?)
     }
     PlatformType::GitLab => {
-      let _token = get_or_setup_credential("gitlab", "token", gitlab_token).await?;
       return Err(anyhow!("GitLab support not yet implemented"));
     }
   };
@@ -90,62 +85,4 @@ pub async fn handle(
   bentley::info("Use 'jerrod peek' to see the next thread");
 
   Ok(())
-}
-
-/// Get credential with automatic setup if missing
-async fn get_or_setup_credential(
-  service: &str,
-  key: &str,
-  cli_provided: Option<String>,
-) -> Result<String> {
-  // 1. Check CLI argument first
-  if let Some(token) = cli_provided {
-    return Ok(token);
-  }
-
-  // 2. Check Sentinel keychain
-  let sentinel = Sentinel::new();
-  if let Ok(token) = sentinel.get_credential(service, key) {
-    return Ok(token);
-  }
-
-  // 3. Check environment variables
-  let env_var = format!("{}_TOKEN", service.to_uppercase());
-  if let Ok(token) = std::env::var(&env_var) {
-    if !token.is_empty() {
-      return Ok(token);
-    }
-  }
-
-  // 4. No credential found - trigger Sentinel setup
-  bentley::warn(&format!(
-    "No {} token found in CLI args, keychain, or environment variables",
-    service
-  ));
-  bentley::info(&format!("🔐 Setting up {} credentials...", service));
-
-  // Spawn Sentinel setup command
-  let mut child = Command::new("cargo")
-    .args(["run", "--bin", "sentinel", "--", "setup", service])
-    .stdin(Stdio::inherit())
-    .stdout(Stdio::inherit())
-    .stderr(Stdio::inherit())
-    .spawn()?;
-
-  let status = child.wait().await?;
-
-  if !status.success() {
-    anyhow::bail!("Credential setup failed or was cancelled");
-  }
-
-  // 5. Try to retrieve the credential again after setup
-  match sentinel.get_credential(service, key) {
-    Ok(token) => {
-      bentley::success(&format!("✅ {} credentials configured successfully!", service));
-      Ok(token)
-    }
-    Err(_) => {
-      anyhow::bail!("Credential setup completed but token not found. Please try again.");
-    }
-  }
 }
