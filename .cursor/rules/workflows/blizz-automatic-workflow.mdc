@@ -1,18 +1,19 @@
 ---
 description: Historian automatic workflow for autonomous knowledge capture during work Historian automatic workflow for autonomous knowledge capture during work
-globs:
+globs: 
 alwaysApply: true
 ---
 ---
-description: Historian automatic workflow for autonomous knowledge capture during work
+description: Blizz automatic workflow for autonomous knowledge capture during work
 globs:
 alwaysApply: true
 ---
-# Historian Automatic Workflow
+# Blizz Automatic Workflow
 
 This document defines the workflow for **autonomous knowledge capture** where you proactively identify and store valuable insights during work.
 
-> **Reference:** For detailed CRUD operations, see @historian-crud-operations.mdc
+## Rule Imports and Modifications
+- [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc): these are the types of tools Blizz has available.
 
 ## Autonomous Knowledge Capture
 
@@ -34,7 +35,7 @@ Recognize opportunities for automatic storage when you encounter:
 - "This repository uses..." (architectural insights)
 
 ### Storage Criteria
-Only store insights that meet ALL criteria from @historian-crud-operations.mdc:
+Only store insights that meet ALL criteria from [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc)
 1. **Reusable** - likely to apply to future situations
 2. **Non-obvious** - not basic knowledge found in documentation
 3. **Contextual** - specific to this codebase/workflow/domain
@@ -43,8 +44,8 @@ Only store insights that meet ALL criteria from @historian-crud-operations.mdc:
 
 ### Process
 1. **Identify the insight** during natural workflow
-2. **Create topic/name** that aids future discovery (see Topic Organization in @historian-crud-operations.mdc)
-3. **Store quietly** using Create Operations from @historian-crud-operations.mdc
+2. **Create topic/name** that aids future discovery (see Topic Organization in [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc))
+3. **Store quietly** using Create Operations from [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc)
 4. **Mention briefly** what was stored (1 sentence max)
 
 ### Examples
@@ -79,9 +80,9 @@ Let me continue with the implementation..."
 ## Integration with Active Work
 
 ### Knowledge-First Approach
-- **Search existing insights** before solving problems (see Read Operations in @historian-crud-operations.mdc)
+- **Search existing insights** before solving problems (see Read Operations in [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc))
 - **Build on previous solutions** rather than solving from scratch
-- **Update existing insights** if you discover improvements (see Update Operations in @historian-crud-operations.mdc)
+- **Update existing insights** if you discover improvements (see Update Operations in [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc))
 
 ### During Problem-Solving
 - **Query knowledge base** when stuck

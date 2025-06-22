@@ -5,6 +5,8 @@ alwaysApply: true
 ---
 Code should be self-documenting.
 
+Please avoid `no-duh` comments, or comments that explain the next one or two lines of code using pretty much exactly the same terms/names as the code itself.
+
 Comments are appropriate when:
 - functions/classes/data types/enums/structs/etc are public
 - There's a detail that's not going to be obvious to new readers of the code

@@ -11,3 +11,4 @@ Basic Testing Recommendations:
 
 NEVER:
 - Modify source files with test-specific code. Source files should never be aware of the testing context under any circumstance. Ever.
+- Create a single, useless `describe()` block as a catch-all for all tests in the file.

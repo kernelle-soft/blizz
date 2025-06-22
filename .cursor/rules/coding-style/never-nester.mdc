@@ -8,5 +8,6 @@ When writing functions, use never-nester patterns:
 - perform input validation and early returns before getting to the actual logic of the function body
 - early throws, late catches, throw only when necessary
 - inverting if-statements to avoid additional nesting
+- Try to keep function definitions short, around 50-60 lines at most. If that doesn't make sense for the given coding task, up to 
 
 This applies when writing code for any language.
