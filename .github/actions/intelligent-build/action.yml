@@ -1,0 +1,108 @@
+name: 'Intelligent Build'
+description: 'Performs intelligent incremental builds with change detection and caching'
+
+inputs:
+  cache-prefix:
+    description: 'Prefix for cache keys'
+    required: false
+    default: 'build'
+  build-mode:
+    description: 'Build mode: incremental or full'
+    required: false
+    default: 'incremental'
+
+outputs:
+  changed-crates:
+    description: 'JSON array of changed crates'
+    value: ${{ steps.detect-changes.outputs.changed-crates }}
+  workspace-changed:
+    description: 'Whether workspace-level files changed'
+    value: ${{ steps.detect-changes.outputs.workspace-changed }}
+  build-artifacts:
+    description: 'Path to build artifacts'
+    value: ${{ steps.build.outputs.artifacts-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect changes
+      id: detect-changes
+      shell: bash
+      run: |
+        echo "🎭 Detecting changes for intelligent building..."
+        
+        # Get the base branch for comparison
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+        else
+          BASE_SHA="${{ github.event.before }}"
+        fi
+        
+        # Define all crates
+        ALL_CRATES='["bentley", "sentinel", "jerrod", "adam", "violet", "blizz"]'
+        echo "all-crates=$ALL_CRATES" >> $GITHUB_OUTPUT
+        
+        # Check for workspace-level changes
+        WORKSPACE_CHANGED=false
+        if git diff --name-only $BASE_SHA..HEAD | grep -E '^(Cargo\.(toml|lock)|\.github/|bacon\.toml|tarpaulin\.toml|rustfmt\.toml)'; then
+          WORKSPACE_CHANGED=true
+          echo "🎪 Workspace-level files changed, will build all crates"
+        fi
+        echo "workspace-changed=$WORKSPACE_CHANGED" >> $GITHUB_OUTPUT
+        
+        # If workspace changed or full mode requested, build all crates
+        if [ "$WORKSPACE_CHANGED" = "true" ] || [ "${{ inputs.build-mode }}" = "full" ]; then
+          echo "changed-crates=$ALL_CRATES" >> $GITHUB_OUTPUT
+          echo "🎪 Building all crates (workspace changed or full mode)"
+          exit 0
+        fi
+        
+        # Detect changed crates based on file paths
+        CHANGED_CRATES='[]'
+        
+        for crate in bentley sentinel jerrod adam violet blizz; do
+          if git diff --name-only $BASE_SHA..HEAD | grep -q "^crates/$crate/"; then
+            echo "🎯 Crate $crate has changes"
+            CHANGED_CRATES=$(echo $CHANGED_CRATES | jq --arg crate "$crate" '. + [$crate]')
+          fi
+        done
+        
+        echo "changed-crates=$CHANGED_CRATES" >> $GITHUB_OUTPUT
+        echo "🎭 Changed crates: $CHANGED_CRATES"
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ inputs.cache-prefix }}-${{ hashFiles('**/Cargo.lock') }}
+        cache-on-failure: true
+
+    - name: Build workspace
+      id: build
+      shell: bash
+      run: |
+        CHANGED_CRATES='${{ steps.detect-changes.outputs.changed-crates }}'
+        WORKSPACE_CHANGED='${{ steps.detect-changes.outputs.workspace-changed }}'
+        
+        if [ "$CHANGED_CRATES" = "[]" ]; then
+          echo "🎭 No changes detected, running minimal workspace verification"
+          cargo check --workspace
+          echo "artifacts-path=none" >> $GITHUB_OUTPUT
+        elif [ "$WORKSPACE_CHANGED" = "true" ] || [ "${{ inputs.build-mode }}" = "full" ]; then
+          echo "🎪 Building full workspace"
+          cargo build --workspace --all-targets
+          echo "artifacts-path=target/" >> $GITHUB_OUTPUT
+        else
+          echo "🎯 Building changed crates: $CHANGED_CRATES"
+          # Build each changed crate
+          echo "$CHANGED_CRATES" | jq -r '.[]' | while read crate; do
+            echo "🎪 Building crate: $crate"
+            cargo build --package "$crate" --all-targets
+          done
+          echo "artifacts-path=target/" >> $GITHUB_OUTPUT
+        fi
+
+    # Note: Build artifacts removed - not needed since coverage rebuilds anyway
+    # and tests can use the same cache as the build step 
