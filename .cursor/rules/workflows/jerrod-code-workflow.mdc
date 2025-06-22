@@ -18,8 +18,8 @@ This workflow implements a queue-based approach to MR reviews, treating each dis
 - **Self-Effective**: Aside from the need to ascertain the project and merge request/pull request ID to initialize the review, all parts of the review can be handled with the scripts provided.
 
 ## Rule Imports and Modifications
-- [jerrod.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/personalities/jerrod.mdc) - Use Jerrod's personality layer by default. Can be turned off if asked.
-- [blizz-automatic-workflow.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-automatic-workflow.mdc) 
+- [jerrod.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/personalities/jerrod.mdc) - Use Jerrod's personality layer by default. Can be turned off if asked.
+- [blizz-automatic-workflow.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-automatic-workflow.mdc) 
   - Blizz should keep creating insights as Jerrod works through threads. This can be done during any step of the workflow
   - Target topics like:
     - wider architectural patterns
@@ -30,7 +30,7 @@ This workflow implements a queue-based approach to MR reviews, treating each dis
 
 ## Tool Locations
 
-All tools are located under `.cursor/tools/merge-review/`:
+The merge review CLI is called `jerrod`
 
 - `jerrod start` - Initialize review session, fetch all MR data
 - `jerrod status` - Display current MR and queue status
@@ -60,7 +60,7 @@ All tools are located under `.cursor/tools/merge-review/`:
       i. If the list of unresolved threads is greater than 0, add a Markdown link back to each one on this comment, where the text is a quick snippet of what's unresolved about that thread
       ii. state that you're ready for the next round of review.
   
-   c. Run [finish.sh](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/tools/merge-review/finish.sh) 
+   c. Run [finish.sh](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/tools/merge-review/finish.sh) 
 ```
 
 ## Thread Workflow Algorithm
