@@ -67,7 +67,24 @@ enum Commands {
     thread_id: Option<String>,
   },
   /// Mark the current thread as resolved
-  Resolve,
+  Resolve {
+    /// Optional comment to add with linkback
+    #[arg(short, long)]
+    comment: Option<String>,
+  },
+  /// Acknowledge a non-actionable comment
+  Acknowledge,
+  /// Defer a comment to separate task
+  Defer {
+    /// Optional comment about the separate task
+    #[arg(short, long)]
+    comment: Option<String>,
+  },
+  /// Mark a comment as having a follow-up question
+  Question {
+    /// Required comment with question/clarification
+    comment: String,
+  },
   /// Finish the review session
   Finish,
   /// Refresh session data (clean and re-download)
@@ -88,7 +105,10 @@ async fn main() -> Result<()> {
     Commands::Pop { unresolved } => commands::pop::handle(unresolved).await,
     Commands::Comment { text, new } => commands::comment::handle(text, new).await,
     Commands::Commit { message, details, thread_id } => commands::commit::handle(message, details, thread_id).await,
-    Commands::Resolve => commands::resolve::handle().await,
+    Commands::Resolve { comment } => commands::resolve::handle(comment).await,
+    Commands::Acknowledge => commands::acknowledge::handle().await,
+    Commands::Defer { comment } => commands::defer::handle(comment).await,
+    Commands::Question { comment } => commands::question::handle(comment).await,
     Commands::Finish => commands::finish::handle().await,
     Commands::Refresh => commands::refresh::handle().await,
   }

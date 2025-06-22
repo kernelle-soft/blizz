@@ -1,5 +1,5 @@
 use crate::platform::{
-  Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, Repository,
+  Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType, Repository,
   User,
 };
 use anyhow::{anyhow, Result};
@@ -177,5 +177,108 @@ impl GitPlatform for GitHubPlatform {
   ) -> Result<bool> {
     bentley::info("GitHub conversation resolution is supported but not yet implemented");
     Ok(false)
+  }
+
+  async fn add_reaction(
+    &self,
+    owner: &str,
+    repo: &str,
+    comment_id: &str,
+    reaction: ReactionType,
+  ) -> Result<bool> {
+    let comment_id: u64 = comment_id.parse()
+      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+    
+    // Convert to octocrab's reaction type
+    let octocrab_reaction = match reaction.github_name() {
+      "eyes" => octocrab::models::reactions::ReactionContent::Eyes,
+      "heavy_check_mark" => octocrab::models::reactions::ReactionContent::Hooray, // closest match
+      "question" => octocrab::models::reactions::ReactionContent::Confused,
+      "memo" => octocrab::models::reactions::ReactionContent::Rocket, // closest match
+      _ => return Err(anyhow!("Unsupported reaction type")),
+    };
+
+    let result = self.client
+      .issues(owner, repo)
+      .create_comment_reaction(comment_id, octocrab_reaction)
+      .await;
+    
+    match result {
+      Ok(_) => Ok(true),
+      Err(e) => {
+        bentley::warn(&format!("Failed to add reaction {}: {}", reaction.emoji(), e));
+        Ok(false)
+      }
+    }
+  }
+
+  async fn remove_reaction(
+    &self,
+    owner: &str,
+    repo: &str,
+    comment_id: &str,
+    reaction: ReactionType,
+  ) -> Result<bool> {
+    let comment_id: u64 = comment_id.parse()
+      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+    
+    // GitHub API requires the reaction ID to delete, which we'd need to fetch first
+    // For now, we'll implement a simpler approach by getting all reactions and finding ours
+    let reactions = self.client
+      .issues(owner, repo)
+      .list_comment_reactions(comment_id)
+      .send()
+      .await?;
+    
+    // Convert to octocrab's reaction type for comparison
+    let octocrab_reaction = match reaction.github_name() {
+      "eyes" => octocrab::models::reactions::ReactionContent::Eyes,
+      "heavy_check_mark" => octocrab::models::reactions::ReactionContent::Hooray,
+      "question" => octocrab::models::reactions::ReactionContent::Confused,
+      "memo" => octocrab::models::reactions::ReactionContent::Rocket,
+      _ => return Ok(false),
+    };
+
+    // Find our reaction (assuming we're the authenticated user)
+    for reaction_item in reactions {
+      if reaction_item.content == octocrab_reaction {
+        // Try to delete this reaction
+        let delete_result = self.client
+          .issues(owner, repo)
+          .delete_comment_reaction(comment_id, reaction_item.id)
+          .await;
+        
+        match delete_result {
+          Ok(_) => return Ok(true),
+          Err(e) => bentley::warn(&format!("Failed to remove reaction: {}", e)),
+        }
+      }
+    }
+    
+    Ok(false)
+  }
+
+  async fn get_reactions(&self, owner: &str, repo: &str, comment_id: &str) -> Result<Vec<ReactionType>> {
+    let comment_id: u64 = comment_id.parse()
+      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+    
+    let reactions = self.client
+      .issues(owner, repo)
+      .list_comment_reactions(comment_id)
+      .send()
+      .await?;
+    
+    let mut result = Vec::new();
+    for reaction in reactions {
+      match reaction.content {
+        octocrab::models::reactions::ReactionContent::Eyes => result.push(ReactionType::Eyes),
+        octocrab::models::reactions::ReactionContent::Hooray => result.push(ReactionType::CheckMark),
+        octocrab::models::reactions::ReactionContent::Confused => result.push(ReactionType::Question),
+        octocrab::models::reactions::ReactionContent::Rocket => result.push(ReactionType::Memo),
+        _ => {} // Ignore other reactions
+      }
+    }
+    
+    Ok(result)
   }
 }

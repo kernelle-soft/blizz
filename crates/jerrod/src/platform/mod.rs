@@ -92,6 +92,34 @@ pub struct Pipeline {
   pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ReactionType {
+  Eyes,      // 👀 - Acknowledged/non-actionable
+  CheckMark, // ✅ - Resolved/addressed
+  Question,  // ❓ - Has follow-up with link
+  Memo,      // 📝 - Deferred to separate task
+}
+
+impl ReactionType {
+  pub fn emoji(&self) -> &'static str {
+    match self {
+      ReactionType::Eyes => "👀",
+      ReactionType::CheckMark => "✅", 
+      ReactionType::Question => "❓",
+      ReactionType::Memo => "📝",
+    }
+  }
+  
+  pub fn github_name(&self) -> &'static str {
+    match self {
+      ReactionType::Eyes => "eyes",
+      ReactionType::CheckMark => "heavy_check_mark",
+      ReactionType::Question => "question", 
+      ReactionType::Memo => "memo",
+    }
+  }
+}
+
 /// Platform abstraction trait - start simple and expand later
 #[async_trait::async_trait]
 pub trait GitPlatform {
@@ -124,4 +152,28 @@ pub trait GitPlatform {
   /// Mark a discussion as resolved (where supported)
   #[allow(dead_code)]
   async fn resolve_discussion(&self, owner: &str, repo: &str, discussion_id: &str) -> Result<bool>;
+
+  /// Add a reaction to a comment/discussion
+  #[allow(dead_code)]
+  async fn add_reaction(
+    &self,
+    owner: &str,
+    repo: &str,
+    comment_id: &str,
+    reaction: ReactionType,
+  ) -> Result<bool>;
+
+  /// Remove a reaction from a comment/discussion
+  #[allow(dead_code)]
+  async fn remove_reaction(
+    &self,
+    owner: &str,
+    repo: &str,
+    comment_id: &str,
+    reaction: ReactionType,
+  ) -> Result<bool>;
+
+  /// Get reactions for a comment/discussion
+  #[allow(dead_code)]
+  async fn get_reactions(&self, owner: &str, repo: &str, comment_id: &str) -> Result<Vec<ReactionType>>;
 }

@@ -25,20 +25,20 @@ pub async fn handle(comment: Option<String>) -> Result<()> {
     return Err(anyhow!("Invalid repository format"));
   }
 
-  // Add checkmark reaction
+  // Add memo reaction
   let success = github.add_reaction(
     repo_parts[0],
     repo_parts[1], 
     current_thread_id,
-    ReactionType::CheckMark
+    ReactionType::Memo
   ).await?;
 
   if success {
-    bentley::success(&format!("Added {} reaction to thread", ReactionType::CheckMark.emoji()));
+    bentley::success(&format!("Added {} reaction to thread", ReactionType::Memo.emoji()));
     
     // Add comment if provided
     if let Some(comment_text) = comment {
-      let comment_with_link = format!("✅: {} - {}", 
+      let comment_with_link = format!("📝: {} - {}", 
         session.merge_request.url, 
         comment_text
       );
@@ -51,4 +51,4 @@ pub async fn handle(comment: Option<String>) -> Result<()> {
   }
 
   Ok(())
-}
+} 

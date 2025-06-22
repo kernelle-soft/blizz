@@ -22,15 +22,37 @@
     "target_branch": "dev",
     "url": "https://github.com/TravelSizedLions/kernelle/pull/1",
     "created_at": "2025-06-22T12:29:54Z",
-    "updated_at": "2025-06-22T16:27:45Z"
+    "updated_at": "2025-06-22T17:02:07Z"
   },
   "platform": "github",
   "thread_queue": [
     "2994301650",
-    "2994302411"
+    "2994302411",
+    "2994323941"
   ],
   "unresolved_threads": [],
   "discussions": {
+    "2994300521": {
+      "id": "2994300521",
+      "resolved": false,
+      "resolvable": false,
+      "file_path": null,
+      "line_number": null,
+      "notes": [
+        {
+          "id": "2994300521",
+          "author": {
+            "id": "35467792",
+            "username": "jaredstorm",
+            "display_name": "jaredstorm",
+            "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
+          },
+          "body": "One of the issues I kept running into with the bash scripts from the v1 implementation of Jerrod (just merge-reviews back then) was:\r\n- comments onto threads would often get cut off (probably due to bash string weirdnesss)\r\n- resolving threads often straight up would not work\r\n  - That had something to do with A.) top level MR comments not working quite the same way as discussion threads despite being able to spawn discussion threads AND optionally start as discussion threads\r\n  - discussion threads having this \"edge-level\" resolved property that made it so you have to iterate through the entire discussion history to know if the thread was resolved or not. \r\n  \r\n  I don't know about github's implementation, but I imagine that it has some odd quirks like this too.",
+          "created_at": "2025-06-22T16:19:30Z",
+          "updated_at": "2025-06-22T16:19:30Z"
+        }
+      ]
+    },
     "2994301650": {
       "id": "2994301650",
       "resolved": false,
@@ -73,29 +95,29 @@
         }
       ]
     },
-    "2994300521": {
-      "id": "2994300521",
+    "2994323941": {
+      "id": "2994323941",
       "resolved": false,
       "resolvable": false,
       "file_path": null,
       "line_number": null,
       "notes": [
         {
-          "id": "2994300521",
+          "id": "2994323941",
           "author": {
             "id": "35467792",
             "username": "jaredstorm",
             "display_name": "jaredstorm",
             "avatar_url": "https://avatars.githubusercontent.com/u/35467792?v=4"
           },
-          "body": "One of the issues I kept running into with the bash scripts from the v1 implementation of Jerrod (just merge-reviews back then) was:\r\n- comments onto threads would often get cut off (probably due to bash string weirdnesss)\r\n- resolving threads often straight up would not work\r\n  - That had something to do with A.) top level MR comments not working quite the same way as discussion threads despite being able to spawn discussion threads AND optionally start as discussion threads\r\n  - discussion threads having this \"edge-level\" resolved property that made it so you have to iterate through the entire discussion history to know if the thread was resolved or not. \r\n  \r\n  I don't know about github's implementation, but I imagine that it has some odd quirks like this too.",
-          "created_at": "2025-06-22T16:19:30Z",
-          "updated_at": "2025-06-22T16:19:30Z"
+          "body": "> Also, hey. Where are we storing the global session folder? I figure we should probably put it under `$HOME/kernelle/code-reviews` or something like that.\r\n\r\nReplied",
+          "created_at": "2025-06-22T17:02:07Z",
+          "updated_at": "2025-06-22T17:02:07Z"
         }
       ]
     }
   },
   "pipelines": [],
-  "created_at": "2025-06-22T16:43:56.255202Z",
-  "updated_at": "2025-06-22T16:44:21.234513Z"
+  "created_at": "2025-06-22T17:03:00.181870Z",
+  "updated_at": "2025-06-22T17:03:11.846401Z"
 }

@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use crate::session::SessionManager;
 use crate::platform::{ReactionType, GitPlatform, github::GitHubPlatform};
 
-pub async fn handle(comment: Option<String>) -> Result<()> {
+pub async fn handle(comment: String) -> Result<()> {
   let session_manager = SessionManager::new()?;
   let session = session_manager.load_session()?
     .ok_or_else(|| anyhow!("No active review session found"))?;
@@ -25,30 +25,28 @@ pub async fn handle(comment: Option<String>) -> Result<()> {
     return Err(anyhow!("Invalid repository format"));
   }
 
-  // Add checkmark reaction
+  // Add question reaction
   let success = github.add_reaction(
     repo_parts[0],
     repo_parts[1], 
     current_thread_id,
-    ReactionType::CheckMark
+    ReactionType::Question
   ).await?;
 
   if success {
-    bentley::success(&format!("Added {} reaction to thread", ReactionType::CheckMark.emoji()));
+    bentley::success(&format!("Added {} reaction to thread", ReactionType::Question.emoji()));
     
-    // Add comment if provided
-    if let Some(comment_text) = comment {
-      let comment_with_link = format!("✅: {} - {}", 
-        session.merge_request.url, 
-        comment_text
-      );
-      
-      // TODO: Implement comment creation
-      bentley::info(&format!("Would add comment: {}", comment_with_link));
-    }
+    // Create comment with linkback (required for question)
+    let comment_with_link = format!("❓: {} - {}", 
+      session.merge_request.url, 
+      comment
+    );
+    
+    // TODO: Implement comment creation
+    bentley::info(&format!("Would add comment: {}", comment_with_link));
   } else {
     bentley::warn("Failed to add reaction");
   }
 
   Ok(())
-}
+} 
