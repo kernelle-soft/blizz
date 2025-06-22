@@ -17,11 +17,15 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
   }
 
   // Add session and thread references if available
-  if let Some(session) = session {
+  if let Some(ref session) = session {
+    // If no thread_id specified, try to get the current thread from session
+    let current_thread_id = thread_id.or_else(|| {
+      session.peek_next_thread().map(|thread| thread.id.clone())
+    });
     let mr_url = &session.merge_request.url;
     commit_msg.push_str(&format!("\n\nMerge Request: {}", mr_url));
     
-    if let Some(thread_id) = thread_id {
+    if let Some(thread_id) = current_thread_id {
       // For GitHub, link to the specific comment
       if session.platform == "github" {
         commit_msg.push_str(&format!("\nAddressing Thread: {}#issuecomment-{}", mr_url, thread_id));

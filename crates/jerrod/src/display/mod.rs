@@ -1,4 +1,4 @@
-use crate::platform::{Discussion, Note};
+use crate::platform::{Discussion, Note, FileDiff};
 use chrono::{DateTime, Local, Utc};
 
 /// Convert UTC timestamp to human-readable local timezone format
@@ -109,4 +109,39 @@ pub fn display_discussion_thread(discussion: &Discussion) {
     // Display any replies
     display_replies(discussion);
   }
+}
+
+/// Display file diff with syntax highlighting
+pub fn display_file_diff(diff: &FileDiff) {
+  let width = 80;
+  let line = banner_line(width, '═');
+  
+  println!();
+  println!("{}", line);
+  println!("📄 File: {}", diff.new_path);
+  if let Some(old_path) = &diff.old_path {
+    if old_path != &diff.new_path {
+      println!("   (renamed from {})", old_path);
+    }
+  }
+  println!("{}", line);
+  
+  // Display diff content with line numbers and basic syntax highlighting
+  for line in diff.diff.lines() {
+    if line.starts_with("@@") {
+      // Diff header - show in blue
+      println!("🔵 {}", line);
+    } else if line.starts_with('+') {
+      // Added lines - show in green
+      println!("🟢 {}", line);
+    } else if line.starts_with('-') {
+      // Removed lines - show in red
+      println!("🔴 {}", line);
+    } else {
+      // Context lines - show normally
+      println!("   {}", line);
+    }
+  }
+  
+  println!("{}", line);
 } 

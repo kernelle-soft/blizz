@@ -112,6 +112,14 @@ impl GitPlatform for GitHubPlatform {
     let issue_comments = self.client.issues(owner, repo).list_comments(number).send().await?;
     
     for comment in issue_comments {
+      // Skip comments that have emoji reactions (already processed/acknowledged)
+      if let Ok(reactions) = self.get_reactions(owner, repo, &comment.id.to_string()).await {
+        if !reactions.is_empty() {
+          bentley::info(&format!("Skipping comment {} with emoji reactions", comment.id));
+          continue;
+        }
+      }
+
       let author = User {
         id: comment.user.id.to_string(),
         username: comment.user.login.clone(),
@@ -137,15 +145,65 @@ impl GitPlatform for GitHubPlatform {
       });
     }
 
-    // TODO: Add review comments once we figure out the correct API structure
-    bentley::info("Review comments fetch temporarily disabled due to API differences");
+    // Fetch pull request review comments (inline code comments)
+    let review_comments = self.client.pulls(owner, repo).list_comments(Some(number)).send().await?;
+    
+    for comment in review_comments {
+      if let Some(user) = comment.user {
+        // Skip review comments that have emoji reactions (already processed/acknowledged)
+        if let Ok(reactions) = self.get_reactions(owner, repo, &comment.id.to_string()).await {
+          if !reactions.is_empty() {
+            bentley::info(&format!("Skipping review comment {} with emoji reactions", comment.id));
+            continue;
+          }
+        }
+
+        let author = User {
+          id: user.id.to_string(),
+          username: user.login.clone(),
+          display_name: user.name.clone().unwrap_or(user.login.clone()),
+          avatar_url: Some(user.avatar_url.to_string()),
+        };
+
+        let note = Note {
+          id: comment.id.to_string(),
+          author,
+          body: comment.body,
+          created_at: comment.created_at,
+          updated_at: comment.updated_at,
+        };
+
+        discussions.push(Discussion {
+          id: comment.id.to_string(),
+          resolved: false, // We'll need to check conversation status separately
+          resolvable: true, // Review comments can be part of conversations
+          file_path: Some(comment.path),
+          line_number: comment.line.map(|line| line as u32),
+          notes: vec![note],
+        });
+      }
+    }
 
     Ok(discussions)
   }
 
-  async fn get_diffs(&self, _owner: &str, _repo: &str, _number: u64) -> Result<Vec<FileDiff>> {
-    bentley::info("GitHub diffs fetch not yet implemented");
-    Ok(vec![])
+  async fn get_diffs(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<FileDiff>> {
+    let files = self.client.pulls(owner, repo).list_files(number).await?;
+    
+    let mut diffs = Vec::new();
+    for file in files {
+      diffs.push(FileDiff {
+        old_path: if file.previous_filename.as_ref() != Some(&file.filename) {
+          file.previous_filename.or_else(|| Some("/dev/null".to_string()))
+        } else {
+          None
+        },
+        new_path: file.filename,
+        diff: file.patch.unwrap_or_default(),
+      });
+    }
+    
+    Ok(diffs)
   }
 
   async fn get_pipelines(&self, _owner: &str, _repo: &str, _sha: &str) -> Result<Vec<Pipeline>> {

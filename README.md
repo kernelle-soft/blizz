@@ -2,7 +2,7 @@
 
 **A Rust-powered, design-to-merge AI development toolshed**
 
-It's an artificial intelligence gold rush, and let's be honest, there are a hell of a lot of shovels piling up.
+It's an artificial intelligence gold rush, and let's be honest, there are a heck of a lot of shovels piling up.
 
 Instead of building yet another shovel to throw on the pile, this repository is essentially a toolshed. It takes the pre-existing tools currently at our disposal and pulls them together into something developers can actually use for their every day expectations and workflows: 
 - triaging tickets
