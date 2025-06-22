@@ -16,6 +16,26 @@ command = ["cargo", "build", "-p", "bentley"]
 need_stdout = false
 watch = ["crates/bentley/"]
 
+[jobs.sentinel]
+command = ["cargo", "install", "--path", "crates/sentinel", "--force"]
+need_stdout = false
+watch = ["crates/sentinel/"]
+
+[jobs.sentinel-test]
+command = ["cargo", "test", "-p", "sentinel"]
+need_stdout = true
+watch = ["crates/sentinel/"]
+
+[jobs.sentinel-coverage]
+command = ["cargo", "tarpaulin", "-p", "sentinel", "--fail-under", "97.5"]
+need_stdout = true
+watch = ["crates/sentinel/"]
+
+[jobs.sentinel-dev]
+command = ["sh", "-c", "cargo test -p sentinel && cargo tarpaulin -p sentinel --fail-under 97.5"]
+need_stdout = true
+watch = ["crates/sentinel/"]
+
 [jobs.violet]
 command = ["cargo", "install", "--path", "crates/violet", "--force"]
 need_stdout = false
@@ -42,7 +62,7 @@ need_stdout = false
 watch = ["crates/jerrod/"]
 
 [jobs.watch-all]
-command = ["sh", "-c", "cargo build --workspace && cargo install --path crates/jerrod --force && cargo install --path crates/violet --force && cargo install --path crates/blizz --force && cargo install --path crates/adam --force"]
+command = ["sh", "-c", "cargo build --workspace && cargo install --path crates/jerrod --force && cargo install --path crates/violet --force && cargo install --path crates/blizz --force && cargo install --path crates/adam --force && cargo install --path crates/sentinel --force"]
 need_stdout = false
 watch = ["crates/"]
 

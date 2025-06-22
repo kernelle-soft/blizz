@@ -19,6 +19,9 @@ bentley = { path = "../bentley" }
 clap = { version = "4.5", features = ["derive", "env"] }
 rpassword = "7.3"
 
+[dev-dependencies]
+tempfile = "3.20"
+
 [lib]
 name = "sentinel"
 path = "src/lib.rs" 
