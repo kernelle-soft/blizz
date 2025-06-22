@@ -83,10 +83,15 @@ pub struct SessionManager {
 
 impl SessionManager {
   pub fn new() -> Result<Self> {
-    let session_dir = dirs::home_dir()
-      .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
-      .join("kernelle")
-      .join("code-reviews");
+    let base_dir = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+      std::path::PathBuf::from(kernelle_dir)
+    } else {
+      dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
+        .join("kernelle")
+    };
+    
+    let session_dir = base_dir.join("code-reviews");
     std::fs::create_dir_all(&session_dir)?;
     Ok(Self { session_dir })
   }

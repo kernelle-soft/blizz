@@ -57,12 +57,16 @@ struct CryptoManager {
 
 impl CryptoManager {
     fn new() -> Self {
-        let mut base_path = dirs::home_dir()
-            .unwrap_or_else(|| std::env::current_dir().unwrap());
-        base_path.push(".kernelle");
-        base_path.push("sentinel");
+        let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+            std::path::PathBuf::from(kernelle_dir)
+        } else {
+            dirs::home_dir()
+                .unwrap_or_else(|| std::env::current_dir().unwrap())
+                .join("kernelle")
+        };
         
         let mut key_path = base_path;
+        key_path.push("sentinel");
         key_path.push("master.key");
         
         Self { key_path }
@@ -159,9 +163,15 @@ impl CryptoManager {
 }
 
 fn get_credentials_path() -> PathBuf {
-    let mut path = dirs::home_dir()
-        .unwrap_or_else(|| std::env::current_dir().unwrap());
-    path.push(".kernelle");
+    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+        std::path::PathBuf::from(kernelle_dir)
+    } else {
+        dirs::home_dir()
+            .unwrap_or_else(|| std::env::current_dir().unwrap())
+            .join("kernelle")
+    };
+    
+    let mut path = base_path;
     path.push("sentinel");
     path.push("credentials.json");
     path
