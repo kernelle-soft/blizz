@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "max_params": 3,
+    "max_function_lines": 50,
+    "max_function_depth": 3,
+    "max_complexity": 10,
+    "max_file_lines": 500,
+    "max_file_depth": 4
+  },
+  "language_overrides": {},
+  "ignore": [
+    "node_modules/**",
+    "target/**",
+    "build/**",
+    "dist/**",
+    ".git/**"
+  ],
+  "ignore_dirs": [
+    "node_modules",
+    "target",
+    "build",
+    "dist",
+    ".git"
+  ]
+}
