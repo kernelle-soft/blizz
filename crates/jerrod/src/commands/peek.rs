@@ -29,9 +29,9 @@ pub async fn handle() -> Result<()> {
 async fn show_file_diff(session: &crate::session::ReviewSession, file_path: &str) -> Result<()> {
   let platform = create_platform(&session.platform).await?;
   
-  let repo_parts: Vec<&str> = session.repository.name.split('/').collect();
+  let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
   let [owner, repo] = repo_parts.as_slice() else {
-    anyhow::bail!("Invalid repository format: {}", session.repository.name);
+    anyhow::bail!("Invalid repository format: {}", session.repository.full_name);
   };
 
   let diffs = platform.get_diffs(owner, repo, session.merge_request.number).await?;
