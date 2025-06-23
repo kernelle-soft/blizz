@@ -8,9 +8,9 @@ pub struct ReviewSession {
   pub repository: Repository,
   pub merge_request: MergeRequest,
   pub platform: String,
-  pub thread_queue: VecDeque<String>,  // Discussion IDs in order
-  pub unresolved_threads: Vec<String>, // Threads marked as unresolved
-  pub discussions: std::collections::HashMap<String, Discussion>, // Indexed by ID
+      pub thread_queue: VecDeque<String>,
+    pub unresolved_threads: Vec<String>,
+    pub discussions: std::collections::HashMap<String, Discussion>,
   pub pipelines: Vec<Pipeline>,
   pub created_at: chrono::DateTime<chrono::Utc>,
   pub updated_at: chrono::DateTime<chrono::Utc>,

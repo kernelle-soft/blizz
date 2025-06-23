@@ -11,20 +11,20 @@ pub async fn handle() -> Result<()> {
     .ok_or_else(|| anyhow!("No active review session. Use 'jerrod start' to begin."))?;
 
   if let Some(thread) = session.peek_next_thread() {
-    // Display the thread
+
     display::display_discussion_thread(thread);
     
-    // If this is a review comment with file/line info, show relevant diff context
+
     if let (Some(file_path), Some(_line_number)) = (&thread.file_path, thread.line_number) {
       bentley::info(&format!("Fetching diff context for {}", file_path));
       
-      // Create platform client to fetch diffs
+      
       if session.platform == "github" {
         if let Ok(platform) = GitHubPlatform::new().await {
           let repo_parts: Vec<&str> = session.repository.name.split('/').collect();
           if repo_parts.len() == 2 {
             if let Ok(diffs) = platform.get_diffs(repo_parts[0], repo_parts[1], session.merge_request.number).await {
-              // Find the relevant diff for this file
+      
               if let Some(diff) = diffs.iter().find(|d| d.new_path == *file_path) {
                 display::display_file_diff(diff);
               }

@@ -8,7 +8,6 @@ pub fn format_timestamp(utc_time: DateTime<Utc>) -> String {
   local_time.format("%A, %B %d, %Y at %I:%M %p").to_string()
 }
 
-/// Create a banner line with the specified character
 pub fn banner_line(width: usize, char: char) -> String {
   char.to_string().repeat(width)
 }
@@ -21,7 +20,7 @@ pub fn display_thread_header(note: &Note, thread_id: &str) {
   let formatted_time = format_timestamp(note.created_at);
   let header = format!("🧵 {} | {} | ID: {}", note.author.display_name, formatted_time, thread_id);
   
-  // Use the header as a banner
+  
   let width = 80;
   let line = banner_line(width, '-');
   
@@ -29,12 +28,12 @@ pub fn display_thread_header(note: &Note, thread_id: &str) {
   println!("{}", header);
   println!("{}", line);
   
-  // Display content with simple formatting
+  
   for content_line in note.body.lines() {
     if content_line.len() <= width {
       println!("{}", content_line);
     } else {
-      // Simple word wrapping
+  
       let words: Vec<&str> = content_line.split_whitespace().collect();
       let mut current_line = String::new();
       
@@ -63,7 +62,6 @@ pub fn display_thread_header(note: &Note, thread_id: &str) {
   println!("{}", line);
 }
 
-/// Display file context information
 pub fn display_file_context(file_path: &str, line_number: Option<u32>) {
   println!();
   bentley::info(&format!("File: {}", file_path));
@@ -81,12 +79,12 @@ pub fn display_replies(discussion: &Discussion) {
     bentley::info("Replies:");
     println!();
     
-    // Skip the first note (already displayed) and show replies
+
     for reply in discussion.notes.iter().skip(1) {
       let formatted_time = format_timestamp(reply.created_at);
       bentley::info(&format!("  {} ({}):", reply.author.display_name, formatted_time));
       
-      // Indent reply content
+      
       for line in reply.body.lines() {
         println!("    {}", line);
       }
@@ -95,23 +93,21 @@ pub fn display_replies(discussion: &Discussion) {
   }
 }
 
-/// Display a complete discussion thread
 pub fn display_discussion_thread(discussion: &Discussion) {
   if let Some(first_note) = discussion.notes.first() {
-    // Display main thread header
+
     display_thread_header(first_note, &discussion.id);
     
-    // Display file context if this is a code comment
+
     if let Some(file_path) = &discussion.file_path {
       display_file_context(file_path, discussion.line_number);
     }
     
-    // Display any replies
+
     display_replies(discussion);
   }
 }
 
-/// Display file diff with syntax highlighting
 pub fn display_file_diff(diff: &FileDiff) {
   let width = 80;
   let line = banner_line(width, '═');
@@ -126,19 +122,19 @@ pub fn display_file_diff(diff: &FileDiff) {
   }
   println!("{}", line);
   
-  // Display diff content with line numbers and basic syntax highlighting
+  
   for line in diff.diff.lines() {
     if line.starts_with("@@") {
-      // Diff header - show in blue
+
       println!("🔵 {}", line);
     } else if line.starts_with('+') {
-      // Added lines - show in green
+
       println!("🟢 {}", line);
     } else if line.starts_with('-') {
-      // Removed lines - show in red
+
       println!("🔴 {}", line);
     } else {
-      // Context lines - show normally
+
       println!("   {}", line);
     }
   }

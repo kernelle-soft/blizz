@@ -12,25 +12,19 @@ name = "violet"
 path = "src/main.rs"
 
 [dependencies]
-# CLI
 clap.workspace = true
 
-# Error handling
 anyhow.workspace = true
 thiserror.workspace = true
 
-# File system and paths
 dirs.workspace = true
 
-# Terminal output
 colored.workspace = true
 console.workspace = true
 
-# Logging
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
-# JSON handling
 serde.workspace = true
 serde_json.workspace = true
 

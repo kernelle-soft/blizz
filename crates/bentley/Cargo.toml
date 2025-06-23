@@ -12,22 +12,17 @@ name = "bentley"
 path = "src/lib.rs"
 
 [dependencies]
-# Terminal output
 colored.workspace = true
 console.workspace = true
 
-# Logging
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
-# Date/time handling
 chrono.workspace = true
 
-# Error handling
 anyhow.workspace = true
 thiserror.workspace = true
 
-# JSON handling
 serde.workspace = true
 serde_json.workspace = true
 

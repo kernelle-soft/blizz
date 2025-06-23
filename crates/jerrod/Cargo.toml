@@ -9,39 +9,29 @@ name = "jerrod"
 path = "src/main.rs"
 
 [dependencies]
-# GitLab API
 gitlab.workspace = true
 reqwest.workspace = true
 
-# CLI
 clap = { workspace = true }
 
-# Async runtime
 tokio = { workspace = true, features = ["full", "process"] }
 
-# JSON handling
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# Date/time handling
 chrono = { workspace = true }
 
-# Error handling
 anyhow = { workspace = true }
 thiserror.workspace = true
 
-# File system and paths
 dirs.workspace = true
 
-# Terminal output
 colored.workspace = true
 console.workspace = true
 
-# Logging
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
-# HTTP client features
 url = { workspace = true }
 
 bentley = { workspace = true }
@@ -50,10 +40,8 @@ octocrab = "0.44.1"
 
 async-trait = "0.1"
 
-# URL parsing and regex matching
 regex = "1.0"
 
-# AES encryption for secure credential storage
 aes-gcm = "0.10"
 base64 = "0.20"
 rand = "0.8"

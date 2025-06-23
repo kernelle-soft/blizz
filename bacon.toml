@@ -1,5 +1,4 @@
-# Bacon configuration for Kernelle workspace
-# Run with: bacon --job <job-name>
+
 
 [jobs.default]
 command = ["cargo", "check", "--workspace"]

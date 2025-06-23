@@ -15,7 +15,7 @@ pub async fn handle(
     return Err(anyhow!("Comment system currently only supported for GitHub"));
   }
 
-  // Get the current thread (if not creating a new comment)
+  
   let current_thread_id = if new {
     None
   } else {
@@ -26,18 +26,18 @@ pub async fn handle(
     return Err(anyhow!("No threads in queue"));
   }
 
-  // Create GitHub client
+  
   let github = GitHubPlatform::new().await?;
 
-  // Parse repository
+  
   let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
   if repo_parts.len() != 2 {
     return Err(anyhow!("Invalid repository format"));
   }
 
-  // Create the comment
+  
   if new {
-    // Create a new MR-level comment
+
     let pr_number = session.merge_request.number.to_string();
     let _note = github.add_comment(
       repo_parts[0],
@@ -47,19 +47,18 @@ pub async fn handle(
     ).await?;
     bentley::success("Added new comment to MR");
   } else {
-    // Reply to the current thread
+
     if let Some(thread_id) = &current_thread_id {
-      // Find the original thread to determine comment type
+
       let original_thread = session.discussions.get(thread_id);
       
       if let Some(thread) = original_thread {
-        // Check if this is a review comment (has file_path) or issue comment
+
         if thread.file_path.is_some() {
-          // REVIEW COMMENT: Reply within the conversation thread
+
           bentley::info("Replying to review comment within conversation thread");
           
-          // For GitHub, we need to reply to the review comment thread
-          // The thread_id should be the first comment in the conversation
+
           let first_comment_id = thread.notes.first()
             .map(|note| &note.id)
             .ok_or_else(|| anyhow!("No comments found in thread"))?;
@@ -74,7 +73,7 @@ pub async fn handle(
           bentley::success("Added reply to review comment thread");
           
         } else {
-          // ISSUE COMMENT: Create new issue comment with quote + linkback
+
           bentley::info("Replying to issue comment with quote and linkback");
           
           let empty_string = String::new();
@@ -82,17 +81,17 @@ pub async fn handle(
             .map(|note| &note.body)
             .unwrap_or(&empty_string);
           
-          // Truncate to 256 characters with ellipsis
+
           let truncated_quote = if original_content.len() > 256 {
             format!("{}...", &original_content[..253])
           } else {
             original_content.clone()
           };
           
-          // Create GitHub comment link
+
           let comment_url = format!("{}#issuecomment-{}", session.merge_request.url, thread_id);
           
-          // Format with proper markdown quote
+
           let referenced_text = format!(
             "Re: [comment]({})\n\n> {}\n\n{}", 
             comment_url, 
@@ -110,7 +109,7 @@ pub async fn handle(
           bentley::success("Added issue comment with reference to original");
         }
       } else {
-        // Fallback to old format if we can't find the thread
+
         bentley::warn("Could not find thread context, using fallback format");
         let referenced_text = format!("Re: comment {}\n\n{}", thread_id, text);
         

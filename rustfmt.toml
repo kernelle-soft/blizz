@@ -1,11 +1,6 @@
-# Kernelle Rust Formatting Configuration
-# Enforces consistent 2-space indentation (stable Rust features only)
-
-# Basic indentation and width
 tab_spaces = 2
 max_width = 100  
 hard_tabs = false
 
-# Basic formatting that works on stable
 use_small_heuristics = "Max"
 remove_nested_parens = true 

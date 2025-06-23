@@ -31,7 +31,7 @@ pub async fn handle(
   looking: bool,
   surprise: bool,
 ) -> Result<()> {
-  // Determine which reaction to use based on flags
+  
   let reaction = if thumbs_up || ok || yeah || got_it {
     ReactionType::ThumbsUp
   } else if thumbs_down || f_you {
@@ -49,7 +49,7 @@ pub async fn handle(
   } else if eyes || looking || surprise {
     ReactionType::Eyes
   } else {
-    // Default to eyes if no flags specified
+
     ReactionType::ThumbsUp
   };
 
@@ -61,11 +61,11 @@ pub async fn handle(
     return Err(anyhow!("Reaction system currently only supported for GitHub"));
   }
 
-  // Get the current thread
+  
   let current_thread_id = session.thread_queue.front()
     .ok_or_else(|| anyhow!("No threads in queue"))?;
 
-  // Create GitHub client with credential lookup
+  
   let github = GitHubPlatform::new().await?;
 
   let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();

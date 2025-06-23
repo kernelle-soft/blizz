@@ -1,38 +1,27 @@
-# Kernelle Coverage Configuration
-# Enforces 95% branch coverage across all crates
-
 [tarpaulin]
-# Coverage targets
 coverage-reports = ["Html", "Lcov", "Json"]
 output-dir = "target/coverage/"
 
-# Coverage thresholds
 fail-under = 95.0
 ignore-panics = true
 
-# What to include/exclude
 skip-clean = false
 count = true
 line = true
 branch = true
 forward = true
 
-# Exclude patterns
 exclude = [
   "*/tests/*",
   "*/examples/*",
   "*/target/*",
 ]
 
-# Timeout settings  
 timeout = "120s"
 
-# Run all tests (skip doctests for now - requires nightly)
 run-types = ["Tests"]
 
-# Workspace configuration
 all-features = true
 workspace = true
 
-# Engine configuration  
 engine = "Llvm" 
