@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use crate::session::load_current_session;
-use crate::platform::{GitPlatform, github::GitHubPlatform};
+use crate::platform::create_platform;
 
 pub async fn handle(
   text: String,
@@ -8,11 +8,9 @@ pub async fn handle(
 ) -> Result<()> {
   let session = load_current_session()?;
 
-  if session.platform != "github" {
-    return Err(anyhow!("Comment system currently only supported for GitHub"));
-  }
+  // Strategy pattern: create appropriate platform implementation
+  let platform = create_platform(&session.platform).await?;
 
-  
   let current_thread_id = if new {
     None
   } else {
@@ -24,9 +22,6 @@ pub async fn handle(
   }
 
   
-  let github = GitHubPlatform::new().await?;
-
-  
   let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
   if repo_parts.len() != 2 {
     return Err(anyhow!("Invalid repository format"));
@@ -36,7 +31,7 @@ pub async fn handle(
   if new {
 
     let pr_number = session.merge_request.number.to_string();
-    let _note = github.add_comment(
+    let _note = platform.add_comment(
       repo_parts[0],
       repo_parts[1],
       &pr_number,
@@ -60,7 +55,7 @@ pub async fn handle(
             .map(|note| &note.id)
             .ok_or_else(|| anyhow!("No comments found in thread"))?;
           
-          let _note = github.add_review_comment_reply(
+          let _note = platform.add_review_comment_reply(
             repo_parts[0],
             repo_parts[1],
             session.merge_request.number,
@@ -97,7 +92,7 @@ pub async fn handle(
           );
           
           let pr_number = session.merge_request.number.to_string();
-          let _note = github.add_comment(
+          let _note = platform.add_comment(
             repo_parts[0],
             repo_parts[1],
             &pr_number,
@@ -111,7 +106,7 @@ pub async fn handle(
         let referenced_text = format!("Re: comment {}\n\n{}", thread_id, text);
         
         let pr_number = session.merge_request.number.to_string();
-        let _note = github.add_comment(
+        let _note = platform.add_comment(
           repo_parts[0],
           repo_parts[1],
           &pr_number,

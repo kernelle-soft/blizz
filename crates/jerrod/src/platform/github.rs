@@ -669,4 +669,16 @@ impl GitPlatform for GitHubPlatform {
     
     Ok(result)
   }
+
+  async fn add_review_comment_reply(
+    &self,
+    owner: &str,
+    repo: &str,
+    pr_number: u64,
+    comment_id: &str,
+    text: &str,
+  ) -> Result<Note> {
+    // Delegate to the existing implementation
+    self.add_review_comment_reply(owner, repo, pr_number, comment_id, text).await
+  }
 }
