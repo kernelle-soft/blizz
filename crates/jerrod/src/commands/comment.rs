@@ -56,9 +56,35 @@ pub async fn handle(
     bentley::success("Added new comment to MR");
   } else {
     // For GitHub, we can't reply to specific comments directly
-    // Instead, we'll create a new comment with a reference
+    // Instead, we'll create a new comment with a reference and quote
     if let Some(thread_id) = &current_thread_id {
-      let referenced_text = format!("Re: comment {}\n\n{}", thread_id, text);
+      // Find the original thread to get context for the quote
+      let original_thread = session.discussions.get(thread_id);
+      
+              let referenced_text = if let Some(thread) = original_thread {
+        // Create a nice reference with quote and link
+        let empty_string = String::new();
+        let original_content = thread.notes.first()
+          .map(|note| &note.body)
+          .unwrap_or(&empty_string);
+        
+        // Truncate to 256 characters with ellipsis
+        let truncated_quote = if original_content.len() > 256 {
+          format!("{}...", &original_content[..253])
+        } else {
+          original_content.clone()
+        };
+        
+        // Create GitHub comment link
+        let comment_url = format!("{}#issuecomment-{}", session.merge_request.url, thread_id);
+        
+        // Format with proper markdown quote
+        format!("Re: [comment]({})\n\n> {}\n\n{}", comment_url, truncated_quote.replace('\n', "\n> "), text)
+      } else {
+        // Fallback to old format if we can't find the thread
+        format!("Re: comment {}\n\n{}", thread_id, text)
+      };
+      
       let pr_number = session.merge_request.number.to_string();
       let _note = github.add_comment(
         repo_parts[0],
