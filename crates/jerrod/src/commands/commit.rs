@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use std::process::Command;
 use crate::session::load_current_session;
-use crate::display;
 
 pub async fn handle(message: String, details: Option<String>, thread_id: Option<String>) -> Result<()> {
   // Get current session info if available
@@ -74,7 +73,7 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
 /// Display commit information in banner format
 fn display_commit_banner(commit_msg: &str, stats_text: &str) {
   let width = 80;
-  let line = display::banner_line(width, '-');
+  let line = bentley::banner_line(width, '-');
   
   println!("{}", line);
   
