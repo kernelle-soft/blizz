@@ -5,6 +5,7 @@ use crate::platform::{
 use crate::auth::get_github_token;
 use anyhow::{anyhow, Result};
 use octocrab::Octocrab;
+use serde_json::json;
 
 pub struct GitHubPlatform {
   #[allow(dead_code)]
@@ -23,6 +24,62 @@ impl GitHubPlatform {
   #[allow(dead_code)]
   pub fn from_client(client: Octocrab) -> Self {
     Self { client }
+  }
+
+  // GraphQL query to get all review threads and their resolution status for a PR
+  async fn get_review_threads_resolution(&self, owner: &str, repo: &str, pr_number: u64) -> Result<std::collections::HashMap<String, bool>> {
+    let payload = json!({
+      "query": r#"
+        query($owner: String!, $repo: String!, $prNumber: Int!) {
+          repository(owner: $owner, name: $repo) {
+            pullRequest(number: $prNumber) {
+              reviewThreads(last: 100) {
+                nodes {
+                  id
+                  isResolved
+                  comments(last: 50) {
+                    nodes {
+                      id
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      "#,
+      "variables": {
+        "owner": owner,
+        "repo": repo,
+        "prNumber": pr_number
+      }
+    });
+
+    let response: serde_json::Value = self.client
+      .graphql(&payload)
+      .await
+      .map_err(|e| anyhow!("GraphQL query failed: {:?}", e))?;
+
+    // Build a map from comment ID to thread resolution status
+    let mut comment_resolution_map = std::collections::HashMap::new();
+    
+    if let Some(threads) = response["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"].as_array() {
+      for thread in threads {
+        if let (Some(is_resolved), Some(comments)) = (
+          thread["isResolved"].as_bool(),
+          thread["comments"]["nodes"].as_array()
+        ) {
+          // Map each comment in this thread to the thread's resolution status
+          for comment in comments {
+            if let Some(comment_id) = comment["id"].as_str() {
+              comment_resolution_map.insert(comment_id.to_string(), is_resolved);
+            }
+          }
+        }
+      }
+    }
+
+    Ok(comment_resolution_map)
   }
 }
 
@@ -145,17 +202,30 @@ impl GitPlatform for GitHubPlatform {
       });
     }
 
-    // Fetch pull request review comments (inline code comments)
-    let review_comments = self.client.pulls(owner, repo).list_comments(Some(number)).send().await?;
+    // Get all review thread resolution statuses for this PR
+    let thread_resolution_map = self.get_review_threads_resolution(owner, repo, number).await
+      .unwrap_or_default();
+
+    // Get review comments (inline comments on the diff)
+    let review_comments = self
+      .client
+      .pulls(owner, repo)
+      .list_comments(Some(number))
+      .send()
+      .await?;
     
     for comment in review_comments {
       if let Some(user) = comment.user {
-        // Skip review comments that have emoji reactions (already processed/acknowledged)
-        if let Ok(reactions) = self.get_reactions(owner, repo, &comment.id.to_string()).await {
-          if !reactions.is_empty() {
-            bentley::info(&format!("Skipping review comment {} with emoji reactions", comment.id));
-            continue;
-          }
+        // For review comments (inline diff comments), check if they're resolved using GraphQL
+        // We use GitHub's conversation resolution status instead of emoji reactions
+        let is_resolved = thread_resolution_map
+          .get(&comment.node_id)
+          .map(|&r| r)
+          .unwrap_or(false);
+
+        if is_resolved {
+          bentley::info(&format!("Skipping resolved review comment {}", comment.id));
+          continue;
         }
 
         let author = User {
@@ -175,7 +245,7 @@ impl GitPlatform for GitHubPlatform {
 
         discussions.push(Discussion {
           id: comment.id.to_string(),
-          resolved: false, // We'll need to check conversation status separately
+          resolved: false, // We set this to false since we've already filtered resolved ones
           resolvable: true, // Review comments can be part of conversations
           file_path: Some(comment.path),
           line_number: comment.line.map(|line| line as u32),
@@ -289,45 +359,68 @@ impl GitPlatform for GitHubPlatform {
     let comment_id: u64 = comment_id.parse()
       .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
     
-    // Convert to octocrab's reaction type
-    let octocrab_reaction = match reaction.github_name() {
-      "+1" => octocrab::models::reactions::ReactionContent::PlusOne,
-      "-1" => octocrab::models::reactions::ReactionContent::MinusOne,
-      "laugh" => octocrab::models::reactions::ReactionContent::Laugh,
-      "hooray" => octocrab::models::reactions::ReactionContent::Hooray,
-      "confused" => octocrab::models::reactions::ReactionContent::Confused,
-      "heart" => octocrab::models::reactions::ReactionContent::Heart,
-      "rocket" => octocrab::models::reactions::ReactionContent::Rocket,
-      "eyes" => octocrab::models::reactions::ReactionContent::Eyes,
-      _ => return Err(anyhow!("Unsupported reaction type: {}", reaction.github_name())),
-    };
+    // First try as a review comment, then fall back to issue comment
+    // GitHub API endpoints:
+    // - Review comments: POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions
+    // - Issue comments: POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions
+    
+    let review_comment_url = format!("/repos/{}/{}/pulls/comments/{}/reactions", owner, repo, comment_id);
+    let issue_comment_url = format!("/repos/{}/{}/issues/comments/{}/reactions", owner, repo, comment_id);
+    
+    let reaction_body = serde_json::json!({
+      "content": reaction.github_name()
+    });
 
-    self.client
-      .issues(owner, repo)
-      .create_comment_reaction(comment_id, octocrab_reaction)
-      .await
-      .map_err(|e| {
+    // Try review comment first
+    match self.client._post(&review_comment_url, Some(&reaction_body)).await {
+      Ok(response) => {
+        if response.status().is_success() {
+          bentley::info(&format!("Added {} reaction to review comment {}", reaction.emoji(), comment_id));
+          return Ok(true);
+        } else {
+          bentley::debug(&format!("Review comment reaction failed with status: {}", response.status()));
+          // Fall through to try issue comment
+        }
+      },
+      Err(e) => {
+        bentley::debug(&format!("Review comment reaction failed: {:?}", e));
+        // Fall through to try issue comment
+      }
+    }
+
+    // Try issue comment
+    match self.client._post(&issue_comment_url, Some(&reaction_body)).await {
+      Ok(response) => {
+        if response.status().is_success() {
+          bentley::info(&format!("Added {} reaction to issue comment {}", reaction.emoji(), comment_id));
+          Ok(true)
+        } else {
+          Err(anyhow!("Failed to add reaction {} to comment {}: HTTP {}", 
+            reaction.emoji(), comment_id, response.status()))
+        }
+      },
+      Err(e) => {
         // Check if this is a permission error and provide helpful guidance
         let error_msg = format!("{:?}", e);
         if error_msg.contains("403") || error_msg.contains("Resource not accessible") {
-          anyhow!(
+          Err(anyhow!(
             "Failed to add reaction {} to comment {}: Permission denied.\n\n\
             Possible causes:\n\
             1. Token missing 'public_repo' scope (or 'repo' for private repos)\n\
             2. Token type mismatch (fine-grained vs classic)\n\
             3. Organization-level restrictions on personal access tokens\n\
             4. Repository-level access restrictions\n\n\
-                         Repository: TravelSizedLions/kernelle\n\
+                         Repository: {}/{}\n\
              Comment ID: {}\n\n\
              Original error: {:?}",
-             reaction.emoji(), comment_id, comment_id, e
-          )
+             reaction.emoji(), comment_id, owner, repo, comment_id, e
+          ))
         } else {
-          anyhow!("Failed to add reaction {} to comment {}: {:?}", reaction.emoji(), comment_id, e)
+          Err(anyhow!("Failed to add reaction {} to comment {}: {:?}", 
+            reaction.emoji(), comment_id, e))
         }
-      })?;
-    
-    Ok(true)
+      }
+    }
   }
 
   async fn remove_reaction(
