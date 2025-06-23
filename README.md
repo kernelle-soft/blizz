@@ -1,6 +1,6 @@
 # Kernelle
 
-**A Rust-powered, design-to-merge AI development toolshed**
+**A Rust-powered, investigation-to-merge AI development toolshed**
 
 It's an artificial intelligence gold rush, and let's be honest, there are a heck of a lot of shovels piling up.
 
@@ -11,7 +11,7 @@ Instead of building yet another shovel to throw on the pile, this repository is 
 - writing clean code and tests
 - merge reviews, both as the assignee and reviewer.
 
-In essence, this repository takes the next logical step software development's been working towards: a design-to-merge development toolkit to accelerate a typical sprint workflow. It provides semantically programmed agent rulesets that leverage a suite of human-friendly, agent-ready CLIs to automate and aide in the most common stages of development.
+In essence, this repository takes the next logical step software development's been working towards: a development toolkit to accelerate a typical sprint workflow all the way from investigation and triage up through merge. It provides semantically programmed agent rulesets that leverage a suite of human-friendly, agent-ready CLIs to automate and aide in the most common stages of development.
 
 This toolshed's been designed and tested for real-world development, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts. It's designed to accelerate you, not replace you.
 
@@ -39,9 +39,9 @@ The beauty? **You can start solo and scale up organically.** Begin with local to
 ### 🔧 Jerrod - GitLab/GitHub MR Review Specialist
 *"Methodical precision meets systematic excellence"*
 
-**Problem:** Losing track of MR discussions, forgotten review threads, and the mental overhead of context-switching between review sessions.
+**Problem:** Massive MRs with large amounts of requested changes. Losing track of MR discussions, forgotten review threads, and the mental overhead of context-switching between review sessions.
 
-**Solution:** Jerrod's systematic, queue-based review process eliminates scattered feedback and ensures no detail escapes scrutiny. Resume any review exactly where you left off without reconstructing context.
+**Our Solution:** Jerrod's systematic, queue-based review process eliminates scattered feedback and ensures no detail escapes scrutiny, regardless of the scope of the changeset or how much it creeps. Can juggle multiple code review requests in parallel and resume any review exactly where you left off without calling out to your remote.
 
 </td>
 </tr>
@@ -53,8 +53,8 @@ The beauty? **You can start solo and scale up organically.** Begin with local to
 - **Local, Session-based review management**
 - Thread queue processing with surgical precision
 - Like any good engineer, knows how to split off chunks of scope for later.
-- Rich diff context and discussion tracking
-- Automated commit linking and resolution tracking: know what commit fixed what issue on which MR.
+- Has local access to rich diff context and review discussions
+- Automated commit linking and resolution tracking, so you can know what commit fixed what issue on which code review.
 - Not so great at parties
 
 **Commands:**
@@ -79,7 +79,7 @@ jerrod finish                      # Complete and cleanup session
 
 **Problem:** "Where did we have that discussion again? Slack? A Google doc? Coda?" Plus AI context limitations and the time needed to reconstruct task context between sessions.
 
-**Solution:** Blizz connects to ALL your information sources through MCP integration (Notion, Jira, Slack, Coda, GitLab, GitHub) as well as your local repositories to create a unified, searchable knowledge base from your command line locally on your machine. No more hunting through multiple apps - Blizz pulls it all together, summarizes what matters, and stores it securely without eating your AI token budget.
+**Solution:** Blizz connects to ALL your information sources through MCP integration, such as Notion, Jira, Slack, Coda, GitLab, and GitHub. Blends acquired remote knowledge seamlessly with information gleaned from local repositories and discussions to create a unified, searchable knowledge base from your command line. Blizz gives you the knowledge of any subject matter expert, storable and searchable on your machine, playing nice with AI IDEs and Unix commands alike. No more hunting through multiple apps - Blizz pulls it all together, summarizes what matters, and stores it securely without eating your AI token budget.
 
 
 </td>
