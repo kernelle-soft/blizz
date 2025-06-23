@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 // Remove keyring import and add encryption imports
@@ -366,16 +367,22 @@ impl Sentinel {
   }
 
   fn prompt_for_credential(&self, spec: &CredentialSpec) -> Result<String> {
-    // For now, return a placeholder - in a real implementation, this would prompt securely
-    // TODO: Add secure credential prompting (hidden input for tokens)
-    bentley::warn(&format!("TODO: Implement secure prompting for {}", spec.key));
-
+    bentley::info(&format!("🔑 Enter {}: {}", spec.key, spec.description));
+    
     if let Some(example) = &spec.example {
       bentley::info(&format!("Example: {}", example));
     }
-
-    // Return a placeholder for now
-    Ok("placeholder_credential".to_string())
+    
+    print!("> ");
+    std::io::stdout().flush()?;
+    
+    let value = rpassword::read_password()?;
+    
+    if value.trim().is_empty() {
+      return Err(anyhow!("{} cannot be empty", spec.key));
+    }
+    
+    Ok(value.trim().to_string())
   }
 }
 
