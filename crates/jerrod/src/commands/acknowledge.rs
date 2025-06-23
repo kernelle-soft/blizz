@@ -28,26 +28,23 @@ impl AcknowledgeConfig {
     // 👀 flags
     eyes: bool, looking: bool, surprise: bool,
   ) -> Self {
-    let reaction_type = if thumbs_up || ok || yeah || got_it {
-      ReactionType::ThumbsUp
-    } else if thumbs_down || f_you {
-      ReactionType::ThumbsDown
-    } else if laugh || smile {
-      ReactionType::Laugh
-    } else if hooray || tada || yay || huzzah || sarcastic_cheer {
-      ReactionType::Hooray
-    } else if confused || frown || sad {
-      ReactionType::Confused
-    } else if love || heart || favorite {
-      ReactionType::Heart
-    } else if rocket || zoom || launch || shipped || sarcastic_ship_it {
-      ReactionType::Rocket
-    } else if eyes || looking || surprise {
-      ReactionType::Eyes
-    } else {
-      // Default to thumbs up
-      ReactionType::ThumbsUp
-    };
+    // Array-based pattern matching - much cleaner than else-if chains!
+    let flag_groups = [
+      ([thumbs_up, ok, yeah, got_it].iter().any(|&f| f), ReactionType::ThumbsUp),
+      ([thumbs_down, f_you].iter().any(|&f| f), ReactionType::ThumbsDown),
+      ([laugh, smile].iter().any(|&f| f), ReactionType::Laugh),
+      ([hooray, tada, yay, huzzah, sarcastic_cheer].iter().any(|&f| f), ReactionType::Hooray),
+      ([confused, frown, sad].iter().any(|&f| f), ReactionType::Confused),
+      ([love, heart, favorite].iter().any(|&f| f), ReactionType::Heart),
+      ([rocket, zoom, launch, shipped, sarcastic_ship_it].iter().any(|&f| f), ReactionType::Rocket),
+      ([eyes, looking, surprise].iter().any(|&f| f), ReactionType::Eyes),
+    ];
+
+    let reaction_type = flag_groups
+      .iter()
+      .find(|(is_set, _)| *is_set)
+      .map(|(_, reaction)| reaction.clone())
+      .unwrap_or(ReactionType::ThumbsUp); // Default to thumbs up
 
     Self { reaction_type }
   }
