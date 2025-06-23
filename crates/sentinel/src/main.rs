@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use sentinel::{services, Sentinel};
+use std::env;
 
 #[derive(Parser)]
 #[command(name = "sentinel")]
@@ -10,6 +11,9 @@ use sentinel::{services, Sentinel};
 struct Cli {
   #[command(subcommand)]
   command: Commands,
+  /// Suppress banners and flourishes (useful when called from other tools)
+  #[arg(long, global = true)]
+  quiet: bool,
 }
 
 #[derive(Subcommand)]
@@ -91,14 +95,22 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-  bentley::spotlight("Sentinel - The Watchful Guardian of Secrets");
-
   let cli = Cli::parse();
+  
+  // Auto-detect quiet mode if called as subprocess or if SENTINEL_QUIET is set
+  let quiet_mode = cli.quiet 
+    || env::var("SENTINEL_QUIET").is_ok()
+    || is_subprocess();
+
+  if !quiet_mode {
+    bentley::spotlight("Sentinel - The Watchful Guardian of Secrets");
+  }
+
   let sentinel = Sentinel::new();
 
   match cli.command {
     Commands::Setup { service, force } => {
-      handle_setup(&sentinel, &service, force).await?;
+      handle_setup(&sentinel, &service, force, quiet_mode).await?;
     }
     Commands::Store { service, key, value, force } => {
       handle_store(&sentinel, &service, &key, value, force).await?;
@@ -113,10 +125,10 @@ async fn main() -> Result<()> {
       handle_delete(&sentinel, &service, key, force).await?;
     }
     Commands::List { service, keys } => {
-      handle_list(&sentinel, service, keys).await?;
+      handle_list(&sentinel, service, keys, quiet_mode).await?;
     }
     Commands::Clear { force } => {
-      handle_clear(&sentinel, force).await?;
+      handle_clear(&sentinel, force, quiet_mode).await?;
     }
     Commands::Verify { service } => {
       handle_verify(&sentinel, &service).await?;
@@ -126,7 +138,14 @@ async fn main() -> Result<()> {
   Ok(())
 }
 
-async fn handle_setup(sentinel: &Sentinel, service_name: &str, force: bool) -> Result<()> {
+/// Detect if we're running as a subprocess
+fn is_subprocess() -> bool {
+  // Check if parent process is not a shell-like process
+  // Simple heuristic: if SENTINEL_QUIET env var is set by parent process
+  env::var("PPID").is_ok() && env::var("SHLVL").map_or(true, |level| level != "1")
+}
+
+async fn handle_setup(sentinel: &Sentinel, service_name: &str, force: bool, quiet: bool) -> Result<()> {
   let service_config = match service_name.to_lowercase().as_str() {
     "github" => services::github(),
     "gitlab" => services::gitlab(),
@@ -154,7 +173,9 @@ async fn handle_setup(sentinel: &Sentinel, service_name: &str, force: bool) -> R
     return Ok(());
   }
 
-  bentley::announce(&format!("Setting up credentials for {}", service_config.name));
+  if !quiet {
+    bentley::announce(&format!("Setting up credentials for {}", service_config.name));
+  }
   bentley::info(&service_config.description);
 
   for cred_spec in &service_config.required_credentials {
@@ -177,7 +198,11 @@ async fn handle_setup(sentinel: &Sentinel, service_name: &str, force: bool) -> R
     }
   }
 
-  bentley::flourish(&format!("Credentials setup complete for {}!", service_config.name));
+  if !quiet {
+    bentley::flourish(&format!("Credentials setup complete for {}!", service_config.name));
+  } else {
+    bentley::success(&format!("✅ {} credentials configured successfully!", service_config.name));
+  }
   Ok(())
 }
 
@@ -328,8 +353,11 @@ async fn handle_list(
   sentinel: &Sentinel,
   service_filter: Option<String>,
   show_keys: bool,
+  quiet: bool,
 ) -> Result<()> {
-  bentley::announce("Credential Vault Contents");
+  if !quiet {
+    bentley::announce("Credential Vault Contents");
+  }
 
   if let Some(service) = service_filter {
     // List credentials for specific service
@@ -403,7 +431,7 @@ async fn handle_list(
   Ok(())
 }
 
-async fn handle_clear(sentinel: &Sentinel, force: bool) -> Result<()> {
+async fn handle_clear(sentinel: &Sentinel, force: bool, quiet: bool) -> Result<()> {
   if !force {
     bentley::warn("⚠️  This will DELETE ALL CREDENTIALS from the vault!");
     bentley::warn("This action cannot be undone!");
@@ -447,7 +475,11 @@ async fn handle_clear(sentinel: &Sentinel, force: bool) -> Result<()> {
   );
   bentley::info("Use 'sentinel delete <service> <key>' to remove specific credentials");
 
-  bentley::flourish("Vault clearing complete!");
+  if !quiet {
+    bentley::flourish("Vault clearing complete!");
+  } else {
+    bentley::success("Vault cleared successfully");
+  }
   Ok(())
 }
 

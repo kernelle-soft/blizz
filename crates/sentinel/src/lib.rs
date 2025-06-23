@@ -1,17 +1,181 @@
 use anyhow::{anyhow, Result};
-use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+
+// Remove keyring import and add encryption imports
+use aes_gcm::{
+  aead::{Aead, KeyInit, OsRng},
+  Aes256Gcm, Key, Nonce
+};
+use rand::RngCore;
 
 pub mod daemon;
 pub mod encryption;
 
+/// Encrypted credential store using file-based storage instead of keychain
+#[derive(Debug, Serialize, Deserialize)]
+struct EncryptedCredentialStore {
+  credentials: HashMap<String, HashMap<String, String>>, // service -> key -> encrypted_value
+}
+
+impl EncryptedCredentialStore {
+  fn new() -> Self {
+    Self {
+      credentials: HashMap::new(),
+    }
+  }
+
+  fn get_encrypted(&self, service: &str, key: &str) -> Option<&String> {
+    self.credentials.get(service)?.get(key)
+  }
+
+  fn set_encrypted(&mut self, service: &str, key: &str, encrypted_value: String) {
+    self.credentials
+      .entry(service.to_string())
+      .or_insert_with(HashMap::new)
+      .insert(key.to_string(), encrypted_value);
+  }
+
+  fn load_from_file(path: &PathBuf) -> Result<Self> {
+    if path.exists() {
+      let content = fs::read_to_string(path)?;
+      let store: EncryptedCredentialStore = serde_json::from_str(&content)?;
+      Ok(store)
+    } else {
+      Ok(Self::new())
+    }
+  }
+
+  fn save_to_file(&self, path: &PathBuf) -> Result<()> {
+    if let Some(parent) = path.parent() {
+      fs::create_dir_all(parent)?;
+    }
+    let content = serde_json::to_string_pretty(self)?;
+    fs::write(path, content)?;
+    Ok(())
+  }
+}
+
+/// Crypto manager for encryption/decryption
+struct CryptoManager {
+  key_path: PathBuf,
+}
+
+impl CryptoManager {
+  fn new() -> Self {
+    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+      std::path::PathBuf::from(kernelle_dir)
+    } else {
+      dirs::home_dir()
+        .unwrap_or_else(|| std::env::current_dir().unwrap())
+        .join("kernelle")
+    };
+    
+    let mut key_path = base_path;
+    key_path.push("sentinel");
+    key_path.push("master.key");
+    
+    Self { key_path }
+  }
+
+  fn key_exists(&self) -> bool {
+    self.key_path.exists()
+  }
+
+  fn generate_key(&self) -> Result<()> {
+    bentley::info("🔐 Generating AES encryption key for secure credential storage...");
+    
+    let mut key = [0u8; 32]; // 256-bit key for AES-256
+    OsRng.fill_bytes(&mut key);
+
+    // Create directory if it doesn't exist
+    if let Some(parent) = self.key_path.parent() {
+      fs::create_dir_all(parent)?;
+    }
+
+    // Save key as base64
+    let key_b64 = base64::encode(key);
+    fs::write(&self.key_path, key_b64)?;
+
+    // Set restrictive permissions on key file
+    #[cfg(unix)]
+    {
+      use std::os::unix::fs::PermissionsExt;
+      let mut perms = fs::metadata(&self.key_path)?.permissions();
+      perms.set_mode(0o600); // Owner read/write only
+      fs::set_permissions(&self.key_path, perms)?;
+    }
+
+    bentley::success("🔑 AES encryption key generated and stored securely");
+    Ok(())
+  }
+
+  fn load_key(&self) -> Result<[u8; 32]> {
+    let key_b64 = fs::read_to_string(&self.key_path)?;
+    let key_bytes = base64::decode(key_b64.trim())?;
+    
+    if key_bytes.len() != 32 {
+      return Err(anyhow!("Invalid key length"));
+    }
+    
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&key_bytes);
+    Ok(key)
+  }
+
+  fn encrypt_value(&self, value: &str) -> Result<String> {
+    let key_bytes = self.load_key()?;
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(key);
+    
+    // Generate random nonce
+    let mut nonce_bytes = [0u8; 12]; // 96-bit nonce for GCM
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    
+    // Encrypt the value
+    let ciphertext = cipher.encrypt(nonce, value.as_bytes())
+      .map_err(|e| anyhow!("Encryption failed: {}", e))?;
+    
+    // Combine nonce + ciphertext and encode as base64
+    let mut combined = nonce_bytes.to_vec();
+    combined.extend_from_slice(&ciphertext);
+    
+    Ok(base64::encode(combined))
+  }
+
+  fn decrypt_value(&self, encrypted_value: &str) -> Result<String> {
+    let key_bytes = self.load_key()?;
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(key);
+    
+    // Decode from base64
+    let combined = base64::decode(encrypted_value)?;
+    
+    if combined.len() < 12 {
+      return Err(anyhow!("Invalid encrypted data"));
+    }
+    
+    // Split nonce and ciphertext
+    let (nonce_bytes, ciphertext) = combined.split_at(12);
+    let nonce = Nonce::from_slice(nonce_bytes);
+    
+    // Decrypt
+    let plaintext = cipher.decrypt(nonce, ciphertext)
+      .map_err(|e| anyhow!("Decryption failed: {}", e))?;
+    
+    Ok(String::from_utf8(plaintext)?)
+  }
+}
+
 /// Sentinel - The watchful guardian of secrets
 ///
-/// Provides secure credential storage using the OS keychain (macOS Keychain,
-/// Windows Credential Manager, Linux Secret Service).
+/// Provides secure credential storage using encrypted files instead of OS keychain
 pub struct Sentinel {
   service_name: String,
+  crypto: CryptoManager,
 }
 
 /// Configuration for a service that needs credentials
@@ -41,26 +205,57 @@ pub struct Credential {
 impl Sentinel {
   /// Create a new Sentinel instance for the Kernelle toolset
   pub fn new() -> Self {
-    Self { service_name: "kernelle".to_string() }
+    Self { service_name: "kernelle".to_string(), crypto: CryptoManager::new() }
   }
 
-  /// Store a credential securely in the OS keychain
+  /// Store a credential securely using encrypted file storage
   pub fn store_credential(&self, service: &str, key: &str, value: &str) -> Result<()> {
     bentley::event_info(&format!("Storing credential for {}/{}", service, key));
 
-    let entry_name = format!("{}_{}", service, key);
-    let entry = Entry::new(&self.service_name, &entry_name)?;
+    // Ensure crypto is set up
+    if !self.crypto.key_exists() {
+      self.crypto.generate_key()?;
+    }
 
-    entry.set_password(value)?;
+    // Encrypt the value
+    let encrypted_value = self.crypto.encrypt_value(value)?;
+
+    // Load, update, and save the credential store
+    let credentials_path = self.get_credentials_path();
+    let mut store = EncryptedCredentialStore::load_from_file(&credentials_path)?;
+    store.set_encrypted(service, key, encrypted_value);
+    store.save_to_file(&credentials_path)?;
 
     bentley::event_success(&format!("Credential stored securely for {}/{}", service, key));
     Ok(())
   }
 
-  /// Retrieve a credential from the OS keychain
+  /// Retrieve a credential from encrypted file storage
   pub fn get_credential(&self, service: &str, key: &str) -> Result<String> {
-    // For backwards compatibility, try keychain directly in sync context
-    self.get_credential_from_keychain(service, key)
+    let credentials_path = self.get_credentials_path();
+    let store = EncryptedCredentialStore::load_from_file(&credentials_path)?;
+    
+    if let Some(encrypted_value) = store.get_encrypted(service, key) {
+      self.crypto.decrypt_value(encrypted_value)
+    } else {
+      Err(anyhow!("Credential not found for {}/{}", service, key))
+    }
+  }
+
+  /// Get the path to the credentials file
+  fn get_credentials_path(&self) -> PathBuf {
+    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+      std::path::PathBuf::from(kernelle_dir)
+    } else {
+      dirs::home_dir()
+        .unwrap_or_else(|| std::env::current_dir().unwrap())
+        .join("kernelle")
+    };
+    
+    let mut path = base_path;
+    path.push("sentinel");
+    path.push("credentials.json");
+    path
   }
 
   /// Async version of get_credential with daemon support
@@ -70,39 +265,39 @@ impl Sentinel {
       return Ok(credential);
     }
 
-    // Fall back to keychain
-    self.get_credential_from_keychain(service, key)
+    // Fall back to encrypted file storage
+    self.get_credential(service, key)
   }
 
   /// Get credential from daemon with lazy startup
   async fn get_credential_from_daemon(&self, service: &str, key: &str) -> Result<String> {
-    // For now, skip daemon complexity and just use keychain directly
+    // For now, skip daemon complexity and just use encrypted file storage directly
     // This avoids the keychain prompt issue while maintaining async interface
-    self.get_credential_from_keychain(service, key)
+    self.get_credential(service, key)
   }
 
-  /// Get credential from keychain
-  fn get_credential_from_keychain(&self, service: &str, key: &str) -> Result<String> {
-    let entry_name = format!("{}_{}", service, key);
-    let entry = Entry::new(&self.service_name, &entry_name)?;
-
-    match entry.get_password() {
-      Ok(password) => Ok(password),
-      Err(_) => Err(anyhow!("Credential not found for {}/{}", service, key)),
-    }
-  }
-
-  /// Delete a credential from the OS keychain
+  /// Delete a credential from encrypted file storage
   pub fn delete_credential(&self, service: &str, key: &str) -> Result<()> {
     bentley::event_info(&format!("Deleting credential for {}/{}", service, key));
 
-    let entry_name = format!("{}_{}", service, key);
-    let entry = Entry::new(&self.service_name, &entry_name)?;
-
-    entry.delete_credential()?;
-
-    bentley::event_success(&format!("Credential deleted for {}/{}", service, key));
-    Ok(())
+    let credentials_path = self.get_credentials_path();
+    let mut store = EncryptedCredentialStore::load_from_file(&credentials_path)?;
+    
+    if let Some(service_creds) = store.credentials.get_mut(service) {
+      if service_creds.remove(key).is_some() {
+        // Remove the service entirely if no credentials left
+        if service_creds.is_empty() {
+          store.credentials.remove(service);
+        }
+        store.save_to_file(&credentials_path)?;
+        bentley::event_success(&format!("Credential deleted for {}/{}", service, key));
+        Ok(())
+      } else {
+        Err(anyhow!("Credential not found for {}/{}", service, key))
+      }
+    } else {
+      Err(anyhow!("Credential not found for {}/{}", service, key))
+    }
   }
 
   /// Get all credentials for a service as environment variables
@@ -270,7 +465,7 @@ mod tests {
   // Helper function to create a test sentinel with a unique service name
   fn create_test_sentinel() -> Sentinel {
     let unique_id = std::process::id();
-    Sentinel { service_name: format!("test_kernelle_{}", unique_id) }
+    Sentinel { service_name: format!("test_kernelle_{}", unique_id), crypto: CryptoManager::new() }
   }
 
   #[test]

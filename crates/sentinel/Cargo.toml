@@ -24,6 +24,7 @@ futures = "0.3"
 # Encryption for credential storage
 aes-gcm = "0.10"
 rand = "0.8"
+base64 = "0.20"
 # System password prompts
 native-dialog = "0.7"
 
