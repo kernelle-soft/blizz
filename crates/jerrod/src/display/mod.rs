@@ -105,7 +105,6 @@ pub fn display_discussion_thread(discussion: &Discussion) {
 }
 
 pub fn display_file_diff(diff: &FileDiff) {
-  // Use bentley's banner functionality for diff display
   let header = format!("📄 File: {}", diff.new_path);
   let full_header = if let Some(old_path) = &diff.old_path {
     if old_path != &diff.new_path {
