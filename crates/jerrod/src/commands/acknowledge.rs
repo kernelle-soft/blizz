@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use crate::session::load_current_session;
-use crate::platform::{ReactionType, GitPlatform, github::GitHubPlatform};
+use crate::platform::{ReactionType, GitPlatform, create_platform};
 
 /// Configuration for acknowledgment reactions
 #[derive(Debug, Clone)]
@@ -58,21 +58,18 @@ impl AcknowledgeConfig {
 pub async fn handle(config: AcknowledgeConfig) -> Result<()> {
   let session = load_current_session()?;
 
-  if session.platform != "github" {
-    return Err(anyhow!("Reaction system currently only supported for GitHub"));
-  }
-
   let current_thread_id = session.thread_queue.front()
     .ok_or_else(|| anyhow!("No threads in queue"))?;
 
-  let github = GitHubPlatform::new().await?;
+  // Use strategy pattern to create appropriate platform implementation
+  let platform = create_platform(&session.platform).await?;
 
   let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
   if repo_parts.len() != 2 {
-    return Err(anyhow!("Invalid repository format"));
+    return Err(anyhow!("Invalid repository format: {}", session.repository.full_name));
   }
 
-  let success = github.add_reaction(
+  let success = platform.add_reaction(
     repo_parts[0],
     repo_parts[1], 
     current_thread_id,
