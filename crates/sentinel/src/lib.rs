@@ -234,8 +234,37 @@ impl Sentinel {
     Ok(())
   }
 
-  /// Retrieve a credential from encrypted file storage
+  /// Retrieve a credential from encrypted file storage with automatic setup
   pub fn get_credential(&self, service: &str, key: &str) -> Result<String> {
+    // First try to get the credential directly
+    if let Ok(value) = self.get_credential_raw(service, key) {
+      return Ok(value);
+    }
+
+    // If not found, try to get the service config and set it up automatically
+    let service_config = match service.to_lowercase().as_str() {
+      "github" => Some(services::github()),
+      "gitlab" => Some(services::gitlab()),
+      "jira" => Some(services::jira()),
+      "notion" => Some(services::notion()),
+      _ => None,
+    };
+
+    if let Some(config) = service_config {
+      // Check if this key is part of the service config
+      if config.required_credentials.iter().any(|spec| spec.key == key) {
+        bentley::info(&format!("Credential {}/{} not found. Setting up {} credentials...", service, key, service));
+        self.setup_service(&config)?;
+        return self.get_credential_raw(service, key);
+      }
+    }
+
+    // If we can't auto-setup, return the original error
+    Err(anyhow!("Credential not found for {}/{}", service, key))
+  }
+
+  /// Internal method to get credential without automatic setup
+  fn get_credential_raw(&self, service: &str, key: &str) -> Result<String> {
     let credentials_path = self.get_credentials_path();
     let store = EncryptedCredentialStore::load_from_file(&credentials_path)?;
     
