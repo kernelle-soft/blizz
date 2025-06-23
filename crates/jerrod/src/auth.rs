@@ -62,7 +62,7 @@ impl CryptoManager {
         } else {
             dirs::home_dir()
                 .unwrap_or_else(|| std::env::current_dir().unwrap())
-                .join("kernelle")
+                .join(".kernelle")
         };
         
         let mut key_path = base_path;
@@ -159,7 +159,7 @@ fn get_credentials_path() -> PathBuf {
     } else {
         dirs::home_dir()
             .unwrap_or_else(|| std::env::current_dir().unwrap())
-            .join("kernelle")
+            .join(".kernelle")
     };
     
     let mut path = base_path;

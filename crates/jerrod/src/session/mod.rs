@@ -89,7 +89,7 @@ impl SessionManager {
     } else {
       dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
-        .join("kernelle")
+        .join(".kernelle")
     };
     
     Ok(Self { 
