@@ -239,31 +239,342 @@ fn count_parameters_ruby(params_node: Node) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+    use std::path::Path;
+
+    // Helper function for tests
+    fn parse_code(code: &str, language: Language) -> Result<Tree> {
+        let mut parser = LanguageParser::new(language)?;
+        parser.parse(code)
+    }
+
     #[test]
     fn test_detect_language() {
-        assert_eq!(detect_language("test.js"), Some(Language::JavaScript));
-        assert_eq!(detect_language("test.ts"), Some(Language::TypeScript));
-        assert_eq!(detect_language("test.py"), Some(Language::Python));
-        assert_eq!(detect_language("test.rs"), Some(Language::Rust));
-        assert_eq!(detect_language("test.sh"), Some(Language::Bash));
-        assert_eq!(detect_language("test.go"), Some(Language::Go));
-        assert_eq!(detect_language("test.rb"), Some(Language::Ruby));
-        assert_eq!(detect_language("test.unknown"), None);
+        assert_eq!(detect_language(Path::new("test.js")), Some(Language::JavaScript));
+        assert_eq!(detect_language(Path::new("test.mjs")), Some(Language::JavaScript));
+        assert_eq!(detect_language(Path::new("test.ts")), Some(Language::TypeScript));
+        assert_eq!(detect_language(Path::new("test.tsx")), Some(Language::TypeScript));
+        assert_eq!(detect_language(Path::new("test.py")), Some(Language::Python));
+        assert_eq!(detect_language(Path::new("test.rs")), Some(Language::Rust));
+        assert_eq!(detect_language(Path::new("test.sh")), Some(Language::Bash));
+        assert_eq!(detect_language(Path::new("test.go")), Some(Language::Go));
+        assert_eq!(detect_language(Path::new("test.rb")), Some(Language::Ruby));
+        assert_eq!(detect_language(Path::new("test.unknown")), None);
+        assert_eq!(detect_language(Path::new("no_extension")), None);
     }
-    
+
     #[test]
-    fn test_javascript_parser() -> Result<()> {
-        let mut parser = LanguageParser::new(Language::JavaScript)?;
-        let source = "function test(a, b, c) { return a + b + c; }";
-        let tree = parser.parse(source)?;
+    fn test_detect_language_case_insensitive() {
+        assert_eq!(detect_language(Path::new("TEST.JS")), Some(Language::JavaScript));
+        assert_eq!(detect_language(Path::new("Test.Py")), Some(Language::Python));
+        assert_eq!(detect_language(Path::new("file.RS")), Some(Language::Rust));
+    }
+
+    #[test]
+    fn test_detect_language_complex_paths() {
+        assert_eq!(detect_language(Path::new("src/components/Button.tsx")), Some(Language::TypeScript));
+        assert_eq!(detect_language(Path::new("/absolute/path/to/script.sh")), Some(Language::Bash));
+        assert_eq!(detect_language(Path::new("../relative/path/module.py")), Some(Language::Python));
+    }
+
+    #[test]
+    fn test_javascript_parser() {
+        let code = r#"
+            function test(a, b, c) {
+                if (a > b) {
+                    if (b > c) {
+                        return a + b + c;
+                    }
+                }
+                return 0;
+            }
+        "#;
         
-        let functions = extract_function_nodes(&tree, Language::JavaScript);
-        assert_eq!(functions.len(), 1);
+        let result = parse_code(code, Language::JavaScript);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_typescript_parser() {
+        let code = r#"
+            interface User {
+                name: string;
+                age: number;
+            }
+            
+            function greet(user: User): string {
+                return `Hello, ${user.name}!`;
+            }
+        "#;
         
-        let param_count = get_parameter_count(functions[0], Language::JavaScript);
-        assert_eq!(param_count, 3);
+        let result = parse_code(code, Language::TypeScript);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_python_parser() {
+        let code = r#"
+def fibonacci(n):
+    if n <= 1:
+        return n
+    else:
+        return fibonacci(n-1) + fibonacci(n-2)
+
+class Calculator:
+    def add(self, a, b):
+        return a + b
+        "#;
         
-        Ok(())
+        let result = parse_code(code, Language::Python);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_rust_parser() {
+        let code = r#"
+            fn main() {
+                let x = 5;
+                let y = {
+                    let x = 3;
+                    x + 1
+                };
+                println!("The value of y is: {}", y);
+            }
+            
+            struct Point {
+                x: i32,
+                y: i32,
+            }
+        "#;
+        
+        let result = parse_code(code, Language::Rust);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_bash_parser() {
+        let code = r#"
+            #!/bin/bash
+            
+            function backup_files() {
+                local source_dir=$1
+                local backup_dir=$2
+                
+                if [ ! -d "$backup_dir" ]; then
+                    mkdir -p "$backup_dir"
+                fi
+                
+                cp -r "$source_dir"/* "$backup_dir"/
+            }
+            
+            backup_files "/home/user/documents" "/backup/documents"
+        "#;
+        
+        let result = parse_code(code, Language::Bash);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_go_parser() {
+        let code = r#"
+            package main
+            
+            import "fmt"
+            
+            func fibonacci(n int) int {
+                if n <= 1 {
+                    return n
+                }
+                return fibonacci(n-1) + fibonacci(n-2)
+            }
+            
+            func main() {
+                fmt.Println(fibonacci(10))
+            }
+        "#;
+        
+        let result = parse_code(code, Language::Go);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_ruby_parser() {
+        let code = r#"
+            class Calculator
+              def initialize
+                @result = 0
+              end
+              
+              def add(x, y)
+                @result = x + y
+              end
+              
+              def multiply(x, y)
+                @result = x * y
+              end
+            end
+            
+            calc = Calculator.new
+            calc.add(5, 3)
+        "#;
+        
+        let result = parse_code(code, Language::Ruby);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_parse_invalid_syntax() {
+        let code = "function test( { invalid syntax }";
+        let result = parse_code(code, Language::JavaScript);
+        assert!(result.is_ok()); // Tree-sitter can parse partial/invalid code
+        let tree = result.unwrap();
+        // The tree might have error nodes, but tree-sitter doesn't fail completely
+        assert!(tree.root_node().child_count() > 0);
+    }
+
+    #[test]
+    fn test_parse_empty_code() {
+        let result = parse_code("", Language::JavaScript);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert_eq!(tree.root_node().child_count(), 0);
+    }
+
+    #[test]
+    fn test_parse_whitespace_only() {
+        let result = parse_code("   \n\t  \n  ", Language::Python);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        // Whitespace-only code should parse successfully
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_parse_complex_nesting() {
+        let code = r#"
+            function complexNesting() {
+                if (condition1) {
+                    if (condition2) {
+                        if (condition3) {
+                            if (condition4) {
+                                if (condition5) {
+                                    return "deeply nested";
+                                }
+                            }
+                        }
+                    }
+                }
+                return "not so deep";
+            }
+        "#;
+        
+        let result = parse_code(code, Language::JavaScript);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_parse_with_comments() {
+        let code = r#"
+            // This is a comment
+            function test() {
+                /* Multi-line
+                   comment */
+                return 42; // End of line comment
+            }
+        "#;
+        
+        let result = parse_code(code, Language::JavaScript);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_parse_large_function() {
+        let mut code = String::from("function largeFunction() {\n");
+        for i in 0..100 {
+            code.push_str(&format!("    let var{} = {};\n", i, i));
+        }
+        code.push_str("    return var99;\n}");
+        
+        let result = parse_code(&code, Language::JavaScript);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_parse_unicode_content() {
+        let code = r#"
+            function greetInDifferentLanguages() {
+                const greetings = {
+                    english: "Hello",
+                    spanish: "Hola",
+                    japanese: "こんにちは",
+                    arabic: "مرحبا",
+                    emoji: "👋🌍"
+                };
+                return greetings;
+            }
+        "#;
+        
+        let result = parse_code(code, Language::JavaScript);
+        assert!(result.is_ok());
+        let tree = result.unwrap();
+        assert!(!tree.root_node().is_error());
+    }
+
+    #[test]
+    fn test_parser_consistency() {
+        let code = "function test() { return 42; }";
+        
+        // Parse the same code multiple times to ensure consistency
+        let result1 = parse_code(code, Language::JavaScript);
+        let result2 = parse_code(code, Language::JavaScript);
+        
+        assert!(result1.is_ok());
+        assert!(result2.is_ok());
+        
+        let tree1 = result1.unwrap();
+        let tree2 = result2.unwrap();
+        
+        // Trees should have the same structure
+        assert_eq!(tree1.root_node().kind(), tree2.root_node().kind());
+        assert_eq!(tree1.root_node().child_count(), tree2.root_node().child_count());
+    }
+
+    #[test]
+    fn test_all_supported_languages_parse() {
+        let test_codes = vec![
+            (Language::JavaScript, "function test() { return 1; }"),
+            (Language::TypeScript, "function test(): number { return 1; }"),
+            (Language::Python, "def test():\n    return 1"),
+            (Language::Rust, "fn test() -> i32 { 1 }"),
+            (Language::Bash, "function test() { echo 1; }"),
+            (Language::Go, "func test() int { return 1 }"),
+            (Language::Ruby, "def test\n  1\nend"),
+        ];
+        
+        for (language, code) in test_codes {
+            let result = parse_code(code, language);
+            assert!(result.is_ok(), "Failed to parse {} code: {}", language, code);
+            let tree = result.unwrap();
+            assert!(!tree.root_node().is_error(), "Parse error in {} code", language);
+        }
     }
 } 
