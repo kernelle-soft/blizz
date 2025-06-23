@@ -215,6 +215,35 @@ impl GitPlatform for MockGitHub {
 
         Ok(vec![])
     }
+
+    async fn add_review_comment_reply(
+        &self,
+        _owner: &str,
+        _repo: &str,
+        _pr_number: u64,
+        _comment_id: &str,
+        text: &str,
+    ) -> Result<Note> {
+        if self.should_fail {
+            return Err(anyhow::anyhow!("Mock failure"));
+        }
+
+        let now = Utc::now();
+        let user = User {
+            id: "mock_user".to_string(),
+            username: "mock_user".to_string(),
+            display_name: "Mock User".to_string(),
+            avatar_url: None,
+        };
+
+        Ok(Note {
+            id: format!("reply_{}", self.api_call_count),
+            author: user,
+            body: text.to_string(),
+            created_at: now,
+            updated_at: now,
+        })
+    }
 }
 
 #[cfg(test)]

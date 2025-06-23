@@ -86,9 +86,10 @@ async fn create_test_session() -> (TempDir, ReviewSession) {
 
 #[tokio::test]
 async fn test_acknowledge_reaction_flags() {
-    // Test that we can call acknowledge with reaction flags
-    // Note: This will fail due to missing session, but tests the flag parsing
-    let result = acknowledge::handle(
+    use jerrod::commands::acknowledge::AcknowledgeConfig;
+    
+    // Test that we can create acknowledge config with reaction flags
+    let config = AcknowledgeConfig::from_flags(
         true, false, false, false, // thumbs_up flags
         false, false, // thumbs_down flags
         false, false, // laugh flags
@@ -97,9 +98,13 @@ async fn test_acknowledge_reaction_flags() {
         false, false, false, // heart flags
         false, false, false, false, false, // rocket flags
         false, false, false // eyes flags
-    ).await;
+    );
     
-    // Should error due to no session, but that's expected for this API test
+    // Should create a config with thumbs up reaction
+    assert_eq!(config.reaction_type.emoji(), "👍");
+    
+    // Test the command call (will fail due to missing session, but that's expected)
+    let result = acknowledge::handle(config).await;
     assert!(result.is_err());
 }
 

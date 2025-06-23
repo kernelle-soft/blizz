@@ -177,6 +177,7 @@ impl CryptoManager {
 pub struct Sentinel {
   service_name: String,
   crypto: CryptoManager,
+  credentials_path_override: Option<PathBuf>,
 }
 
 /// Configuration for a service that needs credentials
@@ -206,7 +207,7 @@ pub struct Credential {
 impl Sentinel {
   /// Create a new Sentinel instance for the Kernelle toolset
   pub fn new() -> Self {
-    Self { service_name: "kernelle".to_string(), crypto: CryptoManager::new() }
+    Self { service_name: "kernelle".to_string(), crypto: CryptoManager::new(), credentials_path_override: None }
   }
 
   /// Store a credential securely using encrypted file storage
@@ -245,6 +246,10 @@ impl Sentinel {
 
   /// Get the path to the credentials file
   fn get_credentials_path(&self) -> PathBuf {
+    if let Some(override_path) = &self.credentials_path_override {
+      return override_path.clone();
+    }
+    
     let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
       std::path::PathBuf::from(kernelle_dir)
     } else {
@@ -471,8 +476,28 @@ mod tests {
 
   // Helper function to create a test sentinel with a unique service name
   fn create_test_sentinel() -> Sentinel {
-    let unique_id = std::process::id();
-    Sentinel { service_name: format!("test_kernelle_{}", unique_id), crypto: CryptoManager::new() }
+    // Create isolated test environment for each test
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let unique_id = format!("{}_{}", std::process::id(), 
+      SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+    let temp_dir = std::env::temp_dir().join("kernelle_test").join(&unique_id);
+    
+    // Create a custom CryptoManager with isolated path instead of using env var
+    let mut key_path = temp_dir.clone();
+    key_path.push("sentinel");
+    key_path.push("master.key");
+    let crypto = CryptoManager { key_path };
+    
+    // Set up custom credentials path for isolation
+    let mut credentials_path = temp_dir;
+    credentials_path.push("sentinel");
+    credentials_path.push("credentials.json");
+    
+    Sentinel { 
+      service_name: format!("test_kernelle_{}", unique_id), 
+      crypto,
+      credentials_path_override: Some(credentials_path)
+    }
   }
 
   #[test]
@@ -665,7 +690,7 @@ mod tests {
 
   #[test]
   fn test_verify_service_credentials() {
-    let sentinel = Sentinel::new();
+    let sentinel = create_test_sentinel();
     let config = services::github();
 
     // Clean up any existing credentials first
@@ -688,7 +713,7 @@ mod tests {
 
   #[test]
   fn test_verify_service_credentials_jira() {
-    let sentinel = Sentinel::new();
+    let sentinel = create_test_sentinel();
     let config = services::jira();
 
     // Clean up any existing credentials first
@@ -722,6 +747,7 @@ mod tests {
   }
 
   #[test]
+  #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_setup_service() {
     let sentinel = create_test_sentinel();
     let config = ServiceConfig {
@@ -758,6 +784,7 @@ mod tests {
   }
 
   #[test]
+  #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_prompt_for_credential() {
     let sentinel = create_test_sentinel();
     let spec = CredentialSpec {
@@ -863,6 +890,7 @@ mod tests {
   }
 
   #[test]
+  #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_setup_service_with_optional_credentials() {
     let sentinel = Sentinel::new();
 
@@ -910,6 +938,7 @@ mod tests {
   }
 
   #[test]
+  #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_prompt_for_credential_with_example() {
     let sentinel = Sentinel::new();
 
@@ -939,6 +968,7 @@ mod tests {
   }
 
   #[test]
+  #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_setup_service_with_mixed_optional_credentials() {
     let sentinel = Sentinel::new();
 
