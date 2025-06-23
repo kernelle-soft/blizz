@@ -55,15 +55,6 @@ enum Commands {
     /// Create a new MR-level comment instead of replying to current thread
     #[arg(long)]
     new: bool,
-    /// Mark as complete/resolved with checkmark reaction
-    #[arg(short, long)]
-    complete: bool,
-    /// Mark as question/follow-up with question reaction
-    #[arg(short, long)]
-    question: bool,
-    /// Mark as deferred to separate task with memo reaction
-    #[arg(short, long)]
-    defer: bool,
   },
   /// Commit changes with automatic MR/thread linking
   Commit {
@@ -76,8 +67,78 @@ enum Commands {
     #[arg(short, long)]
     thread_id: Option<String>,
   },
-  /// Acknowledge a non-actionable comment (eyes reaction only)
-  Acknowledge,
+  /// Acknowledge a comment with reaction
+  Acknowledge {
+    /// 👍 reaction flags
+    #[arg(long)]
+    thumbs_up: bool,
+    #[arg(long)]
+    ok: bool,
+    #[arg(long)]
+    yeah: bool,
+    #[arg(long)]
+    got_it: bool,
+    
+    /// 👎 reaction flags  
+    #[arg(long)]
+    thumbs_down: bool,
+    #[arg(long)]
+    f_you: bool,
+    
+    /// 😄 reaction flags
+    #[arg(long)]
+    laugh: bool,
+    #[arg(long)]
+    smile: bool,
+    
+    /// 🎉 reaction flags
+    #[arg(long)]
+    hooray: bool,
+    #[arg(long)]
+    tada: bool,
+    #[arg(long)]
+    yay: bool,
+    #[arg(long)]
+    huzzah: bool,
+    #[arg(long)]
+    sarcastic_cheer: bool,
+    
+    /// 😕 reaction flags
+    #[arg(long)]
+    confused: bool,
+    #[arg(long)]
+    frown: bool,
+    #[arg(long)]
+    sad: bool,
+    
+    /// ❤️ reaction flags
+    #[arg(long)]
+    love: bool,
+    #[arg(long)]
+    heart: bool,
+    #[arg(long)]
+    favorite: bool,
+    
+    /// 🚀 reaction flags
+    #[arg(long)]
+    rocket: bool,
+    #[arg(long)]
+    zoom: bool,
+    #[arg(long)]
+    launch: bool,
+    #[arg(long)]
+    shipped: bool,
+    #[arg(long)]
+    sarcastic_ship_it: bool,
+    
+    /// 👀 reaction flags
+    #[arg(long)]
+    eyes: bool,
+    #[arg(long)]
+    looking: bool,
+    #[arg(long)]
+    surprise: bool,
+  },
   /// Finish the review session
   Finish,
   /// Refresh session data (clean and re-download)
@@ -96,11 +157,31 @@ async fn main() -> Result<()> {
     Commands::Status => commands::status::handle().await,
     Commands::Peek => commands::peek::handle().await,
     Commands::Pop { unresolved } => commands::pop::handle(unresolved).await,
-    Commands::Comment { text, new, complete, question, defer } => {
-      commands::comment::handle(text, new, complete, question, defer).await
+    Commands::Comment { text, new } => {
+      commands::comment::handle(text, new).await
     }
     Commands::Commit { message, details, thread_id } => commands::commit::handle(message, details, thread_id).await,
-    Commands::Acknowledge => commands::acknowledge::handle().await,
+    Commands::Acknowledge { 
+      thumbs_up, ok, yeah, got_it,
+      thumbs_down, f_you,
+      laugh, smile,
+      hooray, tada, yay, huzzah, sarcastic_cheer,
+      confused, frown, sad,
+      love, heart, favorite,
+      rocket, zoom, launch, shipped, sarcastic_ship_it,
+      eyes, looking, surprise
+    } => {
+      commands::acknowledge::handle(
+        thumbs_up, ok, yeah, got_it,
+        thumbs_down, f_you,
+        laugh, smile,
+        hooray, tada, yay, huzzah, sarcastic_cheer,
+        confused, frown, sad,
+        love, heart, favorite,
+        rocket, zoom, launch, shipped, sarcastic_ship_it,
+        eyes, looking, surprise
+      ).await
+    },
     Commands::Finish => commands::finish::handle().await,
     Commands::Refresh => commands::refresh::handle().await,
   }

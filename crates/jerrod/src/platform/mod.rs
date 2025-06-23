@@ -94,28 +94,40 @@ pub struct Pipeline {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReactionType {
-  Eyes,      // 👀 - Acknowledged/non-actionable
-  CheckMark, // ✅ - Resolved/addressed
-  Question,  // ❓ - Has follow-up with link
-  Memo,      // 📝 - Deferred to separate task
+  ThumbsUp,   // 👍
+  ThumbsDown, // 👎  
+  Laugh,      // 😄
+  Hooray,     // 🎉
+  Confused,   // 😕
+  Heart,      // ❤️
+  Rocket,     // 🚀
+  Eyes,       // 👀
 }
 
 impl ReactionType {
   pub fn emoji(&self) -> &'static str {
     match self {
+      ReactionType::ThumbsUp => "👍",
+      ReactionType::ThumbsDown => "👎",
+      ReactionType::Laugh => "😄",
+      ReactionType::Hooray => "🎉",
+      ReactionType::Confused => "😕",
+      ReactionType::Heart => "❤️",
+      ReactionType::Rocket => "🚀",
       ReactionType::Eyes => "👀",
-      ReactionType::CheckMark => "✅", 
-      ReactionType::Question => "❓",
-      ReactionType::Memo => "📝",
     }
   }
   
   pub fn github_name(&self) -> &'static str {
     match self {
+      ReactionType::ThumbsUp => "+1",
+      ReactionType::ThumbsDown => "-1",
+      ReactionType::Laugh => "laugh",
+      ReactionType::Hooray => "hooray",
+      ReactionType::Confused => "confused",
+      ReactionType::Heart => "heart",
+      ReactionType::Rocket => "rocket",
       ReactionType::Eyes => "eyes",
-      ReactionType::CheckMark => "heavy_check_mark",
-      ReactionType::Question => "question", 
-      ReactionType::Memo => "memo",
     }
   }
 }

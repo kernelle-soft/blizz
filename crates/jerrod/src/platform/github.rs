@@ -291,11 +291,15 @@ impl GitPlatform for GitHubPlatform {
     
     // Convert to octocrab's reaction type
     let octocrab_reaction = match reaction.github_name() {
+      "+1" => octocrab::models::reactions::ReactionContent::PlusOne,
+      "-1" => octocrab::models::reactions::ReactionContent::MinusOne,
+      "laugh" => octocrab::models::reactions::ReactionContent::Laugh,
+      "hooray" => octocrab::models::reactions::ReactionContent::Hooray,
+      "confused" => octocrab::models::reactions::ReactionContent::Confused,
+      "heart" => octocrab::models::reactions::ReactionContent::Heart,
+      "rocket" => octocrab::models::reactions::ReactionContent::Rocket,
       "eyes" => octocrab::models::reactions::ReactionContent::Eyes,
-      "heavy_check_mark" => octocrab::models::reactions::ReactionContent::Hooray, // closest match
-      "question" => octocrab::models::reactions::ReactionContent::Confused,
-      "memo" => octocrab::models::reactions::ReactionContent::Rocket, // closest match
-      _ => return Err(anyhow!("Unsupported reaction type")),
+      _ => return Err(anyhow!("Unsupported reaction type: {}", reaction.github_name())),
     };
 
     self.client
@@ -346,10 +350,14 @@ impl GitPlatform for GitHubPlatform {
     
     // Convert to octocrab's reaction type for comparison
     let octocrab_reaction = match reaction.github_name() {
+      "+1" => octocrab::models::reactions::ReactionContent::PlusOne,
+      "-1" => octocrab::models::reactions::ReactionContent::MinusOne,
+      "laugh" => octocrab::models::reactions::ReactionContent::Laugh,
+      "hooray" => octocrab::models::reactions::ReactionContent::Hooray,
+      "confused" => octocrab::models::reactions::ReactionContent::Confused,
+      "heart" => octocrab::models::reactions::ReactionContent::Heart,
+      "rocket" => octocrab::models::reactions::ReactionContent::Rocket,
       "eyes" => octocrab::models::reactions::ReactionContent::Eyes,
-      "heavy_check_mark" => octocrab::models::reactions::ReactionContent::Hooray,
-      "question" => octocrab::models::reactions::ReactionContent::Confused,
-      "memo" => octocrab::models::reactions::ReactionContent::Rocket,
       _ => return Ok(false),
     };
 
@@ -385,11 +393,14 @@ impl GitPlatform for GitHubPlatform {
     let mut result = Vec::new();
     for reaction in reactions {
       match reaction.content {
+        octocrab::models::reactions::ReactionContent::PlusOne => result.push(ReactionType::ThumbsUp),
+        octocrab::models::reactions::ReactionContent::MinusOne => result.push(ReactionType::ThumbsDown),
+        octocrab::models::reactions::ReactionContent::Laugh => result.push(ReactionType::Laugh),
+        octocrab::models::reactions::ReactionContent::Hooray => result.push(ReactionType::Hooray),
+        octocrab::models::reactions::ReactionContent::Confused => result.push(ReactionType::Confused),
+        octocrab::models::reactions::ReactionContent::Heart => result.push(ReactionType::Heart),
+        octocrab::models::reactions::ReactionContent::Rocket => result.push(ReactionType::Rocket),
         octocrab::models::reactions::ReactionContent::Eyes => result.push(ReactionType::Eyes),
-        octocrab::models::reactions::ReactionContent::Hooray => result.push(ReactionType::CheckMark),
-        octocrab::models::reactions::ReactionContent::Confused => result.push(ReactionType::Question),
-        octocrab::models::reactions::ReactionContent::Rocket => result.push(ReactionType::Memo),
-        _ => {} // Ignore other reactions
       }
     }
     
