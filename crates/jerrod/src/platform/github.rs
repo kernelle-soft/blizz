@@ -81,6 +81,180 @@ impl GitHubPlatform {
 
     Ok(comment_resolution_map)
   }
+
+  /// Add a reply to a review comment within its conversation thread
+  pub async fn add_review_comment_reply(
+    &self,
+    owner: &str,
+    repo: &str,
+    pr_number: u64,
+    comment_id: &str,
+    text: &str,
+  ) -> Result<Note> {
+    let comment_id: u64 = comment_id.parse()
+      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+    
+    // Use GitHub's review comment reply API endpoint
+    // POST /repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies
+    let url = format!("/repos/{}/{}/pulls/{}/comments/{}/replies", owner, repo, pr_number, comment_id);
+    
+    let request_body = serde_json::json!({
+      "body": text
+    });
+
+    let response = self.client
+      ._post(&url, Some(&request_body))
+      .await
+      .map_err(|e| anyhow!("Failed to post review comment reply: {:?}", e))?;
+    
+    if !response.status().is_success() {
+      return Err(anyhow!("Failed to create review comment reply: HTTP {}", response.status()));
+    }
+
+    // Create a dummy Note response since we just need to confirm the reply was created
+    // The actual comment data will be fetched in the next session refresh
+    let now = chrono::Utc::now();
+    Ok(Note {
+      id: "reply_created".to_string(), // Placeholder ID
+      author: User {
+        id: "current_user".to_string(),
+        username: "current_user".to_string(),
+        display_name: "Current User".to_string(),
+        avatar_url: None,
+      },
+      body: text.to_string(),
+      created_at: now,
+      updated_at: now,
+    })
+  }
+
+  /// Resolve a discussion thread using GraphQL (requires PR number for thread mapping)
+  pub async fn resolve_discussion_with_pr(
+    &self,
+    owner: &str,
+    repo: &str,
+    pr_number: u64,
+    comment_id: &str,
+  ) -> Result<bool> {
+    bentley::info(&format!(
+      "Attempting to resolve comment {} in PR #{} via GraphQL",
+      comment_id, pr_number
+    ));
+
+    // First, get all review threads and build the comment-to-thread mapping
+    let query = r#"
+      query($owner: String!, $repo: String!, $prNumber: Int!) {
+        repository(owner: $owner, name: $repo) {
+          pullRequest(number: $prNumber) {
+            reviewThreads(last: 100) {
+              nodes {
+                id
+                isResolved
+                comments(last: 50) {
+                  nodes {
+                    id
+                    databaseId
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    "#;
+
+    bentley::info("Fetching review threads to find comment...");
+    let query_payload = serde_json::json!({
+      "query": query,
+      "variables": {
+        "owner": owner,
+        "repo": repo,
+        "prNumber": pr_number
+      }
+    });
+
+    let response: serde_json::Value = self.client
+      .graphql(&query_payload)
+      .await
+      .map_err(|e| anyhow!("Failed to fetch review threads: {:?}", e))?;
+
+    // Parse the response to find which thread contains our comment
+    let threads = response["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+      .as_array()
+      .ok_or_else(|| anyhow!("Invalid response format"))?;
+
+    let mut target_thread_id: Option<String> = None;
+    let comment_id_num: u64 = comment_id.parse()
+      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+
+    for thread in threads {
+      let thread_id = thread["id"].as_str().unwrap_or("");
+      let comments_array = thread["comments"]["nodes"].as_array().cloned().unwrap_or_default();
+      
+      for comment in &comments_array {
+        if let Some(database_id) = comment["databaseId"].as_u64() {
+          if database_id == comment_id_num {
+            target_thread_id = Some(thread_id.to_string());
+            bentley::info(&format!("Found comment {} in thread {}", comment_id, thread_id));
+            break;
+          }
+        }
+      }
+      
+      if target_thread_id.is_some() {
+        break;
+      }
+    }
+
+    let thread_id = target_thread_id
+      .ok_or_else(|| anyhow!("Comment {} not found in any review thread", comment_id))?;
+
+    // Now resolve the thread using GraphQL mutation
+    let mutation = r#"
+      mutation($threadId: ID!) {
+        resolveReviewThread(input: {threadId: $threadId}) {
+          thread {
+            id
+            isResolved
+          }
+        }
+      }
+    "#;
+
+    bentley::info(&format!("Resolving thread {} via GraphQL mutation...", thread_id));
+    
+    let mutation_payload = serde_json::json!({
+      "query": mutation,
+      "variables": {
+        "threadId": thread_id
+      }
+    });
+    
+    let mutation_response: serde_json::Value = self.client
+      .graphql(&mutation_payload)
+      .await
+      .map_err(|e| anyhow!("Failed to resolve thread: {:?}", e))?;
+
+    // Check if the mutation was successful
+    if let Some(errors) = mutation_response["errors"].as_array() {
+      if !errors.is_empty() {
+        let error_msg = errors[0]["message"].as_str().unwrap_or("Unknown GraphQL error");
+        bentley::warn(&format!("GraphQL mutation failed: {}", error_msg));
+        return Ok(false);
+      }
+    }
+
+    if let Some(thread_data) = mutation_response["data"]["resolveReviewThread"]["thread"].as_object() {
+      let is_resolved = thread_data["isResolved"].as_bool().unwrap_or(false);
+      if is_resolved {
+        bentley::success(&format!("Successfully resolved thread {} via GraphQL", thread_id));
+        return Ok(true);
+      }
+    }
+
+    bentley::warn("GraphQL mutation completed but thread may not be resolved");
+    Ok(false)
+  }
 }
 
 #[async_trait::async_trait]
@@ -326,30 +500,8 @@ impl GitPlatform for GitHubPlatform {
     repo: &str,
     discussion_id: &str,
   ) -> Result<bool> {
-    // GitHub has two types of comments:
-    // 1. Issue comments - don't have a "resolved" state, use reactions instead
-    // 2. Review comments - can be resolved via GraphQL conversation threads
-    
-    bentley::info(&format!(
-      "Attempting to resolve discussion {} in {}/{}",
-      discussion_id, owner, repo
-    ));
-
-    // First, try to resolve as a review comment conversation thread
-    // We need to find the review thread that contains this comment
-    if let Ok(_pr_number) = discussion_id.parse::<u64>() {
-      // If discussion_id is a number, it might be a PR number, but that's not right
-      // Discussion IDs should be comment IDs, not PR numbers
-      bentley::debug("Discussion ID appears to be a number, treating as comment ID");
-    }
-
-    // For now, we'll use the reaction-based approach since GitHub's conversation resolution
-    // requires more complex GraphQL queries to find the thread containing the comment
-    bentley::info("GitHub conversation resolution requires review thread mapping");
-    bentley::info("Using reaction-based resolution for now");
-    
-    // Return false to indicate we couldn't resolve it directly,
-    // which will trigger the fallback reaction in the resolve command
+    bentley::warn("resolve_discussion called without PR number - cannot use GraphQL. Use resolve_discussion_with_pr instead.");
+    bentley::warn("GraphQL thread resolution not yet fully implemented - using reaction fallback");
     Ok(false)
   }
 

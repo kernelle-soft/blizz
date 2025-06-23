@@ -26,7 +26,7 @@ pub async fn handle() -> Result<()> {
   let platform = GitHubPlatform::new().await?;
 
   // Try to resolve the discussion
-  match platform.resolve_discussion(owner, repo, &current_thread.id).await {
+  match platform.resolve_discussion_with_pr(owner, repo, session.merge_request.number, &current_thread.id).await {
     Ok(true) => {
       bentley::success(&format!("Resolved thread #{}", current_thread.id));
     },

@@ -64,9 +64,10 @@ pub async fn handle(
             .map(|note| &note.id)
             .ok_or_else(|| anyhow!("No comments found in thread"))?;
           
-          let _note = github.add_comment(
+          let _note = github.add_review_comment_reply(
             repo_parts[0],
             repo_parts[1],
+            session.merge_request.number,
             first_comment_id,
             &text
           ).await?;
