@@ -15,7 +15,7 @@ pub struct EncryptedBlob {
     pub salt: Vec<u8>,
 }
 
-/// In-memory credential cache for the daemon
+/// In-memory credential cache
 #[derive(Debug, Clone)]
 pub struct CredentialCache {
     credentials: HashMap<String, String>,

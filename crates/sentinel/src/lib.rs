@@ -11,7 +11,6 @@ use aes_gcm::{
 };
 use rand::RngCore;
 
-pub mod daemon;
 pub mod encryption;
 
 /// Encrypted credential store using file-based storage instead of keychain
@@ -295,23 +294,7 @@ impl Sentinel {
     path
   }
 
-  /// Async version of get_credential with daemon support
-  pub async fn get_credential_async(&self, service: &str, key: &str) -> Result<String> {
-    // Try daemon-based credential retrieval first
-    if let Ok(credential) = self.get_credential_from_daemon(service, key).await {
-      return Ok(credential);
-    }
 
-    // Fall back to encrypted file storage
-    self.get_credential(service, key)
-  }
-
-  /// Get credential from daemon with lazy startup
-  async fn get_credential_from_daemon(&self, service: &str, key: &str) -> Result<String> {
-    // For now, skip daemon complexity and just use encrypted file storage directly
-    // This avoids the keychain prompt issue while maintaining async interface
-    self.get_credential(service, key)
-  }
 
   /// Delete a credential from encrypted file storage
   pub fn delete_credential(&self, service: &str, key: &str) -> Result<()> {
