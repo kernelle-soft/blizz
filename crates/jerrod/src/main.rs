@@ -4,7 +4,6 @@ use clap::{Parser, Subcommand};
 mod auth;
 mod commands;
 mod display;
-mod github;
 mod platform;
 mod session;
 
