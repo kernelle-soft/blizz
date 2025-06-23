@@ -89,21 +89,7 @@ fn detect_platform_from_host(host: &str) -> Result<PlatformType> {
   }
 }
 
-/// Extract PR/MR number from a URL if present
-#[allow(dead_code)]
-pub fn extract_mr_number_from_url(input: &str) -> Option<u64> {
-  if let Ok(url) = Url::parse(input) {
-    let path = url.path();
 
-    // Look for patterns like /pull/123 or /merge_requests/123
-    if let Some(captures) = regex::Regex::new(r"/(pull|merge_requests?)/(\d+)").ok()?.captures(path)
-    {
-      return captures.get(2)?.as_str().parse().ok();
-    }
-  }
-
-  None
-}
 
 #[cfg(test)]
 mod tests {
@@ -136,15 +122,5 @@ mod tests {
     assert_eq!(info.host, None);
   }
 
-  #[test]
-  fn test_github_pr_url() {
-    let number = extract_mr_number_from_url("https://github.com/owner/repo/pull/123");
-    assert_eq!(number, Some(123));
-  }
 
-  #[test]
-  fn test_gitlab_mr_url() {
-    let number = extract_mr_number_from_url("https://gitlab.com/owner/repo/merge_requests/456");
-    assert_eq!(number, Some(456));
-  }
 }
