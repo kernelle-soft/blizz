@@ -337,7 +337,7 @@ impl GitPlatform for GitHubPlatform {
 
     // First, try to resolve as a review comment conversation thread
     // We need to find the review thread that contains this comment
-    if let Ok(pr_number) = discussion_id.parse::<u64>() {
+    if let Ok(_pr_number) = discussion_id.parse::<u64>() {
       // If discussion_id is a number, it might be a PR number, but that's not right
       // Discussion IDs should be comment IDs, not PR numbers
       bentley::debug("Discussion ID appears to be a number, treating as comment ID");
