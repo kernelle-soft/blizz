@@ -5,7 +5,7 @@ use crate::display;
 
 pub async fn handle(message: String, details: Option<String>, thread_id: Option<String>) -> Result<()> {
   // Get current session info if available
-  let session_manager = SessionManager::new()?;
+  let mut session_manager = SessionManager::new()?;
   let session = session_manager.load_session()?;
 
   // Build commit message

@@ -78,7 +78,8 @@ impl ReviewSession {
 
 /// Manages review session persistence and lifecycle
 pub struct SessionManager {
-  session_dir: std::path::PathBuf,
+  base_dir: std::path::PathBuf,
+  current_session_path: Option<std::path::PathBuf>,
 }
 
 impl SessionManager {
@@ -91,38 +92,107 @@ impl SessionManager {
         .join("kernelle")
     };
     
-    let session_dir = base_dir.join("code-reviews");
+    Ok(Self { 
+      base_dir,
+      current_session_path: None,
+    })
+  }
+
+  pub fn with_session_context(
+    &mut self, 
+    platform: &str, 
+    repository_path: &str, 
+    mr_number: u64
+  ) -> Result<()> {
+    let platform_dir = match platform {
+      "github" => "github",
+      "gitlab" => "gitlab", 
+      _ => return Err(anyhow::anyhow!("Unsupported platform: {}", platform)),
+    };
+
+    let session_dir = self.base_dir
+      .join("code-reviews")
+      .join(platform_dir)
+      .join(repository_path)
+      .join(mr_number.to_string());
+    
     std::fs::create_dir_all(&session_dir)?;
-    Ok(Self { session_dir })
+    self.current_session_path = Some(session_dir);
+    Ok(())
+  }
+
+  fn get_session_path(&self) -> Result<&std::path::PathBuf> {
+    self.current_session_path
+      .as_ref()
+      .ok_or_else(|| anyhow::anyhow!("No session context set. Call with_session_context() first."))
+  }
+
+  fn get_legacy_session_path(&self) -> std::path::PathBuf {
+    self.base_dir.join("code-reviews").join("session.json")
   }
 
   pub fn session_exists(&self) -> bool {
-    self.session_dir.join("session.json").exists()
+    if let Ok(session_path) = self.get_session_path() {
+      session_path.join("session.json").exists()
+    } else {
+      self.get_legacy_session_path().exists()
+    }
   }
 
   pub fn save_session(&self, session: &ReviewSession) -> Result<()> {
-    let session_file = self.session_dir.join("session.json");
+    let session_file = self.get_session_path()?.join("session.json");
     let json = serde_json::to_string_pretty(session)?;
     std::fs::write(session_file, json)?;
     Ok(())
   }
 
-  pub fn load_session(&self) -> Result<Option<ReviewSession>> {
-    let session_file = self.session_dir.join("session.json");
-    if !session_file.exists() {
-      return Ok(None);
+  pub fn load_session(&mut self) -> Result<Option<ReviewSession>> {
+    if let Ok(session_path) = self.get_session_path() {
+      let session_file = session_path.join("session.json");
+      if session_file.exists() {
+        let json = std::fs::read_to_string(session_file)?;
+        let session: ReviewSession = serde_json::from_str(&json)?;
+        return Ok(Some(session));
+      }
     }
 
-    let json = std::fs::read_to_string(session_file)?;
-    let session: ReviewSession = serde_json::from_str(&json)?;
-    Ok(Some(session))
+    let legacy_path = self.get_legacy_session_path();
+    if legacy_path.exists() {
+      let json = std::fs::read_to_string(&legacy_path)?;
+      let session: ReviewSession = serde_json::from_str(&json)?;
+      
+      self.with_session_context(
+        &session.platform,
+        &session.repository.full_name,
+        session.merge_request.number,
+      )?;
+      
+      let new_session_file = self.get_session_path()?.join("session.json");
+      let json = serde_json::to_string_pretty(&session)?;
+      std::fs::write(new_session_file, json)?;
+      
+      std::fs::remove_file(legacy_path)?;
+      bentley::info("Migrated session to new organized structure");
+      
+      return Ok(Some(session));
+    }
+
+    Ok(None)
   }
 
   pub fn clear_session(&self) -> Result<()> {
-    let session_file = self.session_dir.join("session.json");
-    if session_file.exists() {
-      std::fs::remove_file(session_file)?;
+    if let Ok(session_path) = self.get_session_path() {
+      let session_file = session_path.join("session.json");
+      if session_file.exists() {
+        std::fs::remove_file(session_file)?;
+      }
     }
+
+    let legacy_path = self.get_legacy_session_path();
+    if legacy_path.exists() {
+      std::fs::remove_file(legacy_path)?;
+    }
+    
     Ok(())
   }
 }

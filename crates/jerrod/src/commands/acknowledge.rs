@@ -53,7 +53,7 @@ pub async fn handle(
     ReactionType::ThumbsUp
   };
 
-  let session_manager = SessionManager::new()?;
+  let mut session_manager = SessionManager::new()?;
   let session = session_manager.load_session()?
     .ok_or_else(|| anyhow!("No active review session found"))?;
 

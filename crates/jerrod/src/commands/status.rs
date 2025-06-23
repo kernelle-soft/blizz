@@ -2,7 +2,7 @@ use crate::session::SessionManager;
 use anyhow::{anyhow, Result};
 
 pub async fn handle() -> Result<()> {
-  let session_manager = SessionManager::new()?;
+  let mut session_manager = SessionManager::new()?;
 
   let session = session_manager
     .load_session()?

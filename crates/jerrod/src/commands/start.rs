@@ -16,12 +16,6 @@ pub async fn handle(
   bentley::announce("Jerrod - The Reliable Guardian of Code Quality");
   bentley::info("Starting new merge request review session");
 
-  // Check if there's already an active session
-  let session_manager = SessionManager::new()?;
-  if session_manager.session_exists() {
-    return Err(anyhow!("Active session already exists. Use 'jerrod finish' to complete it first, or 'jerrod refresh' to restart."));
-  }
-
   // Detect platform and parse repository info
   let repo_info = detect_platform(&repository)?;
 
@@ -35,6 +29,15 @@ pub async fn handle(
   } else {
     repo_info.platform
   };
+
+  // Check if there's already an active session
+  let mut session_manager = SessionManager::new()?;
+  let platform_name = format!("{:?}", platform_type).to_lowercase();
+  let repository_path = format!("{}/{}", repo_info.owner, repo_info.repo);
+  session_manager.with_session_context(&platform_name, &repository_path, mr_number)?;
+  if session_manager.session_exists() {
+    return Err(anyhow!("Active session already exists. Use 'jerrod finish' to complete it first, or 'jerrod refresh' to restart."));
+  }
 
   bentley::info(&format!("Detected platform: {:?}", platform_type));
   bentley::info(&format!("Repository: {}/{}", repo_info.owner, repo_info.repo));
@@ -67,7 +70,7 @@ pub async fn handle(
   let session = ReviewSession::new(
     repository_info,
     merge_request,
-    format!("{:?}", platform_type).to_lowercase(),
+    platform_name,
     discussions,
     pipelines,
   );

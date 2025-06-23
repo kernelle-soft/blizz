@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 pub async fn handle() -> Result<()> {
   bentley::info("Refreshing review session...");
   
-  let session_manager = SessionManager::new()?;
+      let mut session_manager = SessionManager::new()?;
   
   
   let session = session_manager

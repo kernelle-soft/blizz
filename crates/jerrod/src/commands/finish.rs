@@ -2,7 +2,7 @@ use crate::session::SessionManager;
 use anyhow::Result;
 
 pub async fn handle() -> Result<()> {
-  let session_manager = SessionManager::new()?;
+  let mut session_manager = SessionManager::new()?;
 
   if let Some(session) = session_manager.load_session()? {
     bentley::info(&format!("Finishing review session for MR #{}", session.merge_request.number));
