@@ -1,6 +1,5 @@
 use crate::session::load_current_session;
-use crate::platform::{GitPlatform, ReactionType};
-use crate::platform::github::GitHubPlatform;
+use crate::platform::{GitPlatform, ReactionType, create_platform};
 use anyhow::{anyhow, Result};
 
 pub async fn handle() -> Result<()> {
@@ -18,11 +17,11 @@ pub async fn handle() -> Result<()> {
   let owner = repo_parts[0];
   let repo = repo_parts[1];
 
-  // Create platform client
-  let platform = GitHubPlatform::new().await?;
+  // Create platform client using strategy pattern
+  let platform = create_platform(&session.platform).await?;
 
   // Try to resolve the discussion
-  match platform.resolve_discussion_with_pr(owner, repo, session.merge_request.number, &current_thread.id).await {
+  match platform.resolve_discussion(owner, repo, &current_thread.id).await {
     Ok(true) => {
       bentley::success(&format!("Resolved thread #{}", current_thread.id));
     },

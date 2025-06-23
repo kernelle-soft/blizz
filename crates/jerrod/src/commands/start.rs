@@ -1,7 +1,6 @@
-use crate::platform::github::GitHubPlatform;
 use crate::platform::{
   detection::{detect_platform, PlatformType},
-  GitPlatform,
+  GitPlatform, create_platform,
 };
 use crate::session::{ReviewSession, SessionManager, SessionDiscovery};
 use anyhow::{anyhow, Result};
@@ -46,15 +45,9 @@ pub async fn handle(
   bentley::info(&format!("Repository: {}/{}", repo_info.owner, repo_info.repo));
   bentley::info(&format!("MR/PR number: {}", mr_number));
 
-  // Create platform client with automatic credential setup
-  let platform: Box<dyn GitPlatform> = match platform_type {
-    PlatformType::GitHub => {
-      Box::new(GitHubPlatform::new().await?)
-    }
-    PlatformType::GitLab => {
-      return Err(anyhow!("GitLab support not yet implemented"));
-    }
-  };
+  // Create platform client with automatic credential setup using strategy pattern
+  let platform_name = format!("{:?}", platform_type).to_lowercase();
+  let platform = create_platform(&platform_name).await?;
 
   bentley::info("Fetching repository information...");
   let repository_info = platform.get_repository(&repo_info.owner, &repo_info.repo).await?;
