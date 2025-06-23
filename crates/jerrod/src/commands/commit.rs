@@ -3,10 +3,8 @@ use std::process::Command;
 use crate::session::load_current_session;
 
 pub async fn handle(message: String, details: Option<String>, thread_id: Option<String>) -> Result<()> {
-  // Get current session info if available
   let session = load_current_session().ok();
 
-  // Build commit message
   let mut commit_msg = message;
   
   if let Some(details) = details {
@@ -14,9 +12,7 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
     commit_msg.push_str(&details);
   }
 
-  // Add session and thread references if available
   if let Some(ref session) = session {
-    // If no thread_id specified, try to get the current thread from session
     let current_thread_id = thread_id.or_else(|| {
       session.peek_next_thread().map(|thread| thread.id.clone())
     });
@@ -24,17 +20,14 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
     commit_msg.push_str(&format!("\n\nMerge Request: {}", mr_url));
     
     if let Some(thread_id) = current_thread_id {
-      // For GitHub, link to the specific comment
       if session.platform == "github" {
         commit_msg.push_str(&format!("\nAddressing Thread: {}#issuecomment-{}", mr_url, thread_id));
       } else {
-        // For GitLab (when implemented)
         commit_msg.push_str(&format!("\nAddressing Thread: {}/diffs#note_{}", mr_url, thread_id));
       }
     }
   }
 
-  // Stage all changes
   let add_status = Command::new("git")
     .args(["add", "."])
     .status()?;
@@ -43,13 +36,11 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
     return Err(anyhow!("Failed to stage changes"));
   }
 
-  // Create commit quietly
   let commit_status = Command::new("git")
     .args(["commit", "--quiet", "-m", &commit_msg])
     .status()?;
 
   if commit_status.success() {
-    // Get commit stats
     let stats_output = Command::new("git")
       .args(["show", "--stat", "--format=", "HEAD"])
       .output()?;
@@ -58,7 +49,6 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
       let stats_text = String::from_utf8_lossy(&stats_output.stdout);
       display_commit_banner(&commit_msg, &stats_text);
     } else {
-      // Fallback to simple display
       println!("---");
       println!("{}", commit_msg);
       println!("---");
