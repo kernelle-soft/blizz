@@ -1,0 +1,5 @@
+[term]
+verbose = false
+
+[cargo-new]
+vcs = "git" 

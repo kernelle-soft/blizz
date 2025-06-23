@@ -1,0 +1,41 @@
+name: Lint & Format
+
+on:
+  pull_request:
+  push:
+    branches: [ dev ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: Lint & Format Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: lint-${{ hashFiles('**/Cargo.lock') }}
+          cache-on-failure: true
+
+      - name: Check formatting
+        run: |
+          echo "Checking code formatting..."
+          cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: |
+          echo "Running clippy analysis..."
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Lint success
+        run: echo "✨ All linting checks passed! The code style is magnificent!" 

@@ -1,0 +1,27 @@
+[tarpaulin]
+coverage-reports = ["Html", "Lcov", "Json"]
+output-dir = "target/coverage/"
+
+fail-under = 95.0
+ignore-panics = true
+
+skip-clean = false
+count = true
+line = true
+branch = true
+forward = true
+
+exclude = [
+  "*/tests/*",
+  "*/examples/*",
+  "*/target/*",
+]
+
+timeout = "120s"
+
+run-types = ["Tests"]
+
+all-features = true
+workspace = true
+
+engine = "Llvm" 

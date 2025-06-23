@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+If you had to give a heuristic confidence rating (0-100%), what would you say that is? Be pessimistic but honest. You're still picking up on a ton of context. The confidence rating is based on how you feel about implementing this feature or fixing this issue in *one shot* and then submitting an MR for review by a very picky reviewer who's worked on this code base for over a decade. If there's info you think you're missing, or if you feel like you can't know what you don't know yet, that should factor in. You should also report those confidence gaps.
+
+It's also perfectly acceptable if the confidence rating goes down after repeat research and insights gathering. I'd rather this process be an honest reflection than anything else.

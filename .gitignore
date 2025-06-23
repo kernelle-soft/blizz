@@ -27,6 +27,7 @@ coverage/
 **/lcov-report/
 **/lcov.info
 **/junit.xml
+**/*.profraw
 
 # Temporary files
 *.tmp

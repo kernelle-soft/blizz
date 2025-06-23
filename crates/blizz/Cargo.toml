@@ -1,0 +1,42 @@
+[package]
+name = "blizz"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Knowledge management and insight storage system"
+
+[lib]
+name = "blizz"
+path = "src/lib.rs"
+
+[[bin]]
+name = "blizz"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+
+dirs.workspace = true
+
+chrono.workspace = true
+
+anyhow.workspace = true
+thiserror.workspace = true
+
+colored.workspace = true
+console.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2.0"
+assert_fs = "1.1"
+predicates = "3.1"
+serial_test = "2.0"
+tempfile.workspace = true 

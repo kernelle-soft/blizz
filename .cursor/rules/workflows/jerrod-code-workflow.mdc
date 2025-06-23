@@ -1,0 +1,104 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Code Review Workflow Rule
+
+This rule defines a systematic approach for conducting merge request reviews using Jerrod's code review toolset. The toolset provides a structured, offline-first workflow that ensures thorough review coverage while maintaining efficiency.
+
+## Philosophy
+
+This workflow implements a queue-based approach to MR reviews, treating each discussion thread as a discrete work item. Key principles:
+
+- **Offline-first**: All review context is fetched once and stored locally, enabling fast navigation without repeated API calls
+- **Queue-based processing**: Threads are processed in order, ensuring systematic coverage
+- **Session management**: Each MR review maintains isolated state until completion
+- **Comprehensive context**: Tools provide full diff context, timestamps, and thread relationships
+- **Self-Effective**: Aside from the need to ascertain the project and merge request/pull request ID to initialize the review, all parts of the review can be handled with the scripts provided.
+
+## Rule Imports and Modifications
+- [jerrod.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/personalities/jerrod.mdc) - Use Jerrod's personality layer by default. Can be turned off if asked.
+- [blizz-automatic-workflow.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-automatic-workflow.mdc) 
+  - Blizz should keep creating insights as Jerrod works through threads. This can be done during any step of the workflow
+  - Target topics like:
+    - wider architectural patterns
+    - odd implementation details
+    - coding style asked for by either the reviewer or patterned out in the code itself
+    - thread resolution patterns
+    - learnings for the given feature, task, or project
+
+## Tool Locations
+
+The merge review CLI is called `jerrod`
+
+- `jerrod start` - Initialize review session, fetch all MR data
+- `jerrod status` - Display current MR and queue status
+- `jerrod peek` - View next thread without removing from queue  
+- `jerrod pop` - Remove thread from queue (with optional --unresolved flag)
+- `jerrod comment` - Add comments to threads or MR (with --new flag)
+- `jerrod acknowledge` - Adds an "acknowledge` message or reaction to non-actionable threads
+- `jerrod resolve` - Mark threads as resolved
+- `jerrod finish` - Complete session and cleanup
+- `jerrod refresh` - Cleans up an existing session, then downloads it fresh again. (essentially just runs finish.sh, the start.sh). Don't use unless instructed.
+- `jerrod commit` - Creates formal, structured RRCs (Review Response Commits)
+
+## MR Workflow Algorithm
+
+```
+1. If provided with a project and mr OR a url pointing to an MR:
+   a. discover the project path and MR ID, then run `start` to initialize a review
+   b. run `status` to get an idea of what's ahead. 
+
+2. While there are threads in the queue:
+   a. Apply the "Thread Workflow Algorithm" below.
+   d. Feel free to run `status` again as needed to get an idea of how many threads are left.
+
+3. Once ALL threads for a session have been addressed:
+   a. make sure to `commit` any remaining work
+   b. `comment` on the MR (without a thread id, to make a comment on the MR itself):
+      i. If the list of unresolved threads is greater than 0, add a Markdown link back to each one on this comment, where the text is a quick snippet of what's unresolved about that thread
+      ii. state that you're ready for the next round of review.
+  
+   c. Run [finish.sh](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/tools/merge-review/finish.sh) 
+```
+
+## Thread Workflow Algorithm
+```
+1. Run `peek` to get the next issue to address
+
+2. If the last comment on the thread suggests we've already addressed the issue
+  a. `resolve` this thread
+  b. `pop` the thread off the session queue
+
+3. If the thread from `peek` is a top-level MR comment just reporting progress on the MR:
+  a. `acknowledge` the thread
+  b. `resolve` the thread
+  b. `pop` the thread
+
+4. If the thread from `peek` is a top-level MR comment from a bot or service account and doesn't appear actionable:
+  a. `acknowledge` the thread
+  b. `resolve` the thread
+
+4. Otherwise:
+  a. Address the thread as you see fit
+
+  b. BEFORE `commit`ing changes:
+  - make sure that running the `violet` complexity checker tool passes (TODO: implement)
+  - make sure you've run the linter and/or formatter for the project (e.x., `yarn lint:fix`) and fix any linting issues
+  - run applicable unit or integration tests (never cypress tests) and make sure you're passing. You'll likely need to run the non-package-script version of whatever relevant testing CLI in order to actually filter the test runner down to your changeset.
+  - if no unit tests exist for the change, add them (either by adding a new unit test file if none exists, or by adding cases for what you've done)
+  - all temporary files have been removed.
+
+  c.`commit` your changes and a detailed breakdown if there are code changes. The commit message should reference back to the project, review ID, and thread being addressed ( `commit` should handle the link creation )
+
+  d. If the thread hasn't been fully addressed or you have questions:
+    - `comment` on the thread, mentioning what you've done and questions you have. Then,`pop` the thread with `--unresolved` and move on to the next thread
+    - comments should be concise. If you've simply implemented the expected change without need for more context, just comment "Done" or "Updated" or "Fixed" (or something else short)
+    - comments should be a reply to the thread, not our cursor conversation.
+
+  e. If the thread has been fully addressed:
+    i. `comment` on the thread with what you've done. Again, make sure the comment is a reply to the thread comments, not our cursor conversation.
+    ii. `resolve` the thread
+    iii. `pop` the thread off the review session queue
+```

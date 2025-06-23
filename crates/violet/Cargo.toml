@@ -1,0 +1,32 @@
+[package]
+name = "violet"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Code complexity analysis and style enforcement tool"
+
+[[bin]]
+name = "violet"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+
+anyhow.workspace = true
+thiserror.workspace = true
+
+dirs.workspace = true
+
+colored.workspace = true
+console.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true 

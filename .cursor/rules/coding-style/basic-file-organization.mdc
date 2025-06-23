@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Pretty much no matter the language, there are going to be a few file organization conventions we should follow, in order of appearance:
+1. imports at the top
+2. file-wide constants, types, structs, etc
+3. functions and their helper functions
+4. exports (if working in JS/TS land)

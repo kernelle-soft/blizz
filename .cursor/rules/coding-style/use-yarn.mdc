@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+We always use `yarn` when dealing with TS/JS, unless trying to run individual test files (then use the underlying test runner CLI)

@@ -1,0 +1,13 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Please use functional programming paradigms whenever editing source, test, or script files:
+- avoid side-effects
+- keep variables immutable
+- use functions over classes
+- hand state down in functions 
+- use file or module level state only when necessary
+
+These rules even apply to things like bash or python scripts.

@@ -1,0 +1,30 @@
+[package]
+name = "bentley"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Theatrical logging and output formatting library - the town crier of Kernelle"
+
+[lib]
+name = "bentley"
+path = "src/lib.rs"
+
+[dependencies]
+colored.workspace = true
+console.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+chrono.workspace = true
+
+anyhow.workspace = true
+thiserror.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true 
