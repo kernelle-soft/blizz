@@ -173,7 +173,7 @@ async fn main() -> Result<()> {
       rocket, zoom, launch, shipped, sarcastic_ship_it,
       eyes, looking, surprise
     } => {
-      commands::acknowledge::handle(
+      let config = commands::acknowledge::AcknowledgeConfig::from_flags(
         thumbs_up, ok, yeah, got_it,
         thumbs_down, f_you,
         laugh, smile,
@@ -182,7 +182,8 @@ async fn main() -> Result<()> {
         love, heart, favorite,
         rocket, zoom, launch, shipped, sarcastic_ship_it,
         eyes, looking, surprise
-      ).await
+      );
+      commands::acknowledge::handle(config).await
     },
     Commands::Finish => commands::finish::handle().await,
     Commands::Refresh => commands::refresh::handle().await,
