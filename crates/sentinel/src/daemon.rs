@@ -109,7 +109,7 @@ impl DaemonClient {
         let mut response_line = String::new();
         reader.read_line(&mut response_line).await?;
         
-        let response: DaemonResponse = serde_json::from_str(&response_line)?;
+        let response: DaemonResponse = serde_json::from_str(response_line.trim())?;
         Ok(response)
     }
 
@@ -185,7 +185,7 @@ impl SentinelDaemon {
         let mut request_line = String::new();
         
         reader.read_line(&mut request_line).await?;
-        let request: DaemonRequest = serde_json::from_str(&request_line)?;
+        let request: DaemonRequest = serde_json::from_str(request_line.trim())?;
         
         let response = match request {
             DaemonRequest::GetCredential { service, key } => {

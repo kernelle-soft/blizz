@@ -5,7 +5,6 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-// Remove keyring import and add encryption imports
 use aes_gcm::{
   aead::{Aead, KeyInit, OsRng},
   Aes256Gcm, Key, Nonce
@@ -42,7 +41,7 @@ impl EncryptedCredentialStore {
   fn load_from_file(path: &PathBuf) -> Result<Self> {
     if path.exists() {
       let content = fs::read_to_string(path)?;
-      let store: EncryptedCredentialStore = serde_json::from_str(&content)?;
+      let store: EncryptedCredentialStore = serde_json::from_str(content.trim())?;
       Ok(store)
     } else {
       Ok(Self::new())
@@ -219,8 +218,11 @@ impl Sentinel {
       self.crypto.generate_key()?;
     }
 
+    // Trim the value to remove any trailing newlines (common when copying from password managers)
+    let trimmed_value = value.trim();
+
     // Encrypt the value
-    let encrypted_value = self.crypto.encrypt_value(value)?;
+    let encrypted_value = self.crypto.encrypt_value(trimmed_value)?;
 
     // Load, update, and save the credential store
     let credentials_path = self.get_credentials_path();
