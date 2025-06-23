@@ -681,4 +681,12 @@ impl GitPlatform for GitHubPlatform {
     // Delegate to the existing implementation
     self.add_review_comment_reply(owner, repo, pr_number, comment_id, text).await
   }
+
+  fn format_comment_url(&self, mr_url: &str, comment_id: &str) -> String {
+    format!("{}#issuecomment-{}", mr_url, comment_id)
+  }
+
+  fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String {
+    format!("https://github.com/{}/{}/pull/{}", owner, repo, number)
+  }
 }

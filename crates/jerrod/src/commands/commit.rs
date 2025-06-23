@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::process::Command;
 use crate::session::load_current_session;
+use crate::platform::create_platform;
 
 pub async fn handle(message: String, details: Option<String>, thread_id: Option<String>) -> Result<()> {
   let session = load_current_session().ok();
@@ -20,10 +21,13 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
     commit_msg.push_str(&format!("\n\nMerge Request: {}", mr_url));
     
     if let Some(thread_id) = current_thread_id {
-      if session.platform == "github" {
-        commit_msg.push_str(&format!("\nAddressing Thread: {}#issuecomment-{}", mr_url, thread_id));
+      // Use strategy pattern for platform-specific URL formatting
+      if let Ok(platform) = create_platform(&session.platform).await {
+        let comment_url = platform.format_comment_url(mr_url, &thread_id);
+        commit_msg.push_str(&format!("\nAddressing Thread:\n{}", comment_url));
       } else {
-        commit_msg.push_str(&format!("\nAddressing Thread: {}/diffs#note_{}", mr_url, thread_id));
+        // Fallback to generic thread reference if platform creation fails
+        commit_msg.push_str(&format!("\nAddressing Thread: {} (thread {})", mr_url, thread_id));
       }
     }
   }

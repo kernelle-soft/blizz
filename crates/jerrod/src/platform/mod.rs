@@ -195,6 +195,12 @@ pub trait GitPlatform {
     comment_id: &str,
     text: &str,
   ) -> Result<Note>;
+
+  /// Format a URL for a specific comment/thread within a merge request
+  fn format_comment_url(&self, mr_url: &str, comment_id: &str) -> String;
+
+  /// Format a URL for a merge request/pull request
+  fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String;
 }
 
 /// Strategy pattern factory - creates appropriate platform implementation
