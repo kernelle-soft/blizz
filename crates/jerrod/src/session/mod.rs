@@ -196,3 +196,126 @@ impl SessionManager {
     Ok(())
   }
 }
+
+/// Centralized session discovery that can find sessions automatically
+pub struct SessionDiscovery {
+  base_dir: std::path::PathBuf,
+}
+
+impl SessionDiscovery {
+  pub fn new() -> Result<Self> {
+    let base_dir = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+      std::path::PathBuf::from(kernelle_dir)
+    } else {
+      dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
+        .join(".kernelle")
+    };
+    
+    Ok(Self { base_dir })
+  }
+
+  /// Find any existing session automatically
+  pub fn find_any_session(&self) -> Result<Option<SessionManager>> {
+    // First check legacy location
+    let legacy_path = self.base_dir.join("code-reviews").join("session.json");
+    if legacy_path.exists() {
+      bentley::info("Found legacy session, will be migrated on load");
+      let manager = SessionManager::new()?;
+      return Ok(Some(manager));
+    }
+
+    // Then search organized structure
+    let code_reviews_dir = self.base_dir.join("code-reviews");
+    if !code_reviews_dir.exists() {
+      return Ok(None);
+    }
+
+    // Search through platforms (github, gitlab)
+    for platform_entry in std::fs::read_dir(&code_reviews_dir)? {
+      let platform_entry = platform_entry?;
+      if !platform_entry.file_type()?.is_dir() {
+        continue;
+      }
+      
+      let platform_name = platform_entry.file_name().to_string_lossy().to_string();
+      if platform_name == "session.json" {
+        continue; // Skip legacy file
+      }
+
+      let platform_dir = platform_entry.path();
+      
+      // Search through organization/user directories
+      for org_entry in std::fs::read_dir(&platform_dir)? {
+        let org_entry = org_entry?;
+        if !org_entry.file_type()?.is_dir() {
+          continue;
+        }
+        
+        let org_dir = org_entry.path();
+        
+        // Search through repository directories
+        for repo_entry in std::fs::read_dir(&org_dir)? {
+          let repo_entry = repo_entry?;
+          if !repo_entry.file_type()?.is_dir() {
+            continue;
+          }
+          
+          let repo_dir = repo_entry.path();
+          
+          // Search through MR number directories
+          for mr_entry in std::fs::read_dir(&repo_dir)? {
+            let mr_entry = mr_entry?;
+            if !mr_entry.file_type()?.is_dir() {
+              continue;
+            }
+            
+            let session_file = mr_entry.path().join("session.json");
+            if session_file.exists() {
+              // Found a session! Set up manager with this context
+              let mut manager = SessionManager::new()?;
+              
+              // Extract context from path
+              let mr_number: u64 = mr_entry.file_name()
+                .to_string_lossy()
+                .parse()
+                .map_err(|_| anyhow::anyhow!("Invalid MR number in path"))?;
+              
+              let repo_name = repo_entry.file_name().to_string_lossy().to_string();
+              let org_name = org_entry.file_name().to_string_lossy().to_string();
+              let repository_path = format!("{}/{}", org_name, repo_name);
+              
+              manager.with_session_context(&platform_name, &repository_path, mr_number)?;
+              
+              bentley::info(&format!("Found session: {} #{} ({})", 
+                repository_path, mr_number, platform_name));
+              
+              return Ok(Some(manager));
+            }
+          }
+        }
+      }
+    }
+
+    Ok(None)
+  }
+
+  /// Get a SessionManager configured for the found session, or None if no session exists
+  pub fn get_session_manager(&self) -> Result<Option<SessionManager>> {
+    self.find_any_session()
+  }
+}
+
+/// Convenience function to get a configured SessionManager or error if no session exists
+pub fn get_session_manager() -> Result<SessionManager> {
+  let discovery = SessionDiscovery::new()?;
+  discovery.get_session_manager()?
+    .ok_or_else(|| anyhow::anyhow!("No active review session found. Use 'jerrod start' to begin."))
+}
+
+/// Convenience function to load the current session or error if none exists
+pub fn load_current_session() -> Result<ReviewSession> {
+  let mut manager = get_session_manager()?;
+  manager.load_session()?
+    .ok_or_else(|| anyhow::anyhow!("No active review session found. Use 'jerrod start' to begin."))
+}

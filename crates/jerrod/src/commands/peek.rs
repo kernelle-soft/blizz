@@ -1,14 +1,10 @@
 use crate::display;
-use crate::session::SessionManager;
+use crate::session::load_current_session;
 use crate::platform::{GitPlatform, github::GitHubPlatform};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 pub async fn handle() -> Result<()> {
-  let mut session_manager = SessionManager::new()?;
-
-  let session = session_manager
-    .load_session()?
-    .ok_or_else(|| anyhow!("No active review session. Use 'jerrod start' to begin."))?;
+  let session = load_current_session()?;
 
   if let Some(thread) = session.peek_next_thread() {
 

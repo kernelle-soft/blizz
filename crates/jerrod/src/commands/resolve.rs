@@ -1,14 +1,10 @@
-use crate::session::SessionManager;
+use crate::session::load_current_session;
 use crate::platform::{GitPlatform, ReactionType};
 use crate::platform::github::GitHubPlatform;
 use anyhow::{anyhow, Result};
 
 pub async fn handle() -> Result<()> {
-  let mut session_manager = SessionManager::new()?;
-
-  let session = session_manager
-    .load_session()?
-    .ok_or_else(|| anyhow!("No active review session. Use 'jerrod start' to begin."))?;
+  let session = load_current_session()?;
 
   // Get the current thread
   let current_thread = session.peek_next_thread()

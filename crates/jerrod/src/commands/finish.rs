@@ -1,10 +1,9 @@
-use crate::session::SessionManager;
+use crate::session::{get_session_manager, load_current_session};
 use anyhow::Result;
 
 pub async fn handle() -> Result<()> {
-  let mut session_manager = SessionManager::new()?;
-
-  if let Some(session) = session_manager.load_session()? {
+  if let Ok(session) = load_current_session() {
+    let session_manager = get_session_manager()?;
     bentley::info(&format!("Finishing review session for MR #{}", session.merge_request.number));
 
     if session.threads_remaining() > 0 {

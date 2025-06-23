@@ -1,12 +1,8 @@
-use crate::session::SessionManager;
-use anyhow::{anyhow, Result};
+use crate::session::load_current_session;
+use anyhow::Result;
 
 pub async fn handle() -> Result<()> {
-  let mut session_manager = SessionManager::new()?;
-
-  let session = session_manager
-    .load_session()?
-    .ok_or_else(|| anyhow!("No active review session. Use 'jerrod start' to begin."))?;
+  let session = load_current_session()?;
 
   bentley::announce("Review Session Status");
   println!("📋 {}", session.merge_request.title);

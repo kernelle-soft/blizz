@@ -10,3 +10,6 @@ Regardless of the coding task, apply DRY (Don't Repeat Yourself) principles:
 Whatever you do, NEVER resort to inside-out DRY patterns:
 - forcing multiple disparate features into one massive function
 - appending unrelated functionality to an existing function and adding a flag to enable/disable that part of the function
+
+Another sign you might be repeating yourself is...
+...if you're repeating yourself. If you're writing the same code repeatedly (or very similar code) then there's a really good chance that you need to write a function or module that does that thing, ONLY that thing, and then use that function everywhere you've been repeating that code.

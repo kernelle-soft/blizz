@@ -1,16 +1,10 @@
-use crate::session::SessionManager;
+use crate::session::load_current_session;
 use crate::commands::{finish, start};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 pub async fn handle() -> Result<()> {
   bentley::info("Refreshing review session...");
-  
-      let mut session_manager = SessionManager::new()?;
-  
-  
-  let session = session_manager
-    .load_session()?
-    .ok_or_else(|| anyhow!("No active review session found. Use 'jerrod start' to begin a new session."))?;
+  let session = load_current_session()?;
   
   
   let repository = session.repository.full_name.clone();

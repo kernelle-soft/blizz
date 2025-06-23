@@ -1,12 +1,9 @@
-use crate::session::SessionManager;
-use anyhow::{anyhow, Result};
+use crate::session::{get_session_manager, load_current_session};
+use anyhow::Result;
 
 pub async fn handle(unresolved: bool) -> Result<()> {
-  let mut session_manager = SessionManager::new()?;
-
-  let mut session = session_manager
-    .load_session()?
-    .ok_or_else(|| anyhow!("No active review session. Use 'jerrod start' to begin."))?;
+  let session_manager = get_session_manager()?;
+  let mut session = load_current_session()?;
 
   if let Some(thread) = session.pop_thread(unresolved) {
     if unresolved {

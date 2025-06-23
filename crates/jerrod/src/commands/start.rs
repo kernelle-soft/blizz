@@ -3,7 +3,7 @@ use crate::platform::{
   detection::{detect_platform, PlatformType},
   GitPlatform,
 };
-use crate::session::{ReviewSession, SessionManager};
+use crate::session::{ReviewSession, SessionManager, SessionDiscovery};
 use anyhow::{anyhow, Result};
 
 pub async fn handle(
@@ -31,13 +31,16 @@ pub async fn handle(
   };
 
   // Check if there's already an active session
+  let discovery = SessionDiscovery::new()?;
+  if discovery.find_any_session()?.is_some() {
+    return Err(anyhow!("Active session already exists. Use 'jerrod finish' to complete it first, or 'jerrod refresh' to restart."));
+  }
+
+  // Set up session manager for the new session
   let mut session_manager = SessionManager::new()?;
   let platform_name = format!("{:?}", platform_type).to_lowercase();
   let repository_path = format!("{}/{}", repo_info.owner, repo_info.repo);
   session_manager.with_session_context(&platform_name, &repository_path, mr_number)?;
-  if session_manager.session_exists() {
-    return Err(anyhow!("Active session already exists. Use 'jerrod finish' to complete it first, or 'jerrod refresh' to restart."));
-  }
 
   bentley::info(&format!("Detected platform: {:?}", platform_type));
   bentley::info(&format!("Repository: {}/{}", repo_info.owner, repo_info.repo));

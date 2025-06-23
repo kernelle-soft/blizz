@@ -1,12 +1,11 @@
 use anyhow::{anyhow, Result};
 use std::process::Command;
-use crate::session::SessionManager;
+use crate::session::load_current_session;
 use crate::display;
 
 pub async fn handle(message: String, details: Option<String>, thread_id: Option<String>) -> Result<()> {
   // Get current session info if available
-  let mut session_manager = SessionManager::new()?;
-  let session = session_manager.load_session()?;
+  let session = load_current_session().ok();
 
   // Build commit message
   let mut commit_msg = message;

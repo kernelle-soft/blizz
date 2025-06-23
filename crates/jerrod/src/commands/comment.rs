@@ -1,15 +1,12 @@
 use anyhow::{anyhow, Result};
-use crate::session::SessionManager;
+use crate::session::load_current_session;
 use crate::platform::{GitPlatform, github::GitHubPlatform};
 
 pub async fn handle(
   text: String,
   new: bool,
 ) -> Result<()> {
-
-  let mut session_manager = SessionManager::new()?;
-  let session = session_manager.load_session()?
-    .ok_or_else(|| anyhow!("No active review session found"))?;
+  let session = load_current_session()?;
 
   if session.platform != "github" {
     return Err(anyhow!("Comment system currently only supported for GitHub"));
