@@ -10,7 +10,6 @@
 //! - **Jerrod** uses Bentley to announce MR review progress
 //! - **Violet** calls upon Bentley to report code quality findings  
 //! - **Blizz** has Bentley spotlight important insights
-//! - **Adam** uses Bentley to flourish when knowledge is curated
 //!
 //! ## Features
 //!
