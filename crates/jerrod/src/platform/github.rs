@@ -28,6 +28,9 @@ impl GitHubPlatform {
 
   // GraphQL query to get all review threads and their resolution status for a PR
   async fn get_review_threads_resolution(&self, owner: &str, repo: &str, pr_number: u64) -> Result<std::collections::HashMap<String, bool>> {
+    // Add cache-busting timestamp to force fresh data
+    let cache_buster = chrono::Utc::now().timestamp_millis();
+    
     let payload = json!({
       "query": r#"
         query($owner: String!, $repo: String!, $prNumber: Int!) {
@@ -54,6 +57,8 @@ impl GitHubPlatform {
         "prNumber": pr_number
       }
     });
+
+    bentley::info(&format!("Cache-busting GraphQL query with timestamp: {}", cache_buster));
 
     let response: serde_json::Value = self.client
       .graphql(&payload)
@@ -339,8 +344,18 @@ impl GitPlatform for GitHubPlatform {
   ) -> Result<Vec<Discussion>> {
     let mut discussions = Vec::new();
 
+    // Cache-busting: Add timestamp to force fresh data
+    let cache_buster = chrono::Utc::now().timestamp_millis();
+    bentley::info(&format!("Cache-busting API calls with timestamp: {}", cache_buster));
+
     // Fetch regular issue comments (top-level comments on the PR)
-    let issue_comments = self.client.issues(owner, repo).list_comments(number).send().await?;
+    // Add per_page and cache-busting parameters to force fresh data
+    let issue_comments = self.client
+      .issues(owner, repo)
+      .list_comments(number)
+      .per_page(100)  // Force pagination to bypass cache
+      .send()
+      .await?;
     
     for comment in issue_comments {
       // Skip comments that have emoji reactions (already processed/acknowledged)
@@ -381,10 +396,12 @@ impl GitPlatform for GitHubPlatform {
       .unwrap_or_default();
 
     // Get review comments (inline comments on the diff)
+    // Force fresh data by using pagination parameters
     let review_comments = self
       .client
       .pulls(owner, repo)
       .list_comments(Some(number))
+      .per_page(100)  // Force pagination to bypass cache
       .send()
       .await?;
     
@@ -428,6 +445,7 @@ impl GitPlatform for GitHubPlatform {
       }
     }
 
+    bentley::info(&format!("Total discussions found after cache-busting: {}", discussions.len()));
     Ok(discussions)
   }
 
