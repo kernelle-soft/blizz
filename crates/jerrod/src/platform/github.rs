@@ -326,27 +326,31 @@ impl GitPlatform for GitHubPlatform {
     repo: &str,
     discussion_id: &str,
   ) -> Result<bool> {
-    // GitHub uses GraphQL for resolving conversations
-    // We need to use the review thread ID, not the comment ID
-    
-    // For now, we'll implement a simpler approach since GitHub's conversation resolution
-    // is specifically for review comments on pull requests, not issue comments
-    // Issue comments don't have a "resolved" state like GitLab threads do
+    // GitHub has two types of comments:
+    // 1. Issue comments - don't have a "resolved" state, use reactions instead
+    // 2. Review comments - can be resolved via GraphQL conversation threads
     
     bentley::info(&format!(
-      "GitHub conversation resolution requested for comment {} in {}/{}",
+      "Attempting to resolve discussion {} in {}/{}",
       discussion_id, owner, repo
     ));
+
+    // First, try to resolve as a review comment conversation thread
+    // We need to find the review thread that contains this comment
+    if let Ok(pr_number) = discussion_id.parse::<u64>() {
+      // If discussion_id is a number, it might be a PR number, but that's not right
+      // Discussion IDs should be comment IDs, not PR numbers
+      bentley::debug("Discussion ID appears to be a number, treating as comment ID");
+    }
+
+    // For now, we'll use the reaction-based approach since GitHub's conversation resolution
+    // requires more complex GraphQL queries to find the thread containing the comment
+    bentley::info("GitHub conversation resolution requires review thread mapping");
+    bentley::info("Using reaction-based resolution for now");
     
-    // GitHub doesn't support resolving issue-level comments like GitLab does
-    // Only review comments on pull requests can be resolved, and that requires
-    // the review thread ID, not the comment ID
-    
-    // For our workflow, we'll use reactions as the resolution mechanism instead
-    bentley::info("GitHub uses reactions for comment state tracking instead of resolution");
-    bentley::info("Use 'jerrod acknowledge' or comment flags to mark comments as handled");
-    
-    Ok(true) // Return true to indicate the operation was handled (via our reaction system)
+    // Return false to indicate we couldn't resolve it directly,
+    // which will trigger the fallback reaction in the resolve command
+    Ok(false)
   }
 
   async fn add_reaction(
@@ -377,14 +381,11 @@ impl GitPlatform for GitHubPlatform {
         if response.status().is_success() {
           bentley::info(&format!("Added {} reaction to review comment {}", reaction.emoji(), comment_id));
           return Ok(true);
-        } else {
-          bentley::debug(&format!("Review comment reaction failed with status: {}", response.status()));
-          // Fall through to try issue comment
         }
+        // Fall through to try issue comment (no debug message needed)
       },
-      Err(e) => {
-        bentley::debug(&format!("Review comment reaction failed: {:?}", e));
-        // Fall through to try issue comment
+      Err(_) => {
+        // Fall through to try issue comment (no debug message needed)
       }
     }
 
@@ -392,7 +393,6 @@ impl GitPlatform for GitHubPlatform {
     match self.client._post(&issue_comment_url, Some(&reaction_body)).await {
       Ok(response) => {
         if response.status().is_success() {
-          bentley::info(&format!("Added {} reaction to issue comment {}", reaction.emoji(), comment_id));
           Ok(true)
         } else {
           Err(anyhow!("Failed to add reaction {} to comment {}: HTTP {}", 

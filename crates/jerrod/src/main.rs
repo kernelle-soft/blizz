@@ -48,6 +48,8 @@ enum Commands {
     #[arg(long)]
     unresolved: bool,
   },
+  /// Mark the current thread as resolved
+  Resolve,
   /// Add a comment to a thread or MR
   Comment {
     /// Comment text
@@ -157,6 +159,7 @@ async fn main() -> Result<()> {
     Commands::Status => commands::status::handle().await,
     Commands::Peek => commands::peek::handle().await,
     Commands::Pop { unresolved } => commands::pop::handle(unresolved).await,
+    Commands::Resolve => commands::resolve::handle().await,
     Commands::Comment { text, new } => {
       commands::comment::handle(text, new).await
     }
