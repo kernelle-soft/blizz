@@ -12,18 +12,34 @@ use crate::{Language, Result, VioletError};
 pub struct LanguageParser {
     parser: Parser,
     language: Language,
+    file_extension: Option<String>,
 }
 
 impl LanguageParser {
     /// Create a new parser for the specified language
     pub fn new(language: Language) -> Result<Self> {
         let mut parser = Parser::new();
-        let ts_language = get_tree_sitter_language(language)?;
+        let ts_language = get_tree_sitter_language(language, None)?;
         
         parser.set_language(ts_language)
             .map_err(|e| VioletError::Parser(format!("Failed to set language: {}", e)))?;
             
-        Ok(Self { parser, language })
+        Ok(Self { parser, language, file_extension: None })
+    }
+    
+    /// Create a new parser for the specified language with file extension context
+    pub fn new_with_extension(language: Language, extension: &str) -> Result<Self> {
+        let mut parser = Parser::new();
+        let ts_language = get_tree_sitter_language(language, Some(extension))?;
+        
+        parser.set_language(ts_language)
+            .map_err(|e| VioletError::Parser(format!("Failed to set language: {}", e)))?;
+            
+        Ok(Self { 
+            parser, 
+            language, 
+            file_extension: Some(extension.to_string()) 
+        })
     }
     
     /// Parse source code and return the syntax tree
@@ -40,15 +56,32 @@ impl LanguageParser {
 }
 
 /// Get the appropriate tree-sitter language for our Language enum
-fn get_tree_sitter_language(language: Language) -> Result<TSLanguage> {
+fn get_tree_sitter_language(language: Language, extension: Option<&str>) -> Result<TSLanguage> {
     match language {
-        Language::JavaScript => Ok(tree_sitter_javascript::language()),
-        Language::TypeScript => Ok(tree_sitter_typescript::language_typescript()),
+        Language::JavaScript => {
+            // Use TSX parser for JSX files to handle JSX syntax
+            if let Some(ext) = extension {
+                if ext == "jsx" {
+                    return Ok(tree_sitter_typescript::language_tsx());
+                }
+            }
+            Ok(tree_sitter_javascript::language())
+        },
+        Language::TypeScript => {
+            // Use TSX parser for .tsx files
+            if let Some(ext) = extension {
+                if ext == "tsx" {
+                    return Ok(tree_sitter_typescript::language_tsx());
+                }
+            }
+            Ok(tree_sitter_typescript::language_typescript())
+        },
         Language::Python => Ok(tree_sitter_python::language()),
         Language::Rust => Ok(tree_sitter_rust::language()),
         Language::Bash => Ok(tree_sitter_bash::language()),
         Language::Go => Ok(tree_sitter_go::language()),
         Language::Ruby => Ok(tree_sitter_ruby::language()),
+        Language::Php => Ok(tree_sitter_php::language()),
     }
 }
 
@@ -111,6 +144,11 @@ fn get_function_node_types(language: Language) -> &'static [&'static str] {
             "method",
             "singleton_method",
         ],
+        Language::Php => &[
+            "function_definition",
+            "method_declaration",
+            "arrow_function",
+        ],
     }
 }
 
@@ -152,6 +190,13 @@ pub fn get_parameter_count(node: Node, language: Language) -> usize {
         Language::Ruby => {
             if let Some(params_node) = find_child_by_type(node, "method_parameters") {
                 count_parameters_ruby(params_node)
+            } else {
+                0
+            }
+        }
+        Language::Php => {
+            if let Some(params_node) = find_child_by_type(node, "formal_parameters") {
+                count_parameters_php(params_node)
             } else {
                 0
             }
@@ -229,6 +274,19 @@ fn count_parameters_ruby(params_node: Node) -> usize {
     for i in 0..params_node.child_count() {
         if let Some(child) = params_node.child(i) {
             if matches!(child.kind(), "identifier" | "optional_parameter" | "splat_parameter") {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+/// Count parameters in PHP style
+fn count_parameters_php(params_node: Node) -> usize {
+    let mut count = 0;
+    for i in 0..params_node.child_count() {
+        if let Some(child) = params_node.child(i) {
+            if matches!(child.kind(), "simple_parameter" | "variadic_parameter" | "property_promotion_parameter") {
                 count += 1;
             }
         }
@@ -568,6 +626,7 @@ class Calculator:
             (Language::Bash, "function test() { echo 1; }"),
             (Language::Go, "func test() int { return 1 }"),
             (Language::Ruby, "def test\n  1\nend"),
+            (Language::Php, "<?php\nfunction test() {\n    return 1;\n}"),
         ];
         
         for (language, code) in test_codes {
@@ -576,5 +635,144 @@ class Calculator:
             let tree = result.unwrap();
             assert!(!tree.root_node().is_error(), "Parse error in {} code", language);
         }
+    }
+
+    #[test]
+    fn test_jsx_parsing() {
+        let jsx_code = r#"
+function App() {
+    return <div>Hello World</div>;
+}
+
+const Component = () => {
+    return (
+        <div>
+            <h1>Title</h1>
+            <p>Content</p>
+        </div>
+    );
+};
+"#;
+        let mut parser = LanguageParser::new_with_extension(Language::JavaScript, "jsx").unwrap();
+        let tree = parser.parse(jsx_code).unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test] 
+    fn test_jsx_vs_js_parser_selection() {
+        // Test that .jsx files use TSX parser while .js files use JS parser
+        let code = "function test() { return 42; }";
+        
+        // JS file should use JavaScript parser
+        let mut js_parser = LanguageParser::new_with_extension(Language::JavaScript, "js").unwrap();
+        let js_tree = js_parser.parse(code).unwrap();
+        assert!(!js_tree.root_node().has_error());
+        
+        // JSX file should use TSX parser 
+        let mut jsx_parser = LanguageParser::new_with_extension(Language::JavaScript, "jsx").unwrap();
+        let jsx_tree = jsx_parser.parse(code).unwrap();
+        assert!(!jsx_tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_jsx_function_extraction() {
+        let jsx_code = r#"
+function RegularFunction() {
+    return "test";
+}
+
+const ArrowComponent = () => {
+    return <div>JSX content</div>;
+};
+
+function ComponentWithJSX() {
+    return (
+        <div>
+            <span>Content</span>
+        </div>
+    );
+}
+"#;
+        let mut parser = LanguageParser::new_with_extension(Language::JavaScript, "jsx").unwrap();
+        let tree = parser.parse(jsx_code).unwrap();
+        let functions = extract_function_nodes(&tree, Language::JavaScript);
+        
+        // Should find all 3 functions
+        assert_eq!(functions.len(), 3);
+    }
+
+    #[test]
+    fn test_jsx_extension_detection() {
+        assert_eq!(detect_language("component.jsx"), Some(Language::JavaScript));
+        assert_eq!(detect_language("Component.JSX"), Some(Language::JavaScript));
+        assert_eq!(detect_language("path/to/file.jsx"), Some(Language::JavaScript));
+    }
+
+    #[test]
+    fn test_php_parsing() {
+        let php_code = r#"
+<?php
+function calculateTotal($price, $tax = 0.1) {
+    if ($price > 0) {
+        return $price * (1 + $tax);
+    }
+    return 0;
+}
+
+class Calculator {
+    public function add($a, $b) {
+        return $a + $b;
+    }
+    
+    public function subtract($a, $b) {
+        return $a - $b;
+    }
+}
+
+$result = function($x) {
+    return $x * 2;
+};
+"#;
+        let mut parser = LanguageParser::new(Language::Php).unwrap();
+        let tree = parser.parse(php_code).unwrap();
+        assert!(!tree.root_node().has_error());
+    }
+
+    #[test]
+    fn test_php_function_extraction() {
+        let php_code = r#"
+<?php
+function globalFunction() {
+    return "global";
+}
+
+class TestClass {
+    public function publicMethod() {
+        return "public";
+    }
+    
+    private function privateMethod() {
+        return "private";
+    }
+}
+
+$anonymous = function() {
+    return "anonymous";
+};
+"#;
+        let mut parser = LanguageParser::new(Language::Php).unwrap();
+        let tree = parser.parse(php_code).unwrap();
+        let functions = extract_function_nodes(&tree, Language::Php);
+        
+        // Should find the global function, class methods, and anonymous function
+        assert!(functions.len() >= 3);
+    }
+
+    #[test]
+    fn test_php_extension_detection() {
+        assert_eq!(detect_language("script.php"), Some(Language::Php));
+        assert_eq!(detect_language("template.phtml"), Some(Language::Php));
+        assert_eq!(detect_language("source.phps"), Some(Language::Php));
+        assert_eq!(detect_language("Script.PHP"), Some(Language::Php));
     }
 } 

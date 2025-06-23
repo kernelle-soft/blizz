@@ -37,6 +37,7 @@ tree-sitter-rust = "0.20"
 tree-sitter-bash = "0.20"
 tree-sitter-go = "0.20"
 tree-sitter-ruby = "0.20"
+tree-sitter-php = "0.20"
 
 # File operations and path handling
 walkdir = "2.4"

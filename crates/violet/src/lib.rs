@@ -158,13 +158,14 @@ fn show_languages() {
     println!();
     
     let languages = [
-        ("JavaScript", "js, mjs, cjs"),
+        ("JavaScript", "js, mjs, cjs, jsx"),
         ("TypeScript", "ts, tsx"),
         ("Python", "py, pyw"),
         ("Rust", "rs"),
         ("Bash", "sh, bash"),
         ("Go", "go"),
         ("Ruby", "rb"),
+        ("PHP", "php, phtml, phps"),
     ];
     
     for (name, extensions) in &languages {
@@ -280,19 +281,21 @@ pub enum Language {
     Bash,
     Go,
     Ruby,
+    Php,
 }
 
 impl Language {
     /// Get language from file extension
     pub fn from_extension(ext: &str) -> Option<Self> {
         match ext.to_lowercase().as_str() {
-            "js" | "mjs" | "cjs" => Some(Language::JavaScript),
+            "js" | "mjs" | "cjs" | "jsx" => Some(Language::JavaScript),
             "ts" | "tsx" => Some(Language::TypeScript),
             "py" | "pyw" => Some(Language::Python),
             "rs" => Some(Language::Rust),
             "sh" | "bash" => Some(Language::Bash),
             "go" => Some(Language::Go),
             "rb" => Some(Language::Ruby),
+            "php" | "phtml" | "phps" => Some(Language::Php),
             _ => None,
         }
     }
@@ -300,13 +303,14 @@ impl Language {
     /// Get file extensions for this language
     pub fn extensions(&self) -> &'static [&'static str] {
         match self {
-            Language::JavaScript => &["js", "mjs", "cjs"],
+            Language::JavaScript => &["js", "mjs", "cjs", "jsx"],
             Language::TypeScript => &["ts", "tsx"],
             Language::Python => &["py", "pyw"],
             Language::Rust => &["rs"],
             Language::Bash => &["sh", "bash"],
             Language::Go => &["go"],
             Language::Ruby => &["rb"],
+            Language::Php => &["php", "phtml", "phps"],
         }
     }
 }
@@ -321,6 +325,7 @@ impl std::fmt::Display for Language {
             Language::Bash => write!(f, "Bash"),
             Language::Go => write!(f, "Go"),
             Language::Ruby => write!(f, "Ruby"),
+            Language::Php => write!(f, "PHP"),
         }
     }
 }
@@ -391,14 +396,20 @@ mod tests {
     fn test_language_from_extension() {
         assert_eq!(Language::from_extension("js"), Some(Language::JavaScript));
         assert_eq!(Language::from_extension("mjs"), Some(Language::JavaScript));
+        assert_eq!(Language::from_extension("cjs"), Some(Language::JavaScript));
+        assert_eq!(Language::from_extension("jsx"), Some(Language::JavaScript));
         assert_eq!(Language::from_extension("ts"), Some(Language::TypeScript));
         assert_eq!(Language::from_extension("tsx"), Some(Language::TypeScript));
         assert_eq!(Language::from_extension("py"), Some(Language::Python));
+        assert_eq!(Language::from_extension("pyw"), Some(Language::Python));
         assert_eq!(Language::from_extension("rs"), Some(Language::Rust));
         assert_eq!(Language::from_extension("sh"), Some(Language::Bash));
         assert_eq!(Language::from_extension("bash"), Some(Language::Bash));
         assert_eq!(Language::from_extension("go"), Some(Language::Go));
         assert_eq!(Language::from_extension("rb"), Some(Language::Ruby));
+        assert_eq!(Language::from_extension("php"), Some(Language::Php));
+        assert_eq!(Language::from_extension("phtml"), Some(Language::Php));
+        assert_eq!(Language::from_extension("phps"), Some(Language::Php));
         assert_eq!(Language::from_extension("unknown"), None);
         assert_eq!(Language::from_extension(""), None);
     }
@@ -412,17 +423,19 @@ mod tests {
         assert_eq!(Language::Bash.to_string(), "Bash");
         assert_eq!(Language::Go.to_string(), "Go");
         assert_eq!(Language::Ruby.to_string(), "Ruby");
+        assert_eq!(Language::Php.to_string(), "PHP");
     }
 
     #[test]
     fn test_language_extensions() {
-        assert_eq!(Language::JavaScript.extensions(), &["js", "mjs", "cjs"]);
+        assert_eq!(Language::JavaScript.extensions(), &["js", "mjs", "cjs", "jsx"]);
         assert_eq!(Language::TypeScript.extensions(), &["ts", "tsx"]);
         assert_eq!(Language::Python.extensions(), &["py", "pyw"]);
         assert_eq!(Language::Rust.extensions(), &["rs"]);
         assert_eq!(Language::Bash.extensions(), &["sh", "bash"]);
         assert_eq!(Language::Go.extensions(), &["go"]);
         assert_eq!(Language::Ruby.extensions(), &["rb"]);
+        assert_eq!(Language::Php.extensions(), &["php", "phtml", "phps"]);
     }
 
     #[test]

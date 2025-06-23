@@ -169,6 +169,16 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
                 "binary" | "and" | "or"
             )
         }
+        Language::Php => {
+            matches!(node.kind(),
+                "if_statement" | "else_clause" | "elseif_clause" |
+                "while_statement" | "for_statement" | "foreach_statement" |
+                "switch_statement" | "case_statement" | "default_statement" |
+                "try_statement" | "catch_clause" | "finally_clause" |
+                "conditional_expression" | "ternary_expression" |
+                "binary_expression"
+            )
+        }
     }
 }
 
@@ -270,6 +280,17 @@ pub fn get_function_name(node: Node, language: Language, source_code: &[u8]) -> 
             for i in 0..node.child_count() {
                 if let Some(child) = node.child(i) {
                     if matches!(child.kind(), "identifier" | "constant") {
+                        return Some(child.utf8_text(source_code).unwrap_or("").to_string());
+                    }
+                }
+            }
+            None
+        }
+        Language::Php => {
+            // Look for name or identifier in PHP function
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i) {
+                    if matches!(child.kind(), "name" | "identifier") {
                         return Some(child.utf8_text(source_code).unwrap_or("").to_string());
                     }
                 }
@@ -739,6 +760,7 @@ def complex_python_function(x, y):
             (Language::Rust, "fn test() -> i32 { 42 }"),
             (Language::Go, "func test() int { return 42 }"),
             (Language::Ruby, "def test\n  42\nend"),
+            (Language::Php, "<?php\nfunction test() {\n    return 42;\n}"),
         ];
         
         for (language, code) in test_cases {
@@ -763,5 +785,94 @@ def complex_python_function(x, y):
         assert!(metrics.line_count >= 0);
         assert!(metrics.max_depth >= 0);
         assert!(metrics.cyclomatic_complexity >= 0);
+    }
+
+    #[test]
+    fn test_php_function_complexity() {
+        let php_code = r#"
+<?php
+function complexPhpFunction($input) {
+    if ($input > 0) {
+        if ($input % 2 == 0) {
+            return "even positive";
+        } else {
+            return "odd positive";
+        }
+    } elseif ($input < 0) {
+        return "negative";
+    } else {
+        return "zero";
+    }
+}
+"#;
+        let metrics = parse_and_analyze(php_code, Language::Php);
+        
+        // Should have some complexity due to conditionals
+        assert!(metrics.cyclomatic_complexity > 1);
+        assert!(metrics.max_depth > 0);
+    }
+
+    #[test]
+    fn test_php_parameter_counting() {
+        let php_code = r#"
+<?php
+function noParams() {
+    return "no params";
+}
+
+function threeParams($a, $b, $c) {
+    return $a + $b + $c;
+}
+
+function withDefaults($required, $optional = "default", $variadic = null) {
+    return $required . $optional . $variadic;
+}
+"#;
+        let mut parser = LanguageParser::new(Language::Php).unwrap();
+        let tree = parser.parse(php_code).unwrap();
+        let functions = crate::parser::extract_function_nodes(&tree, Language::Php);
+        
+        // Should find all three functions
+        assert_eq!(functions.len(), 3);
+        
+        // Test parameter counting for each function
+        for function_node in functions {
+            let metrics = calculate_function_metrics(function_node, php_code, Language::Php);
+            // Each function should have valid parameter counts
+            assert!(metrics.param_count <= 10); // Reasonable upper bound
+        }
+    }
+
+    #[test]
+    fn test_php_class_methods() {
+        let php_code = r#"
+<?php
+class TestClass {
+    public function simpleMethod() {
+        return "simple";
+    }
+    
+    private function complexMethod($param) {
+        if ($param) {
+            while ($param > 0) {
+                $param--;
+            }
+        }
+        return $param;
+    }
+}
+"#;
+        let mut parser = LanguageParser::new(Language::Php).unwrap();
+        let tree = parser.parse(php_code).unwrap();
+        let functions = crate::parser::extract_function_nodes(&tree, Language::Php);
+        
+        // Should find class methods
+        assert!(functions.len() >= 2);
+        
+        for function_node in functions {
+            let metrics = calculate_function_metrics(function_node, php_code, Language::Php);
+            // Should have reasonable complexity values
+            assert!(metrics.cyclomatic_complexity >= 1);
+        }
     }
 } 

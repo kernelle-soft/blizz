@@ -1,6 +1,6 @@
 # Kernelle
 
-**A Rust-powered, design-to-merge AI development toolshed**
+**A Rust-powered, investigation-to-merge AI development toolshed**
 
 It's an artificial intelligence gold rush, and let's be honest, there are a heck of a lot of shovels piling up.
 
@@ -11,7 +11,7 @@ Instead of building yet another shovel to throw on the pile, this repository is 
 - writing clean code and tests
 - merge reviews, both as the assignee and reviewer.
 
-In essence, this repository takes the next logical step software development's been working towards: a design-to-merge development toolkit to accelerate a typical sprint workflow. It provides semantically programmed agent rulesets that leverage a suite of human-friendly, agent-ready CLIs to automate and aide in the most common stages of development.
+In essence, this repository takes the next logical step software development's been working towards: a development toolkit to accelerate a typical sprint workflow all the way from investigation and triage up through merge. It provides semantically programmed agent rulesets that leverage a suite of human-friendly, agent-ready CLIs to automate and aide in the most common stages of development.
 
 This toolshed's been designed and tested for real-world development, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts. It's designed to accelerate you, not replace you.
 

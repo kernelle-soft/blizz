@@ -41,7 +41,10 @@ impl Linter {
         let source_code = std::fs::read_to_string(file_path)?;
         
         // Parse the file
-        let mut parser = LanguageParser::new(language)?;
+        let extension = file_path.extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("");
+        let mut parser = LanguageParser::new_with_extension(language, extension)?;
         let tree = parser.parse(&source_code)?;
         
         let mut violations = Vec::new();
@@ -1028,5 +1031,111 @@ def test_function(self, a, b, c, d, e, *args, **kwargs):
         
         let result = linter.analyze_file("nonexistent.js");
         assert!(result.is_err()); // Should return error for nonexistent files
+    }
+
+    #[test]
+    fn test_php_function_analysis() {
+        let config = create_test_config();
+        let php_code = r#"
+<?php
+function tooManyParams($a, $b, $c, $d, $e, $f) {
+    return $a + $b + $c + $d + $e + $f;
+}
+
+function complexFunction($x) {
+    if ($x > 0) {
+        if ($x > 10) {
+            if ($x > 100) {
+                if ($x > 1000) {
+                    return "very big";
+                } else {
+                    return "big";
+                }
+            } else {
+                return "medium";
+            }
+        } else {
+            return "small";
+        }
+    } else {
+        return "negative or zero";
+    }
+}
+"#;
+        let violations = lint_code(php_code, Language::Php, &config);
+        
+        // Should find violations for too many parameters and excessive nesting
+        assert!(violations.len() >= 2);
+        assert!(violations.iter().any(|v| v.rule == "max-params"));
+        assert!(violations.iter().any(|v| v.rule == "function-depth"));
+    }
+
+    #[test]
+    fn test_php_class_methods() {
+        let config = create_test_config();
+        let php_code = r#"
+<?php
+class Calculator {
+    public function add($a, $b) {
+        return $a + $b;
+    }
+    
+    public function complexCalculation($x) {
+        if ($x > 0) {
+            if ($x % 2 == 0) {
+                return $x * 2;
+            } else {
+                return $x * 3;
+            }
+        } else {
+            return 0;
+        }
+    }
+}
+"#;
+        let violations = lint_code(php_code, Language::Php, &config);
+        
+        // Should analyze class methods correctly
+        // The add method should be clean, complexCalculation might have nesting issues
+        let add_violations: Vec<_> = violations.iter()
+            .filter(|v| v.message.contains("add"))
+            .collect();
+        
+        // Simple add method should have no violations
+        assert_eq!(add_violations.len(), 0);
+    }
+
+    #[test]
+    fn test_jsx_component_analysis() {
+        let config = create_test_config();
+        let jsx_code = r#"
+function TooManyPropsComponent(props1, props2, props3, props4, props5, props6) {
+    return <div>Too many props</div>;
+}
+
+const ComplexComponent = () => {
+    const data = getData();
+    
+    if (data) {
+        if (data.user) {
+            if (data.user.profile) {
+                if (data.user.profile.settings) {
+                    if (data.user.profile.settings.theme) {
+                        return <div className={data.user.profile.settings.theme}>Complex</div>;
+                    }
+                }
+            }
+        }
+    }
+    
+    return <div>Default</div>;
+};
+"#;
+        let violations = lint_code(jsx_code, Language::JavaScript, &config);
+        
+        // Should find violations for too many parameters and excessive nesting
+        assert!(violations.len() >= 2);
+        assert!(violations.iter().any(|v| v.rule == "max-params"));
+        assert!(violations.iter().any(|v| v.rule == "function-depth"));
     }
 } 

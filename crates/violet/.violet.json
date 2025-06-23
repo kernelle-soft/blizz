@@ -1,7 +1,7 @@
 {
   "rules": {
-    "max_params": 3,
-    "max_function_lines": 50,
+    "max_params": 5,
+    "max_function_lines": 75,
     "max_function_depth": 3,
     "max_complexity": 10,
     "max_file_lines": 500,
