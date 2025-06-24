@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use tree_sitter::Node;
 
 use crate::{
-  config::{Config},
+  config::Config,
   metrics::{
     calculate_file_metrics, calculate_function_metrics, get_function_name, has_ignore_directive,
   },
@@ -83,7 +83,9 @@ impl Linter {
       .unwrap_or_else(|| "<anonymous>".to_string());
 
     // Check parameter count
-    if metrics.param_count > rules.max_params && !has_ignore_directive(source_code, metrics.start_line, "max-params") {
+    if metrics.param_count > rules.max_params
+      && !has_ignore_directive(source_code, metrics.start_line, "max-params")
+    {
       violations.push(Violation {
         rule: "max-params".to_string(),
         severity: Severity::Error,
@@ -99,7 +101,9 @@ impl Linter {
     }
 
     // Check function length
-    if metrics.line_count > rules.max_function_lines && !has_ignore_directive(source_code, metrics.start_line, "function-length") {
+    if metrics.line_count > rules.max_function_lines
+      && !has_ignore_directive(source_code, metrics.start_line, "function-length")
+    {
       violations.push(Violation {
         rule: "function-length".to_string(),
         severity: Severity::Warning,
@@ -110,30 +114,32 @@ impl Linter {
         file: file_path.to_path_buf(),
         line: metrics.start_line,
         column: None,
-        suggestion: Some("Extract logical blocks into helper functions".to_string()),
+        suggestion: Some("Split into smaller functions".to_string()),
       });
     }
 
     // Check nesting depth
-    if metrics.max_depth > rules.max_function_depth && !has_ignore_directive(source_code, metrics.start_line, "function-depth") {
+    if metrics.max_depth > rules.max_function_depth
+      && !has_ignore_directive(source_code, metrics.start_line, "function-depth")
+    {
       violations.push(Violation {
         rule: "function-depth".to_string(),
         severity: Severity::Error,
         message: format!(
-          "Function '{}' has excessive nesting depth: {} (max: {})",
+          "Function '{}' is too deeply nested: {} levels (max: {})",
           function_name, metrics.max_depth, rules.max_function_depth
         ),
         file: file_path.to_path_buf(),
         line: metrics.start_line,
         column: None,
-        suggestion: Some(
-          "Use early returns or extract nested logic into helper functions".to_string(),
-        ),
+        suggestion: Some("Reduce nesting or extract code into functions".to_string()),
       });
     }
 
     // Check cyclomatic complexity
-    if metrics.cyclomatic_complexity > rules.max_complexity && !has_ignore_directive(source_code, metrics.start_line, "complexity") {
+    if metrics.cyclomatic_complexity > rules.max_complexity
+      && !has_ignore_directive(source_code, metrics.start_line, "complexity")
+    {
       violations.push(Violation {
         rule: "complexity".to_string(),
         severity: Severity::Error,
@@ -144,7 +150,7 @@ impl Linter {
         file: file_path.to_path_buf(),
         line: metrics.start_line,
         column: None,
-        suggestion: Some("Break down complex logic into smaller functions".to_string()),
+        suggestion: Some("Break down into smaller functions".to_string()),
       });
     }
 
@@ -163,7 +169,9 @@ impl Linter {
     let rules = self.config.get_rules_for_language(language);
 
     // Check file length
-    if metrics.line_count > rules.max_file_lines && !has_ignore_directive(source_code, 1, "file-length") {
+    if metrics.line_count > rules.max_file_lines
+      && !has_ignore_directive(source_code, 1, "file-length")
+    {
       violations.push(Violation {
         rule: "file-length".to_string(),
         severity: Severity::Warning,
