@@ -177,6 +177,25 @@ clone_repository() {
     
     cd "$TMP_DIR/kernelle" || die "Failed to enter repository directory"
     log_success "Repository cloned successfully"
+    
+    # Copy Cursor workflows
+    if [ -d ".cursor" ]; then
+        mkdir -p "$KERNELLE_HOME"
+        rm -rf "$KERNELLE_HOME/.cursor"
+        cp -R ".cursor" "$KERNELLE_HOME/.cursor"
+        log_success "Copied Cursor workflows to $KERNELLE_HOME/.cursor"
+    else
+        log_warn "No .cursor directory found in repo; skipping Cursor workflow copy"
+    fi
+    
+    # Copy add-workflows.sh script
+    if [ -f "add-workflows.sh" ]; then
+        cp "add-workflows.sh" "$KERNELLE_HOME/add-workflows.sh"
+        chmod +x "$KERNELLE_HOME/add-workflows.sh"
+        log_success "Copied add-workflows.sh to $KERNELLE_HOME"
+    else
+        log_warn "No add-workflows.sh script found in repo; skipping workflow script copy"
+    fi
 }
 
 # Build and install the tools
@@ -233,7 +252,27 @@ verify_installation() {
         die "No tools are available in PATH. Installation may have failed."
     fi
     
+    # Check for Cursor workflows
+    [ -d "$KERNELLE_HOME/.cursor" ] && log_success "Cursor workflows installed"
+    
+    # Check for add-workflows command availability
+    command -v add-workflows >/dev/null && log_success "add-workflows available via shell"
+    
     log_success "$verified_count tools verified and ready to use"
+}
+
+# Integrate shell profile to auto-source add-workflows.sh
+integrate_shell() {
+  local profile
+  if [ -f "$HOME/.zshrc" ]; then
+    profile="$HOME/.zshrc"
+  else
+    profile="$HOME/.bash_profile"
+  fi
+  grep -Fq 'source ~/.kernelle/add-workflows.sh' "$profile" 2>/dev/null || {
+    printf "\n# Kernelle Cursor workflows\n[ -f \"$HOME/.kernelle/add-workflows.sh\" ] && source \"$HOME/.kernelle/add-workflows.sh\"\n" >> "$profile"
+    log_success "Added Cursor workflow integration to $profile"
+  }
 }
 
 # Show getting started guide
@@ -248,17 +287,19 @@ show_getting_started() {
     printf "${BLUE}❄️  Blizz${NC} - Lightning-Fast Knowledge Acquisition\n"
     printf "   Gather insights: ${BOLD}blizz investigate <topic>${NC}\n\n"
     
-    printf "${YELLOW}📚 Adam${NC} - The Record Keeper & Insight Curator\n"
-    printf "   Curate knowledge: ${BOLD}adam curate${NC}\n\n"
     
     printf "${PURPLE}🎨 Violet${NC} - Code Complexity Artisan\n"
     printf "   Check code quality: ${BOLD}violet analyze <file>${NC}\n\n"
     
-    printf "${GREEN}🎭 Bentley${NC} - Theatrical Logging Maestro\n"
-    printf "   (Used by other tools for beautiful output)\n\n"
     
     printf "${RED}🛡️  Sentinel${NC} - Security & Encryption Guardian\n"
     printf "   Secure your data: ${BOLD}sentinel encrypt <file>${NC}\n\n"
+    
+    printf "${CYAN}🪄  add-workflows${NC} - Cursor IDE Workflow Helper\n"
+    printf "   Add workflows to current project: ${BOLD}add-workflows${NC}\n"
+    printf "   Add workflows to specific path:   ${BOLD}add-workflows path/to/project${NC}\n"
+    printf "   Remove workflows from project:   ${BOLD}rm-workflows${NC}\n"
+    printf "   This creates symlinks from ~/.kernelle/.cursor to your project's .cursor directory.\n\n"
     
     printf "${CYAN}${BOLD}Next Steps:${NC}\n"
     printf "1. Try ${BOLD}jerrod --help${NC} to see available commands\n"
@@ -287,6 +328,7 @@ main() {
     clone_repository
     build_and_install
     verify_installation
+    integrate_shell
     
     # Show success message and getting started guide
     show_getting_started

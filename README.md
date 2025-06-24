@@ -17,6 +17,15 @@ This toolshed's been designed and tested for real-world development, and has bee
 
 No, this is not AI-generated hype. I use these tools myself. In fact, I used these tools on themselves to make them much higher quality than I could otherwise do by myself, while still having full say in the way code gets designed and written. **No exaggeration:** the early prototypes of Kernelle were comprised of integration-tested bash scripts that were more legible and more reliable than most of the codebase at my last job.
 
+
+### Setup
+
+Automatic Setup and Quick-Start guidance:
+
+```bash
+curl https://github.com/TravelSizedLions/kernelle/raw/refs/heads/dev/setup.sh | sh
+```
+
 ## Who Is This For?
 
 **Solo Developers:** Use what you need, ignore what you don't. Jerrod for MR reviews, Blizz for personal knowledge management, Violet for local code quality. Everything runs locally - no team buy-in required.
@@ -226,6 +235,8 @@ cargo install --path adam
 # Or use the development setup
 bacon deploy-all  # Builds and deploys all tools
 ```
+
+This integration brings together Kernelle's powerful command-line tools with Cursor's AI-powered IDE capabilities, creating a unified development experience that amplifies both human creativity and AI assistance.
 
 ### Development Workflow
 The project uses `bacon` for rapid development iteration:
