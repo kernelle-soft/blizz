@@ -10,33 +10,9 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  # Job 1: Test all crates
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: test-workspace-${{ hashFiles('**/Cargo.lock') }}
-          cache-on-failure: true
-
-      - name: Run tests
-        run: |
-          echo "🎭 Running tests for all crates..."
-          cargo test --workspace --all-targets
-
-  # Job 2: Coverage analysis
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
-    needs: test
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -90,59 +66,3 @@ jobs:
           flags: workspace
           name: workspace-coverage
           fail_ci_if_error: false
-
-  # Job 3: Integration tests
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: integration-${{ hashFiles('**/Cargo.lock') }}
-          cache-on-failure: true
-
-      - name: Run integration tests
-        run: |
-          if [ -d "tests" ]; then
-            echo "🎪 Running integration tests..."
-            cargo test --test '*'
-          else
-            echo "🎭 No integration tests found, skipping..."
-          fi
-
-  # Job 4: Test success summary
-  test-success:
-    name: Test Success
-    runs-on: ubuntu-latest
-    needs: [test, coverage, integration]
-    if: always()
-    steps:
-      - name: Check test results
-        run: |
-          echo "Checking test results..."
-          
-          # Check all required jobs
-          if [[ "${{ needs.test.result }}" != "success" ]]; then
-            echo "❌ Tests failed"
-            exit 1
-          fi
-          
-          if [[ "${{ needs.coverage.result }}" != "success" ]]; then
-            echo "❌ Coverage analysis failed"
-            exit 1
-          fi
-          
-          if [[ "${{ needs.integration.result }}" != "success" ]]; then
-            echo "❌ Integration tests failed"
-            exit 1
-          fi
-          
-          echo "✨ All tests passed!" 
