@@ -1,4 +1,4 @@
-use jerrod::{platform::*, ReviewSession, SessionManager};
+use jerrod::{platform::*, session::{ReviewSession, ReviewSessionOptions, SessionManager}};
 use tempfile::TempDir;
 
 fn create_test_session() -> ReviewSession {
@@ -50,7 +50,14 @@ fn create_test_session() -> ReviewSession {
     },
   ];
 
-  ReviewSession::new(repository, merge_request, "github".to_string(), None, discussions, vec![])
+  ReviewSession::new(
+    repository,
+    merge_request,
+    "github".to_string(),
+    discussions,
+    vec![],
+    ReviewSessionOptions { host: None },
+  )
 }
 
 #[test]
@@ -139,9 +146,9 @@ fn test_empty_queue_handling() {
       updated_at: chrono::Utc::now(),
     },
     "github".to_string(),
-    None,   // host
     vec![], // Empty discussions
     vec![],
+    ReviewSessionOptions { host: None },
   );
 
   assert!(session.peek_next_thread().is_none());

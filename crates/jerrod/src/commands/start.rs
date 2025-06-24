@@ -55,7 +55,7 @@ pub async fn handle(
   bentley::info("Fetching pipeline/workflow information...");
   let pipelines = platform.get_pipelines(&repo_info.owner, &repo_info.repo, "HEAD").await?;
 
-  let session = ReviewSession::with_options(
+  let session = ReviewSession::new(
     repository_info,
     merge_request,
     platform_name,

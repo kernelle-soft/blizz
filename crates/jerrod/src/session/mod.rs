@@ -24,8 +24,8 @@ pub struct ReviewSession {
 }
 
 impl ReviewSession {
-  /// Create a new review session with options
-  pub fn with_options(
+  /// Create a new review session
+  pub fn new(
     repository: Repository,
     merge_request: MergeRequest,
     platform: String,
@@ -55,26 +55,6 @@ impl ReviewSession {
       created_at: now,
       updated_at: now,
     }
-  }
-
-  /// Create a new review session (backward compatibility)
-  #[allow(dead_code)]
-  pub fn new(
-    repository: Repository,
-    merge_request: MergeRequest,
-    platform: String,
-    host: Option<String>,
-    discussions: Vec<Discussion>,
-    pipelines: Vec<Pipeline>,
-  ) -> Self {
-    Self::with_options(
-      repository,
-      merge_request,
-      platform,
-      discussions,
-      pipelines,
-      ReviewSessionOptions { host },
-    )
   }
 
   /// Get the next thread in the queue without removing it

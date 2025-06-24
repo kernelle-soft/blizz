@@ -3,7 +3,7 @@ use chrono::Utc;
 use jerrod::auth::{register_provider_factory, reset_provider_factory};
 use jerrod::commands::comment;
 use jerrod::platform::{Discussion, MergeRequest, MergeRequestState, Note, Repository, User};
-use jerrod::session::{ReviewSession, SessionManager};
+use jerrod::session::{ReviewSession, ReviewSessionOptions, SessionManager};
 use sentinel::MockCredentialProvider;
 use serial_test::serial;
 use tempfile::TempDir;
@@ -95,9 +95,9 @@ async fn create_test_session(temp_dir: &TempDir) -> Result<ReviewSession> {
     repo,
     mr,
     "github".to_string(),
-    None, // host
     discussions,
     vec![], // empty pipelines
+    ReviewSessionOptions { host: None },
   );
 
   session_manager.save_session(&session_data)?;

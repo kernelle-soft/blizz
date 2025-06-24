@@ -6,7 +6,7 @@ use jerrod::commands::{acknowledge, finish, peek, pop, refresh, status};
 use jerrod::platform::{
   Discussion, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType, Repository, User,
 };
-use jerrod::session::{ReviewSession, SessionManager};
+use jerrod::session::{ReviewSession, ReviewSessionOptions, SessionManager};
 use std::env;
 use tempfile::TempDir;
 
@@ -78,9 +78,9 @@ async fn create_test_session() -> (TempDir, ReviewSession) {
     repository,
     merge_request,
     "github".to_string(),
-    None, // host
     vec![discussion],
     pipelines,
+    ReviewSessionOptions { host: None },
   );
 
   (temp_dir, session)
