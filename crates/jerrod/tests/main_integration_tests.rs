@@ -4,8 +4,6 @@ use jerrod::auth::{register_provider_factory, reset_provider_factory};
 use sentinel::CredentialProvider;
 use serial_test::serial;
 use std::env;
-use std::fs;
-use std::path::PathBuf;
 use tempfile::TempDir;
 
 // Mock Sentinel for integration tests
@@ -92,7 +90,7 @@ fn test_cli_start_command_parsing() {
 
   // This should fail because we don't have valid API access
   // but it should parse the command successfully
-  let output = cmd.args(&["start", "test-project", "1"]).assert().failure();
+  let output = cmd.args(["start", "test-project", "1"]).assert().failure();
 
   // Should show that it attempted to start (not a parsing error)
   let stderr = String::from_utf8_lossy(&output.get_output().stderr);
@@ -111,7 +109,7 @@ fn test_cli_start_command_with_platform() {
   let mut cmd = Command::cargo_bin("jerrod").unwrap();
   cmd.timeout(std::time::Duration::from_secs(10));
 
-  let output = cmd.args(&["start", "test-project", "1", "--platform", "github"]).assert().failure();
+  let output = cmd.args(["start", "test-project", "1", "--platform", "github"]).assert().failure();
 
   // Should show that it attempted to start (not a parsing error)
   let stderr = String::from_utf8_lossy(&output.get_output().stderr);
@@ -169,7 +167,7 @@ fn test_cli_pop_command_with_unresolved_flag() {
   setup_test_env(&temp_dir);
 
   let mut cmd = setup_test_command();
-  let output = cmd.args(&["pop", "--unresolved"]).assert().failure();
+  let output = cmd.args(["pop", "--unresolved"]).assert().failure();
 
   let stderr = String::from_utf8_lossy(&output.get_output().stderr);
   assert!(stderr.contains("No active review session") || stderr.contains("session"));
@@ -197,7 +195,7 @@ fn test_cli_acknowledge_command_with_reaction() {
 
   let mut cmd = setup_test_command();
   // Should fail without session but parse correctly
-  let output = cmd.args(&["acknowledge", "--reaction", "heart"]).assert().failure();
+  let output = cmd.args(["acknowledge", "--reaction", "heart"]).assert().failure();
 
   let stderr = String::from_utf8_lossy(&output.get_output().stderr);
   assert!(!stderr.contains("error: unrecognized subcommand"));
@@ -211,7 +209,7 @@ fn test_cli_comment_command() {
 
   let mut cmd = setup_test_command();
   // Should fail without session but parse correctly
-  let output = cmd.args(&["comment", "disc1", "Test comment"]).assert().failure();
+  let output = cmd.args(["comment", "disc1", "Test comment"]).assert().failure();
 
   let stderr = String::from_utf8_lossy(&output.get_output().stderr);
   assert!(!stderr.contains("error: unrecognized subcommand"));
@@ -225,7 +223,7 @@ fn test_cli_comment_command_new() {
 
   let mut cmd = setup_test_command();
   // Should fail without session but parse correctly
-  let output = cmd.args(&["comment", "--new", "Test MR comment"]).assert().failure();
+  let output = cmd.args(["comment", "--new", "Test MR comment"]).assert().failure();
 
   let stderr = String::from_utf8_lossy(&output.get_output().stderr);
   assert!(!stderr.contains("error: unrecognized subcommand"));
@@ -253,7 +251,7 @@ fn test_cli_commit_command() {
 
   let mut cmd = setup_test_command();
   // Commit command may fail if there's nothing to commit (clean working tree)
-  let result = cmd.args(&["commit", "Test commit message"]).assert();
+  let result = cmd.args(["commit", "Test commit message"]).assert();
 
   // Can either succeed with changes or fail with "nothing to commit" - both are valid
   let output = result.get_output();
@@ -277,7 +275,7 @@ fn test_cli_commit_command_with_details() {
 
   let mut cmd = setup_test_command();
   // Commit command may fail if there's nothing to commit (since previous test already committed changes)
-  let result = cmd.args(&["commit", "Test commit", "--details", "More details"]).assert();
+  let result = cmd.args(["commit", "Test commit", "--details", "More details"]).assert();
 
   // Can either succeed with changes or fail with "nothing to commit" - both are valid
   let output = result.get_output();
@@ -335,7 +333,7 @@ fn test_cli_start_invalid_mr_number() {
   setup_test_env(&temp_dir);
 
   let mut cmd = Command::cargo_bin("jerrod").unwrap();
-  let output = cmd.args(&["start", "test-project", "not-a-number"]).assert().failure();
+  let output = cmd.args(["start", "test-project", "not-a-number"]).assert().failure();
 
   let stderr = String::from_utf8_lossy(&output.get_output().stderr);
   // Should be a parsing error for invalid number
@@ -382,7 +380,7 @@ fn test_cli_start_with_url_format() {
   cmd.timeout(std::time::Duration::from_secs(10));
 
   // This should fail due to authentication but should parse URL correctly
-  let output = cmd.args(&["start", "owner/repo", "123"]).assert().failure();
+  let output = cmd.args(["start", "owner/repo", "123"]).assert().failure();
 
   let stderr = String::from_utf8_lossy(&output.get_output().stderr);
   // Should not be a parsing error

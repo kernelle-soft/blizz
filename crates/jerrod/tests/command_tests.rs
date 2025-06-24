@@ -2,16 +2,15 @@ mod mock_github;
 
 use chrono::Utc;
 use jerrod::commands::{
-  acknowledge, comment, commit, finish, peek, pop, refresh, resolve, start, status,
+  acknowledge, finish, peek, pop, refresh, status,
 };
+use jerrod::commands::acknowledge::{AcknowledgeConfig, AcknowledgeFlags};
 use jerrod::platform::{
-  Discussion, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType,
+  Discussion, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType,
   Repository, User,
 };
 use jerrod::session::{ReviewSession, SessionManager};
-use mock_github::MockGitHub;
 use std::env;
-use std::fs;
 use tempfile::TempDir;
 
 fn setup_test_env() -> TempDir {
@@ -94,16 +93,10 @@ async fn test_acknowledge_reaction_flags() {
   use jerrod::commands::acknowledge::AcknowledgeConfig;
 
   // Test that we can create acknowledge config with reaction flags
-  let config = AcknowledgeConfig::from_flags(
-    true, false, false, false, // thumbs_up flags
-    false, false, // thumbs_down flags
-    false, false, // laugh flags
-    false, false, false, false, false, // hooray flags
-    false, false, false, // confused flags
-    false, false, false, // heart flags
-    false, false, false, false, false, // rocket flags
-    false, false, false, // eyes flags
-  );
+  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
+    thumbs_up: true,
+    ..Default::default()
+  });
 
   // Should create a config with thumbs up reaction
   assert_eq!(config.reaction_type.emoji(), "👍");
@@ -255,4 +248,13 @@ async fn test_commit_command_integration() {
 async fn test_resolve_command_integration() {
   // This would require complex platform mocking
   // Skip for now to focus on achievable coverage gains
+}
+
+#[tokio::test]
+async fn test_acknowledge_config_from_flags() {
+  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
+    thumbs_up: true,
+    ..Default::default()
+  });
+  assert!(matches!(config.reaction_type, ReactionType::ThumbsUp));
 }

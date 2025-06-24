@@ -1,5 +1,4 @@
 use jerrod::{platform::*, ReviewSession, SessionManager};
-use std::fs;
 use tempfile::TempDir;
 
 fn create_test_session() -> ReviewSession {

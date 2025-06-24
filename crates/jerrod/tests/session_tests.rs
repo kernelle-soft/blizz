@@ -2,7 +2,6 @@ use chrono::Utc;
 use jerrod::platform::{Discussion, MergeRequest, MergeRequestState, Note, Repository, User};
 use jerrod::session::{load_current_session, ReviewSession, SessionDiscovery, SessionManager};
 use std::env;
-use std::fs;
 use tempfile::TempDir;
 
 fn setup_test_env() -> TempDir {

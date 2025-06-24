@@ -4,7 +4,7 @@ use jerrod::platform::github::GitHubPlatform;
 use jerrod::platform::{GitPlatform, MergeRequestState, ReactionType};
 use octocrab::Octocrab;
 use sentinel::MockCredentialProvider;
-use serde_json::{json, Value};
+use serde_json::json;
 use serial_test::serial;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -238,7 +238,7 @@ async fn create_test_github_platform(mock_server: &MockServer) -> Result<GitHubP
   // Create octocrab client pointing to our mock server
   let client = Octocrab::builder()
     .personal_token("fake-github-token-123")
-    .base_uri(&mock_server.uri())?
+    .base_uri(mock_server.uri())?
     .build()?;
 
   Ok(GitHubPlatform::from_client(client))
@@ -693,7 +693,6 @@ async fn test_resolve_discussion() -> Result<()> {
 
   // Create a temporary session file for the test in the legacy location
   use std::fs;
-  use std::path::Path;
   let home_dir = dirs::home_dir().expect("Could not find home directory");
   let session_dir = home_dir.join(".kernelle").join("code-reviews");
   fs::create_dir_all(&session_dir).ok();

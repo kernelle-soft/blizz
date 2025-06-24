@@ -130,6 +130,7 @@ impl SessionManager {
     self.base_dir.join("code-reviews").join("session.json")
   }
 
+  #[allow(dead_code)]
   pub fn session_exists(&self) -> bool {
     if let Ok(session_path) = self.get_session_path() {
       session_path.join("session.json").exists()

@@ -1,5 +1,5 @@
 use clap::Parser;
-use jerrod::commands::acknowledge::AcknowledgeConfig;
+use jerrod::commands::acknowledge::{AcknowledgeConfig, AcknowledgeFlags};
 use jerrod::platform::ReactionType;
 
 // Recreate the CLI structure from main.rs for testing
@@ -93,7 +93,7 @@ fn test_cli_parsing_status_command() {
   let cli = TestCli::try_parse_from(args).unwrap();
 
   match cli.command {
-    TestCommands::Status => assert!(true),
+    TestCommands::Status => {} // Status command parsed successfully
     _ => panic!("Expected Status command"),
   }
 }
@@ -206,32 +206,20 @@ fn test_cli_parsing_acknowledge() {
 #[test]
 fn test_acknowledge_config_from_flags() {
   // Test the AcknowledgeConfig logic used in main.rs
-  let config = AcknowledgeConfig::from_flags(
-    true, false, false, false, // thumbs_up only
-    false, false, // thumbs_down
-    false, false, // laugh
-    false, false, false, false, false, // hooray
-    false, false, false, // confused
-    false, false, false, // heart
-    false, false, false, false, false, // rocket
-    false, false, false, // eyes
-  );
+  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
+    thumbs_up: true,
+    ..Default::default()
+  });
 
   assert!(matches!(config.reaction_type, ReactionType::ThumbsUp));
 }
 
 #[test]
 fn test_acknowledge_config_heart() {
-  let config = AcknowledgeConfig::from_flags(
-    false, false, false, false, // thumbs_up
-    false, false, // thumbs_down
-    false, false, // laugh
-    false, false, false, false, false, // hooray
-    false, false, false, // confused
-    true, false, false, // heart - love flag set
-    false, false, false, false, false, // rocket
-    false, false, false, // eyes
-  );
+  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
+    love: true,
+    ..Default::default()
+  });
 
   assert!(matches!(config.reaction_type, ReactionType::Heart));
 }

@@ -1,4 +1,5 @@
-use jerrod::commands::{acknowledge, finish, start};
+use jerrod::commands::{finish, start};
+use jerrod::commands::acknowledge::{AcknowledgeConfig, AcknowledgeFlags};
 use jerrod::platform::ReactionType;
 use jerrod::session::SessionManager;
 use std::env;
@@ -12,68 +13,36 @@ fn setup_test_env() -> TempDir {
 
 #[tokio::test]
 async fn test_acknowledge_config_creation() {
-  use jerrod::commands::acknowledge::AcknowledgeConfig;
-
   // Test thumbs up configuration
-  let thumbs_up_config = AcknowledgeConfig::from_flags(
-    true, false, false, false, // thumbs_up
-    false, false, // thumbs_down
-    false, false, // laugh
-    false, false, false, false, false, // hooray
-    false, false, false, // confused
-    false, false, false, // heart
-    false, false, false, false, false, // rocket
-    false, false, false, // eyes
-  );
+  let thumbs_up_config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
+    thumbs_up: true,
+    ..Default::default()
+  });
   assert!(matches!(thumbs_up_config.reaction_type, ReactionType::ThumbsUp));
 
   // Test heart configuration
-  let heart_config = AcknowledgeConfig::from_flags(
-    false, false, false, false, // thumbs_up
-    false, false, // thumbs_down
-    false, false, // laugh
-    false, false, false, false, false, // hooray
-    false, false, false, // confused
-    true, false, false, // heart
-    false, false, false, false, false, // rocket
-    false, false, false, // eyes
-  );
+  let heart_config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
+    heart: true,
+    ..Default::default()
+  });
   assert!(matches!(heart_config.reaction_type, ReactionType::Heart));
 }
 
 #[tokio::test]
 async fn test_acknowledge_config_defaults() {
-  use jerrod::commands::acknowledge::AcknowledgeConfig;
-
   // Test default configuration (all false should default to thumbs up)
-  let default_config = AcknowledgeConfig::from_flags(
-    false, false, false, false, // thumbs_up
-    false, false, // thumbs_down
-    false, false, // laugh
-    false, false, false, false, false, // hooray
-    false, false, false, // confused
-    false, false, false, // heart
-    false, false, false, false, false, // rocket
-    false, false, false, // eyes
-  );
+  let default_config = AcknowledgeConfig::from_flags(AcknowledgeFlags::default());
   assert!(matches!(default_config.reaction_type, ReactionType::ThumbsUp));
 }
 
 #[tokio::test]
 async fn test_acknowledge_config_priority() {
-  use jerrod::commands::acknowledge::AcknowledgeConfig;
-
   // Test that multiple flags prioritize correctly (should pick first true flag)
-  let multi_config = AcknowledgeConfig::from_flags(
-    false, false, false, false, // thumbs_up
-    true, false, // thumbs_down (first true)
-    true, false, // laugh (second true)
-    false, false, false, false, false, // hooray
-    false, false, false, // confused
-    false, false, false, // heart
-    false, false, false, false, false, // rocket
-    false, false, false, // eyes
-  );
+  let multi_config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
+    thumbs_down: true,
+    laugh: true,
+    ..Default::default()
+  });
   assert!(matches!(multi_config.reaction_type, ReactionType::ThumbsDown));
 }
 

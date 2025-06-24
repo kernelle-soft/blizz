@@ -205,6 +205,7 @@ pub trait GitPlatform {
   fn format_comment_url(&self, mr_url: &str, comment_id: &str) -> String;
 
   /// Format a URL for a merge request/pull request
+  #[allow(dead_code)]
   fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String;
 }
 

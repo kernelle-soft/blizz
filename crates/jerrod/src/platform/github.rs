@@ -20,6 +20,7 @@ impl GitHubPlatform {
   }
 
   /// Create a GitHub platform client from an existing Octocrab instance
+  #[allow(dead_code)]
   pub fn from_client(client: Octocrab) -> Self {
     Self { client }
   }

@@ -86,6 +86,7 @@ impl AcknowledgeConfig {
   }
 
   /// Create config with a specific reaction type
+  #[allow(dead_code)]
   pub fn with_reaction(reaction_type: ReactionType) -> Self {
     Self { reaction_type }
   }

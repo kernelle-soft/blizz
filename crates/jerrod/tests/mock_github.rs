@@ -2,8 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use jerrod::platform::{
-  Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline,
-  PipelineStatus, ReactionType, Repository, User,
+  Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType, Repository, User,
 };
 use std::collections::HashMap;
 
@@ -12,10 +11,18 @@ pub struct MockGitHub {
   pub repositories: HashMap<(String, String), Repository>,
   pub merge_requests: HashMap<String, MergeRequest>,
   pub discussions: HashMap<String, Vec<Discussion>>,
+  #[allow(dead_code)]
+  pub pipelines: HashMap<String, Vec<Pipeline>>,
   pub users: HashMap<String, User>,
   pub notes: HashMap<String, Vec<Note>>,
   pub should_fail: bool,
   pub api_call_count: u32,
+}
+
+impl Default for MockGitHub {
+  fn default() -> Self {
+    Self::new()
+  }
 }
 
 impl MockGitHub {
@@ -24,6 +31,7 @@ impl MockGitHub {
       repositories: HashMap::new(),
       merge_requests: HashMap::new(),
       discussions: HashMap::new(),
+      pipelines: HashMap::new(),
       users: HashMap::new(),
       notes: HashMap::new(),
       should_fail: false,
@@ -104,10 +112,12 @@ impl MockGitHub {
     self.should_fail = should_fail;
   }
 
+  #[allow(dead_code)]
   pub fn get_api_call_count(&self) -> u32 {
     self.api_call_count
   }
 
+  #[allow(dead_code)]
   fn increment_call_count(&mut self) {
     self.api_call_count += 1;
   }
@@ -127,7 +137,7 @@ impl GitPlatform for MockGitHub {
       .ok_or_else(|| anyhow::anyhow!("Repository not found"))
   }
 
-  async fn get_merge_request(&self, owner: &str, repo: &str, number: u64) -> Result<MergeRequest> {
+  async fn get_merge_request(&self, _owner: &str, _repo: &str, number: u64) -> Result<MergeRequest> {
     if self.should_fail {
       return Err(anyhow::anyhow!("Mock failure"));
     }

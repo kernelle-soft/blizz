@@ -22,6 +22,7 @@ fn get_provider() -> Box<dyn CredentialProvider> {
 }
 
 // Register a custom provider factory (for testing)
+#[allow(dead_code)]
 pub fn register_provider_factory<F>(factory: F)
 where
   F: Fn() -> Box<dyn CredentialProvider> + Send + Sync + 'static,
@@ -34,6 +35,7 @@ where
 }
 
 // Reset to default factory (useful for test cleanup)
+#[allow(dead_code)]
 pub fn reset_provider_factory() {
   if let Some(factory) = PROVIDER_FACTORY.get() {
     let mut guard = factory.lock().unwrap();
@@ -46,6 +48,7 @@ pub async fn get_github_token() -> Result<String> {
   provider.get_credential("github", "token")
 }
 
+#[allow(dead_code)]
 pub async fn get_gitlab_token() -> Result<String> {
   let provider = get_provider();
   provider.get_credential("gitlab", "token")
