@@ -40,12 +40,6 @@ impl GitLabPlatform {
     Ok(Self { client, host: host.to_string() })
   }
 
-  /// Create a GitLab platform client from an existing client instance  
-  #[allow(dead_code)]
-  pub fn from_client(client: AsyncGitlab, host: String) -> Self {
-    Self { client, host }
-  }
-
   /// Get the project full path from owner and repo
   fn get_project_path(&self, owner: &str, repo: &str) -> String {
     format!("{}/{}", owner, repo)

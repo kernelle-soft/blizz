@@ -41,12 +41,6 @@ impl GitHubPlatform {
     Ok(Self { client })
   }
 
-  /// Create a GitHub platform client from an existing Octocrab instance
-  #[allow(dead_code)]
-  pub fn from_client(client: Octocrab) -> Self {
-    Self { client }
-  }
-
   async fn get_review_threads_resolution(
     &self,
     owner: &str,

@@ -1,8 +1,7 @@
 use anyhow::Result;
 use jerrod::auth::{register_provider_factory, reset_provider_factory};
-use jerrod::platform::github::GitHubPlatform;
+use jerrod::platform::github::{GitHubPlatform, GitHubPlatformOptions};
 use jerrod::platform::{GitPlatform, MergeRequestState, ReactionType};
-use octocrab::Octocrab;
 use sentinel::MockCredentialProvider;
 use serde_json::json;
 use serial_test::serial;
@@ -225,7 +224,7 @@ mod github_mock_data {
 }
 
 // Helper to create a GitHub platform with mocked HTTP client
-async fn create_test_github_platform(mock_server: &MockServer) -> Result<GitHubPlatform> {
+async fn create_test_github_platform(_mock_server: &MockServer) -> Result<GitHubPlatform> {
   // Set up mock credentials
   register_provider_factory(|| {
     Box::new(MockCredentialProvider::new().with_credential(
@@ -235,13 +234,9 @@ async fn create_test_github_platform(mock_server: &MockServer) -> Result<GitHubP
     ))
   });
 
-  // Create octocrab client pointing to our mock server
-  let client = Octocrab::builder()
-    .personal_token("fake-github-token-123")
-    .base_uri(mock_server.uri())?
-    .build()?;
-
-  Ok(GitHubPlatform::from_client(client))
+  // The from_client method has been removed as it's no longer needed
+  // Create platform normally instead - this will create its own client with auth from credentials
+  GitHubPlatform::new(GitHubPlatformOptions::default()).await
 }
 
 #[tokio::test]

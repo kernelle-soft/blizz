@@ -1,6 +1,9 @@
 mod mock_github;
 
-use jerrod::platform::{github::{GitHubPlatform, GitHubPlatformOptions}, GitPlatform, ReactionType};
+use jerrod::platform::{
+  github::{GitHubPlatform, GitHubPlatformOptions},
+  GitPlatform, ReactionType,
+};
 use mock_github::MockGitHub;
 use std::env;
 use tempfile::TempDir;
