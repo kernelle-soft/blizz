@@ -37,5 +37,21 @@ jobs:
           echo "Running clippy analysis..."
           cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+      - name: Build Violet for code analysis
+        run: |
+          echo "🎨 Building Violet for code complexity analysis..."
+          cargo build --release --bin violet
+
+      - name: Run Violet code quality analysis
+        run: |
+          echo "🎨 Running Violet code complexity analysis..."
+          echo "Analyzing the codebase for complexity and code quality issues..."
+          
+          # Run on main source directories, but don't fail the build
+          ./target/release/violet crates --errors-only || {
+            echo "::warning::Violet detected code quality issues. Consider addressing them for better maintainability."
+            echo "ℹ️  This is not a blocking error, but improving code quality is always beneficial!"
+          }
+
       - name: Lint success
         run: echo "✨ All linting checks passed! The code style is magnificent!" 
