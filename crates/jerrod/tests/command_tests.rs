@@ -78,6 +78,7 @@ async fn create_test_session() -> (TempDir, ReviewSession) {
     repository,
     merge_request,
     "github".to_string(),
+    None, // host
     vec![discussion],
     pipelines,
   );

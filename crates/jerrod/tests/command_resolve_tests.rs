@@ -65,13 +65,14 @@ async fn create_test_session_with_thread(temp_dir: &TempDir) -> Result<ReviewSes
   // Set up session context for the session manager
   session_manager.with_session_context("github", "test-owner/test-repo", 456)?;
 
-  let session_data = ReviewSession::new(
-    repo,
-    mr,
-    "github".to_string(),
-    vec![discussion],
-    vec![], // empty pipelines
-  );
+      let session_data = ReviewSession::new(
+      repo,
+      mr,
+      "github".to_string(),
+      None, // host
+      vec![discussion],
+      vec![], // empty pipelines
+    );
 
   session_manager.save_session(&session_data)?;
   Ok(session_data)

@@ -132,6 +132,7 @@ impl ReactionType {
     }
   }
 
+  #[allow(dead_code)]
   pub fn gitlab_name(&self) -> &'static str {
     match self {
       ReactionType::ThumbsUp => "thumbsup",
@@ -224,6 +225,7 @@ pub trait GitPlatform {
 }
 
 /// Strategy pattern factory - creates appropriate platform implementation
+#[allow(dead_code)]
 pub async fn create_platform(platform_name: &str) -> Result<Box<dyn GitPlatform>> {
   match platform_name {
     "github" => {

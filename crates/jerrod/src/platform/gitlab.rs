@@ -4,6 +4,7 @@ use crate::platform::{
   PipelineStatus, ReactionType, Repository, User,
 };
 use anyhow::Result;
+use gitlab::api::projects::merge_requests::discussions::MergeRequestDiscussions;
 use gitlab::api::AsyncQuery;
 use gitlab::{AsyncGitlab, GitlabBuilder};
 use serde::Deserialize;
@@ -116,13 +117,55 @@ impl GitPlatform for GitLabPlatform {
   }
 
   async fn get_discussions(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<Discussion>> {
-    // TODO: Implement GitLab discussions API
-    // For now, return empty list as placeholder
-    let _project_path = self.get_project_path(owner, repo);
-    let _mr_number = number;
+    let project_path = self.get_project_path(owner, repo);
 
-    tracing::warn!("GitLab discussions not yet implemented, returning empty list");
-    Ok(Vec::new())
+    // Use REST API to fetch merge request discussions
+    let endpoint =
+      MergeRequestDiscussions::builder().project(project_path).merge_request(number).build()?;
+
+    let discussions_response: Vec<DiscussionInfo> = endpoint.query_async(&self.client).await?;
+
+    let mut result = Vec::new();
+    for discussion in discussions_response {
+      // Extract position info from first note if available
+      let (file_path, line_number) = if let Some(first_note) = discussion.notes.first() {
+        if let Some(position) = &first_note.position {
+          (position.new_path.clone(), position.new_line.map(|l| l as u32))
+        } else {
+          (None, None)
+        }
+      } else {
+        (None, None)
+      };
+
+      let notes = discussion
+        .notes
+        .into_iter()
+        .map(|note| Note {
+          id: note.id.to_string(),
+          author: User {
+            id: note.author.id.to_string(),
+            username: note.author.username.clone(),
+            display_name: note.author.name.unwrap_or(note.author.username),
+            avatar_url: note.author.avatar_url,
+          },
+          body: note.body,
+          created_at: note.created_at,
+          updated_at: note.updated_at,
+        })
+        .collect();
+
+      result.push(Discussion {
+        id: discussion.id,
+        resolved: discussion.resolved.unwrap_or(false),
+        resolvable: discussion.resolvable.unwrap_or(false),
+        file_path,
+        line_number,
+        notes,
+      });
+    }
+
+    Ok(result)
   }
 
   async fn get_diffs(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<FileDiff>> {
@@ -180,9 +223,11 @@ impl GitPlatform for GitLabPlatform {
     _discussion_id: &str,
     _text: &str,
   ) -> Result<Note> {
-    // TODO: Implement GitLab comment creation
-    tracing::warn!("GitLab add_comment not yet implemented");
-    anyhow::bail!("GitLab add_comment not yet implemented")
+    // For now, return a placeholder implementation
+    // This would require parsing the discussion_id and finding the MR number
+    // Then using gitlab::api::projects::merge_requests::CreateMergeRequestDiscussionNote
+    tracing::warn!("GitLab add_comment implementation needed - REST API integration pending");
+    anyhow::bail!("GitLab add_comment not yet implemented with REST API")
   }
 
   async fn resolve_discussion(
@@ -191,9 +236,12 @@ impl GitPlatform for GitLabPlatform {
     _repo: &str,
     _discussion_id: &str,
   ) -> Result<bool> {
-    // TODO: Implement GitLab discussion resolution
-    tracing::warn!("GitLab resolve_discussion not yet implemented");
-    anyhow::bail!("GitLab resolve_discussion not yet implemented")
+    // For now, return a placeholder implementation
+    // This would use gitlab::api::projects::merge_requests::EditMergeRequestDiscussion
+    tracing::warn!(
+      "GitLab resolve_discussion implementation needed - REST API integration pending"
+    );
+    anyhow::bail!("GitLab resolve_discussion not yet implemented with REST API")
   }
 
   async fn add_reaction(
@@ -203,9 +251,10 @@ impl GitPlatform for GitLabPlatform {
     _comment_id: &str,
     _reaction: ReactionType,
   ) -> Result<bool> {
-    // TODO: Implement GitLab reactions
-    tracing::warn!("GitLab add_reaction not yet implemented");
-    anyhow::bail!("GitLab add_reaction not yet implemented")
+    // For now, return a placeholder implementation
+    // This would use gitlab::api::projects::merge_requests::CreateMergeRequestAwardEmoji
+    tracing::warn!("GitLab add_reaction implementation needed - REST API integration pending");
+    anyhow::bail!("GitLab add_reaction not yet implemented with REST API")
   }
 
   async fn remove_reaction(
@@ -215,9 +264,9 @@ impl GitPlatform for GitLabPlatform {
     _comment_id: &str,
     _reaction: ReactionType,
   ) -> Result<bool> {
-    // TODO: Implement GitLab reaction removal
-    tracing::warn!("GitLab remove_reaction not yet implemented");
-    anyhow::bail!("GitLab remove_reaction not yet implemented")
+    // For now, return a placeholder implementation
+    tracing::warn!("GitLab remove_reaction implementation needed - REST API integration pending");
+    anyhow::bail!("GitLab remove_reaction not yet implemented with REST API")
   }
 
   async fn get_reactions(
@@ -226,22 +275,21 @@ impl GitPlatform for GitLabPlatform {
     _repo: &str,
     _comment_id: &str,
   ) -> Result<Vec<ReactionType>> {
-    // TODO: Implement GitLab reaction retrieval
-    tracing::warn!("GitLab get_reactions not yet implemented");
+    // For now, return a placeholder implementation
+    tracing::warn!("GitLab get_reactions implementation needed - REST API integration pending");
     Ok(Vec::new())
   }
 
   async fn add_review_comment_reply(
     &self,
-    _owner: &str,
-    _repo: &str,
+    owner: &str,
+    repo: &str,
     _pr_number: u64,
-    _comment_id: &str,
-    _text: &str,
+    comment_id: &str,
+    text: &str,
   ) -> Result<Note> {
-    // TODO: Implement GitLab review comment replies
-    tracing::warn!("GitLab add_review_comment_reply not yet implemented");
-    anyhow::bail!("GitLab add_review_comment_reply not yet implemented")
+    // In GitLab, this is the same as add_comment - replying to a discussion
+    self.add_comment(owner, repo, comment_id, text).await
   }
 
   fn format_comment_url(&self, mr_url: &str, comment_id: &str) -> String {
@@ -286,7 +334,9 @@ impl GitLabPlatform {
 // Data structures for GitLab API responses
 #[derive(Debug, Deserialize)]
 struct ProjectInfo {
+  #[allow(dead_code)]
   id: u64,
+  #[allow(dead_code)]
   name: String,
   web_url: String,
 }
@@ -331,4 +381,52 @@ struct PipelineInfo {
   web_url: Option<String>,
   created_at: chrono::DateTime<chrono::Utc>,
   updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+// REST API structures for discussions
+#[derive(Debug, Deserialize, Clone)]
+struct DiscussionInfo {
+  id: String,
+  #[allow(dead_code)]
+  individual_note: bool,
+  resolved: Option<bool>,
+  resolvable: Option<bool>,
+  notes: Vec<NoteInfo>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct NoteInfo {
+  id: u64,
+  #[serde(rename = "type")]
+  #[allow(dead_code)]
+  note_type: Option<String>,
+  body: String,
+  author: AuthorInfo,
+  created_at: chrono::DateTime<chrono::Utc>,
+  updated_at: chrono::DateTime<chrono::Utc>,
+  #[allow(dead_code)]
+  system: bool,
+  position: Option<PositionInfo>,
+  #[allow(dead_code)]
+  resolved: Option<bool>,
+  #[allow(dead_code)]
+  resolvable: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct AuthorInfo {
+  id: u64,
+  username: String,
+  name: Option<String>,
+  avatar_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct PositionInfo {
+  new_path: Option<String>,
+  new_line: Option<i32>,
+  #[allow(dead_code)]
+  old_path: Option<String>,
+  #[allow(dead_code)]
+  old_line: Option<i32>,
 }
