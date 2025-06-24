@@ -79,18 +79,18 @@ fn is_nesting_node(node: Node) -> bool {
         "switch_statement" | "case_clause" | "default_clause" |
         "try_statement" | "catch_clause" | "finally_clause" |
         "with_statement" |
-        
+
         // Blocks and scopes
         "block" | "compound_statement" | "statement_block" |
-        
+
         // Function definitions (nested functions)
         "function_declaration" | "function_expression" | "arrow_function" |
         "function_definition" | "async_function_definition" |
         "method_definition" | "method" |
-        
+
         // Class definitions
         "class_declaration" | "class_definition" |
-        
+
         // Other nesting constructs
         "object_expression" | "array_expression" |
         "do_statement" | "labeled_statement"
@@ -499,11 +499,11 @@ def test_function(self, a, b, c, d=None, *args, **kwargs):
             function first() {
                 return 1;
             }
-            
+
             function second() {
                 return 2;
             }
-            
+
             function third() {
                 return 3;
             }
@@ -916,7 +916,7 @@ class TestClass {
     public function simpleMethod() {
         return "simple";
     }
-    
+
     private function complexMethod($param) {
         if ($param) {
             while ($param > 0) {

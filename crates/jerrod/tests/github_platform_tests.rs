@@ -80,7 +80,7 @@ mod github_mock_data {
         "ref": "main",
         "repo": {
           "id": 987654321,
-          "name": "repo", 
+          "name": "repo",
           "full_name": "owner/repo",
           "node_id": "MDEwOlJlcG9zaXRvcnk5ODc2NTQzMjE=",
           "html_url": "https://github.com/owner/repo",
@@ -125,7 +125,7 @@ mod github_mock_data {
     json!({
       "id": 987654321,
       "name": "repo",
-      "full_name": "owner/repo", 
+      "full_name": "owner/repo",
       "description": "Default repository",
       "html_url": "https://github.com/owner/repo",
       "url": "https://api.github.com/repos/owner/repo",
@@ -205,7 +205,7 @@ mod github_mock_data {
   pub fn default_file_diff() -> Value {
     json!({
       "sha": "abc123def456",
-      "filename": "src/example.rs", 
+      "filename": "src/example.rs",
       "status": "modified",
       "additions": 10,
       "deletions": 5,
@@ -251,16 +251,16 @@ async fn test_get_repository_success() -> Result<()> {
 
   Mock::given(method("GET"))
     .and(path("/repos/owner/repo"))
-    .respond_with(ResponseTemplate::new(200).set_body_json(
-      github_mock_data::mock_repository(json!({
+    .respond_with(ResponseTemplate::new(200).set_body_json(github_mock_data::mock_repository(
+      json!({
         "name": "repo",
-        "full_name": "owner/repo", 
+        "full_name": "owner/repo",
         "description": "Test repository",
         "owner": github_mock_data::mock_user(json!({
           "login": "owner"
         }))
-      }))
-    ))
+      }),
+    )))
     .mount(&mock_server)
     .await;
 
@@ -303,8 +303,8 @@ async fn test_get_merge_request_success() -> Result<()> {
 
   Mock::given(method("GET"))
     .and(path("/repos/owner/repo/pulls/123"))
-    .respond_with(ResponseTemplate::new(200).set_body_json(
-      github_mock_data::mock_pull_request(json!({
+    .respond_with(ResponseTemplate::new(200).set_body_json(github_mock_data::mock_pull_request(
+      json!({
         "id": 789,
         "number": 123,
         "title": "Test PR",
@@ -314,8 +314,8 @@ async fn test_get_merge_request_success() -> Result<()> {
           "login": "test-user",
           "name": "Test User"
         }))
-      }))
-    ))
+      }),
+    )))
     .mount(&mock_server)
     .await;
 
@@ -341,8 +341,8 @@ async fn test_get_merge_request_merged() -> Result<()> {
 
   Mock::given(method("GET"))
     .and(path("/repos/owner/repo/pulls/456"))
-    .respond_with(ResponseTemplate::new(200).set_body_json(
-      github_mock_data::mock_pull_request(json!({
+    .respond_with(ResponseTemplate::new(200).set_body_json(github_mock_data::mock_pull_request(
+      json!({
         "id": 999,
         "number": 456,
         "title": "Merged PR",
@@ -363,8 +363,8 @@ async fn test_get_merge_request_merged() -> Result<()> {
           "login": "merger",
           "name": "The Merger"
         }))
-      }))
-    ))
+      }),
+    )))
     .mount(&mock_server)
     .await;
 
@@ -382,7 +382,7 @@ async fn test_get_merge_request_merged() -> Result<()> {
 async fn test_get_discussions_with_graphql() -> Result<()> {
   let mock_server = MockServer::start().await;
 
-  // Mock issue comments endpoint  
+  // Mock issue comments endpoint
   Mock::given(method("GET"))
     .and(path("/repos/owner/repo/issues/123/comments"))
     .respond_with(ResponseTemplate::new(200).set_body_json(json!([
@@ -500,12 +500,12 @@ async fn test_remove_reaction_success() -> Result<()> {
   Mock::given(method("GET"))
     .and(path("/repos/owner/repo/issues/comments/123/reactions"))
     .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-        github_mock_data::mock_reaction(json!({
-          "user": github_mock_data::mock_user(json!({
-            "login": "current-user",
-            "id": 123
-          }))
+      github_mock_data::mock_reaction(json!({
+        "user": github_mock_data::mock_user(json!({
+          "login": "current-user",
+          "id": 123
         }))
+      }))
     ])))
     .mount(&mock_server)
     .await;
@@ -534,32 +534,32 @@ async fn test_get_reactions() -> Result<()> {
   Mock::given(method("GET"))
     .and(path("/repos/owner/repo/issues/comments/123/reactions"))
     .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-        github_mock_data::mock_reaction(json!({
-          "id": 1,
-          "content": "+1",
-          "user": github_mock_data::mock_user(json!({
-            "login": "user1",
-            "id": 123
-          }))
-        })),
-        github_mock_data::mock_reaction(json!({
-          "id": 2,
-          "node_id": "MDg6UmVhY3Rpb24y",
-          "content": "heart",
-          "user": github_mock_data::mock_user(json!({
-            "login": "user2",
-            "id": 456
-          }))
-        })),
-        github_mock_data::mock_reaction(json!({
-          "id": 3,
-          "node_id": "MDg6UmVhY3Rpb24z",
-          "content": "laugh",
-          "user": github_mock_data::mock_user(json!({
-            "login": "user3",
-            "id": 789
-          }))
+      github_mock_data::mock_reaction(json!({
+        "id": 1,
+        "content": "+1",
+        "user": github_mock_data::mock_user(json!({
+          "login": "user1",
+          "id": 123
         }))
+      })),
+      github_mock_data::mock_reaction(json!({
+        "id": 2,
+        "node_id": "MDg6UmVhY3Rpb24y",
+        "content": "heart",
+        "user": github_mock_data::mock_user(json!({
+          "login": "user2",
+          "id": 456
+        }))
+      })),
+      github_mock_data::mock_reaction(json!({
+        "id": 3,
+        "node_id": "MDg6UmVhY3Rpb24z",
+        "content": "laugh",
+        "user": github_mock_data::mock_user(json!({
+          "login": "user3",
+          "id": 789
+        }))
+      }))
     ])))
     .mount(&mock_server)
     .await;
@@ -583,18 +583,16 @@ async fn test_add_comment() -> Result<()> {
 
   Mock::given(method("POST"))
     .and(path("/repos/owner/repo/issues/123/comments"))
-    .respond_with(ResponseTemplate::new(201).set_body_json(
-      github_mock_data::mock_comment(json!({
-        "id": 789,
-        "body": "Test comment",
-        "user": github_mock_data::mock_user(json!({
-          "id": 456,
-          "login": "commenter"
-        })),
-        "created_at": "2023-01-01T15:00:00Z",
-        "updated_at": "2023-01-01T15:00:00Z"
-      }))
-    ))
+    .respond_with(ResponseTemplate::new(201).set_body_json(github_mock_data::mock_comment(json!({
+      "id": 789,
+      "body": "Test comment",
+      "user": github_mock_data::mock_user(json!({
+        "id": 456,
+        "login": "commenter"
+      })),
+      "created_at": "2023-01-01T15:00:00Z",
+      "updated_at": "2023-01-01T15:00:00Z"
+    }))))
     .mount(&mock_server)
     .await;
 
@@ -643,20 +641,20 @@ async fn test_get_diffs() -> Result<()> {
   Mock::given(method("GET"))
     .and(path("/repos/owner/repo/pulls/123/files"))
     .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-        github_mock_data::mock_file_diff(json!({
-          "filename": "src/main.rs",
-          "patch": "@@ -1,3 +1,4 @@\n fn main() {\n+    println!(\"Hello\");\n }",
-          "previous_filename": "src/main.rs"
-        })),
-        github_mock_data::mock_file_diff(json!({
-          "filename": "README.md",
-          "status": "added",
-          "additions": 20,
-          "deletions": 0,
-          "changes": 20,
-          "patch": "@@ -0,0 +1,20 @@\n+# New README\n+\n+This is a new file.",
-          "previous_filename": null
-        }))
+      github_mock_data::mock_file_diff(json!({
+        "filename": "src/main.rs",
+        "patch": "@@ -1,3 +1,4 @@\n fn main() {\n+    println!(\"Hello\");\n }",
+        "previous_filename": "src/main.rs"
+      })),
+      github_mock_data::mock_file_diff(json!({
+        "filename": "README.md",
+        "status": "added",
+        "additions": 20,
+        "deletions": 0,
+        "changes": 20,
+        "patch": "@@ -0,0 +1,20 @@\n+# New README\n+\n+This is a new file.",
+        "previous_filename": null
+      }))
     ])))
     .mount(&mock_server)
     .await;
@@ -699,12 +697,12 @@ async fn test_resolve_discussion() -> Result<()> {
   let home_dir = dirs::home_dir().expect("Could not find home directory");
   let session_dir = home_dir.join(".kernelle").join("code-reviews");
   fs::create_dir_all(&session_dir).ok();
-  
+
   // Create a proper ReviewSession structure based on the actual session module
   let session_data = json!({
     "repository": {
       "owner": "owner",
-      "name": "repo", 
+      "name": "repo",
       "full_name": "owner/repo",
       "url": "https://github.com/owner/repo",
       "default_branch": "main"
@@ -716,11 +714,11 @@ async fn test_resolve_discussion() -> Result<()> {
       "description": "Test description",
       "state": "Open",
       "source_branch": "feature-branch",
-      "target_branch": "main", 
+      "target_branch": "main",
       "url": "https://github.com/owner/repo/pull/123",
       "author": {
         "id": "1",
-        "username": "testuser", 
+        "username": "testuser",
         "display_name": "Test User",
         "avatar_url": "https://github.com/testuser.png"
       },
@@ -736,7 +734,7 @@ async fn test_resolve_discussion() -> Result<()> {
     "created_at": "2023-01-01T10:00:00Z",
     "updated_at": "2023-01-01T10:00:00Z"
   });
-  
+
   let session_file = session_dir.join("session.json");
   fs::write(&session_file, serde_json::to_string_pretty(&session_data)?)?;
 
