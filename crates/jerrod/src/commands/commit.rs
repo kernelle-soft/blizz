@@ -79,34 +79,24 @@ fn display_commit_banner(commit_msg: &str, stats_text: &str) {
   println!("{}", line);
 
   // Display commit message with word wrapping
-  for content_line in commit_msg.lines() {
-    if content_line.len() <= width {
-      println!("{}", content_line);
-    } else {
-      // Simple word wrapping
-      let words: Vec<&str> = content_line.split_whitespace().collect();
-      let mut current_line = String::new();
+  let mut current_line = String::new();
 
-      for word in words {
-        if current_line.len() + word.len() + 1 <= width {
-          if !current_line.is_empty() {
-            current_line.push(' ');
-          }
-          current_line.push_str(word);
-        } else {
-          if !current_line.is_empty() {
-            println!("{}", current_line);
-            current_line = word.to_string();
-          } else {
-            println!("{}", word);
-          }
-        }
-      }
-
+  for word in commit_msg.split_whitespace() {
+    if current_line.len() + word.len() < width {
       if !current_line.is_empty() {
-        println!("{}", current_line);
+        current_line.push(' ');
       }
+      current_line.push_str(word);
+    } else if !current_line.is_empty() {
+      println!("{}", current_line);
+      current_line = word.to_string();
+    } else {
+      println!("{}", word);
     }
+  }
+
+  if !current_line.is_empty() {
+    println!("{}", current_line);
   }
 
   println!("{}", line);

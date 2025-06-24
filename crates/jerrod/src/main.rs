@@ -191,7 +191,7 @@ async fn main() -> Result<()> {
       looking,
       surprise,
     } => {
-      let config = commands::acknowledge::AcknowledgeConfig::from_flags(
+      let flags = commands::acknowledge::AcknowledgeFlags {
         thumbs_up,
         ok,
         yeah,
@@ -219,7 +219,8 @@ async fn main() -> Result<()> {
         eyes,
         looking,
         surprise,
-      );
+      };
+      let config = commands::acknowledge::AcknowledgeConfig::from_flags(flags);
       commands::acknowledge::handle(config).await
     }
     Commands::Finish => commands::finish::handle().await,

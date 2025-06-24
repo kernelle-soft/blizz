@@ -1,8 +1,6 @@
-use crate::auth;
 use crate::platform::{
   create_platform,
   detection::{detect_platform, PlatformType},
-  GitPlatform,
 };
 use crate::session::{ReviewSession, SessionDiscovery, SessionManager};
 use anyhow::{anyhow, Result};

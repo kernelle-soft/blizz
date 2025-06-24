@@ -1,4 +1,4 @@
-use crate::platform::{create_platform, GitPlatform, ReactionType};
+use crate::platform::{create_platform, ReactionType};
 use crate::session::load_current_session;
 use anyhow::{anyhow, Result};
 

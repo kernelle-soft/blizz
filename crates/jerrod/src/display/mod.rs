@@ -28,18 +28,16 @@ pub fn display_thread_header(note: &Note, thread_id: &str) {
       let mut current_line = String::new();
 
       for word in words {
-        if current_line.len() + word.len() + 1 <= width {
+        if current_line.len() + word.len() < width {
           if !current_line.is_empty() {
             current_line.push(' ');
           }
           current_line.push_str(word);
+        } else if !current_line.is_empty() {
+          println!("{}", current_line);
+          current_line = word.to_string();
         } else {
-          if !current_line.is_empty() {
-            println!("{}", current_line);
-            current_line = word.to_string();
-          } else {
-            println!("{}", word);
-          }
+          println!("{}", word);
         }
       }
 
