@@ -6,7 +6,6 @@ use jerrod::platform::{Discussion, MergeRequest, MergeRequestState, Note, Reposi
 use jerrod::session::{ReviewSession, SessionManager};
 use sentinel::MockCredentialProvider;
 use serial_test::serial;
-use std::collections::HashMap;
 use tempfile::TempDir;
 
 // Helper to create a test session with mock data
