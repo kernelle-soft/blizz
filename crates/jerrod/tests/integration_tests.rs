@@ -1,4 +1,7 @@
-use jerrod::{platform::*, session::{ReviewSession, ReviewSessionOptions, SessionManager}};
+use jerrod::{
+  platform::*,
+  session::{ReviewSession, ReviewSessionOptions, SessionManager},
+};
 use tempfile::TempDir;
 
 fn create_test_session() -> ReviewSession {

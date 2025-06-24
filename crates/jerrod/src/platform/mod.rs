@@ -224,16 +224,35 @@ pub trait GitPlatform {
   fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String;
 }
 
+/// Options for platform creation
+#[derive(Debug, Clone, Default)]
+pub struct PlatformOptions {
+  /// Custom host (empty string uses platform default)
+  pub host: String,
+}
+
 /// Strategy pattern factory - creates appropriate platform implementation
-#[allow(dead_code)]
-pub async fn create_platform(platform_name: &str) -> Result<Box<dyn GitPlatform>> {
+pub async fn create_platform(
+  platform_name: &str,
+  options: PlatformOptions,
+) -> Result<Box<dyn GitPlatform>> {
+  let host = if options.host.is_empty() { None } else { Some(options.host.as_str()) };
+  
   match platform_name {
     "github" => {
-      let github_platform = github::GitHubPlatform::new().await?;
+      let github_platform = if let Some(host_str) = host {
+        github::GitHubPlatform::new_with_host(host_str).await?
+      } else {
+        github::GitHubPlatform::new().await?
+      };
       Ok(Box::new(github_platform))
     }
     "gitlab" => {
-      let gitlab_platform = gitlab::GitLabPlatform::new().await?;
+      let gitlab_platform = if let Some(host_str) = host {
+        gitlab::GitLabPlatform::new_with_host(host_str).await?
+      } else {
+        gitlab::GitLabPlatform::new().await?
+      };
       Ok(Box::new(gitlab_platform))
     }
     _ => {
