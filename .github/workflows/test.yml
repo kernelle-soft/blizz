@@ -91,12 +91,28 @@ jobs:
 
       - name: Run coverage for ${{ matrix.crate }}
         run: |
-          echo "Running coverage analysis for ${{ matrix.crate }}
+          echo "Running coverage analysis for ${{ matrix.crate }}"
           cargo tarpaulin \
             --package ${{ matrix.crate }} \
             --timeout 300 \
             --out xml \
             --output-dir coverage-${{ matrix.crate }}
+
+      - name: Generate coverage summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage-${{ matrix.crate }}/cobertura.xml
+          format: markdown
+          output: both
+          indicators: true
+          badge: true
+
+      - name: Post coverage as PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: code-coverage-results.md
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v3
