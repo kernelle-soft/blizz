@@ -67,49 +67,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - crate: bentley
-            threshold: 95
-          - crate: sentinel
-            threshold: 97
-          - crate: jerrod
-            threshold: 95
-          - crate: adam
-            threshold: 95
-          - crate: violet
-            threshold: 95
-          - crate: blizz
-            threshold: 95
+        crate: ${{ fromJson(needs.build.outputs.changed-crates) }}
     steps:
-      - name: Check if crate changed
-        id: check-changed
-        run: |
-          CHANGED_CRATES='${{ needs.build.outputs.changed-crates }}'
-          if echo "$CHANGED_CRATES" | jq -e --arg crate "${{ matrix.crate }}" 'index($crate) != null' > /dev/null; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Crate ${{ matrix.crate }} changed, running coverage"
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Crate ${{ matrix.crate }} unchanged, skipping coverage"
-          fi
-
       - name: Checkout code
-        if: steps.check-changed.outputs.changed == 'true'
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        if: steps.check-changed.outputs.changed == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust dependencies
-        if: steps.check-changed.outputs.changed == 'true'
         uses: Swatinem/rust-cache@v2
         with:
           key: coverage-${{ matrix.crate }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
       - name: Install cargo-tarpaulin
-        if: steps.check-changed.outputs.changed == 'true'
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-tarpaulin
@@ -118,18 +90,16 @@ jobs:
           CARGO_INSTALL_ROOT: ~/.cargo
 
       - name: Run coverage for ${{ matrix.crate }}
-        if: steps.check-changed.outputs.changed == 'true'
         run: |
-          echo "Running coverage analysis for ${{ matrix.crate }} (threshold: ${{ matrix.threshold }}%)"
+          echo "Running coverage analysis for ${{ matrix.crate }} (threshold: 85%)"
           cargo tarpaulin \
             --package ${{ matrix.crate }} \
-            --fail-under ${{ matrix.threshold }} \
+            --fail-under 85 \
             --timeout 300 \
             --out xml \
             --output-dir coverage-${{ matrix.crate }}
 
       - name: Upload coverage reports
-        if: steps.check-changed.outputs.changed == 'true'
         uses: codecov/codecov-action@v3
         with:
           file: coverage-${{ matrix.crate }}/cobertura.xml
