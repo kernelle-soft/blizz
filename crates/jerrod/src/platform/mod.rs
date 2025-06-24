@@ -237,14 +237,12 @@ pub async fn create_platform(
   options: PlatformOptions,
 ) -> Result<Box<dyn GitPlatform>> {
   let host = if options.host.is_empty() { None } else { Some(options.host.as_str()) };
-  
+
   match platform_name {
     "github" => {
-      let github_platform = if let Some(host_str) = host {
-        github::GitHubPlatform::new_with_host(host_str).await?
-      } else {
-        github::GitHubPlatform::new().await?
-      };
+      let github_platform =
+        github::GitHubPlatform::new(github::GitHubPlatformOptions { host: options.host.clone() })
+          .await?;
       Ok(Box::new(github_platform))
     }
     "gitlab" => {
@@ -268,11 +266,10 @@ pub async fn create_platform_with_host(
 ) -> Result<Box<dyn GitPlatform>> {
   match platform_name {
     "github" => {
-      let github_platform = if let Some(host_str) = host {
-        github::GitHubPlatform::new_with_host(host_str).await?
-      } else {
-        github::GitHubPlatform::new().await?
-      };
+      let github_platform = github::GitHubPlatform::new(github::GitHubPlatformOptions {
+        host: host.unwrap_or_default().to_string(),
+      })
+      .await?;
       Ok(Box::new(github_platform))
     }
     "gitlab" => {

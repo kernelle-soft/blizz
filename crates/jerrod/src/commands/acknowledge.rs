@@ -99,13 +99,9 @@ pub async fn handle(config: AcknowledgeConfig) -> Result<()> {
     session.thread_queue.front().ok_or_else(|| anyhow!("No threads in queue"))?;
 
   // Use strategy pattern to create appropriate platform implementation
-  let platform = create_platform(
-    &session.platform,
-    PlatformOptions {
-      host: session.host.unwrap_or_default(),
-    },
-  )
-  .await?;
+  let platform =
+    create_platform(&session.platform, PlatformOptions { host: session.host.unwrap_or_default() })
+      .await?;
 
   let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
   if repo_parts.len() != 2 {

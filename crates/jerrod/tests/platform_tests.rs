@@ -1,6 +1,6 @@
 mod mock_github;
 
-use jerrod::platform::{github::GitHubPlatform, GitPlatform, ReactionType};
+use jerrod::platform::{github::{GitHubPlatform, GitHubPlatformOptions}, GitPlatform, ReactionType};
 use mock_github::MockGitHub;
 use std::env;
 use tempfile::TempDir;
@@ -142,7 +142,7 @@ async fn test_github_platform_diffs_and_pipelines() {
 async fn test_real_github_platform_creation() {
   // This would test GitHubPlatform::new() which requires authentication
   // Skip for coverage testing to focus on achievable improvements
-  let _result = GitHubPlatform::new().await;
+  let _result = GitHubPlatform::new(GitHubPlatformOptions::default()).await;
   // Would need real auth credentials to test properly
 }
 
