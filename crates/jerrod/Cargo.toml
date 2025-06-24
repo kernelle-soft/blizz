@@ -9,7 +9,6 @@ name = "jerrod"
 path = "src/main.rs"
 
 [dependencies]
-gitlab.workspace = true
 reqwest.workspace = true
 
 clap = { workspace = true }

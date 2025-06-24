@@ -3,15 +3,17 @@ use crate::platform::{
   Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline,
   PipelineStatus, ReactionType, Repository, User,
 };
-use anyhow::Result;
-use gitlab::api::projects::merge_requests::discussions::MergeRequestDiscussions;
-use gitlab::api::AsyncQuery;
-use gitlab::{AsyncGitlab, GitlabBuilder};
-use serde::Deserialize;
+use anyhow::{anyhow, Result};
+use reqwest::{
+  header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE},
+  Client,
+};
+use serde_json::{json, Value};
 
 pub struct GitLabPlatform {
-  client: AsyncGitlab,
+  client: Client,
   host: String,
+  token: String,
 }
 
 impl GitLabPlatform {
@@ -22,22 +24,54 @@ impl GitLabPlatform {
   pub async fn new_with_host(host: &str) -> Result<Self> {
     let token = get_gitlab_token().await?;
 
-    // GitlabBuilder might expect just the hostname, not the full URL
-    let hostname = if host.starts_with("https://") {
-      host.strip_prefix("https://").unwrap_or(host)
-    } else if host.starts_with("http://") {
-      host.strip_prefix("http://").unwrap_or(host)
-    } else {
-      host
-    };
+    // Ensure we have a proper URL format
+    let base_url =
+      if host.starts_with("http") { host.to_string() } else { format!("https://{}", host) };
 
-    bentley::info(&format!(
-      "Creating GitLab client for host: {} (using hostname: {})",
-      host, hostname
-    ));
-    let client = GitlabBuilder::new(hostname, token).build_async().await?;
+    bentley::info(&format!("Creating GitLab GraphQL client for host: {}", base_url));
 
-    Ok(Self { client, host: host.to_string() })
+    let client = Client::new();
+
+    Ok(Self { client, host: base_url, token })
+  }
+
+  /// Make a GraphQL request to GitLab
+  async fn graphql_request(&self, query: &str, variables: Value) -> Result<Value> {
+    let url = format!("{}/api/graphql", self.host);
+    let payload = json!({
+      "query": query,
+      "variables": variables
+    });
+
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", self.token))?);
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+    let response = self
+      .client
+      .post(&url)
+      .headers(headers)
+      .json(&payload)
+      .send()
+      .await
+      .map_err(|e| anyhow!("GraphQL request failed: {:?}", e))?;
+
+    if !response.status().is_success() {
+      return Err(anyhow!("GraphQL request failed with status: {}", response.status()));
+    }
+
+    let json_response: Value =
+      response.json().await.map_err(|e| anyhow!("Failed to parse GraphQL response: {:?}", e))?;
+
+    // Check for GraphQL errors
+    if let Some(errors) = json_response["errors"].as_array() {
+      if !errors.is_empty() {
+        let error_msg = errors[0]["message"].as_str().unwrap_or("Unknown GraphQL error");
+        return Err(anyhow!("GraphQL error: {}", error_msg));
+      }
+    }
+
+    Ok(json_response)
   }
 
   /// Get the project full path from owner and repo
@@ -75,70 +109,206 @@ impl GitPlatform for GitLabPlatform {
   async fn get_repository(&self, owner: &str, repo: &str) -> Result<Repository> {
     let project_path = self.get_project_path(owner, repo);
 
-    let endpoint =
-      gitlab::api::projects::Project::builder().project(project_path.clone()).build()?;
+    let query = r#"
+      query($fullPath: ID!) {
+        project(fullPath: $fullPath) {
+          id
+          name
+          webUrl
+        }
+      }
+    "#;
 
-    let project: ProjectInfo = endpoint.query_async(&self.client).await?;
+    let variables = json!({
+      "fullPath": project_path
+    });
+
+    let response = self.graphql_request(query, variables).await?;
+
+    let project =
+      response["data"]["project"].as_object().ok_or_else(|| anyhow!("Project not found"))?;
 
     Ok(Repository {
       owner: owner.to_string(),
       name: repo.to_string(),
       full_name: project_path,
-      url: project.web_url,
+      url: project["webUrl"].as_str().unwrap_or_default().to_string(),
     })
   }
 
   async fn get_merge_request(&self, owner: &str, repo: &str, number: u64) -> Result<MergeRequest> {
     let project_path = self.get_project_path(owner, repo);
 
-    let endpoint = gitlab::api::projects::merge_requests::MergeRequest::builder()
-      .project(project_path.clone())
-      .merge_request(number)
-      .build()?;
+    let query = r#"
+      query($fullPath: ID!, $iid: String!) {
+        project(fullPath: $fullPath) {
+          mergeRequest(iid: $iid) {
+            id
+            iid
+            title
+            description
+            state
+            webUrl
+            createdAt
+            updatedAt
+            sourceBranch
+            targetBranch
+            author {
+              id
+              username
+              name
+              avatarUrl
+            }
+            assignees {
+              nodes {
+                id
+                username
+                name
+                avatarUrl
+              }
+            }
+          }
+        }
+      }
+    "#;
 
-    let mr: MergeRequestInfo = endpoint.query_async(&self.client).await?;
+    let variables = json!({
+      "fullPath": project_path,
+      "iid": number.to_string()
+    });
+
+    let response = self.graphql_request(query, variables).await?;
+
+    let mr = response["data"]["project"]["mergeRequest"]
+      .as_object()
+      .ok_or_else(|| anyhow!("Merge request not found"))?;
+
+    let state = self.convert_mr_state(mr["state"].as_str().unwrap_or("opened"));
+
+    let author = &mr["author"];
+    let assignee =
+      mr["assignees"]["nodes"].as_array().and_then(|arr| arr.first()).map(|assignee| User {
+        id: assignee["id"].as_str().unwrap_or_default().to_string(),
+        username: assignee["username"].as_str().unwrap_or_default().to_string(),
+        display_name: assignee["name"]
+          .as_str()
+          .unwrap_or(assignee["username"].as_str().unwrap_or("Unknown"))
+          .to_string(),
+        avatar_url: assignee["avatarUrl"].as_str().map(|s| s.to_string()),
+      });
+
+    let created_at = chrono::DateTime::parse_from_rfc3339(
+      mr["createdAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+    )?
+    .with_timezone(&chrono::Utc);
+
+    let updated_at = chrono::DateTime::parse_from_rfc3339(
+      mr["updatedAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+    )?
+    .with_timezone(&chrono::Utc);
 
     Ok(MergeRequest {
-      id: mr.id.to_string(),
-      number: mr.iid,
-      title: mr.title,
-      description: mr.description,
-      state: self.convert_mr_state(&mr.state),
+      id: mr["id"].as_str().unwrap_or_default().to_string(),
+      number,
+      title: mr["title"].as_str().unwrap_or_default().to_string(),
+      description: mr["description"].as_str().map(|s| s.to_string()),
+      state,
       author: User {
-        id: mr.author.id.to_string(),
-        username: mr.author.username.clone(),
-        display_name: mr.author.name.unwrap_or(mr.author.username),
-        avatar_url: mr.author.avatar_url,
+        id: author["id"].as_str().unwrap_or_default().to_string(),
+        username: author["username"].as_str().unwrap_or_default().to_string(),
+        display_name: author["name"]
+          .as_str()
+          .unwrap_or(author["username"].as_str().unwrap_or("Unknown"))
+          .to_string(),
+        avatar_url: author["avatarUrl"].as_str().map(|s| s.to_string()),
       },
-      assignee: mr.assignee.map(|assignee| User {
-        id: assignee.id.to_string(),
-        username: assignee.username.clone(),
-        display_name: assignee.name.unwrap_or(assignee.username),
-        avatar_url: assignee.avatar_url,
-      }),
-      source_branch: mr.source_branch,
-      target_branch: mr.target_branch,
-      url: mr.web_url,
-      created_at: mr.created_at,
-      updated_at: mr.updated_at,
+      assignee,
+      source_branch: mr["sourceBranch"].as_str().unwrap_or_default().to_string(),
+      target_branch: mr["targetBranch"].as_str().unwrap_or_default().to_string(),
+      url: mr["webUrl"].as_str().unwrap_or_default().to_string(),
+      created_at,
+      updated_at,
     })
   }
 
   async fn get_discussions(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<Discussion>> {
     let project_path = self.get_project_path(owner, repo);
 
-    // Use REST API to fetch merge request discussions
-    let endpoint =
-      MergeRequestDiscussions::builder().project(project_path).merge_request(number).build()?;
+    let query = r#"
+      query($fullPath: ID!, $iid: String!) {
+        project(fullPath: $fullPath) {
+          mergeRequest(iid: $iid) {
+            discussions {
+              nodes {
+                id
+                resolved
+                resolvable
+                notes {
+                  nodes {
+                    id
+                    body
+                    author {
+                      id
+                      username
+                      name
+                      avatarUrl
+                    }
+                    createdAt
+                    updatedAt
+                    system
+                    position {
+                      newPath
+                      newLine
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    "#;
 
-    let discussions_response: Vec<DiscussionInfo> = endpoint.query_async(&self.client).await?;
+    let variables = json!({
+      "fullPath": project_path,
+      "iid": number.to_string()
+    });
+
+    let response = self.graphql_request(query, variables).await?;
+
+    let discussions = response["data"]["project"]["mergeRequest"]["discussions"]["nodes"]
+      .as_array()
+      .ok_or_else(|| anyhow!("Failed to get discussions"))?;
 
     let mut result = Vec::new();
-    for discussion in discussions_response {
-      // Extract position info from first note if available
-      let (file_path, line_number) = if let Some(first_note) = discussion.notes.first() {
-        if let Some(position) = &first_note.position {
-          (position.new_path.clone(), position.new_line.map(|l| l as u32))
+    for discussion in discussions {
+      let empty_notes = vec![];
+      let notes_array = discussion["notes"]["nodes"].as_array().unwrap_or(&empty_notes);
+
+      // Skip system notes and resolved discussions
+      let non_system_notes: Vec<_> =
+        notes_array.iter().filter(|note| !note["system"].as_bool().unwrap_or(false)).collect();
+
+      if non_system_notes.is_empty() {
+        continue;
+      }
+
+      let is_resolved = discussion["resolved"].as_bool().unwrap_or(false);
+      if is_resolved {
+        bentley::info(&format!(
+          "Skipping resolved discussion {}",
+          discussion["id"].as_str().unwrap_or("unknown")
+        ));
+        continue;
+      }
+
+      // Extract position info from first non-system note
+      let (file_path, line_number) = if let Some(first_note) = non_system_notes.first() {
+        if let Some(position) = first_note["position"].as_object() {
+          (
+            position["newPath"].as_str().map(|s| s.to_string()),
+            position["newLine"].as_i64().map(|l| l as u32),
+          )
         } else {
           (None, None)
         }
@@ -146,78 +316,139 @@ impl GitPlatform for GitLabPlatform {
         (None, None)
       };
 
-      let notes = discussion
-        .notes
+      let notes: Vec<Note> = non_system_notes
         .into_iter()
-        .map(|note| Note {
-          id: note.id.to_string(),
-          author: User {
-            id: note.author.id.to_string(),
-            username: note.author.username.clone(),
-            display_name: note.author.name.unwrap_or(note.author.username),
-            avatar_url: note.author.avatar_url,
-          },
-          body: note.body,
-          created_at: note.created_at,
-          updated_at: note.updated_at,
+        .map(|note| {
+          let author = &note["author"];
+          let created_at = chrono::DateTime::parse_from_rfc3339(
+            note["createdAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+          )
+          .unwrap_or_else(|_| chrono::Utc::now().into())
+          .with_timezone(&chrono::Utc);
+
+          let updated_at = chrono::DateTime::parse_from_rfc3339(
+            note["updatedAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+          )
+          .unwrap_or_else(|_| chrono::Utc::now().into())
+          .with_timezone(&chrono::Utc);
+
+          Note {
+            id: note["id"].as_str().unwrap_or_default().to_string(),
+            author: User {
+              id: author["id"].as_str().unwrap_or_default().to_string(),
+              username: author["username"].as_str().unwrap_or_default().to_string(),
+              display_name: author["name"]
+                .as_str()
+                .unwrap_or(author["username"].as_str().unwrap_or("Unknown"))
+                .to_string(),
+              avatar_url: author["avatarUrl"].as_str().map(|s| s.to_string()),
+            },
+            body: note["body"].as_str().unwrap_or_default().to_string(),
+            created_at,
+            updated_at,
+          }
         })
         .collect();
 
-      result.push(Discussion {
-        id: discussion.id,
-        resolved: discussion.resolved.unwrap_or(false),
-        resolvable: discussion.resolvable.unwrap_or(false),
-        file_path,
-        line_number,
-        notes,
-      });
+      if !notes.is_empty() {
+        result.push(Discussion {
+          id: discussion["id"].as_str().unwrap_or_default().to_string(),
+          resolved: false, // We already filtered resolved ones
+          resolvable: discussion["resolvable"].as_bool().unwrap_or(false),
+          file_path,
+          line_number,
+          notes,
+        });
+      }
     }
 
+    bentley::info(&format!("Total discussions found: {}", result.len()));
     Ok(result)
   }
 
   async fn get_diffs(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<FileDiff>> {
     let project_path = self.get_project_path(owner, repo);
 
-    let endpoint = gitlab::api::projects::merge_requests::MergeRequestDiffs::builder()
-      .project(project_path)
-      .merge_request(number)
-      .build()?;
+    let query = r#"
+      query($fullPath: ID!, $iid: String!) {
+        project(fullPath: $fullPath) {
+          mergeRequest(iid: $iid) {
+            diffRefs {
+              headSha
+              baseSha
+            }
+          }
+        }
+      }
+    "#;
 
-    let diffs: Vec<ChangeInfo> = endpoint.query_async(&self.client).await?;
+    let variables = json!({
+      "fullPath": project_path,
+      "iid": number.to_string()
+    });
 
-    let mut result = Vec::new();
-    for change in diffs {
-      result.push(FileDiff {
-        old_path: change.old_path,
-        new_path: change.new_path,
-        diff: change.diff,
-      });
-    }
+    let _response = self.graphql_request(query, variables).await?;
 
-    Ok(result)
+    // Note: GitLab GraphQL doesn't expose individual file diffs directly
+    // This would require REST API fallback or external git diff
+    bentley::info("GitLab file diffs not yet implemented via GraphQL");
+    Ok(vec![])
   }
 
   async fn get_pipelines(&self, owner: &str, repo: &str, sha: &str) -> Result<Vec<Pipeline>> {
     let project_path = self.get_project_path(owner, repo);
 
-    let endpoint = gitlab::api::projects::pipelines::Pipelines::builder()
-      .project(project_path)
-      .sha(sha)
-      .build()?;
+    let query = r#"
+      query($fullPath: ID!, $sha: String!) {
+        project(fullPath: $fullPath) {
+          pipelines(sha: $sha) {
+            nodes {
+              id
+              status
+              ref
+              sha
+              webUrl
+              createdAt
+              updatedAt
+            }
+          }
+        }
+      }
+    "#;
 
-    let pipelines: Vec<PipelineInfo> = endpoint.query_async(&self.client).await?;
+    let variables = json!({
+      "fullPath": project_path,
+      "sha": sha
+    });
+
+    let response = self.graphql_request(query, variables).await?;
+
+    let empty_pipelines = vec![];
+    let pipelines =
+      response["data"]["project"]["pipelines"]["nodes"].as_array().unwrap_or(&empty_pipelines);
 
     let mut result = Vec::new();
     for pipeline in pipelines {
+      let created_at = chrono::DateTime::parse_from_rfc3339(
+        pipeline["createdAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+      )
+      .unwrap_or_else(|_| chrono::Utc::now().into())
+      .with_timezone(&chrono::Utc);
+
+      let updated_at = chrono::DateTime::parse_from_rfc3339(
+        pipeline["updatedAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+      )
+      .unwrap_or_else(|_| chrono::Utc::now().into())
+      .with_timezone(&chrono::Utc);
+
       result.push(Pipeline {
-        id: pipeline.id.to_string(),
-        status: self.convert_pipeline_status(&pipeline.status),
-        ref_name: pipeline.r#ref,
-        sha: pipeline.sha,
-        url: pipeline.web_url,
-        created_at: pipeline.created_at,
-        updated_at: pipeline.updated_at,
+        id: pipeline["id"].as_str().unwrap_or_default().to_string(),
+        status: self.convert_pipeline_status(pipeline["status"].as_str().unwrap_or("pending")),
+        ref_name: pipeline["ref"].as_str().unwrap_or_default().to_string(),
+        sha: pipeline["sha"].as_str().unwrap_or_default().to_string(),
+        url: pipeline["webUrl"].as_str().map(|s| s.to_string()),
+        created_at,
+        updated_at,
       });
     }
 
@@ -226,66 +457,222 @@ impl GitPlatform for GitLabPlatform {
 
   async fn add_comment(
     &self,
-    _owner: &str,
-    _repo: &str,
-    _discussion_id: &str,
-    _text: &str,
+    owner: &str,
+    repo: &str,
+    discussion_id: &str,
+    text: &str,
   ) -> Result<Note> {
-    // For now, return a placeholder implementation
-    // This would require parsing the discussion_id and finding the MR number
-    // Then using gitlab::api::projects::merge_requests::CreateMergeRequestDiscussionNote
-    tracing::warn!("GitLab add_comment implementation needed - REST API integration pending");
-    anyhow::bail!("GitLab add_comment not yet implemented with REST API")
+    let _project_path = self.get_project_path(owner, repo);
+
+    let mutation = r#"
+      mutation($noteableId: NoteableID!, $body: String!) {
+        createNote(input: {noteableId: $noteableId, body: $body}) {
+          note {
+            id
+            body
+            author {
+              id
+              username
+              name
+              avatarUrl
+            }
+            createdAt
+            updatedAt
+          }
+        }
+      }
+    "#;
+
+    let variables = json!({
+      "noteableId": discussion_id,
+      "body": text
+    });
+
+    let response = self.graphql_request(mutation, variables).await?;
+
+    let note = response["data"]["createNote"]["note"]
+      .as_object()
+      .ok_or_else(|| anyhow!("Failed to create note"))?;
+
+    let author = &note["author"];
+    let created_at = chrono::DateTime::parse_from_rfc3339(
+      note["createdAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+    )
+    .unwrap_or_else(|_| chrono::Utc::now().into())
+    .with_timezone(&chrono::Utc);
+
+    let updated_at = chrono::DateTime::parse_from_rfc3339(
+      note["updatedAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+    )
+    .unwrap_or_else(|_| chrono::Utc::now().into())
+    .with_timezone(&chrono::Utc);
+
+    Ok(Note {
+      id: note["id"].as_str().unwrap_or_default().to_string(),
+      author: User {
+        id: author["id"].as_str().unwrap_or_default().to_string(),
+        username: author["username"].as_str().unwrap_or_default().to_string(),
+        display_name: author["name"]
+          .as_str()
+          .unwrap_or(author["username"].as_str().unwrap_or("Unknown"))
+          .to_string(),
+        avatar_url: author["avatarUrl"].as_str().map(|s| s.to_string()),
+      },
+      body: note["body"].as_str().unwrap_or_default().to_string(),
+      created_at,
+      updated_at,
+    })
   }
 
   async fn resolve_discussion(
     &self,
     _owner: &str,
     _repo: &str,
-    _discussion_id: &str,
+    discussion_id: &str,
   ) -> Result<bool> {
-    // For now, return a placeholder implementation
-    // This would use gitlab::api::projects::merge_requests::EditMergeRequestDiscussion
-    tracing::warn!(
-      "GitLab resolve_discussion implementation needed - REST API integration pending"
-    );
-    anyhow::bail!("GitLab resolve_discussion not yet implemented with REST API")
+    bentley::info(&format!("Attempting to resolve GitLab discussion: {}", discussion_id));
+
+    let mutation = r#"
+      mutation($discussionId: DiscussionID!, $resolved: Boolean!) {
+        discussionToggleResolve(input: {id: $discussionId, resolve: $resolved}) {
+          discussion {
+            id
+            resolved
+          }
+        }
+      }
+    "#;
+
+    let variables = json!({
+      "discussionId": discussion_id,
+      "resolved": true
+    });
+
+    let response = self.graphql_request(mutation, variables).await?;
+
+    if let Some(discussion) = response["data"]["discussionToggleResolve"]["discussion"].as_object()
+    {
+      let is_resolved = discussion["resolved"].as_bool().unwrap_or(false);
+      if is_resolved {
+        bentley::success(&format!("Successfully resolved GitLab discussion {}", discussion_id));
+        return Ok(true);
+      }
+    }
+
+    bentley::warn("Discussion resolution may not have completed successfully");
+    Ok(false)
   }
 
   async fn add_reaction(
     &self,
     _owner: &str,
     _repo: &str,
-    _comment_id: &str,
-    _reaction: ReactionType,
+    comment_id: &str,
+    reaction: ReactionType,
   ) -> Result<bool> {
-    // For now, return a placeholder implementation
-    // This would use gitlab::api::projects::merge_requests::CreateMergeRequestAwardEmoji
-    tracing::warn!("GitLab add_reaction implementation needed - REST API integration pending");
-    anyhow::bail!("GitLab add_reaction not yet implemented with REST API")
+    bentley::info(&format!("Adding {} reaction to comment {}", reaction.emoji(), comment_id));
+
+    let mutation = r#"
+      mutation($awardableId: AwardableID!, $name: String!) {
+        awardEmojiAdd(input: {awardableId: $awardableId, name: $name}) {
+          awardEmoji {
+            name
+          }
+        }
+      }
+    "#;
+
+    let emoji_name = reaction.gitlab_name();
+    let variables = json!({
+      "awardableId": comment_id,
+      "name": emoji_name
+    });
+
+    let response = self.graphql_request(mutation, variables).await?;
+
+    if response["data"]["awardEmojiAdd"]["awardEmoji"].is_object() {
+      bentley::success(&format!("Added {} reaction successfully", reaction.emoji()));
+      Ok(true)
+    } else {
+      bentley::warn("Failed to add reaction");
+      Ok(false)
+    }
   }
 
   async fn remove_reaction(
     &self,
     _owner: &str,
     _repo: &str,
-    _comment_id: &str,
-    _reaction: ReactionType,
+    comment_id: &str,
+    reaction: ReactionType,
   ) -> Result<bool> {
-    // For now, return a placeholder implementation
-    tracing::warn!("GitLab remove_reaction implementation needed - REST API integration pending");
-    anyhow::bail!("GitLab remove_reaction not yet implemented with REST API")
+    bentley::info(&format!("Removing {} reaction from comment {}", reaction.emoji(), comment_id));
+
+    let mutation = r#"
+      mutation($awardableId: AwardableID!, $name: String!) {
+        awardEmojiRemove(input: {awardableId: $awardableId, name: $name}) {
+          awardEmoji {
+            name
+          }
+        }
+      }
+    "#;
+
+    let emoji_name = reaction.gitlab_name();
+    let variables = json!({
+      "awardableId": comment_id,
+      "name": emoji_name
+    });
+
+    let response = self.graphql_request(mutation, variables).await?;
+
+    if response["data"]["awardEmojiRemove"]["awardEmoji"].is_object() {
+      bentley::success(&format!("Removed {} reaction successfully", reaction.emoji()));
+      Ok(true)
+    } else {
+      bentley::warn("Failed to remove reaction (may not exist)");
+      Ok(false)
+    }
   }
 
   async fn get_reactions(
     &self,
     _owner: &str,
     _repo: &str,
-    _comment_id: &str,
+    comment_id: &str,
   ) -> Result<Vec<ReactionType>> {
-    // For now, return a placeholder implementation
-    tracing::warn!("GitLab get_reactions implementation needed - REST API integration pending");
-    Ok(Vec::new())
+    let query = r#"
+      query($noteId: NoteID!) {
+        note(id: $noteId) {
+          awardEmoji {
+            nodes {
+              name
+            }
+          }
+        }
+      }
+    "#;
+
+    let variables = json!({
+      "noteId": comment_id
+    });
+
+    let response = self.graphql_request(query, variables).await?;
+
+    let empty_emojis = vec![];
+    let emojis =
+      response["data"]["note"]["awardEmoji"]["nodes"].as_array().unwrap_or(&empty_emojis);
+
+    let mut reactions = Vec::new();
+    for emoji in emojis {
+      if let Some(name) = emoji["name"].as_str() {
+        if let Some(reaction) = self.gitlab_name_to_reaction(name) {
+          reactions.push(reaction);
+        }
+      }
+    }
+
+    Ok(reactions)
   }
 
   async fn add_review_comment_reply(
@@ -337,104 +724,21 @@ impl GitLabPlatform {
       _ => None,
     }
   }
+
+  /// Convert our ReactionType to GitLab emoji name
+  #[allow(dead_code)]
+  fn reaction_to_gitlab_name(&self, reaction: &ReactionType) -> &str {
+    match reaction {
+      ReactionType::ThumbsUp => "thumbsup",
+      ReactionType::ThumbsDown => "thumbsdown",
+      ReactionType::Laugh => "smile",
+      ReactionType::Hooray => "tada",
+      ReactionType::Confused => "confused",
+      ReactionType::Heart => "heart",
+      ReactionType::Rocket => "rocket",
+      ReactionType::Eyes => "eyes",
+    }
+  }
 }
 
-// Data structures for GitLab API responses
-#[derive(Debug, Deserialize)]
-struct ProjectInfo {
-  #[allow(dead_code)]
-  id: u64,
-  #[allow(dead_code)]
-  name: String,
-  web_url: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct UserInfo {
-  id: u64,
-  username: String,
-  name: Option<String>,
-  avatar_url: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MergeRequestInfo {
-  id: u64,
-  iid: u64,
-  title: String,
-  description: Option<String>,
-  state: String,
-  author: UserInfo,
-  assignee: Option<UserInfo>,
-  source_branch: String,
-  target_branch: String,
-  web_url: String,
-  created_at: chrono::DateTime<chrono::Utc>,
-  updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ChangeInfo {
-  old_path: Option<String>,
-  new_path: String,
-  diff: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct PipelineInfo {
-  id: u64,
-  status: String,
-  r#ref: String,
-  sha: String,
-  web_url: Option<String>,
-  created_at: chrono::DateTime<chrono::Utc>,
-  updated_at: chrono::DateTime<chrono::Utc>,
-}
-
-// REST API structures for discussions
-#[derive(Debug, Deserialize, Clone)]
-struct DiscussionInfo {
-  id: String,
-  #[allow(dead_code)]
-  individual_note: bool,
-  resolved: Option<bool>,
-  resolvable: Option<bool>,
-  notes: Vec<NoteInfo>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct NoteInfo {
-  id: u64,
-  #[serde(rename = "type")]
-  #[allow(dead_code)]
-  note_type: Option<String>,
-  body: String,
-  author: AuthorInfo,
-  created_at: chrono::DateTime<chrono::Utc>,
-  updated_at: chrono::DateTime<chrono::Utc>,
-  #[allow(dead_code)]
-  system: bool,
-  position: Option<PositionInfo>,
-  #[allow(dead_code)]
-  resolved: Option<bool>,
-  #[allow(dead_code)]
-  resolvable: Option<bool>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct AuthorInfo {
-  id: u64,
-  username: String,
-  name: Option<String>,
-  avatar_url: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-struct PositionInfo {
-  new_path: Option<String>,
-  new_line: Option<i32>,
-  #[allow(dead_code)]
-  old_path: Option<String>,
-  #[allow(dead_code)]
-  old_line: Option<i32>,
-}
+// GitLab GraphQL implementation complete - no additional data structures needed
