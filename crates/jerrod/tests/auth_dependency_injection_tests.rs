@@ -1,5 +1,6 @@
 use jerrod::auth::{get_github_token, get_gitlab_token, register_sentinel_factory, reset_sentinel_factory, SentinelTrait};
 use anyhow::Result;
+use serial_test::serial;
 
 // Mock Sentinel implementation for testing
 struct MockSentinel {
@@ -27,7 +28,11 @@ impl SentinelTrait for MockSentinel {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_mock_github_token() {
+    // Clean up first
+    reset_sentinel_factory();
+    
     // Register mock factory
     register_sentinel_factory(|| Box::new(MockSentinel::new()));
     
@@ -39,7 +44,11 @@ async fn test_mock_github_token() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_mock_gitlab_token() {
+    // Clean up first
+    reset_sentinel_factory();
+    
     // Register mock factory
     register_sentinel_factory(|| Box::new(MockSentinel::new()));
     
@@ -51,7 +60,11 @@ async fn test_mock_gitlab_token() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_mock_with_custom_credentials() {
+    // Clean up first
+    reset_sentinel_factory();
+    
     // Create a custom mock with different credentials
     register_sentinel_factory(|| {
         let mut credentials = std::collections::HashMap::new();
@@ -72,7 +85,11 @@ async fn test_mock_with_custom_credentials() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_mock_error_handling() {
+    // Clean up first
+    reset_sentinel_factory();
+    
     // Register a mock that always fails
     register_sentinel_factory(|| {
         Box::new(MockSentinel {
@@ -89,7 +106,11 @@ async fn test_mock_error_handling() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_factory_persistence_across_calls() {
+    // Clean up any previous state first
+    reset_sentinel_factory();
+    
     // Register mock factory
     register_sentinel_factory(|| Box::new(MockSentinel::new()));
     
