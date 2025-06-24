@@ -8,6 +8,8 @@ pub struct ReviewSession {
   pub repository: Repository,
   pub merge_request: MergeRequest,
   pub platform: String,
+  #[serde(default)]
+  pub host: Option<String>, // For custom/self-hosted instances
   pub thread_queue: VecDeque<String>,
   pub unresolved_threads: Vec<String>,
   pub discussions: std::collections::HashMap<String, Discussion>,
@@ -21,6 +23,7 @@ impl ReviewSession {
     repository: Repository,
     merge_request: MergeRequest,
     platform: String,
+    host: Option<String>,
     discussions: Vec<Discussion>,
     pipelines: Vec<Pipeline>,
   ) -> Self {
@@ -38,6 +41,7 @@ impl ReviewSession {
       repository,
       merge_request,
       platform,
+      host,
       thread_queue,
       unresolved_threads: Vec::new(),
       discussions: discussion_map,

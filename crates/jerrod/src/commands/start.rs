@@ -1,5 +1,5 @@
 use crate::platform::{
-  create_platform,
+  create_platform_with_host,
   detection::{detect_platform, PlatformType},
 };
 use crate::session::{ReviewSession, SessionDiscovery, SessionManager};
@@ -39,7 +39,8 @@ pub async fn handle(
   bentley::info(&format!("MR/PR number: {}", mr_number));
 
   let platform_name = format!("{:?}", platform_type).to_lowercase();
-  let platform = create_platform(&platform_name).await?;
+  let host = repo_info.host.as_deref();
+  let platform = create_platform_with_host(&platform_name, host).await?;
 
   bentley::info("Fetching repository information...");
   let repository_info = platform.get_repository(&repo_info.owner, &repo_info.repo).await?;
@@ -54,8 +55,14 @@ pub async fn handle(
   bentley::info("Fetching pipeline/workflow information...");
   let pipelines = platform.get_pipelines(&repo_info.owner, &repo_info.repo, "HEAD").await?;
 
-  let session =
-    ReviewSession::new(repository_info, merge_request, platform_name, discussions, pipelines);
+  let session = ReviewSession::new(
+    repository_info,
+    merge_request,
+    platform_name,
+    repo_info.host,
+    discussions,
+    pipelines,
+  );
 
   session_manager.save_session(&session)?;
 

@@ -1,4 +1,4 @@
-use crate::platform::create_platform;
+use crate::platform::create_platform_with_host;
 use crate::session::load_current_session;
 use anyhow::{anyhow, Result};
 
@@ -6,7 +6,7 @@ pub async fn handle(text: String, new: bool) -> Result<()> {
   let session = load_current_session()?;
 
   // Strategy pattern: create appropriate platform implementation
-  let platform = create_platform(&session.platform).await?;
+  let platform = create_platform_with_host(&session.platform, session.host.as_deref()).await?;
 
   let current_thread_id = if new { None } else { session.thread_queue.front().cloned() };
 

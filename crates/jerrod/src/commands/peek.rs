@@ -1,5 +1,5 @@
 use crate::display;
-use crate::platform::create_platform;
+use crate::platform::create_platform_with_host;
 use crate::session::load_current_session;
 use anyhow::Result;
 
@@ -27,7 +27,7 @@ pub async fn handle() -> Result<()> {
 }
 
 async fn show_file_diff(session: &crate::session::ReviewSession, file_path: &str) -> Result<()> {
-  let platform = create_platform(&session.platform).await?;
+  let platform = create_platform_with_host(&session.platform, session.host.as_deref()).await?;
 
   let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
   let [owner, repo] = repo_parts.as_slice() else {

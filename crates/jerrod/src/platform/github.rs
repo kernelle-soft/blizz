@@ -19,6 +19,18 @@ impl GitHubPlatform {
     Ok(Self { client })
   }
 
+  pub async fn new_with_host(host: &str) -> Result<Self> {
+    let token = get_github_token().await?;
+    let base_url = if host.starts_with("http") {
+      format!("{}/api/v3", host.trim_end_matches('/'))
+    } else {
+      format!("https://{}/api/v3", host)
+    };
+
+    let client = Octocrab::builder().personal_token(token).base_uri(&base_url)?.build()?;
+    Ok(Self { client })
+  }
+
   /// Create a GitHub platform client from an existing Octocrab instance
   #[allow(dead_code)]
   pub fn from_client(client: Octocrab) -> Self {
