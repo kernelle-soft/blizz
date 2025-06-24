@@ -5,9 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use crate::{Language, Result, VioletError};
+use crate::{Language, Result};
 
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]

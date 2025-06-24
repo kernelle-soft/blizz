@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::PathBuf;
 
 use aes_gcm::{
@@ -21,7 +21,7 @@ pub trait CredentialProvider {
 
 /// Mock credential provider for testing
 pub struct MockCredentialProvider {
-  credentials: HashMap<String, String>,
+  credentials: HashMap<String, (String, String)>,
 }
 
 impl MockCredentialProvider {
@@ -29,20 +29,32 @@ impl MockCredentialProvider {
     Self { credentials: HashMap::new() }
   }
 
-  pub fn with_credential(mut self, service: &str, key: &str, value: &str) -> Self {
-    let credential_key = format!("{}:{}", service, key);
-    self.credentials.insert(credential_key, value.to_string());
+  pub fn with_credential(mut self, service: &str, username: &str, secret: &str) -> Self {
+    self.credentials.insert(service.to_string(), (username.to_string(), secret.to_string()));
     self
+  }
+}
+
+impl Default for MockCredentialProvider {
+  fn default() -> Self {
+    Self::new()
   }
 }
 
 impl CredentialProvider for MockCredentialProvider {
   fn get_credential(&self, service: &str, key: &str) -> Result<String> {
-    let credential_key = format!("{}:{}", service, key);
     self
       .credentials
-      .get(&credential_key)
-      .cloned()
+      .get(service)
+      .and_then(|(username, secret)| {
+        if key == "username" {
+          Some(username.clone())
+        } else if key == "token" || key == "password" || key == "secret" {
+          Some(secret.clone())
+        } else {
+          None
+        }
+      })
       .ok_or_else(|| anyhow!("Credential not found: {}/{}", service, key))
   }
 
@@ -71,7 +83,7 @@ impl EncryptedCredentialStore {
     self
       .credentials
       .entry(service.to_string())
-      .or_insert_with(HashMap::new)
+      .or_default()
       .insert(key.to_string(), encrypted_value);
   }
 
@@ -209,6 +221,7 @@ impl CryptoManager {
 ///
 /// Provides secure credential storage using encrypted files instead of OS keychain
 pub struct Sentinel {
+  #[allow(dead_code)]
   service_name: String,
   crypto: CryptoManager,
   credentials_path_override: Option<PathBuf>,

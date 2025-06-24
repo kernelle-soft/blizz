@@ -26,23 +26,20 @@ impl CredentialCache {
     Self { credentials: HashMap::new() }
   }
 
-  pub fn insert(&mut self, service: &str, key: &str, value: String) {
-    let full_key = format!("{}_{}", service, key);
-    self.credentials.insert(full_key, value);
+  pub fn store(&mut self, key: String, value: String) {
+    self.credentials.insert(key, value);
   }
 
-  pub fn get(&self, service: &str, key: &str) -> Option<&String> {
-    let full_key = format!("{}_{}", service, key);
-    self.credentials.get(&full_key)
-  }
-
-  pub fn remove(&mut self, service: &str, key: &str) -> Option<String> {
-    let full_key = format!("{}_{}", service, key);
-    self.credentials.remove(&full_key)
+  pub fn get(&self, key: &str) -> Option<&String> {
+    self.credentials.get(key)
   }
 
   pub fn clear(&mut self) {
     self.credentials.clear();
+  }
+
+  pub fn remove(&mut self, key: &str) -> Option<String> {
+    self.credentials.remove(key)
   }
 
   pub fn from_map(credentials: HashMap<String, String>) -> Self {
@@ -51,6 +48,12 @@ impl CredentialCache {
 
   pub fn to_map(&self) -> &HashMap<String, String> {
     &self.credentials
+  }
+}
+
+impl Default for CredentialCache {
+  fn default() -> Self {
+    Self::new()
   }
 }
 
@@ -80,8 +83,8 @@ impl EncryptionManager {
     key[..8].copy_from_slice(&hash.to_le_bytes());
 
     // Fill the rest with a deterministic pattern based on the hash
-    for i in 8..32 {
-      key[i] = ((hash >> (i % 8)) & 0xFF) as u8;
+    for (i, item) in key.iter_mut().enumerate().take(32).skip(8) {
+      *item = ((hash >> (i % 8)) & 0xFF) as u8;
     }
 
     Ok(key)
@@ -181,7 +184,7 @@ fn hostname() -> Result<std::ffi::OsString> {
 
 mod hostname {
   pub fn get() -> Result<std::ffi::OsString, std::io::Error> {
-    super::hostname().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    super::hostname().map_err(std::io::Error::other)
   }
 }
 

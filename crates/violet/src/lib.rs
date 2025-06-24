@@ -552,7 +552,7 @@ mod cli_tests {
 
   #[test]
   fn test_cli_parsing_basic() {
-    let cli = Cli::try_parse_from(&["violet", "src/"]).unwrap();
+    let cli = Cli::try_parse_from(["violet", "src/"]).unwrap();
     assert_eq!(cli.paths, vec![PathBuf::from("src/")]);
     assert!(cli.command.is_none());
     assert!(!cli.errors_only);
@@ -561,7 +561,7 @@ mod cli_tests {
 
   #[test]
   fn test_cli_parsing_with_options() {
-    let cli = Cli::try_parse_from(&[
+    let cli = Cli::try_parse_from([
       "violet",
       "--config",
       "custom.json",
@@ -583,7 +583,7 @@ mod cli_tests {
 
   #[test]
   fn test_cli_init_command() {
-    let cli = Cli::try_parse_from(&["violet", "init", "--output", "test.json", "--force"]).unwrap();
+    let cli = Cli::try_parse_from(["violet", "init", "--output", "test.json", "--force"]).unwrap();
 
     match cli.command {
       Some(Commands::Init { output, force }) => {
@@ -596,13 +596,13 @@ mod cli_tests {
 
   #[test]
   fn test_cli_config_command() {
-    let cli = Cli::try_parse_from(&["violet", "config"]).unwrap();
+    let cli = Cli::try_parse_from(["violet", "config"]).unwrap();
     assert!(matches!(cli.command, Some(Commands::Config)));
   }
 
   #[test]
   fn test_cli_languages_command() {
-    let cli = Cli::try_parse_from(&["violet", "languages"]).unwrap();
+    let cli = Cli::try_parse_from(["violet", "languages"]).unwrap();
     assert!(matches!(cli.command, Some(Commands::Languages)));
   }
 

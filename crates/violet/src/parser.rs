@@ -12,6 +12,7 @@ use crate::{Language, Result, VioletError};
 pub struct LanguageParser {
   parser: Parser,
   language: Language,
+  #[allow(dead_code)]
   file_extension: Option<String>,
 }
 
@@ -22,7 +23,7 @@ impl LanguageParser {
     let ts_language = get_tree_sitter_language(language, None)?;
 
     parser
-      .set_language(ts_language)
+      .set_language(&ts_language)
       .map_err(|e| VioletError::Parser(format!("Failed to set language: {}", e)))?;
 
     Ok(Self { parser, language, file_extension: None })
@@ -34,7 +35,7 @@ impl LanguageParser {
     let ts_language = get_tree_sitter_language(language, Some(extension))?;
 
     parser
-      .set_language(ts_language)
+      .set_language(&ts_language)
       .map_err(|e| VioletError::Parser(format!("Failed to set language: {}", e)))?;
 
     Ok(Self { parser, language, file_extension: Some(extension.to_string()) })
@@ -61,26 +62,26 @@ fn get_tree_sitter_language(language: Language, extension: Option<&str>) -> Resu
       // Use TSX parser for JSX files to handle JSX syntax
       if let Some(ext) = extension {
         if ext == "jsx" {
-          return Ok(tree_sitter_typescript::language_tsx());
+          return Ok(tree_sitter_typescript::LANGUAGE_TSX.into());
         }
       }
-      Ok(tree_sitter_javascript::language())
+      Ok(tree_sitter_javascript::LANGUAGE.into())
     }
     Language::TypeScript => {
       // Use TSX parser for .tsx files
       if let Some(ext) = extension {
         if ext == "tsx" {
-          return Ok(tree_sitter_typescript::language_tsx());
+          return Ok(tree_sitter_typescript::LANGUAGE_TSX.into());
         }
       }
-      Ok(tree_sitter_typescript::language_typescript())
+      Ok(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into())
     }
-    Language::Python => Ok(tree_sitter_python::language()),
-    Language::Rust => Ok(tree_sitter_rust::language()),
-    Language::Bash => Ok(tree_sitter_bash::language()),
-    Language::Go => Ok(tree_sitter_go::language()),
-    Language::Ruby => Ok(tree_sitter_ruby::language()),
-    Language::Php => Ok(tree_sitter_php::language()),
+    Language::Python => Ok(tree_sitter_python::LANGUAGE.into()),
+    Language::Rust => Ok(tree_sitter_rust::LANGUAGE.into()),
+    Language::Bash => Ok(tree_sitter_bash::LANGUAGE.into()),
+    Language::Go => Ok(tree_sitter_go::LANGUAGE.into()),
+    Language::Ruby => Ok(tree_sitter_ruby::LANGUAGE.into()),
+    Language::Php => Ok(tree_sitter_php::LANGUAGE_PHP.into()),
   }
 }
 

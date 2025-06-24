@@ -2,15 +2,14 @@
 
 use std::path::{Path, PathBuf};
 use tree_sitter::Node;
-use walkdir::WalkDir;
 
 use crate::{
-  config::{Config, RuleThresholds},
+  config::{Config},
   metrics::{
     calculate_file_metrics, calculate_function_metrics, get_function_name, has_ignore_directive,
   },
   parser::{detect_language, extract_function_nodes, LanguageParser},
-  ComplexityMetrics, Language, Result, Severity, Violation, VioletError,
+  ComplexityMetrics, Language, Result, Severity, Violation,
 };
 
 /// Main linter that analyzes files and generates violations
@@ -84,77 +83,69 @@ impl Linter {
       .unwrap_or_else(|| "<anonymous>".to_string());
 
     // Check parameter count
-    if metrics.param_count > rules.max_params {
-      if !has_ignore_directive(source_code, metrics.start_line, "max-params") {
-        violations.push(Violation {
-          rule: "max-params".to_string(),
-          severity: Severity::Error,
-          message: format!(
-            "Function '{}' has too many parameters: {} (max: {})",
-            function_name, metrics.param_count, rules.max_params
-          ),
-          file: file_path.to_path_buf(),
-          line: metrics.start_line,
-          column: None,
-          suggestion: Some("Consider using an options object".to_string()),
-        });
-      }
+    if metrics.param_count > rules.max_params && !has_ignore_directive(source_code, metrics.start_line, "max-params") {
+      violations.push(Violation {
+        rule: "max-params".to_string(),
+        severity: Severity::Error,
+        message: format!(
+          "Function '{}' has too many parameters: {} (max: {})",
+          function_name, metrics.param_count, rules.max_params
+        ),
+        file: file_path.to_path_buf(),
+        line: metrics.start_line,
+        column: None,
+        suggestion: Some("Consider using an options object".to_string()),
+      });
     }
 
     // Check function length
-    if metrics.line_count > rules.max_function_lines {
-      if !has_ignore_directive(source_code, metrics.start_line, "function-length") {
-        violations.push(Violation {
-          rule: "function-length".to_string(),
-          severity: Severity::Warning,
-          message: format!(
-            "Function '{}' is too long: {} lines (max: {})",
-            function_name, metrics.line_count, rules.max_function_lines
-          ),
-          file: file_path.to_path_buf(),
-          line: metrics.start_line,
-          column: None,
-          suggestion: Some("Extract logical blocks into helper functions".to_string()),
-        });
-      }
+    if metrics.line_count > rules.max_function_lines && !has_ignore_directive(source_code, metrics.start_line, "function-length") {
+      violations.push(Violation {
+        rule: "function-length".to_string(),
+        severity: Severity::Warning,
+        message: format!(
+          "Function '{}' is too long: {} lines (max: {})",
+          function_name, metrics.line_count, rules.max_function_lines
+        ),
+        file: file_path.to_path_buf(),
+        line: metrics.start_line,
+        column: None,
+        suggestion: Some("Extract logical blocks into helper functions".to_string()),
+      });
     }
 
-    // Check function nesting depth
-    if metrics.max_depth > rules.max_function_depth {
-      if !has_ignore_directive(source_code, metrics.start_line, "function-depth") {
-        violations.push(Violation {
-          rule: "function-depth".to_string(),
-          severity: Severity::Error,
-          message: format!(
-            "Function '{}' has excessive nesting depth: {} (max: {})",
-            function_name, metrics.max_depth, rules.max_function_depth
-          ),
-          file: file_path.to_path_buf(),
-          line: metrics.start_line,
-          column: None,
-          suggestion: Some(
-            "Use early returns or extract nested logic into helper functions".to_string(),
-          ),
-        });
-      }
+    // Check nesting depth
+    if metrics.max_depth > rules.max_function_depth && !has_ignore_directive(source_code, metrics.start_line, "function-depth") {
+      violations.push(Violation {
+        rule: "function-depth".to_string(),
+        severity: Severity::Error,
+        message: format!(
+          "Function '{}' has excessive nesting depth: {} (max: {})",
+          function_name, metrics.max_depth, rules.max_function_depth
+        ),
+        file: file_path.to_path_buf(),
+        line: metrics.start_line,
+        column: None,
+        suggestion: Some(
+          "Use early returns or extract nested logic into helper functions".to_string(),
+        ),
+      });
     }
 
     // Check cyclomatic complexity
-    if metrics.cyclomatic_complexity > rules.max_complexity {
-      if !has_ignore_directive(source_code, metrics.start_line, "complexity") {
-        violations.push(Violation {
-          rule: "complexity".to_string(),
-          severity: Severity::Error,
-          message: format!(
-            "Function '{}' is too complex: {} (max: {})",
-            function_name, metrics.cyclomatic_complexity, rules.max_complexity
-          ),
-          file: file_path.to_path_buf(),
-          line: metrics.start_line,
-          column: None,
-          suggestion: Some("Break down complex logic into smaller functions".to_string()),
-        });
-      }
+    if metrics.cyclomatic_complexity > rules.max_complexity && !has_ignore_directive(source_code, metrics.start_line, "complexity") {
+      violations.push(Violation {
+        rule: "complexity".to_string(),
+        severity: Severity::Error,
+        message: format!(
+          "Function '{}' is too complex: {} (max: {})",
+          function_name, metrics.cyclomatic_complexity, rules.max_complexity
+        ),
+        file: file_path.to_path_buf(),
+        line: metrics.start_line,
+        column: None,
+        suggestion: Some("Break down complex logic into smaller functions".to_string()),
+      });
     }
 
     violations
@@ -172,21 +163,19 @@ impl Linter {
     let rules = self.config.get_rules_for_language(language);
 
     // Check file length
-    if metrics.line_count > rules.max_file_lines {
-      if !has_ignore_directive(source_code, 1, "file-length") {
-        violations.push(Violation {
-          rule: "file-length".to_string(),
-          severity: Severity::Warning,
-          message: format!(
-            "File is too long: {} lines (max: {})",
-            metrics.line_count, rules.max_file_lines
-          ),
-          file: file_path.to_path_buf(),
-          line: 1,
-          column: None,
-          suggestion: Some("Split into smaller modules".to_string()),
-        });
-      }
+    if metrics.line_count > rules.max_file_lines && !has_ignore_directive(source_code, 1, "file-length") {
+      violations.push(Violation {
+        rule: "file-length".to_string(),
+        severity: Severity::Warning,
+        message: format!(
+          "File is too long: {} lines (max: {})",
+          metrics.line_count, rules.max_file_lines
+        ),
+        file: file_path.to_path_buf(),
+        line: 1,
+        column: None,
+        suggestion: Some("Split into smaller modules".to_string()),
+      });
     }
 
     violations
@@ -703,7 +692,7 @@ def test_function(self, a, b, c, d, e, *args, **kwargs):
     let violations = lint_code(code, Language::Python, &config);
 
     // Should have violations for parameters and depth
-    assert!(violations.len() >= 1);
+    assert!(!violations.is_empty());
 
     let rules: std::collections::HashSet<_> = violations.iter().map(|v| v.rule.as_str()).collect();
     assert!(rules.contains("max-params") || rules.contains("function-depth"));

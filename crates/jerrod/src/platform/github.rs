@@ -413,7 +413,7 @@ impl GitPlatform for GitHubPlatform {
       if let Some(user) = comment.user {
         // For review comments (inline diff comments), check if they're resolved using GraphQL
         // We use GitHub's conversation resolution status instead of emoji reactions
-        let is_resolved = thread_resolution_map.get(&comment.node_id).map(|&r| r).unwrap_or(false);
+        let is_resolved = thread_resolution_map.get(&comment.node_id).copied().unwrap_or(false);
 
         if is_resolved {
           bentley::info(&format!("Skipping resolved review comment {}", comment.id));

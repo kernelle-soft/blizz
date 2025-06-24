@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use sentinel::{services, CredentialProvider, Sentinel};
+use sentinel::{services, Sentinel};
 use std::env;
 
 #[derive(Parser)]

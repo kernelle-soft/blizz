@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sentinel::{CredentialProvider, MockCredentialProvider, Sentinel};
+use sentinel::{CredentialProvider, Sentinel};
 use std::sync::{Mutex, OnceLock};
 
 // Type alias for the credential provider factory function

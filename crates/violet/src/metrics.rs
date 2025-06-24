@@ -9,7 +9,7 @@ use tree_sitter::{Node, Tree};
 /// Calculate complexity metrics for a function node
 pub fn calculate_function_metrics(
   node: Node,
-  source_code: &str,
+  _source_code: &str,
   language: Language,
 ) -> ComplexityMetrics {
   let start_line = node.start_position().row + 1; // 1-indexed
@@ -847,9 +847,7 @@ def complex_python_function(x, y):
 
     // Empty code should have minimal metrics
     assert_eq!(metrics.param_count, 0);
-    assert!(metrics.line_count >= 0);
-    assert!(metrics.max_depth >= 0);
-    assert!(metrics.cyclomatic_complexity >= 0);
+    // Note: line_count, max_depth, and cyclomatic_complexity are usize so they're always >= 0
   }
 
   #[test]
