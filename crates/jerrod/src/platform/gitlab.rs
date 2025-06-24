@@ -407,7 +407,6 @@ impl GitPlatform for GitLabPlatform {
               status
               ref
               sha
-              webUrl
               createdAt
               updatedAt
             }
@@ -446,7 +445,7 @@ impl GitPlatform for GitLabPlatform {
         status: self.convert_pipeline_status(pipeline["status"].as_str().unwrap_or("pending")),
         ref_name: pipeline["ref"].as_str().unwrap_or_default().to_string(),
         sha: pipeline["sha"].as_str().unwrap_or_default().to_string(),
-        url: pipeline["webUrl"].as_str().map(|s| s.to_string()),
+        url: None, // GitLab GraphQL doesn't expose webUrl for pipelines
         created_at,
         updated_at,
       });
@@ -455,112 +454,79 @@ impl GitPlatform for GitLabPlatform {
     Ok(result)
   }
 
-  async fn add_comment(
+  async fn resolve_discussion(
     &self,
     owner: &str,
     repo: &str,
     discussion_id: &str,
-    text: &str,
-  ) -> Result<Note> {
-    let _project_path = self.get_project_path(owner, repo);
-
-    let mutation = r#"
-      mutation($noteableId: NoteableID!, $body: String!) {
-        createNote(input: {noteableId: $noteableId, body: $body}) {
-          note {
-            id
-            body
-            author {
-              id
-              username
-              name
-              avatarUrl
-            }
-            createdAt
-            updatedAt
-          }
-        }
-      }
-    "#;
-
-    let variables = json!({
-      "noteableId": discussion_id,
-      "body": text
-    });
-
-    let response = self.graphql_request(mutation, variables).await?;
-
-    let note = response["data"]["createNote"]["note"]
-      .as_object()
-      .ok_or_else(|| anyhow!("Failed to create note"))?;
-
-    let author = &note["author"];
-    let created_at = chrono::DateTime::parse_from_rfc3339(
-      note["createdAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
-    )
-    .unwrap_or_else(|_| chrono::Utc::now().into())
-    .with_timezone(&chrono::Utc);
-
-    let updated_at = chrono::DateTime::parse_from_rfc3339(
-      note["updatedAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
-    )
-    .unwrap_or_else(|_| chrono::Utc::now().into())
-    .with_timezone(&chrono::Utc);
-
-    Ok(Note {
-      id: note["id"].as_str().unwrap_or_default().to_string(),
-      author: User {
-        id: author["id"].as_str().unwrap_or_default().to_string(),
-        username: author["username"].as_str().unwrap_or_default().to_string(),
-        display_name: author["name"]
-          .as_str()
-          .unwrap_or(author["username"].as_str().unwrap_or("Unknown"))
-          .to_string(),
-        avatar_url: author["avatarUrl"].as_str().map(|s| s.to_string()),
-      },
-      body: note["body"].as_str().unwrap_or_default().to_string(),
-      created_at,
-      updated_at,
-    })
-  }
-
-  async fn resolve_discussion(
-    &self,
-    _owner: &str,
-    _repo: &str,
-    discussion_id: &str,
   ) -> Result<bool> {
-    bentley::info(&format!("Attempting to resolve GitLab discussion: {}", discussion_id));
+    bentley::info(&format!("Resolving GitLab discussion using note-based approach: {}", discussion_id));
 
-    let mutation = r#"
-      mutation($discussionId: DiscussionID!, $resolved: Boolean!) {
-        discussionToggleResolve(input: {id: $discussionId, resolve: $resolved}) {
-          discussion {
-            id
-            resolved
+    // Extract hash from Global ID if needed
+    let thread_hash = if discussion_id.starts_with("gid://gitlab/Discussion/") {
+      discussion_id.strip_prefix("gid://gitlab/Discussion/").unwrap_or(discussion_id)
+    } else {
+      discussion_id
+    };
+
+    // Get the current session to find the MR number and resolvable notes
+    let session = crate::session::load_current_session()?;
+    let mr_number = session.merge_request.number;
+
+    // Find the discussion in session context to get resolvable notes
+    if let Some(discussion) = session.discussions.values().find(|d| d.id.contains(thread_hash)) {
+      let resolvable_notes: Vec<String> = discussion
+        .notes
+        .iter()
+        .filter(|_note| {
+          // In GitLab, notes are resolvable if they're diff comments
+          // For now, treat all notes in discussions as potentially resolvable
+          true
+        })
+        .map(|note| {
+          // Extract numeric ID from GitLab Global ID format
+          if note.id.starts_with("gid://gitlab/DiffNote/") {
+            note.id.strip_prefix("gid://gitlab/DiffNote/").unwrap_or(&note.id).to_string()
+          } else if note.id.starts_with("gid://gitlab/Note/") {
+            note.id.strip_prefix("gid://gitlab/Note/").unwrap_or(&note.id).to_string()
+          } else {
+            note.id.clone()
+          }
+        })
+        .collect();
+
+      if resolvable_notes.is_empty() {
+        bentley::info("No resolvable notes found in discussion");
+        return Ok(true); // Consider it resolved if no notes to resolve
+      }
+
+      let mut resolved_count = 0;
+      for note_id in resolvable_notes {
+        match self.resolve_note_rest(owner, repo, mr_number, thread_hash, &note_id).await {
+          Ok(true) => {
+            resolved_count += 1;
+            bentley::info(&format!("✓ Resolved note {}", note_id));
+          }
+          Ok(false) => {
+            bentley::warn(&format!("Failed to resolve note {}", note_id));
+          }
+          Err(e) => {
+            bentley::warn(&format!("Error resolving note {}: {}", note_id, e));
           }
         }
       }
-    "#;
 
-    let variables = json!({
-      "discussionId": discussion_id,
-      "resolved": true
-    });
-
-    let response = self.graphql_request(mutation, variables).await?;
-
-    if let Some(discussion) = response["data"]["discussionToggleResolve"]["discussion"].as_object()
-    {
-      let is_resolved = discussion["resolved"].as_bool().unwrap_or(false);
-      if is_resolved {
-        bentley::success(&format!("Successfully resolved GitLab discussion {}", discussion_id));
-        return Ok(true);
+      if resolved_count > 0 {
+        bentley::success(&format!("Resolved {} note(s) in discussion {}", resolved_count, thread_hash));
+        Ok(true)
+      } else {
+        bentley::warn("Failed to resolve any notes in the discussion");
+        Ok(false)
       }
+    } else {
+      bentley::warn(&format!("Discussion {} not found in session context", thread_hash));
+      Ok(false)
     }
-
-    bentley::warn("Discussion resolution may not have completed successfully");
-    Ok(false)
   }
 
   async fn add_reaction(
@@ -683,8 +649,32 @@ impl GitPlatform for GitLabPlatform {
     comment_id: &str,
     text: &str,
   ) -> Result<Note> {
-    // In GitLab, this is the same as add_comment - replying to a discussion
-    self.add_comment(owner, repo, comment_id, text).await
+    // For GitLab review comment replies, we need to find the discussion this comment belongs to
+    // and reply to that discussion's Global ID, not the individual comment
+    let session = crate::session::load_current_session()
+      .map_err(|_| anyhow!("No active session found - cannot determine context"))?;
+    
+    // Find the discussion that contains this comment
+    let mut discussion_id: Option<String> = None;
+    for discussion in session.discussions.values() {
+      for note in &discussion.notes {
+        if note.id == comment_id {
+          discussion_id = Some(discussion.id.clone());
+          break;
+        }
+      }
+      if discussion_id.is_some() {
+        break;
+      }
+    }
+    
+    let disc_id = discussion_id
+      .ok_or_else(|| anyhow!("Could not find discussion containing comment {}", comment_id))?;
+    
+    bentley::info(&format!("Found comment {} in discussion {}, replying to discussion", comment_id, disc_id));
+    
+    // Use the discussion ID directly - it should be a Global ID we can reply to
+    self.add_comment(owner, repo, &disc_id, text).await
   }
 
   fn format_comment_url(&self, mr_url: &str, comment_id: &str) -> String {
@@ -706,9 +696,254 @@ impl GitPlatform for GitLabPlatform {
 
     format!("{}/{}/{}/-/merge_requests/{}", base_url, owner, repo, number)
   }
-}
+
+  async fn add_comment(
+    &self,
+    owner: &str,
+    repo: &str,
+    discussion_id: &str,
+    text: &str,
+  ) -> Result<Note> {
+    // Check if this is a discussion thread reply or top-level comment
+    if discussion_id.starts_with("gid://gitlab/Discussion/") {
+      // This is a GitLab Global ID for a discussion - extract the hash and use REST API
+      let hash = discussion_id.strip_prefix("gid://gitlab/Discussion/").unwrap_or(discussion_id);
+      self.add_discussion_reply_rest(owner, repo, hash, text).await
+    } else if discussion_id.chars().all(|c| c.is_ascii_hexdigit() || c.is_ascii_alphabetic()) && discussion_id.len() > 20 {
+      // This looks like a discussion hash ID - use REST API for thread replies (like V1)
+      self.add_discussion_reply_rest(owner, repo, discussion_id, text).await
+    } else {
+      // This is likely an MR number - create top-level MR comment via GraphQL
+      self.add_mr_comment_graphql(owner, repo, discussion_id, text).await
+    }
+  }
+
+}  
 
 impl GitLabPlatform {
+  /// Add a reply to a discussion thread using REST API (like V1 implementation)
+  async fn add_discussion_reply_rest(
+    &self,
+    owner: &str,
+    repo: &str,
+    discussion_id: &str,
+    text: &str,
+  ) -> Result<Note> {
+    bentley::info(&format!("Adding discussion reply via REST API to thread: {}", discussion_id));
+    
+    // Get current session to get MR number
+    let session = crate::session::load_current_session()
+      .map_err(|_| anyhow!("No active session found - cannot determine merge request"))?;
+      
+    let project_path = self.get_project_path(owner, repo);
+    let mr_iid = session.merge_request.number;
+    
+    // Create REST API URL - following V1 pattern
+    let url = format!(
+      "{}/api/v4/projects/{}/merge_requests/{}/discussions/{}/notes",
+      self.host,
+      urlencoding::encode(&project_path),
+      mr_iid,
+      discussion_id
+    );
+    
+    let body = json!({
+      "body": text
+    });
+    
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", self.token))?);
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    
+    let response = self.client
+      .post(&url)
+      .headers(headers)
+      .json(&body)
+      .send()
+      .await
+      .map_err(|e| anyhow!("REST API request failed: {:?}", e))?;
+      
+    if !response.status().is_success() {
+      return Err(anyhow!("REST API request failed with status: {}", response.status()));
+    }
+    
+    let note_response: Value = response
+      .json()
+      .await
+      .map_err(|e| anyhow!("Failed to parse REST API response: {:?}", e))?;
+    
+    // Parse the REST API response
+    let created_at = chrono::DateTime::parse_from_rfc3339(
+      note_response["created_at"].as_str().unwrap_or("1970-01-01T00:00:00Z")
+    ).unwrap_or_else(|_| chrono::Utc::now().into()).with_timezone(&chrono::Utc);
+    
+    let updated_at = chrono::DateTime::parse_from_rfc3339(
+      note_response["updated_at"].as_str().unwrap_or("1970-01-01T00:00:00Z")
+    ).unwrap_or_else(|_| chrono::Utc::now().into()).with_timezone(&chrono::Utc);
+    
+    let author = &note_response["author"];
+    
+    bentley::success(&format!("Successfully added discussion reply via REST API to thread {}", discussion_id));
+    
+    Ok(Note {
+      id: note_response["id"].as_u64().unwrap_or(0).to_string(),
+      author: User {
+        id: author["id"].as_u64().unwrap_or(0).to_string(),
+        username: author["username"].as_str().unwrap_or_default().to_string(),
+        display_name: author["name"].as_str()
+          .unwrap_or(author["username"].as_str().unwrap_or("Unknown")).to_string(),
+        avatar_url: author["avatar_url"].as_str().map(|s| s.to_string()),
+      },
+      body: note_response["body"].as_str().unwrap_or_default().to_string(),
+      created_at,
+      updated_at,
+    })
+  }
+  
+  /// Add a top-level MR comment using GraphQL
+  async fn add_mr_comment_graphql(
+    &self,
+    owner: &str,
+    repo: &str,
+    mr_number: &str,
+    text: &str,
+  ) -> Result<Note> {
+    bentley::info(&format!("Adding top-level MR comment via GraphQL to MR #{}", mr_number));
+    
+    let project_path = self.get_project_path(owner, repo);
+    
+    // Get the merge request's Global ID
+    let query = r#"
+      query($fullPath: ID!, $iid: String!) {
+        project(fullPath: $fullPath) {
+          mergeRequest(iid: $iid) {
+            id
+          }
+        }
+      }
+    "#;
+
+    let variables = json!({
+      "fullPath": project_path,
+      "iid": mr_number
+    });
+
+    let response = self.graphql_request(query, variables).await?;
+    let mr_global_id = response["data"]["project"]["mergeRequest"]["id"]
+      .as_str()
+      .ok_or_else(|| anyhow!("Could not get merge request Global ID"))?;
+    
+    // Create the note using GraphQL
+    let mutation = r#"
+      mutation($noteableId: NoteableID!, $body: String!) {
+        createNote(input: {noteableId: $noteableId, body: $body}) {
+          note {
+            id
+            body
+            author {
+              id
+              username
+              name
+              avatarUrl
+            }
+            createdAt
+            updatedAt
+          }
+        }
+      }
+    "#;
+    
+    let variables = json!({
+      "noteableId": mr_global_id,
+      "body": text
+    });
+    
+    let response = self.graphql_request(mutation, variables).await?;
+
+    let note = response["data"]["createNote"]["note"]
+      .as_object()
+      .ok_or_else(|| anyhow!("Failed to create note"))?;
+
+    let author = &note["author"];
+    let created_at = chrono::DateTime::parse_from_rfc3339(
+      note["createdAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+    )
+    .unwrap_or_else(|_| chrono::Utc::now().into())
+    .with_timezone(&chrono::Utc);
+
+    let updated_at = chrono::DateTime::parse_from_rfc3339(
+      note["updatedAt"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+    )
+    .unwrap_or_else(|_| chrono::Utc::now().into())
+    .with_timezone(&chrono::Utc);
+
+    bentley::success(&format!("Successfully added top-level MR comment via GraphQL to MR #{}", mr_number));
+    
+    Ok(Note {
+      id: note["id"].as_str().unwrap_or_default().to_string(),
+      author: User {
+        id: author["id"].as_str().unwrap_or_default().to_string(),
+        username: author["username"].as_str().unwrap_or_default().to_string(),
+        display_name: author["name"]
+          .as_str()
+          .unwrap_or(author["username"].as_str().unwrap_or("Unknown"))
+          .to_string(),
+        avatar_url: author["avatarUrl"].as_str().map(|s| s.to_string()),
+      },
+      body: note["body"].as_str().unwrap_or_default().to_string(),
+      created_at,
+      updated_at,
+    })
+  }
+}
+
+
+impl GitLabPlatform {
+  /// Resolve a single note using REST API (following V1 implementation)
+  async fn resolve_note_rest(
+    &self,
+    owner: &str,
+    repo: &str,
+    mr_number: u64,
+    discussion_id: &str,
+    note_id: &str,
+  ) -> Result<bool> {
+    let project_path = self.get_project_path(owner, repo);
+    
+    // Create REST API URL following V1 pattern: PUT projects/{project}/merge_requests/{mr_id}/discussions/{thread_id}/notes/{note_id}
+    let url = format!(
+      "{}/api/v4/projects/{}/merge_requests/{}/discussions/{}/notes/{}",
+      self.host,
+      urlencoding::encode(&project_path),
+      mr_number,
+      discussion_id,
+      note_id
+    );
+    
+    let body = json!({
+      "resolved": true
+    });
+    
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", self.token))?);
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    
+    let response = self.client
+      .put(&url)
+      .headers(headers)
+      .json(&body)
+      .send()
+      .await
+      .map_err(|e| anyhow!("REST API request failed: {:?}", e))?;
+      
+    if response.status().is_success() {
+      Ok(true)
+    } else {
+      bentley::warn(&format!("Failed to resolve note {}: HTTP {}", note_id, response.status()));
+      Ok(false)
+    }
+  }
+
   /// Convert GitLab emoji name to our ReactionType
   #[allow(dead_code)]
   fn gitlab_name_to_reaction(&self, name: &str) -> Option<ReactionType> {

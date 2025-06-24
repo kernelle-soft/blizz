@@ -32,6 +32,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 url = { workspace = true }
+urlencoding = "2.1"
 
 bentley = { workspace = true }
 sentinel = { path = "../sentinel" }
