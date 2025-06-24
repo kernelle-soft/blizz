@@ -114,14 +114,14 @@ fn test_review_session_creation() {
     create_test_discussion("3", None, None),
   ];
 
-      let session = ReviewSession::new(
-      repository.clone(),
-      merge_request.clone(),
-      "github".to_string(),
-      None, // host
-      discussions.clone(),
-      vec![],
-    );
+  let session = ReviewSession::new(
+    repository.clone(),
+    merge_request.clone(),
+    "github".to_string(),
+    None, // host
+    discussions.clone(),
+    vec![],
+  );
 
   assert_eq!(session.repository.owner, repository.owner);
   assert_eq!(session.merge_request.number, merge_request.number);
@@ -184,7 +184,7 @@ fn test_review_session_empty_discussions() {
     repository,
     merge_request,
     "github".to_string(),
-    None, // host
+    None,   // host
     vec![], // Empty discussions
     vec![],
   );
@@ -238,7 +238,8 @@ fn test_session_clear() {
 
   let repository = create_test_repository();
   let merge_request = create_test_merge_request();
-  let session = ReviewSession::new(repository, merge_request, "github".to_string(), None, vec![], vec![]);
+  let session =
+    ReviewSession::new(repository, merge_request, "github".to_string(), None, vec![], vec![]);
 
   let mut session_manager = SessionManager::new().unwrap();
   session_manager.with_session_context("github", "test_org/test_repo", 789).unwrap();
@@ -327,7 +328,8 @@ fn test_session_discovery_with_existing_session() {
   // Create a session first
   let repository = create_test_repository();
   let merge_request = create_test_merge_request();
-  let session = ReviewSession::new(repository, merge_request, "github".to_string(), None, vec![], vec![]);
+  let session =
+    ReviewSession::new(repository, merge_request, "github".to_string(), None, vec![], vec![]);
 
   let mut session_manager = SessionManager::new().unwrap();
   session_manager.with_session_context("github", "test_org/test_repo", 789).unwrap();

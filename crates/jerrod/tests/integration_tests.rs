@@ -139,7 +139,7 @@ fn test_empty_queue_handling() {
       updated_at: chrono::Utc::now(),
     },
     "github".to_string(),
-    None, // host
+    None,   // host
     vec![], // Empty discussions
     vec![],
   );
