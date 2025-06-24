@@ -2,7 +2,7 @@ use crate::platform::{
   create_platform_with_host,
   detection::{detect_platform, PlatformType},
 };
-use crate::session::{ReviewSession, SessionDiscovery, SessionManager};
+use crate::session::{ReviewSession, ReviewSessionOptions, SessionDiscovery, SessionManager};
 use anyhow::{anyhow, Result};
 
 pub async fn handle(
@@ -55,13 +55,13 @@ pub async fn handle(
   bentley::info("Fetching pipeline/workflow information...");
   let pipelines = platform.get_pipelines(&repo_info.owner, &repo_info.repo, "HEAD").await?;
 
-  let session = ReviewSession::new(
+  let session = ReviewSession::with_options(
     repository_info,
     merge_request,
     platform_name,
-    repo_info.host,
     discussions,
     pipelines,
+    ReviewSessionOptions { host: repo_info.host },
   );
 
   session_manager.save_session(&session)?;

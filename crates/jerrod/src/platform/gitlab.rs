@@ -21,7 +21,7 @@ impl GitLabPlatform {
 
   pub async fn new_with_host(host: &str) -> Result<Self> {
     let token = get_gitlab_token().await?;
-    
+
     // GitlabBuilder might expect just the hostname, not the full URL
     let hostname = if host.starts_with("https://") {
       host.strip_prefix("https://").unwrap_or(host)
@@ -30,8 +30,11 @@ impl GitLabPlatform {
     } else {
       host
     };
-    
-    bentley::info(&format!("Creating GitLab client for host: {} (using hostname: {})", host, hostname));
+
+    bentley::info(&format!(
+      "Creating GitLab client for host: {} (using hostname: {})",
+      host, hostname
+    ));
     let client = GitlabBuilder::new(hostname, token).build_async().await?;
 
     Ok(Self { client, host: host.to_string() })

@@ -3,6 +3,11 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
+#[derive(Debug, Clone, Default)]
+pub struct ReviewSessionOptions {
+  pub host: Option<String>, // For custom/self-hosted instances
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewSession {
   pub repository: Repository,
@@ -19,13 +24,14 @@ pub struct ReviewSession {
 }
 
 impl ReviewSession {
-  pub fn new(
+  /// Create a new review session with options
+  pub fn with_options(
     repository: Repository,
     merge_request: MergeRequest,
     platform: String,
-    host: Option<String>,
     discussions: Vec<Discussion>,
     pipelines: Vec<Pipeline>,
+    options: ReviewSessionOptions,
   ) -> Self {
     let mut discussion_map = std::collections::HashMap::new();
     let mut thread_queue = VecDeque::new();
@@ -41,7 +47,7 @@ impl ReviewSession {
       repository,
       merge_request,
       platform,
-      host,
+      host: options.host,
       thread_queue,
       unresolved_threads: Vec::new(),
       discussions: discussion_map,
@@ -49,6 +55,26 @@ impl ReviewSession {
       created_at: now,
       updated_at: now,
     }
+  }
+
+  /// Create a new review session (backward compatibility)
+  #[allow(dead_code)]
+  pub fn new(
+    repository: Repository,
+    merge_request: MergeRequest,
+    platform: String,
+    host: Option<String>,
+    discussions: Vec<Discussion>,
+    pipelines: Vec<Pipeline>,
+  ) -> Self {
+    Self::with_options(
+      repository,
+      merge_request,
+      platform,
+      discussions,
+      pipelines,
+      ReviewSessionOptions { host },
+    )
   }
 
   /// Get the next thread in the queue without removing it
