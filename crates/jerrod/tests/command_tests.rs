@@ -1,13 +1,10 @@
 mod mock_github;
 
 use chrono::Utc;
-use jerrod::commands::{
-  acknowledge, finish, peek, pop, refresh, status,
-};
 use jerrod::commands::acknowledge::{AcknowledgeConfig, AcknowledgeFlags};
+use jerrod::commands::{acknowledge, finish, peek, pop, refresh, status};
 use jerrod::platform::{
-  Discussion, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType,
-  Repository, User,
+  Discussion, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType, Repository, User,
 };
 use jerrod::session::{ReviewSession, SessionManager};
 use std::env;
@@ -93,10 +90,8 @@ async fn test_acknowledge_reaction_flags() {
   use jerrod::commands::acknowledge::AcknowledgeConfig;
 
   // Test that we can create acknowledge config with reaction flags
-  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
-    thumbs_up: true,
-    ..Default::default()
-  });
+  let config =
+    AcknowledgeConfig::from_flags(AcknowledgeFlags { thumbs_up: true, ..Default::default() });
 
   // Should create a config with thumbs up reaction
   assert_eq!(config.reaction_type.emoji(), "👍");
@@ -252,9 +247,7 @@ async fn test_resolve_command_integration() {
 
 #[tokio::test]
 async fn test_acknowledge_config_from_flags() {
-  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
-    thumbs_up: true,
-    ..Default::default()
-  });
+  let config =
+    AcknowledgeConfig::from_flags(AcknowledgeFlags { thumbs_up: true, ..Default::default() });
   assert!(matches!(config.reaction_type, ReactionType::ThumbsUp));
 }

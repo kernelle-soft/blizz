@@ -206,20 +206,15 @@ fn test_cli_parsing_acknowledge() {
 #[test]
 fn test_acknowledge_config_from_flags() {
   // Test the AcknowledgeConfig logic used in main.rs
-  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
-    thumbs_up: true,
-    ..Default::default()
-  });
+  let config =
+    AcknowledgeConfig::from_flags(AcknowledgeFlags { thumbs_up: true, ..Default::default() });
 
   assert!(matches!(config.reaction_type, ReactionType::ThumbsUp));
 }
 
 #[test]
 fn test_acknowledge_config_heart() {
-  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
-    love: true,
-    ..Default::default()
-  });
+  let config = AcknowledgeConfig::from_flags(AcknowledgeFlags { love: true, ..Default::default() });
 
   assert!(matches!(config.reaction_type, ReactionType::Heart));
 }

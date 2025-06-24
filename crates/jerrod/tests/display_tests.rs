@@ -3,9 +3,7 @@ use jerrod::display::{
   display_discussion_thread, display_file_context, display_file_diff, display_replies,
   display_thread_header, format_timestamp,
 };
-use jerrod::platform::{
-  Discussion, FileDiff, Note, User,
-};
+use jerrod::platform::{Discussion, FileDiff, Note, User};
 
 fn create_test_user() -> User {
   User {

@@ -2,7 +2,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use jerrod::platform::{
-  Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType, Repository, User,
+  Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType,
+  Repository, User,
 };
 use std::collections::HashMap;
 
@@ -137,7 +138,12 @@ impl GitPlatform for MockGitHub {
       .ok_or_else(|| anyhow::anyhow!("Repository not found"))
   }
 
-  async fn get_merge_request(&self, _owner: &str, _repo: &str, number: u64) -> Result<MergeRequest> {
+  async fn get_merge_request(
+    &self,
+    _owner: &str,
+    _repo: &str,
+    number: u64,
+  ) -> Result<MergeRequest> {
     if self.should_fail {
       return Err(anyhow::anyhow!("Mock failure"));
     }

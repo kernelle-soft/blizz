@@ -1,5 +1,5 @@
-use jerrod::commands::{finish, start};
 use jerrod::commands::acknowledge::{AcknowledgeConfig, AcknowledgeFlags};
+use jerrod::commands::{finish, start};
 use jerrod::platform::ReactionType;
 use jerrod::session::SessionManager;
 use std::env;
@@ -14,17 +14,13 @@ fn setup_test_env() -> TempDir {
 #[tokio::test]
 async fn test_acknowledge_config_creation() {
   // Test thumbs up configuration
-  let thumbs_up_config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
-    thumbs_up: true,
-    ..Default::default()
-  });
+  let thumbs_up_config =
+    AcknowledgeConfig::from_flags(AcknowledgeFlags { thumbs_up: true, ..Default::default() });
   assert!(matches!(thumbs_up_config.reaction_type, ReactionType::ThumbsUp));
 
   // Test heart configuration
-  let heart_config = AcknowledgeConfig::from_flags(AcknowledgeFlags {
-    heart: true,
-    ..Default::default()
-  });
+  let heart_config =
+    AcknowledgeConfig::from_flags(AcknowledgeFlags { heart: true, ..Default::default() });
   assert!(matches!(heart_config.reaction_type, ReactionType::Heart));
 }
 
