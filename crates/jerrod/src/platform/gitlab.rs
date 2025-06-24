@@ -376,9 +376,9 @@ impl GitPlatform for GitLabPlatform {
 
   async fn get_diffs(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<FileDiff>> {
     bentley::info(&format!("Fetching file diffs for GitLab MR #{}", number));
-    
+
     let project_path = self.get_project_path(owner, repo);
-    
+
     // Use GitLab REST API to get merge request changes (diffs)
     let url = format!(
       "{}/api/v4/projects/{}/merge_requests/{}/changes",
@@ -386,10 +386,10 @@ impl GitPlatform for GitLabPlatform {
       urlencoding::encode(&project_path),
       number
     );
-    
+
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", self.token))?);
-    
+
     let response = self
       .client
       .get(&url)
@@ -397,26 +397,24 @@ impl GitPlatform for GitLabPlatform {
       .send()
       .await
       .map_err(|e| anyhow!("Failed to fetch MR changes: {:?}", e))?;
-      
+
     if !response.status().is_success() {
       return Err(anyhow!("Failed to fetch MR changes: HTTP {}", response.status()));
     }
-    
-    let changes_response: Value = response
-      .json()
-      .await
-      .map_err(|e| anyhow!("Failed to parse changes response: {:?}", e))?;
-    
+
+    let changes_response: Value =
+      response.json().await.map_err(|e| anyhow!("Failed to parse changes response: {:?}", e))?;
+
     let changes = changes_response["changes"]
       .as_array()
       .ok_or_else(|| anyhow!("Invalid changes response format"))?;
-    
+
     let mut diffs = Vec::new();
     for change in changes {
       let new_path = change["new_path"].as_str().unwrap_or_default().to_string();
       let old_path = change["old_path"].as_str();
       let diff_content = change["diff"].as_str().unwrap_or_default().to_string();
-      
+
       // Only include files that actually have changes
       if !diff_content.is_empty() {
         diffs.push(FileDiff {
@@ -430,7 +428,7 @@ impl GitPlatform for GitLabPlatform {
         });
       }
     }
-    
+
     bentley::success(&format!("Successfully fetched {} file diffs", diffs.len()));
     Ok(diffs)
   }
