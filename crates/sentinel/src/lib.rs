@@ -1,10 +1,9 @@
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::PathBuf;
 
 use aes_gcm::{
@@ -59,6 +58,7 @@ impl EncryptedCredentialStore {
 }
 
 /// Crypto manager for encryption/decryption
+#[derive(Debug)]
 struct CryptoManager {
   key_path: PathBuf,
 }
@@ -502,11 +502,6 @@ pub mod services {
       }],
     }
   }
-}
-
-fn get_or_create_token_cache(
-) -> &'static mut HashMap<String, crate::encryption::EncryptedCredential> {
-  CREDENTIAL_CACHE.lock().unwrap().or_default()
 }
 
 #[cfg(test)]
