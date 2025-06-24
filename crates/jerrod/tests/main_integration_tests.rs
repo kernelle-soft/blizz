@@ -4,6 +4,22 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
+use jerrod::auth::{register_sentinel_factory, reset_sentinel_factory, SentinelTrait};
+use anyhow::Result;
+
+// Mock Sentinel for integration tests
+struct MockSentinel;
+
+impl SentinelTrait for MockSentinel {
+    fn get_credential(&self, service: &str, key: &str) -> Result<String> {
+        // Return fake credentials for tests
+        match (service, key) {
+            ("github", "token") => Ok("fake_github_token_for_integration_tests".to_string()),
+            ("gitlab", "token") => Ok("fake_gitlab_token_for_integration_tests".to_string()),
+            _ => Err(anyhow::anyhow!("Credential not found: {}:{}", service, key)),
+        }
+    }
+}
 
 // Helper to get a clean temporary directory for test sessions
 fn get_temp_dir() -> TempDir {
@@ -13,13 +29,23 @@ fn get_temp_dir() -> TempDir {
 // Helper to set up test environment
 fn setup_test_env(temp_dir: &TempDir) {
     env::set_var("JERROD_SESSION_DIR", temp_dir.path());
-    env::set_var("JERROD_TEST_MODE", "true");
+    setup_mock_sentinel();
+}
+
+// Helper to set up mock Sentinel for tests
+fn setup_mock_sentinel() {
+    register_sentinel_factory(|| Box::new(MockSentinel));
+}
+
+// Helper to clean up mock Sentinel after tests
+fn cleanup_mock_sentinel() {
+    reset_sentinel_factory();
 }
 
 // Helper to add timeouts and test setup to commands
 fn setup_test_command() -> Command {
+    setup_mock_sentinel();
     let mut cmd = Command::cargo_bin("jerrod").unwrap();
-    cmd.env("JERROD_TEST_MODE", "true");
     cmd.timeout(std::time::Duration::from_secs(10));
     cmd
 }
@@ -56,18 +82,18 @@ fn test_cli_start_command_parsing() {
     setup_test_env(&temp_dir);
     
     let mut cmd = Command::cargo_bin("jerrod").unwrap();
-    // Set fake credentials to avoid prompts, command should still fail on API calls
-    cmd.env("JERROD_TEST_MODE", "true");
     cmd.timeout(std::time::Duration::from_secs(10)); // Prevent hanging
     
-    // This should fail because we don't have valid credentials/platform
+    // This should fail because we don't have valid API access
     // but it should parse the command successfully  
     let output = cmd.args(&["start", "test-project", "1"]).assert().failure();
     
     // Should show that it attempted to start (not a parsing error)
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    // The error should be about authentication or platform access, not parsing
+    // The error should be about platform access, not parsing
     assert!(!stderr.contains("error: unrecognized subcommand"));
+    
+    cleanup_mock_sentinel();
 }
 
 #[test]
@@ -77,7 +103,6 @@ fn test_cli_start_command_with_platform() {
     setup_test_env(&temp_dir);
     
     let mut cmd = Command::cargo_bin("jerrod").unwrap();
-    cmd.env("JERROD_TEST_MODE", "true");
     cmd.timeout(std::time::Duration::from_secs(10));
     
     let output = cmd.args(&["start", "test-project", "1", "--platform", "github"]).assert().failure();
@@ -85,6 +110,8 @@ fn test_cli_start_command_with_platform() {
     // Should show that it attempted to start (not a parsing error)
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(!stderr.contains("error: unrecognized subcommand"));
+    
+    cleanup_mock_sentinel();
 }
 
 #[test]
