@@ -1,8 +1,9 @@
 use crate::platform::{
+  create_platform,
   detection::{detect_platform, PlatformType},
-  GitPlatform, create_platform,
+  GitPlatform,
 };
-use crate::session::{ReviewSession, SessionManager, SessionDiscovery};
+use crate::session::{ReviewSession, SessionDiscovery, SessionManager};
 use anyhow::{anyhow, Result};
 
 pub async fn handle(
@@ -63,13 +64,8 @@ pub async fn handle(
   let pipelines = platform.get_pipelines(&repo_info.owner, &repo_info.repo, "HEAD").await?;
 
   // Create session
-  let session = ReviewSession::new(
-    repository_info,
-    merge_request,
-    platform_name,
-    discussions,
-    pipelines,
-  );
+  let session =
+    ReviewSession::new(repository_info, merge_request, platform_name, discussions, pipelines);
 
   // Save session
   session_manager.save_session(&session)?;

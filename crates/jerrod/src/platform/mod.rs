@@ -95,7 +95,7 @@ pub struct Pipeline {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReactionType {
   ThumbsUp,   // 👍
-  ThumbsDown, // 👎  
+  ThumbsDown, // 👎
   Laugh,      // 😄
   Hooray,     // 🎉
   Confused,   // 😕
@@ -117,7 +117,7 @@ impl ReactionType {
       ReactionType::Eyes => "👀",
     }
   }
-  
+
   pub fn github_name(&self) -> &'static str {
     match self {
       ReactionType::ThumbsUp => "+1",
@@ -184,7 +184,12 @@ pub trait GitPlatform {
 
   /// Get reactions for a comment/discussion
   #[allow(dead_code)]
-  async fn get_reactions(&self, owner: &str, repo: &str, comment_id: &str) -> Result<Vec<ReactionType>>;
+  async fn get_reactions(
+    &self,
+    owner: &str,
+    repo: &str,
+    comment_id: &str,
+  ) -> Result<Vec<ReactionType>>;
 
   /// Add a review comment reply (platform-specific)
   async fn add_review_comment_reply(

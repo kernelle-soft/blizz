@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use aes_gcm::{
   aead::{Aead, KeyInit, OsRng},
-  Aes256Gcm, Key, Nonce
+  Aes256Gcm, Key, Nonce,
 };
 use rand::RngCore;
 
@@ -21,9 +21,7 @@ struct EncryptedCredentialStore {
 
 impl EncryptedCredentialStore {
   fn new() -> Self {
-    Self {
-      credentials: HashMap::new(),
-    }
+    Self { credentials: HashMap::new() }
   }
 
   fn get_encrypted(&self, service: &str, key: &str) -> Option<&String> {
@@ -31,7 +29,8 @@ impl EncryptedCredentialStore {
   }
 
   fn set_encrypted(&mut self, service: &str, key: &str, encrypted_value: String) {
-    self.credentials
+    self
+      .credentials
       .entry(service.to_string())
       .or_insert_with(HashMap::new)
       .insert(key.to_string(), encrypted_value);
@@ -67,15 +66,13 @@ impl CryptoManager {
     let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
       std::path::PathBuf::from(kernelle_dir)
     } else {
-      dirs::home_dir()
-        .unwrap_or_else(|| std::env::current_dir().unwrap())
-        .join(".kernelle")
+      dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
     };
-    
+
     let mut key_path = base_path;
     key_path.push("sentinel");
     key_path.push("master.key");
-    
+
     Self { key_path }
   }
 
@@ -85,7 +82,7 @@ impl CryptoManager {
 
   fn generate_key(&self) -> Result<()> {
     bentley::info("🔐 Generating AES encryption key for secure credential storage...");
-    
+
     let mut key = [0u8; 32]; // 256-bit key for AES-256
     OsRng.fill_bytes(&mut key);
 
@@ -114,11 +111,11 @@ impl CryptoManager {
   fn load_key(&self) -> Result<[u8; 32]> {
     let key_b64 = fs::read_to_string(&self.key_path)?;
     let key_bytes = base64::decode(key_b64.trim())?;
-    
+
     if key_bytes.len() != 32 {
       return Err(anyhow!("Invalid key length"));
     }
-    
+
     let mut key = [0u8; 32];
     key.copy_from_slice(&key_bytes);
     Ok(key)
@@ -128,20 +125,20 @@ impl CryptoManager {
     let key_bytes = self.load_key()?;
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
-    
+
     // Generate random nonce
     let mut nonce_bytes = [0u8; 12]; // 96-bit nonce for GCM
     OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
-    
+
     // Encrypt the value
-    let ciphertext = cipher.encrypt(nonce, value.as_bytes())
-      .map_err(|e| anyhow!("Encryption failed: {}", e))?;
-    
+    let ciphertext =
+      cipher.encrypt(nonce, value.as_bytes()).map_err(|e| anyhow!("Encryption failed: {}", e))?;
+
     // Combine nonce + ciphertext and encode as base64
     let mut combined = nonce_bytes.to_vec();
     combined.extend_from_slice(&ciphertext);
-    
+
     Ok(base64::encode(combined))
   }
 
@@ -149,22 +146,22 @@ impl CryptoManager {
     let key_bytes = self.load_key()?;
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
-    
+
     // Decode from base64
     let combined = base64::decode(encrypted_value)?;
-    
+
     if combined.len() < 12 {
       return Err(anyhow!("Invalid encrypted data"));
     }
-    
+
     // Split nonce and ciphertext
     let (nonce_bytes, ciphertext) = combined.split_at(12);
     let nonce = Nonce::from_slice(nonce_bytes);
-    
+
     // Decrypt
-    let plaintext = cipher.decrypt(nonce, ciphertext)
-      .map_err(|e| anyhow!("Decryption failed: {}", e))?;
-    
+    let plaintext =
+      cipher.decrypt(nonce, ciphertext).map_err(|e| anyhow!("Decryption failed: {}", e))?;
+
     Ok(String::from_utf8(plaintext)?)
   }
 }
@@ -205,7 +202,11 @@ pub struct Credential {
 impl Sentinel {
   /// Create a new Sentinel instance for the Kernelle toolset
   pub fn new() -> Self {
-    Self { service_name: "kernelle".to_string(), crypto: CryptoManager::new(), credentials_path_override: None }
+    Self {
+      service_name: "kernelle".to_string(),
+      crypto: CryptoManager::new(),
+      credentials_path_override: None,
+    }
   }
 
   /// Store a credential securely using encrypted file storage
@@ -252,7 +253,10 @@ impl Sentinel {
     if let Some(config) = service_config {
       // Check if this key is part of the service config
       if config.required_credentials.iter().any(|spec| spec.key == key) {
-        bentley::info(&format!("Credential {}/{} not found. Setting up {} credentials...", service, key, service));
+        bentley::info(&format!(
+          "Credential {}/{} not found. Setting up {} credentials...",
+          service, key, service
+        ));
         self.setup_service(&config)?;
         return self.get_credential_raw(service, key);
       }
@@ -266,7 +270,7 @@ impl Sentinel {
   fn get_credential_raw(&self, service: &str, key: &str) -> Result<String> {
     let credentials_path = self.get_credentials_path();
     let store = EncryptedCredentialStore::load_from_file(&credentials_path)?;
-    
+
     if let Some(encrypted_value) = store.get_encrypted(service, key) {
       self.crypto.decrypt_value(encrypted_value)
     } else {
@@ -279,22 +283,18 @@ impl Sentinel {
     if let Some(override_path) = &self.credentials_path_override {
       return override_path.clone();
     }
-    
+
     let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
       std::path::PathBuf::from(kernelle_dir)
     } else {
-      dirs::home_dir()
-        .unwrap_or_else(|| std::env::current_dir().unwrap())
-        .join(".kernelle")
+      dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
     };
-    
+
     let mut path = base_path;
     path.push("sentinel");
     path.push("credentials.json");
     path
   }
-
-
 
   /// Delete a credential from encrypted file storage
   pub fn delete_credential(&self, service: &str, key: &str) -> Result<()> {
@@ -302,7 +302,7 @@ impl Sentinel {
 
     let credentials_path = self.get_credentials_path();
     let mut store = EncryptedCredentialStore::load_from_file(&credentials_path)?;
-    
+
     if let Some(service_creds) = store.credentials.get_mut(service) {
       if service_creds.remove(key).is_some() {
         // Remove the service entirely if no credentials left
@@ -387,20 +387,20 @@ impl Sentinel {
 
   fn prompt_for_credential(&self, spec: &CredentialSpec) -> Result<String> {
     bentley::info(&format!("🔑 Enter {}: {}", spec.key, spec.description));
-    
+
     if let Some(example) = &spec.example {
       bentley::info(&format!("Example: {}", example));
     }
-    
+
     print!("> ");
     std::io::stdout().flush()?;
-    
+
     let value = rpassword::read_password()?;
-    
+
     if value.trim().is_empty() {
       return Err(anyhow!("{} cannot be empty", spec.key));
     }
-    
+
     Ok(value.trim().to_string())
   }
 }
@@ -492,25 +492,28 @@ mod tests {
   fn create_test_sentinel() -> Sentinel {
     // Create isolated test environment for each test
     use std::time::{SystemTime, UNIX_EPOCH};
-    let unique_id = format!("{}_{}", std::process::id(), 
-      SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
+    let unique_id = format!(
+      "{}_{}",
+      std::process::id(),
+      SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
+    );
     let temp_dir = std::env::temp_dir().join("kernelle_test").join(&unique_id);
-    
+
     // Create a custom CryptoManager with isolated path instead of using env var
     let mut key_path = temp_dir.clone();
     key_path.push("sentinel");
     key_path.push("master.key");
     let crypto = CryptoManager { key_path };
-    
+
     // Set up custom credentials path for isolation
     let mut credentials_path = temp_dir;
     credentials_path.push("sentinel");
     credentials_path.push("credentials.json");
-    
-    Sentinel { 
-      service_name: format!("test_kernelle_{}", unique_id), 
+
+    Sentinel {
+      service_name: format!("test_kernelle_{}", unique_id),
       crypto,
-      credentials_path_override: Some(credentials_path)
+      credentials_path_override: Some(credentials_path),
     }
   }
 

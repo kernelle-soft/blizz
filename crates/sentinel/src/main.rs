@@ -96,11 +96,9 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
   let cli = Cli::parse();
-  
+
   // Auto-detect quiet mode if called as subprocess or if SENTINEL_QUIET is set
-  let quiet_mode = cli.quiet 
-    || env::var("SENTINEL_QUIET").is_ok()
-    || is_subprocess();
+  let quiet_mode = cli.quiet || env::var("SENTINEL_QUIET").is_ok() || is_subprocess();
 
   if !quiet_mode {
     bentley::spotlight("Sentinel - The Watchful Guardian of Secrets");
@@ -145,7 +143,12 @@ fn is_subprocess() -> bool {
   env::var("PPID").is_ok() && env::var("SHLVL").map_or(true, |level| level != "1")
 }
 
-async fn handle_setup(sentinel: &Sentinel, service_name: &str, force: bool, quiet: bool) -> Result<()> {
+async fn handle_setup(
+  sentinel: &Sentinel,
+  service_name: &str,
+  force: bool,
+  quiet: bool,
+) -> Result<()> {
   let service_config = match service_name.to_lowercase().as_str() {
     "github" => services::github(),
     "gitlab" => services::gitlab(),
@@ -333,7 +336,9 @@ async fn handle_delete(
     let mut deleted_count = 0;
 
     for key in &common_keys {
-      if sentinel.get_credential(service, key).is_ok() && sentinel.delete_credential(service, key).is_ok() {
+      if sentinel.get_credential(service, key).is_ok()
+        && sentinel.delete_credential(service, key).is_ok()
+      {
         deleted_count += 1;
         bentley::info(&format!("Deleted: {}/{}", service, key));
       }
@@ -458,7 +463,9 @@ async fn handle_clear(sentinel: &Sentinel, force: bool, quiet: bool) -> Result<(
     };
 
     for cred_spec in &service_config.required_credentials {
-      if sentinel.get_credential(&service_config.name, &cred_spec.key).is_ok() && sentinel.delete_credential(&service_config.name, &cred_spec.key).is_ok() {
+      if sentinel.get_credential(&service_config.name, &cred_spec.key).is_ok()
+        && sentinel.delete_credential(&service_config.name, &cred_spec.key).is_ok()
+      {
         cleared_count += 1;
       }
     }

@@ -1,0 +1,6 @@
+{
+    "rules": {
+        "max_no_duh_comments": 1,
+        "max_function_depth": 5
+    }
+} 
