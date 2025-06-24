@@ -7,22 +7,49 @@ use anyhow::{anyhow, Result};
 use octocrab::Octocrab;
 use serde_json::json;
 
+/// Options for GitHub platform creation
+#[derive(Debug, Clone, Default)]
+pub struct GitHubPlatformOptions {
+  /// Custom host (empty string uses github.com)
+  pub host: String,
+}
+
+impl GitHubPlatformOptions {
+  /// Get the properly formatted base URI for API calls
+  pub fn base_uri(&self) -> Option<String> {
+    if self.host.is_empty() {
+      None // Use default GitHub (github.com)
+    } else {
+      // Use custom host (e.g., GitHub Enterprise)
+      let base_url = if self.host.starts_with("http") {
+        format!("{}/api/v3", self.host.trim_end_matches('/'))
+      } else {
+        format!("https://{}/api/v3", self.host)
+      };
+      Some(base_url)
+    }
+  }
+}
+
 pub struct GitHubPlatform {
   #[allow(dead_code)]
   client: Octocrab,
 }
 
 impl GitHubPlatform {
-  pub async fn new() -> Result<Self> {
+  /// Create a new GitHub platform instance with options
+  pub async fn new(options: GitHubPlatformOptions) -> Result<Self> {
     let token = get_github_token().await?;
-    let client = Octocrab::builder().personal_token(token).build()?;
-    Ok(Self { client })
-  }
 
-  /// Create a GitHub platform client from an existing Octocrab instance
-  #[allow(dead_code)]
-  pub fn from_client(client: Octocrab) -> Self {
-    Self { client }
+    let client = if let Some(base_url) = options.base_uri() {
+      // Use custom host (e.g., GitHub Enterprise)
+      Octocrab::builder().personal_token(token).base_uri(&base_url)?.build()?
+    } else {
+      // Use default GitHub (github.com)
+      Octocrab::builder().personal_token(token).build()?
+    };
+
+    Ok(Self { client })
   }
 
   async fn get_review_threads_resolution(

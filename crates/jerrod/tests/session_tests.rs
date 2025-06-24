@@ -1,6 +1,8 @@
 use chrono::Utc;
 use jerrod::platform::{Discussion, MergeRequest, MergeRequestState, Note, Repository, User};
-use jerrod::session::{load_current_session, ReviewSession, SessionDiscovery, SessionManager};
+use jerrod::session::{
+  load_current_session, ReviewSession, ReviewSessionOptions, SessionDiscovery, SessionManager,
+};
 use std::env;
 use tempfile::TempDir;
 
@@ -120,6 +122,7 @@ fn test_review_session_creation() {
     "github".to_string(),
     discussions.clone(),
     vec![],
+    ReviewSessionOptions { host: None },
   );
 
   assert_eq!(session.repository.owner, repository.owner);
@@ -139,8 +142,14 @@ fn test_review_session_thread_queue_operations() {
     create_test_discussion("third", Some("file3.rs".to_string()), Some(3)),
   ];
 
-  let mut session =
-    ReviewSession::new(repository, merge_request, "github".to_string(), discussions, vec![]);
+  let mut session = ReviewSession::new(
+    repository,
+    merge_request,
+    "github".to_string(),
+    discussions,
+    vec![],
+    ReviewSessionOptions { host: None },
+  );
 
   // Test peek operations
   assert_eq!(session.threads_remaining(), 3);
@@ -185,6 +194,7 @@ fn test_review_session_empty_discussions() {
     "github".to_string(),
     vec![], // Empty discussions
     vec![],
+    ReviewSessionOptions { host: None },
   );
 
   assert_eq!(session.threads_remaining(), 0);
@@ -207,6 +217,7 @@ fn test_session_save_and_load() {
     "github".to_string(),
     discussions,
     vec![],
+    ReviewSessionOptions { host: None },
   );
 
   // Set up session manager
@@ -235,7 +246,14 @@ fn test_session_clear() {
 
   let repository = create_test_repository();
   let merge_request = create_test_merge_request();
-  let session = ReviewSession::new(repository, merge_request, "github".to_string(), vec![], vec![]);
+  let session = ReviewSession::new(
+    repository,
+    merge_request,
+    "github".to_string(),
+    vec![],
+    vec![],
+    ReviewSessionOptions { host: None },
+  );
 
   let mut session_manager = SessionManager::new().unwrap();
   session_manager.with_session_context("github", "test_org/test_repo", 789).unwrap();
@@ -279,6 +297,7 @@ fn test_load_current_session_with_valid_session() {
     "github".to_string(),
     vec![create_test_discussion("test", None, None)],
     vec![],
+    ReviewSessionOptions { host: None },
   );
 
   let mut session_manager = SessionManager::new().unwrap();
@@ -323,7 +342,14 @@ fn test_session_discovery_with_existing_session() {
   // Create a session first
   let repository = create_test_repository();
   let merge_request = create_test_merge_request();
-  let session = ReviewSession::new(repository, merge_request, "github".to_string(), vec![], vec![]);
+  let session = ReviewSession::new(
+    repository,
+    merge_request,
+    "github".to_string(),
+    vec![],
+    vec![],
+    ReviewSessionOptions { host: None },
+  );
 
   let mut session_manager = SessionManager::new().unwrap();
   session_manager.with_session_context("github", "test_org/test_repo", 789).unwrap();
@@ -351,8 +377,14 @@ fn test_review_session_with_different_discussion_types() {
     create_test_discussion("file_no_line", Some("README.md".to_string()), None),
   ];
 
-  let session =
-    ReviewSession::new(repository, merge_request, "github".to_string(), discussions, vec![]);
+  let session = ReviewSession::new(
+    repository,
+    merge_request,
+    "github".to_string(),
+    discussions,
+    vec![],
+    ReviewSessionOptions { host: None },
+  );
 
   assert_eq!(session.threads_remaining(), 3);
 

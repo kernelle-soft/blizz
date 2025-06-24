@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod detection;
 pub mod github;
+pub mod gitlab;
 
 /// Common types used across all platforms
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,6 +131,20 @@ impl ReactionType {
       ReactionType::Eyes => "eyes",
     }
   }
+
+  #[allow(dead_code)]
+  pub fn gitlab_name(&self) -> &'static str {
+    match self {
+      ReactionType::ThumbsUp => "thumbsup",
+      ReactionType::ThumbsDown => "thumbsdown",
+      ReactionType::Laugh => "smile",
+      ReactionType::Hooray => "tada",
+      ReactionType::Confused => "confused",
+      ReactionType::Heart => "heart",
+      ReactionType::Rocket => "rocket",
+      ReactionType::Eyes => "eyes",
+    }
+  }
 }
 
 /// Platform abstraction trait - start simple and expand later
@@ -209,16 +224,58 @@ pub trait GitPlatform {
   fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String;
 }
 
+/// Options for platform creation
+#[derive(Debug, Clone, Default)]
+pub struct PlatformOptions {
+  /// Custom host (None uses platform default)
+  pub host: Option<String>,
+}
+
 /// Strategy pattern factory - creates appropriate platform implementation
-pub async fn create_platform(platform_name: &str) -> Result<Box<dyn GitPlatform>> {
+pub async fn create_platform(
+  platform_name: &str,
+  options: PlatformOptions,
+) -> Result<Box<dyn GitPlatform>> {
   match platform_name {
     "github" => {
-      let github_platform = github::GitHubPlatform::new().await?;
+      let github_platform = github::GitHubPlatform::new(github::GitHubPlatformOptions {
+        host: options.host.unwrap_or_default(),
+      })
+      .await?;
       Ok(Box::new(github_platform))
     }
     "gitlab" => {
-      // TODO: Implement GitLab platform
-      anyhow::bail!("GitLab platform not yet implemented")
+      let gitlab_platform = gitlab::GitLabPlatform::new(gitlab::GitLabPlatformOptions {
+        host: options.host.unwrap_or_default(),
+      })
+      .await?;
+      Ok(Box::new(gitlab_platform))
+    }
+    _ => {
+      anyhow::bail!("Unsupported platform: {}", platform_name)
+    }
+  }
+}
+
+/// Strategy pattern factory with custom host support
+pub async fn create_platform_with_host(
+  platform_name: &str,
+  host: Option<&str>,
+) -> Result<Box<dyn GitPlatform>> {
+  match platform_name {
+    "github" => {
+      let github_platform = github::GitHubPlatform::new(github::GitHubPlatformOptions {
+        host: host.unwrap_or_default().to_string(),
+      })
+      .await?;
+      Ok(Box::new(github_platform))
+    }
+    "gitlab" => {
+      let gitlab_platform = gitlab::GitLabPlatform::new(gitlab::GitLabPlatformOptions {
+        host: host.unwrap_or_default().to_string(),
+      })
+      .await?;
+      Ok(Box::new(gitlab_platform))
     }
     _ => {
       anyhow::bail!("Unsupported platform: {}", platform_name)

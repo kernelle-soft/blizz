@@ -1,4 +1,4 @@
-use crate::platform::{create_platform, ReactionType};
+use crate::platform::{create_platform, PlatformOptions, ReactionType};
 use crate::session::load_current_session;
 use anyhow::{anyhow, Result};
 
@@ -99,7 +99,7 @@ pub async fn handle(config: AcknowledgeConfig) -> Result<()> {
     session.thread_queue.front().ok_or_else(|| anyhow!("No threads in queue"))?;
 
   // Use strategy pattern to create appropriate platform implementation
-  let platform = create_platform(&session.platform).await?;
+  let platform = create_platform(&session.platform, PlatformOptions { host: session.host }).await?;
 
   let repo_parts: Vec<&str> = session.repository.full_name.split('/').collect();
   if repo_parts.len() != 2 {

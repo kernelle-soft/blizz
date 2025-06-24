@@ -1,4 +1,4 @@
-use crate::platform::create_platform;
+use crate::platform::create_platform_with_host;
 use crate::session::load_current_session;
 use anyhow::{anyhow, Result};
 use std::process::Command;
@@ -25,7 +25,9 @@ pub async fn handle(
 
     if let Some(thread_id) = current_thread_id {
       // Use strategy pattern for platform-specific URL formatting
-      if let Ok(platform) = create_platform(&session.platform).await {
+      if let Ok(platform) =
+        create_platform_with_host(&session.platform, session.host.as_deref()).await
+      {
         let comment_url = platform.format_comment_url(mr_url, &thread_id);
         commit_msg.push_str(&format!("\nAddressing Thread:\n{}", comment_url));
       } else {

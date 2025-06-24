@@ -3,11 +3,18 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
+#[derive(Debug, Clone, Default)]
+pub struct ReviewSessionOptions {
+  pub host: Option<String>, // For custom/self-hosted instances
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReviewSession {
   pub repository: Repository,
   pub merge_request: MergeRequest,
   pub platform: String,
+  #[serde(default)]
+  pub host: Option<String>, // For custom/self-hosted instances
   pub thread_queue: VecDeque<String>,
   pub unresolved_threads: Vec<String>,
   pub discussions: std::collections::HashMap<String, Discussion>,
@@ -17,12 +24,14 @@ pub struct ReviewSession {
 }
 
 impl ReviewSession {
+  /// Create a new review session
   pub fn new(
     repository: Repository,
     merge_request: MergeRequest,
     platform: String,
     discussions: Vec<Discussion>,
     pipelines: Vec<Pipeline>,
+    options: ReviewSessionOptions,
   ) -> Self {
     let mut discussion_map = std::collections::HashMap::new();
     let mut thread_queue = VecDeque::new();
@@ -38,6 +47,7 @@ impl ReviewSession {
       repository,
       merge_request,
       platform,
+      host: options.host,
       thread_queue,
       unresolved_threads: Vec::new(),
       discussions: discussion_map,

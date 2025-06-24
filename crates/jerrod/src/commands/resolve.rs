@@ -1,4 +1,4 @@
-use crate::platform::{create_platform, ReactionType};
+use crate::platform::{create_platform_with_host, ReactionType};
 use crate::session::load_current_session;
 use anyhow::{anyhow, Result};
 
@@ -19,7 +19,7 @@ pub async fn handle() -> Result<()> {
   let repo = repo_parts[1];
 
   // Create platform client using strategy pattern
-  let platform = create_platform(&session.platform).await?;
+  let platform = create_platform_with_host(&session.platform, session.host.as_deref()).await?;
 
   // Try to resolve the discussion using the platform's native method
   match platform.resolve_discussion(owner, repo, &current_thread.id).await {
