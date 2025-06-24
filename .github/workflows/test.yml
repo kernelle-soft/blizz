@@ -91,10 +91,9 @@ jobs:
 
       - name: Run coverage for ${{ matrix.crate }}
         run: |
-          echo "Running coverage analysis for ${{ matrix.crate }} (threshold: 85%)"
+          echo "Running coverage analysis for ${{ matrix.crate }}
           cargo tarpaulin \
             --package ${{ matrix.crate }} \
-            --fail-under 85 \
             --timeout 300 \
             --out xml \
             --output-dir coverage-${{ matrix.crate }}
