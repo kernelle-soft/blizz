@@ -515,9 +515,32 @@ impl GitPlatform for GitHubPlatform {
   }
 
   async fn resolve_discussion(&self, owner: &str, repo: &str, discussion_id: &str) -> Result<bool> {
-    bentley::warn("resolve_discussion called without PR number - cannot use GraphQL. Use resolve_discussion_with_pr instead.");
-    bentley::warn("GraphQL thread resolution not yet fully implemented - using reaction fallback");
-    Ok(false)
+    // Load the current session to get the PR number
+    match crate::session::load_current_session() {
+      Ok(session) => {
+        // Use the proper GraphQL resolution with PR number from session
+        match self
+          .resolve_discussion_with_pr(owner, repo, session.merge_request.number, discussion_id)
+          .await
+        {
+          Ok(true) => Ok(true),
+          Ok(false) => {
+            bentley::warn(
+              "GraphQL thread resolution failed - this may be expected for some comment types",
+            );
+            Ok(false)
+          }
+          Err(e) => {
+            bentley::warn(&format!("GraphQL thread resolution error: {}", e));
+            Ok(false)
+          }
+        }
+      }
+      Err(_) => {
+        bentley::warn("No active session found - cannot resolve thread without PR context");
+        Ok(false)
+      }
+    }
   }
 
   async fn add_reaction(

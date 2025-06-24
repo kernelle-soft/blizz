@@ -21,14 +21,14 @@ pub async fn handle() -> Result<()> {
   // Create platform client using strategy pattern
   let platform = create_platform(&session.platform).await?;
 
-  // Try to resolve the discussion
+  // Try to resolve the discussion using the platform's native method
   match platform.resolve_discussion(owner, repo, &current_thread.id).await {
     Ok(true) => {
       bentley::success(&format!("Resolved thread #{}", current_thread.id));
     }
     Ok(false) => {
       // Native resolution not available, use reaction-based resolution
-      bentley::info("Using reaction-based resolution...");
+      bentley::info("Native resolution not available, using reaction-based resolution...");
       match platform.add_reaction(owner, repo, &current_thread.id, ReactionType::ThumbsUp).await {
         Ok(true) => {
           bentley::success(&format!("Resolved thread #{} with 👍 reaction", current_thread.id));
