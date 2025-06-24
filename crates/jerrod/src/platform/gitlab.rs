@@ -10,6 +10,13 @@ use reqwest::{
 };
 use serde_json::{json, Value};
 
+/// Options for GitLab platform creation
+#[derive(Debug, Clone, Default)]
+pub struct GitLabPlatformOptions {
+  /// Custom host (empty string uses gitlab.com)
+  pub host: String,
+}
+
 pub struct GitLabPlatform {
   client: Client,
   host: String,
@@ -17,16 +24,17 @@ pub struct GitLabPlatform {
 }
 
 impl GitLabPlatform {
-  pub async fn new() -> Result<Self> {
-    Self::new_with_host("https://gitlab.com").await
-  }
-
-  pub async fn new_with_host(host: &str) -> Result<Self> {
+  /// Create a new GitLab platform instance with options
+  pub async fn new(options: GitLabPlatformOptions) -> Result<Self> {
     let token = get_gitlab_token().await?;
 
-    // Ensure we have a proper URL format
-    let base_url =
-      if host.starts_with("http") { host.to_string() } else { format!("https://{}", host) };
+    let base_url = if options.host.is_empty() {
+      "https://gitlab.com".to_string()
+    } else if options.host.starts_with("http") {
+      options.host
+    } else {
+      format!("https://{}", options.host)
+    };
 
     bentley::info(&format!("Creating GitLab GraphQL client for host: {}", base_url));
 
@@ -367,32 +375,64 @@ impl GitPlatform for GitLabPlatform {
   }
 
   async fn get_diffs(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<FileDiff>> {
+    bentley::info(&format!("Fetching file diffs for GitLab MR #{}", number));
+    
     let project_path = self.get_project_path(owner, repo);
-
-    let query = r#"
-      query($fullPath: ID!, $iid: String!) {
-        project(fullPath: $fullPath) {
-          mergeRequest(iid: $iid) {
-            diffRefs {
-              headSha
-              baseSha
-            }
-          }
-        }
+    
+    // Use GitLab REST API to get merge request changes (diffs)
+    let url = format!(
+      "{}/api/v4/projects/{}/merge_requests/{}/changes",
+      self.host,
+      urlencoding::encode(&project_path),
+      number
+    );
+    
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", self.token))?);
+    
+    let response = self
+      .client
+      .get(&url)
+      .headers(headers)
+      .send()
+      .await
+      .map_err(|e| anyhow!("Failed to fetch MR changes: {:?}", e))?;
+      
+    if !response.status().is_success() {
+      return Err(anyhow!("Failed to fetch MR changes: HTTP {}", response.status()));
+    }
+    
+    let changes_response: Value = response
+      .json()
+      .await
+      .map_err(|e| anyhow!("Failed to parse changes response: {:?}", e))?;
+    
+    let changes = changes_response["changes"]
+      .as_array()
+      .ok_or_else(|| anyhow!("Invalid changes response format"))?;
+    
+    let mut diffs = Vec::new();
+    for change in changes {
+      let new_path = change["new_path"].as_str().unwrap_or_default().to_string();
+      let old_path = change["old_path"].as_str();
+      let diff_content = change["diff"].as_str().unwrap_or_default().to_string();
+      
+      // Only include files that actually have changes
+      if !diff_content.is_empty() {
+        diffs.push(FileDiff {
+          old_path: if old_path != Some(&new_path) && old_path.is_some() {
+            old_path.map(|s| s.to_string())
+          } else {
+            None
+          },
+          new_path,
+          diff: diff_content,
+        });
       }
-    "#;
-
-    let variables = json!({
-      "fullPath": project_path,
-      "iid": number.to_string()
-    });
-
-    let _response = self.graphql_request(query, variables).await?;
-
-    // Note: GitLab GraphQL doesn't expose individual file diffs directly
-    // This would require REST API fallback or external git diff
-    bentley::info("GitLab file diffs not yet implemented via GraphQL");
-    Ok(vec![])
+    }
+    
+    bentley::success(&format!("Successfully fetched {} file diffs", diffs.len()));
+    Ok(diffs)
   }
 
   async fn get_pipelines(&self, owner: &str, repo: &str, sha: &str) -> Result<Vec<Pipeline>> {
@@ -454,13 +494,11 @@ impl GitPlatform for GitLabPlatform {
     Ok(result)
   }
 
-  async fn resolve_discussion(
-    &self,
-    owner: &str,
-    repo: &str,
-    discussion_id: &str,
-  ) -> Result<bool> {
-    bentley::info(&format!("Resolving GitLab discussion using note-based approach: {}", discussion_id));
+  async fn resolve_discussion(&self, owner: &str, repo: &str, discussion_id: &str) -> Result<bool> {
+    bentley::info(&format!(
+      "Resolving GitLab discussion using note-based approach: {}",
+      discussion_id
+    ));
 
     // Extract hash from Global ID if needed
     let thread_hash = if discussion_id.starts_with("gid://gitlab/Discussion/") {
@@ -517,7 +555,10 @@ impl GitPlatform for GitLabPlatform {
       }
 
       if resolved_count > 0 {
-        bentley::success(&format!("Resolved {} note(s) in discussion {}", resolved_count, thread_hash));
+        bentley::success(&format!(
+          "Resolved {} note(s) in discussion {}",
+          resolved_count, thread_hash
+        ));
         Ok(true)
       } else {
         bentley::warn("Failed to resolve any notes in the discussion");
@@ -653,7 +694,7 @@ impl GitPlatform for GitLabPlatform {
     // and reply to that discussion's Global ID, not the individual comment
     let session = crate::session::load_current_session()
       .map_err(|_| anyhow!("No active session found - cannot determine context"))?;
-    
+
     // Find the discussion that contains this comment
     let mut discussion_id: Option<String> = None;
     for discussion in session.discussions.values() {
@@ -667,12 +708,15 @@ impl GitPlatform for GitLabPlatform {
         break;
       }
     }
-    
+
     let disc_id = discussion_id
       .ok_or_else(|| anyhow!("Could not find discussion containing comment {}", comment_id))?;
-    
-    bentley::info(&format!("Found comment {} in discussion {}, replying to discussion", comment_id, disc_id));
-    
+
+    bentley::info(&format!(
+      "Found comment {} in discussion {}, replying to discussion",
+      comment_id, disc_id
+    ));
+
     // Use the discussion ID directly - it should be a Global ID we can reply to
     self.add_comment(owner, repo, &disc_id, text).await
   }
@@ -709,7 +753,9 @@ impl GitPlatform for GitLabPlatform {
       // This is a GitLab Global ID for a discussion - extract the hash and use REST API
       let hash = discussion_id.strip_prefix("gid://gitlab/Discussion/").unwrap_or(discussion_id);
       self.add_discussion_reply_rest(owner, repo, hash, text).await
-    } else if discussion_id.chars().all(|c| c.is_ascii_hexdigit() || c.is_ascii_alphabetic()) && discussion_id.len() > 20 {
+    } else if discussion_id.chars().all(|c| c.is_ascii_hexdigit() || c.is_ascii_alphabetic())
+      && discussion_id.len() > 20
+    {
       // This looks like a discussion hash ID - use REST API for thread replies (like V1)
       self.add_discussion_reply_rest(owner, repo, discussion_id, text).await
     } else {
@@ -717,8 +763,7 @@ impl GitPlatform for GitLabPlatform {
       self.add_mr_comment_graphql(owner, repo, discussion_id, text).await
     }
   }
-
-}  
+}
 
 impl GitLabPlatform {
   /// Add a reply to a discussion thread using REST API (like V1 implementation)
@@ -730,14 +775,14 @@ impl GitLabPlatform {
     text: &str,
   ) -> Result<Note> {
     bentley::info(&format!("Adding discussion reply via REST API to thread: {}", discussion_id));
-    
+
     // Get current session to get MR number
     let session = crate::session::load_current_session()
       .map_err(|_| anyhow!("No active session found - cannot determine merge request"))?;
-      
+
     let project_path = self.get_project_path(owner, repo);
     let mr_iid = session.merge_request.number;
-    
+
     // Create REST API URL - following V1 pattern
     let url = format!(
       "{}/api/v4/projects/{}/merge_requests/{}/discussions/{}/notes",
@@ -746,52 +791,60 @@ impl GitLabPlatform {
       mr_iid,
       discussion_id
     );
-    
+
     let body = json!({
       "body": text
     });
-    
+
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", self.token))?);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    
-    let response = self.client
+
+    let response = self
+      .client
       .post(&url)
       .headers(headers)
       .json(&body)
       .send()
       .await
       .map_err(|e| anyhow!("REST API request failed: {:?}", e))?;
-      
+
     if !response.status().is_success() {
       return Err(anyhow!("REST API request failed with status: {}", response.status()));
     }
-    
-    let note_response: Value = response
-      .json()
-      .await
-      .map_err(|e| anyhow!("Failed to parse REST API response: {:?}", e))?;
-    
+
+    let note_response: Value =
+      response.json().await.map_err(|e| anyhow!("Failed to parse REST API response: {:?}", e))?;
+
     // Parse the REST API response
     let created_at = chrono::DateTime::parse_from_rfc3339(
-      note_response["created_at"].as_str().unwrap_or("1970-01-01T00:00:00Z")
-    ).unwrap_or_else(|_| chrono::Utc::now().into()).with_timezone(&chrono::Utc);
-    
+      note_response["created_at"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+    )
+    .unwrap_or_else(|_| chrono::Utc::now().into())
+    .with_timezone(&chrono::Utc);
+
     let updated_at = chrono::DateTime::parse_from_rfc3339(
-      note_response["updated_at"].as_str().unwrap_or("1970-01-01T00:00:00Z")
-    ).unwrap_or_else(|_| chrono::Utc::now().into()).with_timezone(&chrono::Utc);
-    
+      note_response["updated_at"].as_str().unwrap_or("1970-01-01T00:00:00Z"),
+    )
+    .unwrap_or_else(|_| chrono::Utc::now().into())
+    .with_timezone(&chrono::Utc);
+
     let author = &note_response["author"];
-    
-    bentley::success(&format!("Successfully added discussion reply via REST API to thread {}", discussion_id));
-    
+
+    bentley::success(&format!(
+      "Successfully added discussion reply via REST API to thread {}",
+      discussion_id
+    ));
+
     Ok(Note {
       id: note_response["id"].as_u64().unwrap_or(0).to_string(),
       author: User {
         id: author["id"].as_u64().unwrap_or(0).to_string(),
         username: author["username"].as_str().unwrap_or_default().to_string(),
-        display_name: author["name"].as_str()
-          .unwrap_or(author["username"].as_str().unwrap_or("Unknown")).to_string(),
+        display_name: author["name"]
+          .as_str()
+          .unwrap_or(author["username"].as_str().unwrap_or("Unknown"))
+          .to_string(),
         avatar_url: author["avatar_url"].as_str().map(|s| s.to_string()),
       },
       body: note_response["body"].as_str().unwrap_or_default().to_string(),
@@ -799,7 +852,7 @@ impl GitLabPlatform {
       updated_at,
     })
   }
-  
+
   /// Add a top-level MR comment using GraphQL
   async fn add_mr_comment_graphql(
     &self,
@@ -809,9 +862,9 @@ impl GitLabPlatform {
     text: &str,
   ) -> Result<Note> {
     bentley::info(&format!("Adding top-level MR comment via GraphQL to MR #{}", mr_number));
-    
+
     let project_path = self.get_project_path(owner, repo);
-    
+
     // Get the merge request's Global ID
     let query = r#"
       query($fullPath: ID!, $iid: String!) {
@@ -832,7 +885,7 @@ impl GitLabPlatform {
     let mr_global_id = response["data"]["project"]["mergeRequest"]["id"]
       .as_str()
       .ok_or_else(|| anyhow!("Could not get merge request Global ID"))?;
-    
+
     // Create the note using GraphQL
     let mutation = r#"
       mutation($noteableId: NoteableID!, $body: String!) {
@@ -852,12 +905,12 @@ impl GitLabPlatform {
         }
       }
     "#;
-    
+
     let variables = json!({
       "noteableId": mr_global_id,
       "body": text
     });
-    
+
     let response = self.graphql_request(mutation, variables).await?;
 
     let note = response["data"]["createNote"]["note"]
@@ -877,8 +930,11 @@ impl GitLabPlatform {
     .unwrap_or_else(|_| chrono::Utc::now().into())
     .with_timezone(&chrono::Utc);
 
-    bentley::success(&format!("Successfully added top-level MR comment via GraphQL to MR #{}", mr_number));
-    
+    bentley::success(&format!(
+      "Successfully added top-level MR comment via GraphQL to MR #{}",
+      mr_number
+    ));
+
     Ok(Note {
       id: note["id"].as_str().unwrap_or_default().to_string(),
       author: User {
@@ -897,7 +953,6 @@ impl GitLabPlatform {
   }
 }
 
-
 impl GitLabPlatform {
   /// Resolve a single note using REST API (following V1 implementation)
   async fn resolve_note_rest(
@@ -909,7 +964,7 @@ impl GitLabPlatform {
     note_id: &str,
   ) -> Result<bool> {
     let project_path = self.get_project_path(owner, repo);
-    
+
     // Create REST API URL following V1 pattern: PUT projects/{project}/merge_requests/{mr_id}/discussions/{thread_id}/notes/{note_id}
     let url = format!(
       "{}/api/v4/projects/{}/merge_requests/{}/discussions/{}/notes/{}",
@@ -919,23 +974,24 @@ impl GitLabPlatform {
       discussion_id,
       note_id
     );
-    
+
     let body = json!({
       "resolved": true
     });
-    
+
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {}", self.token))?);
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    
-    let response = self.client
+
+    let response = self
+      .client
       .put(&url)
       .headers(headers)
       .json(&body)
       .send()
       .await
       .map_err(|e| anyhow!("REST API request failed: {:?}", e))?;
-      
+
     if response.status().is_success() {
       Ok(true)
     } else {

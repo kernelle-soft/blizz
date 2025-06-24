@@ -227,8 +227,8 @@ pub trait GitPlatform {
 /// Options for platform creation
 #[derive(Debug, Clone, Default)]
 pub struct PlatformOptions {
-  /// Custom host (empty string uses platform default)
-  pub host: String,
+  /// Custom host (None uses platform default)
+  pub host: Option<String>,
 }
 
 /// Strategy pattern factory - creates appropriate platform implementation
@@ -236,21 +236,19 @@ pub async fn create_platform(
   platform_name: &str,
   options: PlatformOptions,
 ) -> Result<Box<dyn GitPlatform>> {
-  let host = if options.host.is_empty() { None } else { Some(options.host.as_str()) };
-
   match platform_name {
     "github" => {
-      let github_platform =
-        github::GitHubPlatform::new(github::GitHubPlatformOptions { host: options.host.clone() })
-          .await?;
+      let github_platform = github::GitHubPlatform::new(github::GitHubPlatformOptions {
+        host: options.host.unwrap_or_default(),
+      })
+      .await?;
       Ok(Box::new(github_platform))
     }
     "gitlab" => {
-      let gitlab_platform = if let Some(host_str) = host {
-        gitlab::GitLabPlatform::new_with_host(host_str).await?
-      } else {
-        gitlab::GitLabPlatform::new().await?
-      };
+      let gitlab_platform = gitlab::GitLabPlatform::new(gitlab::GitLabPlatformOptions {
+        host: options.host.unwrap_or_default(),
+      })
+      .await?;
       Ok(Box::new(gitlab_platform))
     }
     _ => {
@@ -273,11 +271,10 @@ pub async fn create_platform_with_host(
       Ok(Box::new(github_platform))
     }
     "gitlab" => {
-      let gitlab_platform = if let Some(host_str) = host {
-        gitlab::GitLabPlatform::new_with_host(host_str).await?
-      } else {
-        gitlab::GitLabPlatform::new().await?
-      };
+      let gitlab_platform = gitlab::GitLabPlatform::new(gitlab::GitLabPlatformOptions {
+        host: host.unwrap_or_default().to_string(),
+      })
+      .await?;
       Ok(Box::new(gitlab_platform))
     }
     _ => {

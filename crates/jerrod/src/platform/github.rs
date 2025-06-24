@@ -14,6 +14,23 @@ pub struct GitHubPlatformOptions {
   pub host: String,
 }
 
+impl GitHubPlatformOptions {
+  /// Get the properly formatted base URI for API calls
+  pub fn base_uri(&self) -> Option<String> {
+    if self.host.is_empty() {
+      None // Use default GitHub (github.com)
+    } else {
+      // Use custom host (e.g., GitHub Enterprise)
+      let base_url = if self.host.starts_with("http") {
+        format!("{}/api/v3", self.host.trim_end_matches('/'))
+      } else {
+        format!("https://{}/api/v3", self.host)
+      };
+      Some(base_url)
+    }
+  }
+}
+
 pub struct GitHubPlatform {
   #[allow(dead_code)]
   client: Octocrab,
@@ -24,18 +41,12 @@ impl GitHubPlatform {
   pub async fn new(options: GitHubPlatformOptions) -> Result<Self> {
     let token = get_github_token().await?;
 
-    let client = if options.host.is_empty() {
+    let client = if let Some(base_url) = options.base_uri() {
+      // Use custom host (e.g., GitHub Enterprise)
+      Octocrab::builder().personal_token(token).base_uri(&base_url)?.build()?
+    } else {
       // Use default GitHub (github.com)
       Octocrab::builder().personal_token(token).build()?
-    } else {
-      // Use custom host (e.g., GitHub Enterprise)
-      let base_url = if options.host.starts_with("http") {
-        format!("{}/api/v3", options.host.trim_end_matches('/'))
-      } else {
-        format!("https://{}/api/v3", options.host)
-      };
-
-      Octocrab::builder().personal_token(token).base_uri(&base_url)?.build()?
     };
 
     Ok(Self { client })
