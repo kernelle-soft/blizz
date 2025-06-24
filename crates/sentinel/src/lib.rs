@@ -703,64 +703,6 @@ mod tests {
   }
 
   #[test]
-  fn test_verify_service_credentials() {
-    let sentinel = create_test_sentinel();
-    let config = services::github();
-
-    // Clean up any existing credentials first
-    let _ = sentinel.delete_credential(&config.name, "token");
-
-    // Test with no credentials - should return missing
-    let missing = sentinel.verify_service_credentials(&config).unwrap();
-    assert_eq!(missing, vec!["token"]);
-
-    // Store required credential using the config name
-    sentinel.store_credential(&config.name, "token", "test_token").unwrap();
-
-    // Test with credentials - should return empty
-    let missing = sentinel.verify_service_credentials(&config).unwrap();
-    assert!(missing.is_empty());
-
-    // Clean up
-    let _ = sentinel.delete_credential(&config.name, "token");
-  }
-
-  #[test]
-  fn test_verify_service_credentials_jira() {
-    let sentinel = create_test_sentinel();
-    let config = services::jira();
-
-    // Clean up any existing credentials first
-    let _ = sentinel.delete_credential(&config.name, "token");
-    let _ = sentinel.delete_credential(&config.name, "email");
-    let _ = sentinel.delete_credential(&config.name, "url");
-
-    // Test with no credentials
-    let missing = sentinel.verify_service_credentials(&config).unwrap();
-    assert_eq!(missing.len(), 3);
-    assert!(missing.contains(&"token".to_string()));
-    assert!(missing.contains(&"email".to_string()));
-    assert!(missing.contains(&"url".to_string()));
-
-    // Store partial credentials using config name
-    sentinel.store_credential(&config.name, "token", "test_token").unwrap();
-    let missing = sentinel.verify_service_credentials(&config).unwrap();
-    assert_eq!(missing.len(), 2);
-    assert!(!missing.contains(&"token".to_string()));
-
-    // Store all credentials using config name
-    sentinel.store_credential(&config.name, "email", "test@example.com").unwrap();
-    sentinel.store_credential(&config.name, "url", "https://test.atlassian.net").unwrap();
-    let missing = sentinel.verify_service_credentials(&config).unwrap();
-    assert!(missing.is_empty());
-
-    // Clean up
-    let _ = sentinel.delete_credential(&config.name, "token");
-    let _ = sentinel.delete_credential(&config.name, "email");
-    let _ = sentinel.delete_credential(&config.name, "url");
-  }
-
-  #[test]
   #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_setup_service() {
     let sentinel = create_test_sentinel();

@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 When solving problems or starting a new conversation:
 1. start out by using the global `blizz` CLI to find out and remember the context of related insights.

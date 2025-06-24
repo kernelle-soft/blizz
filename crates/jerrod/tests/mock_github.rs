@@ -244,6 +244,14 @@ impl GitPlatform for MockGitHub {
             updated_at: now,
         })
     }
+
+    fn format_comment_url(&self, pr_url: &str, comment_id: &str) -> String {
+        format!("{}#issuecomment-{}", pr_url, comment_id)
+    }
+
+    fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String {
+        format!("https://github.com/{}/{}/pull/{}", owner, repo, number)
+    }
 }
 
 #[cfg(test)]
