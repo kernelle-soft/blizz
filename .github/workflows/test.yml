@@ -10,36 +10,10 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  # Job 1: Intelligent build
-  build:
-    name: Intelligent Build
+  # Job 1: Test all crates
+  test:
+    name: Test
     runs-on: ubuntu-latest
-    outputs:
-      changed-crates: ${{ steps.build.outputs.changed-crates }}
-      workspace-changed: ${{ steps.build.outputs.workspace-changed }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run intelligent build
-        id: build
-        uses: ./.github/actions/intelligent-build
-        with:
-          cache-prefix: 'test-build'
-          build-mode: 'incremental'
-
-  # Job 3: Coverage analysis on changed crates
-  coverage:
-    name: Coverage
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: needs.build.outputs.changed-crates != '[]'
-    strategy:
-      fail-fast: false
-      matrix:
-        crate: ${{ fromJson(needs.build.outputs.changed-crates) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,7 +24,30 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: coverage-${{ matrix.crate }}-${{ hashFiles('**/Cargo.lock') }}
+          key: test-workspace-${{ hashFiles('**/Cargo.lock') }}
+          cache-on-failure: true
+
+      - name: Run tests
+        run: |
+          echo "🎭 Running tests for all crates..."
+          cargo test --workspace --all-targets
+
+  # Job 2: Coverage analysis
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: coverage-workspace-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
       - name: Install cargo-tarpaulin
@@ -61,19 +58,19 @@ jobs:
           # Enable explicit caching for installed tools
           CARGO_INSTALL_ROOT: ~/.cargo
 
-      - name: Run coverage for ${{ matrix.crate }}
+      - name: Run coverage analysis
         run: |
-          echo "Running coverage analysis for ${{ matrix.crate }}"
+          echo "Running coverage analysis for workspace"
           cargo tarpaulin \
-            --package ${{ matrix.crate }} \
+            --workspace \
             --timeout 300 \
             --out xml \
-            --output-dir coverage-${{ matrix.crate }}
+            --output-dir coverage
 
       - name: Generate coverage summary
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
-          filename: coverage-${{ matrix.crate }}/cobertura.xml
+          filename: coverage/cobertura.xml
           format: markdown
           output: both
           indicators: true
@@ -89,17 +86,16 @@ jobs:
       - name: Upload coverage reports
         uses: codecov/codecov-action@v3
         with:
-          file: coverage-${{ matrix.crate }}/cobertura.xml
-          flags: ${{ matrix.crate }}
-          name: ${{ matrix.crate }}-coverage
+          file: coverage/cobertura.xml
+          flags: workspace
+          name: workspace-coverage
           fail_ci_if_error: false
 
-  # Job 4: Integration tests
+  # Job 3: Integration tests
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: [build, test]
-    if: needs.build.outputs.changed-crates != '[]'
+    needs: test
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -122,75 +118,31 @@ jobs:
             echo "🎭 No integration tests found, skipping..."
           fi
 
-  # Job 5: Minimal workspace verification (if no changes)
-  minimal-check:
-    name: Minimal Workspace Check
-    runs-on: ubuntu-latest
-    needs: build
-    if: needs.build.outputs.changed-crates == '[]'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: minimal-check-${{ hashFiles('**/Cargo.lock') }}
-          cache-on-failure: true
-
-      - name: Minimal workspace verification
-        run: |
-          echo "No changes detected, running minimal workspace verification"
-          cargo check --workspace
-
-  # Job 6: Test success summary
+  # Job 4: Test success summary
   test-success:
     name: Test Success
     runs-on: ubuntu-latest
-    needs: [build, test, coverage, integration, minimal-check]
+    needs: [test, coverage, integration]
     if: always()
     steps:
       - name: Check test results
         run: |
           echo "Checking test results..."
           
-          BUILD_RESULT="${{ needs.build.result }}"
-          CHANGED_CRATES='${{ needs.build.outputs.changed-crates }}'
-          
-          # Build must always succeed
-          if [[ "$BUILD_RESULT" != "success" ]]; then
-            echo "❌ Build failed"
+          # Check all required jobs
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "❌ Tests failed"
             exit 1
           fi
           
-          if [[ "$CHANGED_CRATES" == "[]" ]]; then
-            # No changes, check minimal verification
-            if [[ "${{ needs.minimal-check.result }}" != "success" ]]; then
-              echo "❌ Minimal workspace check failed"
-              exit 1
-            fi
-            echo "No changes detected, minimal verification passed!"
-          else
-            # Changes detected, check all test jobs
-            if [[ "${{ needs.test.result }}" != "success" ]]; then
-              echo "❌ Tests failed"
-              exit 1
-            fi
-            
-            if [[ "${{ needs.coverage.result }}" != "success" ]]; then
-              echo "❌ Coverage analysis failed"
-              exit 1
-            fi
-            
-            if [[ "${{ needs.integration.result }}" != "success" ]]; then
-              echo "❌ Integration tests failed"
-              exit 1
-            fi
-            
-            echo "All tests passed for changed crates: $CHANGED_CRATES"
+          if [[ "${{ needs.coverage.result }}" != "success" ]]; then
+            echo "❌ Coverage analysis failed"
+            exit 1
           fi
           
-          echo "✨ Test workflow completed successfully!" 
+          if [[ "${{ needs.integration.result }}" != "success" ]]; then
+            echo "❌ Integration tests failed"
+            exit 1
+          fi
+          
+          echo "✨ All tests passed!" 
