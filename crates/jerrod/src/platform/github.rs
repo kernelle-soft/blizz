@@ -1,8 +1,8 @@
-use crate::platform::{
-  Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType, Repository,
-  User,
-};
 use crate::auth::get_github_token;
+use crate::platform::{
+  Discussion, FileDiff, GitPlatform, MergeRequest, MergeRequestState, Note, Pipeline, ReactionType,
+  Repository, User,
+};
 use anyhow::{anyhow, Result};
 use octocrab::Octocrab;
 use serde_json::json;
@@ -13,7 +13,6 @@ pub struct GitHubPlatform {
 }
 
 impl GitHubPlatform {
-  /// Create a new GitHub platform client with authentication
   pub async fn new() -> Result<Self> {
     let token = get_github_token().await?;
     let client = Octocrab::builder().personal_token(token).build()?;
@@ -21,16 +20,18 @@ impl GitHubPlatform {
   }
 
   /// Create a GitHub platform client from an existing Octocrab instance
-  #[allow(dead_code)]
   pub fn from_client(client: Octocrab) -> Self {
     Self { client }
   }
 
-  // GraphQL query to get all review threads and their resolution status for a PR
-  async fn get_review_threads_resolution(&self, owner: &str, repo: &str, pr_number: u64) -> Result<std::collections::HashMap<String, bool>> {
-    // Add cache-busting timestamp to force fresh data
+  async fn get_review_threads_resolution(
+    &self,
+    owner: &str,
+    repo: &str,
+    pr_number: u64,
+  ) -> Result<std::collections::HashMap<String, bool>> {
     let cache_buster = chrono::Utc::now().timestamp_millis();
-    
+
     let payload = json!({
       "query": r#"
         query($owner: String!, $repo: String!, $prNumber: Int!) {
@@ -60,20 +61,19 @@ impl GitHubPlatform {
 
     bentley::info(&format!("Cache-busting GraphQL query with timestamp: {}", cache_buster));
 
-    let response: serde_json::Value = self.client
-      .graphql(&payload)
-      .await
-      .map_err(|e| anyhow!("GraphQL query failed: {:?}", e))?;
+    let response: serde_json::Value =
+      self.client.graphql(&payload).await.map_err(|e| anyhow!("GraphQL query failed: {:?}", e))?;
 
     // Build a map from comment ID to thread resolution status
     let mut comment_resolution_map = std::collections::HashMap::new();
-    
-    if let Some(threads) = response["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"].as_array() {
+
+    if let Some(threads) =
+      response["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"].as_array()
+    {
       for thread in threads {
-        if let (Some(is_resolved), Some(comments)) = (
-          thread["isResolved"].as_bool(),
-          thread["comments"]["nodes"].as_array()
-        ) {
+        if let (Some(is_resolved), Some(comments)) =
+          (thread["isResolved"].as_bool(), thread["comments"]["nodes"].as_array())
+        {
           // Map each comment in this thread to the thread's resolution status
           for comment in comments {
             if let Some(comment_id) = comment["id"].as_str() {
@@ -96,28 +96,26 @@ impl GitHubPlatform {
     comment_id: &str,
     text: &str,
   ) -> Result<Note> {
-    let comment_id: u64 = comment_id.parse()
-      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
-    
-    // Use GitHub's review comment reply API endpoint
-    // POST /repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies
-    let url = format!("/repos/{}/{}/pulls/{}/comments/{}/replies", owner, repo, pr_number, comment_id);
-    
+    let comment_id: u64 =
+      comment_id.parse().map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+
+    let url =
+      format!("/repos/{}/{}/pulls/{}/comments/{}/replies", owner, repo, pr_number, comment_id);
+
     let request_body = serde_json::json!({
       "body": text
     });
 
-    let response = self.client
+    let response = self
+      .client
       ._post(&url, Some(&request_body))
       .await
       .map_err(|e| anyhow!("Failed to post review comment reply: {:?}", e))?;
-    
+
     if !response.status().is_success() {
       return Err(anyhow!("Failed to create review comment reply: HTTP {}", response.status()));
     }
 
-    // Create a dummy Note response since we just need to confirm the reply was created
-    // The actual comment data will be fetched in the next session refresh
     let now = chrono::Utc::now();
     Ok(Note {
       id: "reply_created".to_string(), // Placeholder ID
@@ -178,7 +176,8 @@ impl GitHubPlatform {
       }
     });
 
-    let response: serde_json::Value = self.client
+    let response: serde_json::Value = self
+      .client
       .graphql(&query_payload)
       .await
       .map_err(|e| anyhow!("Failed to fetch review threads: {:?}", e))?;
@@ -189,13 +188,13 @@ impl GitHubPlatform {
       .ok_or_else(|| anyhow!("Invalid response format"))?;
 
     let mut target_thread_id: Option<String> = None;
-    let comment_id_num: u64 = comment_id.parse()
-      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+    let comment_id_num: u64 =
+      comment_id.parse().map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
 
     for thread in threads {
       let thread_id = thread["id"].as_str().unwrap_or("");
       let comments_array = thread["comments"]["nodes"].as_array().cloned().unwrap_or_default();
-      
+
       for comment in &comments_array {
         if let Some(database_id) = comment["databaseId"].as_u64() {
           if database_id == comment_id_num {
@@ -205,7 +204,7 @@ impl GitHubPlatform {
           }
         }
       }
-      
+
       if target_thread_id.is_some() {
         break;
       }
@@ -227,15 +226,16 @@ impl GitHubPlatform {
     "#;
 
     bentley::info(&format!("Resolving thread {} via GraphQL mutation...", thread_id));
-    
+
     let mutation_payload = serde_json::json!({
       "query": mutation,
       "variables": {
         "threadId": thread_id
       }
     });
-    
-    let mutation_response: serde_json::Value = self.client
+
+    let mutation_response: serde_json::Value = self
+      .client
       .graphql(&mutation_payload)
       .await
       .map_err(|e| anyhow!("Failed to resolve thread: {:?}", e))?;
@@ -249,7 +249,9 @@ impl GitHubPlatform {
       }
     }
 
-    if let Some(thread_data) = mutation_response["data"]["resolveReviewThread"]["thread"].as_object() {
+    if let Some(thread_data) =
+      mutation_response["data"]["resolveReviewThread"]["thread"].as_object()
+    {
       let is_resolved = thread_data["isResolved"].as_bool().unwrap_or(false);
       if is_resolved {
         bentley::success(&format!("Successfully resolved thread {} via GraphQL", thread_id));
@@ -266,18 +268,21 @@ impl GitHubPlatform {
 impl GitPlatform for GitHubPlatform {
   async fn get_repository(&self, owner: &str, repo: &str) -> Result<Repository> {
     let repo_data = self.client.repos(owner, repo).get().await?;
-    
+
     Ok(Repository {
       owner: owner.to_string(),
       name: repo.to_string(),
       full_name: repo_data.full_name.unwrap_or_else(|| format!("{}/{}", owner, repo)),
-      url: repo_data.html_url.map(|u| u.to_string()).unwrap_or_else(|| format!("https://github.com/{}/{}", owner, repo)),
+      url: repo_data
+        .html_url
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| format!("https://github.com/{}/{}", owner, repo)),
     })
   }
 
   async fn get_merge_request(&self, owner: &str, repo: &str, number: u64) -> Result<MergeRequest> {
     let pr = self.client.pulls(owner, repo).get(number).await?;
-    
+
     let state = match pr.state {
       Some(octocrab::models::IssueState::Open) => {
         if pr.draft == Some(true) {
@@ -330,18 +335,16 @@ impl GitPlatform for GitHubPlatform {
       assignee,
       source_branch: pr.head.ref_field,
       target_branch: pr.base.ref_field,
-      url: pr.html_url.map(|u| u.to_string()).unwrap_or_else(|| format!("https://github.com/{}/{}/pull/{}", owner, repo, number)),
+      url: pr
+        .html_url
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| format!("https://github.com/{}/{}/pull/{}", owner, repo, number)),
       created_at: pr.created_at.unwrap_or_else(chrono::Utc::now),
       updated_at: pr.updated_at.unwrap_or_else(chrono::Utc::now),
     })
   }
 
-  async fn get_discussions(
-    &self,
-    owner: &str,
-    repo: &str,
-    number: u64,
-  ) -> Result<Vec<Discussion>> {
+  async fn get_discussions(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<Discussion>> {
     let mut discussions = Vec::new();
 
     // Cache-busting: Add timestamp to force fresh data
@@ -350,13 +353,14 @@ impl GitPlatform for GitHubPlatform {
 
     // Fetch regular issue comments (top-level comments on the PR)
     // Add per_page and cache-busting parameters to force fresh data
-    let issue_comments = self.client
+    let issue_comments = self
+      .client
       .issues(owner, repo)
       .list_comments(number)
-      .per_page(100)  // Force pagination to bypass cache
+      .per_page(100) // Force pagination to bypass cache
       .send()
       .await?;
-    
+
     for comment in issue_comments {
       // Skip comments that have emoji reactions (already processed/acknowledged)
       if let Ok(reactions) = self.get_reactions(owner, repo, &comment.id.to_string()).await {
@@ -392,8 +396,8 @@ impl GitPlatform for GitHubPlatform {
     }
 
     // Get all review thread resolution statuses for this PR
-    let thread_resolution_map = self.get_review_threads_resolution(owner, repo, number).await
-      .unwrap_or_default();
+    let thread_resolution_map =
+      self.get_review_threads_resolution(owner, repo, number).await.unwrap_or_default();
 
     // Get review comments (inline comments on the diff)
     // Force fresh data by using pagination parameters
@@ -401,18 +405,15 @@ impl GitPlatform for GitHubPlatform {
       .client
       .pulls(owner, repo)
       .list_comments(Some(number))
-      .per_page(100)  // Force pagination to bypass cache
+      .per_page(100) // Force pagination to bypass cache
       .send()
       .await?;
-    
+
     for comment in review_comments {
       if let Some(user) = comment.user {
         // For review comments (inline diff comments), check if they're resolved using GraphQL
         // We use GitHub's conversation resolution status instead of emoji reactions
-        let is_resolved = thread_resolution_map
-          .get(&comment.node_id)
-          .map(|&r| r)
-          .unwrap_or(false);
+        let is_resolved = thread_resolution_map.get(&comment.node_id).map(|&r| r).unwrap_or(false);
 
         if is_resolved {
           bentley::info(&format!("Skipping resolved review comment {}", comment.id));
@@ -451,7 +452,7 @@ impl GitPlatform for GitHubPlatform {
 
   async fn get_diffs(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<FileDiff>> {
     let files = self.client.pulls(owner, repo).list_files(number).await?;
-    
+
     let mut diffs = Vec::new();
     for file in files {
       diffs.push(FileDiff {
@@ -464,7 +465,7 @@ impl GitPlatform for GitHubPlatform {
         diff: file.patch.unwrap_or_default(),
       });
     }
-    
+
     Ok(diffs)
   }
 
@@ -483,18 +484,19 @@ impl GitPlatform for GitHubPlatform {
   ) -> Result<Note> {
     // For GitHub, discussion_id is the PR number for issue comments
     // or comment_id for replies (which GitHub doesn't support directly)
-    
+
     // Parse as PR number first
-    let pr_number: u64 = discussion_id.parse()
-      .map_err(|_| anyhow!("Invalid PR number: {}", discussion_id))?;
-    
+    let pr_number: u64 =
+      discussion_id.parse().map_err(|_| anyhow!("Invalid PR number: {}", discussion_id))?;
+
     // Create the comment using GitHub Issues API
-    let comment = self.client
+    let comment = self
+      .client
       .issues(owner, repo)
       .create_comment(pr_number, text)
       .await
       .map_err(|e| anyhow!("Failed to create comment: {:?}", e))?;
-    
+
     // Convert the response to our Note format
     let author = User {
       id: comment.user.id.to_string(),
@@ -512,12 +514,7 @@ impl GitPlatform for GitHubPlatform {
     })
   }
 
-  async fn resolve_discussion(
-    &self,
-    owner: &str,
-    repo: &str,
-    discussion_id: &str,
-  ) -> Result<bool> {
+  async fn resolve_discussion(&self, owner: &str, repo: &str, discussion_id: &str) -> Result<bool> {
     bentley::warn("resolve_discussion called without PR number - cannot use GraphQL. Use resolve_discussion_with_pr instead.");
     bentley::warn("GraphQL thread resolution not yet fully implemented - using reaction fallback");
     Ok(false)
@@ -530,17 +527,19 @@ impl GitPlatform for GitHubPlatform {
     comment_id: &str,
     reaction: ReactionType,
   ) -> Result<bool> {
-    let comment_id: u64 = comment_id.parse()
-      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
-    
+    let comment_id: u64 =
+      comment_id.parse().map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+
     // First try as a review comment, then fall back to issue comment
     // GitHub API endpoints:
     // - Review comments: POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions
     // - Issue comments: POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions
-    
-    let review_comment_url = format!("/repos/{}/{}/pulls/comments/{}/reactions", owner, repo, comment_id);
-    let issue_comment_url = format!("/repos/{}/{}/issues/comments/{}/reactions", owner, repo, comment_id);
-    
+
+    let review_comment_url =
+      format!("/repos/{}/{}/pulls/comments/{}/reactions", owner, repo, comment_id);
+    let issue_comment_url =
+      format!("/repos/{}/{}/issues/comments/{}/reactions", owner, repo, comment_id);
+
     let reaction_body = serde_json::json!({
       "content": reaction.github_name()
     });
@@ -549,11 +548,15 @@ impl GitPlatform for GitHubPlatform {
     match self.client._post(&review_comment_url, Some(&reaction_body)).await {
       Ok(response) => {
         if response.status().is_success() {
-          bentley::info(&format!("Added {} reaction to review comment {}", reaction.emoji(), comment_id));
+          bentley::info(&format!(
+            "Added {} reaction to review comment {}",
+            reaction.emoji(),
+            comment_id
+          ));
           return Ok(true);
         }
         // Fall through to try issue comment (no debug message needed)
-      },
+      }
       Err(_) => {
         // Fall through to try issue comment (no debug message needed)
       }
@@ -565,10 +568,14 @@ impl GitPlatform for GitHubPlatform {
         if response.status().is_success() {
           Ok(true)
         } else {
-          Err(anyhow!("Failed to add reaction {} to comment {}: HTTP {}", 
-            reaction.emoji(), comment_id, response.status()))
+          Err(anyhow!(
+            "Failed to add reaction {} to comment {}: HTTP {}",
+            reaction.emoji(),
+            comment_id,
+            response.status()
+          ))
         }
-      },
+      }
       Err(e) => {
         // Check if this is a permission error and provide helpful guidance
         let error_msg = format!("{:?}", e);
@@ -583,11 +590,20 @@ impl GitPlatform for GitHubPlatform {
                          Repository: {}/{}\n\
              Comment ID: {}\n\n\
              Original error: {:?}",
-             reaction.emoji(), comment_id, owner, repo, comment_id, e
+            reaction.emoji(),
+            comment_id,
+            owner,
+            repo,
+            comment_id,
+            e
           ))
         } else {
-          Err(anyhow!("Failed to add reaction {} to comment {}: {:?}", 
-            reaction.emoji(), comment_id, e))
+          Err(anyhow!(
+            "Failed to add reaction {} to comment {}: {:?}",
+            reaction.emoji(),
+            comment_id,
+            e
+          ))
         }
       }
     }
@@ -600,17 +616,14 @@ impl GitPlatform for GitHubPlatform {
     comment_id: &str,
     reaction: ReactionType,
   ) -> Result<bool> {
-    let comment_id: u64 = comment_id.parse()
-      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
-    
+    let comment_id: u64 =
+      comment_id.parse().map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+
     // GitHub API requires the reaction ID to delete, which we'd need to fetch first
     // For now, we'll implement a simpler approach by getting all reactions and finding ours
-    let reactions = self.client
-      .issues(owner, repo)
-      .list_comment_reactions(comment_id)
-      .send()
-      .await?;
-    
+    let reactions =
+      self.client.issues(owner, repo).list_comment_reactions(comment_id).send().await?;
+
     // Convert to octocrab's reaction type for comparison
     let octocrab_reaction = match reaction.github_name() {
       "+1" => octocrab::models::reactions::ReactionContent::PlusOne,
@@ -628,45 +641,54 @@ impl GitPlatform for GitHubPlatform {
     for reaction_item in reactions {
       if reaction_item.content == octocrab_reaction {
         // Try to delete this reaction
-        let delete_result = self.client
+        let delete_result = self
+          .client
           .issues(owner, repo)
           .delete_comment_reaction(comment_id, reaction_item.id)
           .await;
-        
+
         match delete_result {
           Ok(_) => return Ok(true),
           Err(e) => bentley::warn(&format!("Failed to remove reaction: {}", e)),
         }
       }
     }
-    
+
     Ok(false)
   }
 
-  async fn get_reactions(&self, owner: &str, repo: &str, comment_id: &str) -> Result<Vec<ReactionType>> {
-    let comment_id: u64 = comment_id.parse()
-      .map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
-    
-    let reactions = self.client
-      .issues(owner, repo)
-      .list_comment_reactions(comment_id)
-      .send()
-      .await?;
-    
+  async fn get_reactions(
+    &self,
+    owner: &str,
+    repo: &str,
+    comment_id: &str,
+  ) -> Result<Vec<ReactionType>> {
+    let comment_id: u64 =
+      comment_id.parse().map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
+
+    let reactions =
+      self.client.issues(owner, repo).list_comment_reactions(comment_id).send().await?;
+
     let mut result = Vec::new();
     for reaction in reactions {
       match reaction.content {
-        octocrab::models::reactions::ReactionContent::PlusOne => result.push(ReactionType::ThumbsUp),
-        octocrab::models::reactions::ReactionContent::MinusOne => result.push(ReactionType::ThumbsDown),
+        octocrab::models::reactions::ReactionContent::PlusOne => {
+          result.push(ReactionType::ThumbsUp)
+        }
+        octocrab::models::reactions::ReactionContent::MinusOne => {
+          result.push(ReactionType::ThumbsDown)
+        }
         octocrab::models::reactions::ReactionContent::Laugh => result.push(ReactionType::Laugh),
         octocrab::models::reactions::ReactionContent::Hooray => result.push(ReactionType::Hooray),
-        octocrab::models::reactions::ReactionContent::Confused => result.push(ReactionType::Confused),
+        octocrab::models::reactions::ReactionContent::Confused => {
+          result.push(ReactionType::Confused)
+        }
         octocrab::models::reactions::ReactionContent::Heart => result.push(ReactionType::Heart),
         octocrab::models::reactions::ReactionContent::Rocket => result.push(ReactionType::Rocket),
         octocrab::models::reactions::ReactionContent::Eyes => result.push(ReactionType::Eyes),
       }
     }
-    
+
     Ok(result)
   }
 

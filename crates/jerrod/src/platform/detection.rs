@@ -89,8 +89,6 @@ fn detect_platform_from_host(host: &str) -> Result<PlatformType> {
   }
 }
 
-
-
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -121,6 +119,4 @@ mod tests {
     assert_eq!(info.repo, "repo");
     assert_eq!(info.host, None);
   }
-
-
 }

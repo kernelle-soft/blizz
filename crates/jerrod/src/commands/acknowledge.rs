@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Result};
+use crate::platform::{create_platform, GitPlatform, ReactionType};
 use crate::session::load_current_session;
-use crate::platform::{ReactionType, GitPlatform, create_platform};
+use anyhow::{anyhow, Result};
 
 /// Configuration for acknowledgment reactions
 #[derive(Debug, Clone)]
@@ -12,21 +12,40 @@ impl AcknowledgeConfig {
   /// Create config from CLI boolean flags
   pub fn from_flags(
     // 👍 flags
-    thumbs_up: bool, ok: bool, yeah: bool, got_it: bool,
-    // 👎 flags  
-    thumbs_down: bool, f_you: bool,
+    thumbs_up: bool,
+    ok: bool,
+    yeah: bool,
+    got_it: bool,
+    // 👎 flags
+    thumbs_down: bool,
+    f_you: bool,
     // 😄 flags
-    laugh: bool, smile: bool,
+    laugh: bool,
+    smile: bool,
     // 🎉 flags
-    hooray: bool, tada: bool, yay: bool, huzzah: bool, sarcastic_cheer: bool,
+    hooray: bool,
+    tada: bool,
+    yay: bool,
+    huzzah: bool,
+    sarcastic_cheer: bool,
     // 😕 flags
-    confused: bool, frown: bool, sad: bool,
+    confused: bool,
+    frown: bool,
+    sad: bool,
     // ❤️ flags
-    love: bool, heart: bool, favorite: bool,
+    love: bool,
+    heart: bool,
+    favorite: bool,
     // 🚀 flags
-    rocket: bool, zoom: bool, launch: bool, shipped: bool, sarcastic_ship_it: bool,
+    rocket: bool,
+    zoom: bool,
+    launch: bool,
+    shipped: bool,
+    sarcastic_ship_it: bool,
     // 👀 flags
-    eyes: bool, looking: bool, surprise: bool,
+    eyes: bool,
+    looking: bool,
+    surprise: bool,
   ) -> Self {
     // Array-based pattern matching - much cleaner than else-if chains!
     let flag_groups = [
@@ -58,8 +77,8 @@ impl AcknowledgeConfig {
 pub async fn handle(config: AcknowledgeConfig) -> Result<()> {
   let session = load_current_session()?;
 
-  let current_thread_id = session.thread_queue.front()
-    .ok_or_else(|| anyhow!("No threads in queue"))?;
+  let current_thread_id =
+    session.thread_queue.front().ok_or_else(|| anyhow!("No threads in queue"))?;
 
   // Use strategy pattern to create appropriate platform implementation
   let platform = create_platform(&session.platform).await?;
@@ -69,12 +88,9 @@ pub async fn handle(config: AcknowledgeConfig) -> Result<()> {
     return Err(anyhow!("Invalid repository format: {}", session.repository.full_name));
   }
 
-  let success = platform.add_reaction(
-    repo_parts[0],
-    repo_parts[1], 
-    current_thread_id,
-    config.reaction_type.clone()
-  ).await?;
+  let success = platform
+    .add_reaction(repo_parts[0], repo_parts[1], current_thread_id, config.reaction_type.clone())
+    .await?;
 
   if success {
     bentley::success(&format!("Added {} reaction to thread", config.reaction_type.emoji()));
@@ -83,4 +99,4 @@ pub async fn handle(config: AcknowledgeConfig) -> Result<()> {
   }
 
   Ok(())
-} 
+}

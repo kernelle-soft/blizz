@@ -1,67 +1,52 @@
 use anyhow::Result;
-use sentinel::Sentinel;
+use sentinel::{CredentialProvider, MockCredentialProvider, Sentinel};
 use std::sync::{Mutex, OnceLock};
 
-// Type alias for the sentinel factory function
-type SentinelFactory = Box<dyn Fn() -> Box<dyn SentinelTrait> + Send + Sync>;
-
-// Trait that defines the interface we need from Sentinel
-pub trait SentinelTrait {
-    fn get_credential(&self, service: &str, key: &str) -> Result<String>;
-}
-
-// Implement the trait for the real Sentinel
-impl SentinelTrait for Sentinel {
-    fn get_credential(&self, service: &str, key: &str) -> Result<String> {
-        self.get_credential(service, key)
-    }
-}
+// Type alias for the credential provider factory function
+type ProviderFactory = Box<dyn Fn() -> Box<dyn CredentialProvider> + Send + Sync>;
 
 // Global factory function holder
-static SENTINEL_FACTORY: OnceLock<Mutex<SentinelFactory>> = OnceLock::new();
+static PROVIDER_FACTORY: OnceLock<Mutex<ProviderFactory>> = OnceLock::new();
 
 // Default factory that creates real Sentinel instances
-fn default_sentinel_factory() -> Box<dyn SentinelTrait> {
-    Box::new(Sentinel::new())
+fn default_provider_factory() -> Box<dyn CredentialProvider> {
+  Box::new(Sentinel::new())
 }
 
 // Get the current factory function
-fn get_sentinel_factory() -> Box<dyn SentinelTrait> {
-    let factory = SENTINEL_FACTORY.get_or_init(|| {
-        Mutex::new(Box::new(default_sentinel_factory))
-    });
-    
-    let guard = factory.lock().unwrap();
-    guard()
+fn get_provider() -> Box<dyn CredentialProvider> {
+  let factory = PROVIDER_FACTORY.get_or_init(|| Mutex::new(Box::new(default_provider_factory)));
+
+  let guard = factory.lock().unwrap();
+  guard()
 }
 
-// Register a custom sentinel factory (for testing)
-pub fn register_sentinel_factory<F>(factory: F) 
-where 
-    F: Fn() -> Box<dyn SentinelTrait> + Send + Sync + 'static,
+// Register a custom provider factory (for testing)
+pub fn register_provider_factory<F>(factory: F)
+where
+  F: Fn() -> Box<dyn CredentialProvider> + Send + Sync + 'static,
 {
-    let sentinel_factory = SENTINEL_FACTORY.get_or_init(|| {
-        Mutex::new(Box::new(default_sentinel_factory))
-    });
-    
-    let mut guard = sentinel_factory.lock().unwrap();
-    *guard = Box::new(factory);
+  let provider_factory =
+    PROVIDER_FACTORY.get_or_init(|| Mutex::new(Box::new(default_provider_factory)));
+
+  let mut guard = provider_factory.lock().unwrap();
+  *guard = Box::new(factory);
 }
 
 // Reset to default factory (useful for test cleanup)
-pub fn reset_sentinel_factory() {
-    if let Some(factory) = SENTINEL_FACTORY.get() {
-        let mut guard = factory.lock().unwrap();
-        *guard = Box::new(default_sentinel_factory);
-    }
+pub fn reset_provider_factory() {
+  if let Some(factory) = PROVIDER_FACTORY.get() {
+    let mut guard = factory.lock().unwrap();
+    *guard = Box::new(default_provider_factory);
+  }
 }
 
 pub async fn get_github_token() -> Result<String> {
-    let sentinel = get_sentinel_factory();
-    sentinel.get_credential("github", "token")
+  let provider = get_provider();
+  provider.get_credential("github", "token")
 }
 
 pub async fn get_gitlab_token() -> Result<String> {
-    let sentinel = get_sentinel_factory();
-    sentinel.get_credential("gitlab", "token")
-} 
+  let provider = get_provider();
+  provider.get_credential("gitlab", "token")
+}

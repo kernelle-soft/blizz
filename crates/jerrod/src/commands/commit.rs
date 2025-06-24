@@ -1,25 +1,28 @@
+use crate::platform::create_platform;
+use crate::session::load_current_session;
 use anyhow::{anyhow, Result};
 use std::process::Command;
-use crate::session::load_current_session;
-use crate::platform::create_platform;
 
-pub async fn handle(message: String, details: Option<String>, thread_id: Option<String>) -> Result<()> {
+pub async fn handle(
+  message: String,
+  details: Option<String>,
+  thread_id: Option<String>,
+) -> Result<()> {
   let session = load_current_session().ok();
 
   let mut commit_msg = message;
-  
+
   if let Some(details) = details {
     commit_msg.push_str("\n\n");
     commit_msg.push_str(&details);
   }
 
   if let Some(ref session) = session {
-    let current_thread_id = thread_id.or_else(|| {
-      session.peek_next_thread().map(|thread| thread.id.clone())
-    });
+    let current_thread_id =
+      thread_id.or_else(|| session.peek_next_thread().map(|thread| thread.id.clone()));
     let mr_url = &session.merge_request.url;
     commit_msg.push_str(&format!("\n\nMerge Request: {}", mr_url));
-    
+
     if let Some(thread_id) = current_thread_id {
       // Use strategy pattern for platform-specific URL formatting
       if let Ok(platform) = create_platform(&session.platform).await {
@@ -32,23 +35,19 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
     }
   }
 
-  let add_status = Command::new("git")
-    .args(["add", "."])
-    .status()?;
+  let add_status = Command::new("git").args(["add", "."]).status()?;
 
   if !add_status.success() {
     return Err(anyhow!("Failed to stage changes"));
   }
 
-  let commit_status = Command::new("git")
-    .args(["commit", "--quiet", "-m", &commit_msg])
-    .status()?;
+  let commit_status =
+    Command::new("git").args(["commit", "--quiet", "-m", &commit_msg]).status()?;
 
   if commit_status.success() {
-    let stats_output = Command::new("git")
-      .args(["show", "--stat", "--format=", "HEAD"])
-      .output()?;
-    
+    let stats_output =
+      Command::new("git").args(["show", "--stat", "--format=", "HEAD"]).output()?;
+
     if stats_output.status.success() {
       let stats_text = String::from_utf8_lossy(&stats_output.stdout);
       display_commit_banner(&commit_msg, &stats_text);
@@ -68,17 +67,17 @@ pub async fn handle(message: String, details: Option<String>, thread_id: Option<
 fn display_commit_banner(commit_msg: &str, stats_text: &str) {
   let width = 80;
   let line = bentley::banner_line(width, '-');
-  
+
   println!("{}", line);
-  
+
   // Parse stats for summary line
   let stats_summary = parse_git_stats(stats_text);
   if !stats_summary.is_empty() {
     println!("📝 {}", stats_summary);
   }
-  
+
   println!("{}", line);
-  
+
   // Display commit message with word wrapping
   for content_line in commit_msg.lines() {
     if content_line.len() <= width {
@@ -87,7 +86,7 @@ fn display_commit_banner(commit_msg: &str, stats_text: &str) {
       // Simple word wrapping
       let words: Vec<&str> = content_line.split_whitespace().collect();
       let mut current_line = String::new();
-      
+
       for word in words {
         if current_line.len() + word.len() + 1 <= width {
           if !current_line.is_empty() {
@@ -103,41 +102,39 @@ fn display_commit_banner(commit_msg: &str, stats_text: &str) {
           }
         }
       }
-      
+
       if !current_line.is_empty() {
         println!("{}", current_line);
       }
     }
   }
-  
+
   println!("{}", line);
 }
 
 /// Parse git stats output into a human-readable summary
 fn parse_git_stats(stats_text: &str) -> String {
   let lines: Vec<&str> = stats_text.trim().lines().collect();
-  
+
   // Look for the summary line (usually the last non-empty line)
   for line in lines.iter().rev() {
     let trimmed = line.trim();
     if trimmed.is_empty() {
       continue;
     }
-    
+
     // Check if this looks like a stats summary line
     if trimmed.contains("file") && (trimmed.contains("insertion") || trimmed.contains("deletion")) {
       return trimmed.to_string();
     }
   }
-  
+
   // Fallback: try to count files from the output
-  let file_count = lines.iter()
-    .filter(|line| line.contains(" | "))
-    .count();
-  
+  let file_count = lines.iter().filter(|line| line.contains(" | ")).count();
+
   if file_count > 0 {
     return format!("{} file{} changed", file_count, if file_count == 1 { "" } else { "s" });
   }
-  
+
   String::new()
-} 
+}
