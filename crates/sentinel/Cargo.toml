@@ -9,7 +9,7 @@ name = "sentinel"
 path = "src/main.rs"
 
 [dependencies]
-keyring = { version = "3.6", features = ["apple-native", "windows-native", "linux-native"] }
+
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = "1.0"

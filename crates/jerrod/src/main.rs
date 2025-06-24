@@ -4,7 +4,6 @@ use clap::{Parser, Subcommand};
 mod auth;
 mod commands;
 mod display;
-mod github;
 mod platform;
 mod session;
 
@@ -80,19 +79,19 @@ enum Commands {
     yeah: bool,
     #[arg(long)]
     got_it: bool,
-    
+
     /// 👎 reaction flags  
     #[arg(long)]
     thumbs_down: bool,
     #[arg(long)]
     f_you: bool,
-    
+
     /// 😄 reaction flags
     #[arg(long)]
     laugh: bool,
     #[arg(long)]
     smile: bool,
-    
+
     /// 🎉 reaction flags
     #[arg(long)]
     hooray: bool,
@@ -104,7 +103,7 @@ enum Commands {
     huzzah: bool,
     #[arg(long)]
     sarcastic_cheer: bool,
-    
+
     /// 😕 reaction flags
     #[arg(long)]
     confused: bool,
@@ -112,7 +111,7 @@ enum Commands {
     frown: bool,
     #[arg(long)]
     sad: bool,
-    
+
     /// ❤️ reaction flags
     #[arg(long)]
     love: bool,
@@ -120,7 +119,7 @@ enum Commands {
     heart: bool,
     #[arg(long)]
     favorite: bool,
-    
+
     /// 🚀 reaction flags
     #[arg(long)]
     rocket: bool,
@@ -132,7 +131,7 @@ enum Commands {
     shipped: bool,
     #[arg(long)]
     sarcastic_ship_it: bool,
-    
+
     /// 👀 reaction flags
     #[arg(long)]
     eyes: bool,
@@ -153,38 +152,77 @@ async fn main() -> Result<()> {
 
   match cli.command {
     Commands::Start { repository, mr_number, platform } => {
-      commands::start::handle(repository, mr_number, platform, cli.github_token, cli.gitlab_token)
-        .await
+      commands::start::handle(repository, mr_number, platform).await
     }
     Commands::Status => commands::status::handle().await,
     Commands::Peek => commands::peek::handle().await,
     Commands::Pop { unresolved } => commands::pop::handle(unresolved).await,
     Commands::Resolve => commands::resolve::handle().await,
-    Commands::Comment { text, new } => {
-      commands::comment::handle(text, new).await
+    Commands::Comment { text, new } => commands::comment::handle(text, new).await,
+    Commands::Commit { message, details, thread_id } => {
+      commands::commit::handle(message, details, thread_id).await
     }
-    Commands::Commit { message, details, thread_id } => commands::commit::handle(message, details, thread_id).await,
-    Commands::Acknowledge { 
-      thumbs_up, ok, yeah, got_it,
-      thumbs_down, f_you,
-      laugh, smile,
-      hooray, tada, yay, huzzah, sarcastic_cheer,
-      confused, frown, sad,
-      love, heart, favorite,
-      rocket, zoom, launch, shipped, sarcastic_ship_it,
-      eyes, looking, surprise
+    Commands::Acknowledge {
+      thumbs_up,
+      ok,
+      yeah,
+      got_it,
+      thumbs_down,
+      f_you,
+      laugh,
+      smile,
+      hooray,
+      tada,
+      yay,
+      huzzah,
+      sarcastic_cheer,
+      confused,
+      frown,
+      sad,
+      love,
+      heart,
+      favorite,
+      rocket,
+      zoom,
+      launch,
+      shipped,
+      sarcastic_ship_it,
+      eyes,
+      looking,
+      surprise,
     } => {
-      commands::acknowledge::handle(
-        thumbs_up, ok, yeah, got_it,
-        thumbs_down, f_you,
-        laugh, smile,
-        hooray, tada, yay, huzzah, sarcastic_cheer,
-        confused, frown, sad,
-        love, heart, favorite,
-        rocket, zoom, launch, shipped, sarcastic_ship_it,
-        eyes, looking, surprise
-      ).await
-    },
+      let flags = commands::acknowledge::AcknowledgeFlags {
+        thumbs_up,
+        ok,
+        yeah,
+        got_it,
+        thumbs_down,
+        f_you,
+        laugh,
+        smile,
+        hooray,
+        tada,
+        yay,
+        huzzah,
+        sarcastic_cheer,
+        confused,
+        frown,
+        sad,
+        love,
+        heart,
+        favorite,
+        rocket,
+        zoom,
+        launch,
+        shipped,
+        sarcastic_ship_it,
+        eyes,
+        looking,
+        surprise,
+      };
+      let config = commands::acknowledge::AcknowledgeConfig::from_flags(flags);
+      commands::acknowledge::handle(config).await
+    }
     Commands::Finish => commands::finish::handle().await,
     Commands::Refresh => commands::refresh::handle().await,
   }

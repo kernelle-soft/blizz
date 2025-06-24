@@ -96,11 +96,9 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
   let cli = Cli::parse();
-  
+
   // Auto-detect quiet mode if called as subprocess or if SENTINEL_QUIET is set
-  let quiet_mode = cli.quiet 
-    || env::var("SENTINEL_QUIET").is_ok()
-    || is_subprocess();
+  let quiet_mode = cli.quiet || env::var("SENTINEL_QUIET").is_ok() || is_subprocess();
 
   if !quiet_mode {
     bentley::spotlight("Sentinel - The Watchful Guardian of Secrets");
@@ -145,7 +143,12 @@ fn is_subprocess() -> bool {
   env::var("PPID").is_ok() && env::var("SHLVL").map_or(true, |level| level != "1")
 }
 
-async fn handle_setup(sentinel: &Sentinel, service_name: &str, force: bool, quiet: bool) -> Result<()> {
+async fn handle_setup(
+  sentinel: &Sentinel,
+  service_name: &str,
+  force: bool,
+  quiet: bool,
+) -> Result<()> {
   let service_config = match service_name.to_lowercase().as_str() {
     "github" => services::github(),
     "gitlab" => services::gitlab(),
@@ -194,7 +197,7 @@ async fn handle_setup(sentinel: &Sentinel, service_name: &str, force: bool, quie
         continue;
       }
 
-      sentinel.store_credential(&service_config.name, &cred_spec.key, value.trim())?;
+      sentinel.store_credential_raw(&service_config.name, &cred_spec.key, value.trim())?;
     }
   }
 
@@ -214,7 +217,7 @@ async fn handle_store(
   force: bool,
 ) -> Result<()> {
   // Check if credential already exists
-  if !force && sentinel.get_credential(service, key).is_ok() {
+  if !force && sentinel.get_credential_raw(service, key).is_ok() {
     bentley::warn(&format!("Credential {}/{} already exists", service, key));
     bentley::info("Use --force to overwrite existing credential");
     return Ok(());
@@ -232,13 +235,13 @@ async fn handle_store(
     return Ok(());
   }
 
-  sentinel.store_credential(service, key, credential_value.trim())?;
+  sentinel.store_credential_raw(service, key, credential_value.trim())?;
   bentley::success(&format!("Stored credential: {}/{}", service, key));
   Ok(())
 }
 
 async fn handle_get(sentinel: &Sentinel, service: &str, key: &str, show: bool) -> Result<()> {
-  match sentinel.get_credential(service, key) {
+  match sentinel.get_credential_raw(service, key) {
     Ok(value) => {
       if show {
         bentley::info(&format!("Credential {}/{}:", service, key));
@@ -263,7 +266,7 @@ async fn handle_update(
   force: bool,
 ) -> Result<()> {
   // Check if credential exists
-  if sentinel.get_credential(service, key).is_err() {
+  if sentinel.get_credential_raw(service, key).is_err() {
     bentley::warn(&format!("Credential not found: {}/{}", service, key));
     return Ok(());
   }
@@ -284,7 +287,7 @@ async fn handle_update(
     }
   }
 
-  sentinel.store_credential(service, key, &new_value)?;
+  sentinel.store_credential_raw(service, key, &new_value)?;
   bentley::success(&format!("Updated credential: {}/{}", service, key));
   Ok(())
 }
@@ -297,7 +300,7 @@ async fn handle_delete(
 ) -> Result<()> {
   if let Some(key) = key {
     // Delete specific credential
-    if sentinel.get_credential(service, &key).is_err() {
+    if sentinel.get_credential_raw(service, &key).is_err() {
       bentley::error(&format!("Credential not found: {}/{}", service, key));
       return Ok(());
     }
@@ -333,7 +336,9 @@ async fn handle_delete(
     let mut deleted_count = 0;
 
     for key in &common_keys {
-      if sentinel.get_credential(service, key).is_ok() && sentinel.delete_credential(service, key).is_ok() {
+      if sentinel.get_credential_raw(service, key).is_ok()
+        && sentinel.delete_credential(service, key).is_ok()
+      {
         deleted_count += 1;
         bentley::info(&format!("Deleted: {}/{}", service, key));
       }
@@ -369,7 +374,7 @@ async fn handle_list(
       let mut found_keys = Vec::new();
 
       for key in &common_keys {
-        if sentinel.get_credential(&service, key).is_ok() {
+        if sentinel.get_credential_raw(&service, key).is_ok() {
           found_keys.push(key);
         }
       }
@@ -458,7 +463,9 @@ async fn handle_clear(sentinel: &Sentinel, force: bool, quiet: bool) -> Result<(
     };
 
     for cred_spec in &service_config.required_credentials {
-      if sentinel.get_credential(&service_config.name, &cred_spec.key).is_ok() && sentinel.delete_credential(&service_config.name, &cred_spec.key).is_ok() {
+      if sentinel.get_credential_raw(&service_config.name, &cred_spec.key).is_ok()
+        && sentinel.delete_credential(&service_config.name, &cred_spec.key).is_ok()
+      {
         cleared_count += 1;
       }
     }

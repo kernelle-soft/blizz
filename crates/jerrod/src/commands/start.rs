@@ -1,25 +1,19 @@
-use crate::platform::github::GitHubPlatform;
 use crate::platform::{
+  create_platform,
   detection::{detect_platform, PlatformType},
-  GitPlatform,
 };
-use crate::session::{ReviewSession, SessionManager, SessionDiscovery};
+use crate::session::{ReviewSession, SessionDiscovery, SessionManager};
 use anyhow::{anyhow, Result};
 
 pub async fn handle(
   repository: String,
   mr_number: u64,
   platform_override: Option<String>,
-  _github_token: Option<String>,
-  _gitlab_token: Option<String>,
 ) -> Result<()> {
-  bentley::announce("Jerrod - The Reliable Guardian of Code Quality");
-  bentley::info("Starting new merge request review session");
+  bentley::announce("Starting new code review session");
 
-  // Detect platform and parse repository info
   let repo_info = detect_platform(&repository)?;
 
-  // Override platform if specified
   let platform_type = if let Some(platform) = platform_override {
     match platform.to_lowercase().as_str() {
       "github" => PlatformType::GitHub,
@@ -30,13 +24,11 @@ pub async fn handle(
     repo_info.platform
   };
 
-  // Check if there's already an active session
   let discovery = SessionDiscovery::new()?;
   if discovery.find_any_session()?.is_some() {
     return Err(anyhow!("Active session already exists. Use 'jerrod finish' to complete it first, or 'jerrod refresh' to restart."));
   }
 
-  // Set up session manager for the new session
   let mut session_manager = SessionManager::new()?;
   let platform_name = format!("{:?}", platform_type).to_lowercase();
   let repository_path = format!("{}/{}", repo_info.owner, repo_info.repo);
@@ -46,15 +38,8 @@ pub async fn handle(
   bentley::info(&format!("Repository: {}/{}", repo_info.owner, repo_info.repo));
   bentley::info(&format!("MR/PR number: {}", mr_number));
 
-  // Create platform client with automatic credential setup
-  let platform: Box<dyn GitPlatform> = match platform_type {
-    PlatformType::GitHub => {
-      Box::new(GitHubPlatform::new().await?)
-    }
-    PlatformType::GitLab => {
-      return Err(anyhow!("GitLab support not yet implemented"));
-    }
-  };
+  let platform_name = format!("{:?}", platform_type).to_lowercase();
+  let platform = create_platform(&platform_name).await?;
 
   bentley::info("Fetching repository information...");
   let repository_info = platform.get_repository(&repo_info.owner, &repo_info.repo).await?;
@@ -69,16 +54,9 @@ pub async fn handle(
   bentley::info("Fetching pipeline/workflow information...");
   let pipelines = platform.get_pipelines(&repo_info.owner, &repo_info.repo, "HEAD").await?;
 
-  // Create session
-  let session = ReviewSession::new(
-    repository_info,
-    merge_request,
-    platform_name,
-    discussions,
-    pipelines,
-  );
+  let session =
+    ReviewSession::new(repository_info, merge_request, platform_name, discussions, pipelines);
 
-  // Save session
   session_manager.save_session(&session)?;
 
   bentley::success(&format!(

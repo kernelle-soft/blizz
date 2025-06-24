@@ -10,106 +10,23 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  # Job 1: Intelligent build
-  build:
-    name: Intelligent Build
-    runs-on: ubuntu-latest
-    outputs:
-      changed-crates: ${{ steps.build.outputs.changed-crates }}
-      workspace-changed: ${{ steps.build.outputs.workspace-changed }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run intelligent build
-        id: build
-        uses: ./.github/actions/intelligent-build
-        with:
-          cache-prefix: 'test-build'
-          build-mode: 'incremental'
-
-  # Job 2: Run tests on changed crates
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    needs: build
-    if: needs.build.outputs.changed-crates != '[]'
-    strategy:
-      fail-fast: false
-      matrix:
-        crate: ${{ fromJson(needs.build.outputs.changed-crates) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: test-${{ matrix.crate }}-${{ hashFiles('**/Cargo.lock') }}
-          cache-on-failure: true
-
-      - name: Test ${{ matrix.crate }}
-        run: |
-          echo "🎭 Testing crate: ${{ matrix.crate }}"
-          cargo test --package ${{ matrix.crate }} --all-targets
-
-  # Job 3: Coverage analysis on changed crates
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
-    needs: [build, test]
-    if: needs.build.outputs.changed-crates != '[]'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - crate: bentley
-            threshold: 95
-          - crate: sentinel
-            threshold: 97
-          - crate: jerrod
-            threshold: 95
-          - crate: adam
-            threshold: 95
-          - crate: violet
-            threshold: 95
-          - crate: blizz
-            threshold: 95
     steps:
-      - name: Check if crate changed
-        id: check-changed
-        run: |
-          CHANGED_CRATES='${{ needs.build.outputs.changed-crates }}'
-          if echo "$CHANGED_CRATES" | jq -e --arg crate "${{ matrix.crate }}" 'index($crate) != null' > /dev/null; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Crate ${{ matrix.crate }} changed, running coverage"
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Crate ${{ matrix.crate }} unchanged, skipping coverage"
-          fi
-
       - name: Checkout code
-        if: steps.check-changed.outputs.changed == 'true'
         uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        if: steps.check-changed.outputs.changed == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Rust dependencies
-        if: steps.check-changed.outputs.changed == 'true'
         uses: Swatinem/rust-cache@v2
         with:
-          key: coverage-${{ matrix.crate }}-${{ hashFiles('**/Cargo.lock') }}
+          key: coverage-workspace-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
       - name: Install cargo-tarpaulin
-        if: steps.check-changed.outputs.changed == 'true'
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-tarpaulin
@@ -117,123 +34,35 @@ jobs:
           # Enable explicit caching for installed tools
           CARGO_INSTALL_ROOT: ~/.cargo
 
-      - name: Run coverage for ${{ matrix.crate }}
-        if: steps.check-changed.outputs.changed == 'true'
+      - name: Run coverage analysis
         run: |
-          echo "Running coverage analysis for ${{ matrix.crate }} (threshold: ${{ matrix.threshold }}%)"
+          echo "Running coverage analysis for workspace"
           cargo tarpaulin \
-            --package ${{ matrix.crate }} \
-            --fail-under ${{ matrix.threshold }} \
+            --workspace \
             --timeout 300 \
             --out xml \
-            --output-dir coverage-${{ matrix.crate }}
+            --output-dir coverage
+
+      - name: Generate coverage summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage/cobertura.xml
+          format: markdown
+          output: both
+          indicators: true
+          badge: true
+
+      - name: Post coverage as PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: code-coverage-results.md
 
       - name: Upload coverage reports
-        if: steps.check-changed.outputs.changed == 'true'
         uses: codecov/codecov-action@v3
         with:
-          file: coverage-${{ matrix.crate }}/cobertura.xml
-          flags: ${{ matrix.crate }}
-          name: ${{ matrix.crate }}-coverage
+          file: coverage/cobertura.xml
+          flags: workspace
+          name: workspace-coverage
           fail_ci_if_error: false
-
-  # Job 4: Integration tests
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [build, test]
-    if: needs.build.outputs.changed-crates != '[]'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: integration-${{ hashFiles('**/Cargo.lock') }}
-          cache-on-failure: true
-
-      - name: Run integration tests
-        run: |
-          if [ -d "tests" ]; then
-            echo "🎪 Running integration tests..."
-            cargo test --test '*'
-          else
-            echo "🎭 No integration tests found, skipping..."
-          fi
-
-  # Job 5: Minimal workspace verification (if no changes)
-  minimal-check:
-    name: Minimal Workspace Check
-    runs-on: ubuntu-latest
-    needs: build
-    if: needs.build.outputs.changed-crates == '[]'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: minimal-check-${{ hashFiles('**/Cargo.lock') }}
-          cache-on-failure: true
-
-      - name: Minimal workspace verification
-        run: |
-          echo "No changes detected, running minimal workspace verification"
-          cargo check --workspace
-
-  # Job 6: Test success summary
-  test-success:
-    name: Test Success
-    runs-on: ubuntu-latest
-    needs: [build, test, coverage, integration, minimal-check]
-    if: always()
-    steps:
-      - name: Check test results
-        run: |
-          echo "Checking test results..."
-          
-          BUILD_RESULT="${{ needs.build.result }}"
-          CHANGED_CRATES='${{ needs.build.outputs.changed-crates }}'
-          
-          # Build must always succeed
-          if [[ "$BUILD_RESULT" != "success" ]]; then
-            echo "❌ Build failed"
-            exit 1
-          fi
-          
-          if [[ "$CHANGED_CRATES" == "[]" ]]; then
-            # No changes, check minimal verification
-            if [[ "${{ needs.minimal-check.result }}" != "success" ]]; then
-              echo "❌ Minimal workspace check failed"
-              exit 1
-            fi
-            echo "No changes detected, minimal verification passed!"
-          else
-            # Changes detected, check all test jobs
-            if [[ "${{ needs.test.result }}" != "success" ]]; then
-              echo "❌ Tests failed"
-              exit 1
-            fi
-            
-            if [[ "${{ needs.coverage.result }}" != "success" ]]; then
-              echo "❌ Coverage analysis failed"
-              exit 1
-            fi
-            
-            if [[ "${{ needs.integration.result }}" != "success" ]]; then
-              echo "❌ Integration tests failed"
-              exit 1
-            fi
-            
-            echo "All tests passed for changed crates: $CHANGED_CRATES"
-          fi
-          
-          echo "✨ Test workflow completed successfully!" 

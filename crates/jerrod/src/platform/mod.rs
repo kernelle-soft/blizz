@@ -21,7 +21,7 @@ pub struct User {
   pub avatar_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MergeRequestState {
   Open,
   Closed,
@@ -92,10 +92,10 @@ pub struct Pipeline {
   pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ReactionType {
   ThumbsUp,   // 👍
-  ThumbsDown, // 👎  
+  ThumbsDown, // 👎
   Laugh,      // 😄
   Hooray,     // 🎉
   Confused,   // 😕
@@ -117,7 +117,7 @@ impl ReactionType {
       ReactionType::Eyes => "👀",
     }
   }
-  
+
   pub fn github_name(&self) -> &'static str {
     match self {
       ReactionType::ThumbsUp => "+1",
@@ -152,7 +152,6 @@ pub trait GitPlatform {
   async fn get_pipelines(&self, owner: &str, repo: &str, sha: &str) -> Result<Vec<Pipeline>>;
 
   /// Add a comment to a discussion thread
-  #[allow(dead_code)]
   async fn add_comment(
     &self,
     owner: &str,
@@ -162,11 +161,9 @@ pub trait GitPlatform {
   ) -> Result<Note>;
 
   /// Mark a discussion as resolved (where supported)
-  #[allow(dead_code)]
   async fn resolve_discussion(&self, owner: &str, repo: &str, discussion_id: &str) -> Result<bool>;
 
   /// Add a reaction to a comment/discussion
-  #[allow(dead_code)]
   async fn add_reaction(
     &self,
     owner: &str,
@@ -187,5 +184,44 @@ pub trait GitPlatform {
 
   /// Get reactions for a comment/discussion
   #[allow(dead_code)]
-  async fn get_reactions(&self, owner: &str, repo: &str, comment_id: &str) -> Result<Vec<ReactionType>>;
+  async fn get_reactions(
+    &self,
+    owner: &str,
+    repo: &str,
+    comment_id: &str,
+  ) -> Result<Vec<ReactionType>>;
+
+  /// Add a review comment reply (platform-specific)
+  async fn add_review_comment_reply(
+    &self,
+    owner: &str,
+    repo: &str,
+    pr_number: u64,
+    comment_id: &str,
+    text: &str,
+  ) -> Result<Note>;
+
+  /// Format a URL for a specific comment/thread within a merge request
+  fn format_comment_url(&self, mr_url: &str, comment_id: &str) -> String;
+
+  /// Format a URL for a merge request/pull request
+  #[allow(dead_code)]
+  fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String;
+}
+
+/// Strategy pattern factory - creates appropriate platform implementation
+pub async fn create_platform(platform_name: &str) -> Result<Box<dyn GitPlatform>> {
+  match platform_name {
+    "github" => {
+      let github_platform = github::GitHubPlatform::new().await?;
+      Ok(Box::new(github_platform))
+    }
+    "gitlab" => {
+      // TODO: Implement GitLab platform
+      anyhow::bail!("GitLab platform not yet implemented")
+    }
+    _ => {
+      anyhow::bail!("Unsupported platform: {}", platform_name)
+    }
+  }
 }

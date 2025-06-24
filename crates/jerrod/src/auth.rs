@@ -1,63 +1,55 @@
-use anyhow::{anyhow, Result};
-use sentinel::Sentinel;
-use std::io::{self, Write};
+use anyhow::Result;
+use sentinel::{CredentialProvider, Sentinel};
+use std::sync::{Mutex, OnceLock};
 
-pub async fn get_github_token() -> Result<String> {
-    let sentinel = Sentinel::new();
-    
-    // Try to get existing token
-    match sentinel.get_credential("github", "token") {
-        Ok(token) => {
-            bentley::info("🔑 Using existing GitHub token");
-            Ok(token)
-        }
-        Err(_) => {
-            // No token found, prompt for one
-            bentley::info("🔑 No GitHub token found. Please enter your GitHub personal access token:");
-            print!("> ");
-            io::stdout().flush()?;
-            
-            let token = rpassword::read_password()?;
-            
-            if token.trim().is_empty() {
-                return Err(anyhow!("GitHub token cannot be empty"));
-            }
-            
-            // Store the token
-            sentinel.store_credential("github", "token", token.trim())?;
-            bentley::success("🔑 GitHub token stored securely");
-            
-            Ok(token.trim().to_string())
-        }
-    }
+// Type alias for the credential provider factory function
+type ProviderFactory = Box<dyn Fn() -> Box<dyn CredentialProvider> + Send + Sync>;
+
+// Global factory function holder
+static PROVIDER_FACTORY: OnceLock<Mutex<ProviderFactory>> = OnceLock::new();
+
+// Default factory that creates real Sentinel instances
+fn default_provider_factory() -> Box<dyn CredentialProvider> {
+  Box::new(Sentinel::new())
 }
 
+// Get the current factory function
+fn get_provider() -> Box<dyn CredentialProvider> {
+  let factory = PROVIDER_FACTORY.get_or_init(|| Mutex::new(Box::new(default_provider_factory)));
+
+  let guard = factory.lock().unwrap();
+  guard()
+}
+
+// Register a custom provider factory (for testing)
+#[allow(dead_code)]
+pub fn register_provider_factory<F>(factory: F)
+where
+  F: Fn() -> Box<dyn CredentialProvider> + Send + Sync + 'static,
+{
+  let provider_factory =
+    PROVIDER_FACTORY.get_or_init(|| Mutex::new(Box::new(default_provider_factory)));
+
+  let mut guard = provider_factory.lock().unwrap();
+  *guard = Box::new(factory);
+}
+
+// Reset to default factory (useful for test cleanup)
+#[allow(dead_code)]
+pub fn reset_provider_factory() {
+  if let Some(factory) = PROVIDER_FACTORY.get() {
+    let mut guard = factory.lock().unwrap();
+    *guard = Box::new(default_provider_factory);
+  }
+}
+
+pub async fn get_github_token() -> Result<String> {
+  let provider = get_provider();
+  provider.get_credential("github", "token")
+}
+
+#[allow(dead_code)]
 pub async fn get_gitlab_token() -> Result<String> {
-    let sentinel = Sentinel::new();
-    
-    // Try to get existing token
-    match sentinel.get_credential("gitlab", "token") {
-        Ok(token) => {
-            bentley::info("🔑 Using existing GitLab token");
-            Ok(token)
-        }
-        Err(_) => {
-            // No token found, prompt for one
-            bentley::info("🔑 No GitLab token found. Please enter your GitLab personal access token:");
-            print!("> ");
-            io::stdout().flush()?;
-            
-            let token = rpassword::read_password()?;
-            
-            if token.trim().is_empty() {
-                return Err(anyhow!("GitLab token cannot be empty"));
-            }
-            
-            // Store the token
-            sentinel.store_credential("gitlab", "token", token.trim())?;
-            bentley::success("🔑 GitLab token stored securely");
-            
-            Ok(token.trim().to_string())
-        }
-    }
-} 
+  let provider = get_provider();
+  provider.get_credential("gitlab", "token")
+}
