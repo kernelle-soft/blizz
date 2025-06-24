@@ -1,0 +1,11 @@
+{
+  "rules": {
+    "max_params": 2,
+    "max_function_lines": 25,
+    "max_function_depth": 2,
+    "max_complexity": 5,
+    "max_file_lines": 300,
+    "max_file_depth": 3,
+    "max_no_duh_comments": 0
+  }
+} 

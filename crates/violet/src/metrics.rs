@@ -80,6 +80,17 @@ fn is_nesting_node(node: Node) -> bool {
         "try_statement" | "catch_clause" | "finally_clause" |
         "with_statement" |
 
+        // Rust-specific structures
+        "match_expression" | "match_arm" | "if_expression" | 
+        "while_expression" | "for_expression" | "loop_expression" |
+        "closure_expression" | "async_block" | "unsafe_block" |
+        "if_let_expression" | "while_let_expression" |
+
+        // JavaScript/TypeScript specific structures  
+        "conditional_expression" | "ternary_expression" |
+        "async_function" | "generator_function" |
+        "async_function_expression" | "generator_function_expression" |
+
         // Blocks and scopes
         "block" | "compound_statement" | "statement_block" |
 
@@ -88,12 +99,28 @@ fn is_nesting_node(node: Node) -> bool {
         "function_definition" | "async_function_definition" |
         "method_definition" | "method" |
 
+        // Lambda/closure constructs
+        "lambda" | "lambda_function" | "anonymous_function" |
+
         // Class definitions
         "class_declaration" | "class_definition" |
 
-        // Other nesting constructs
+        // Other nesting constructs  
         "object_expression" | "array_expression" |
-        "do_statement" | "labeled_statement"
+        "do_statement" | "labeled_statement" |
+
+        // Python specific
+        "list_comprehension" | "dictionary_comprehension" | "set_comprehension" |
+        "generator_expression" |
+
+        // Go specific
+        "func_literal" | "composite_literal" |
+
+        // Ruby specific  
+        "begin" | "ensure" | "rescue" | "do_block" | "brace_block" |
+
+        // PHP specific
+        "anonymous_function_creation_expression" | "closure_creation_expression"
   )
 }
 
@@ -140,6 +167,11 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
           | "logical_expression"
           | "binary_expression"
           | "do_statement"
+          | "async_function"
+          | "generator_function"
+          | "optional_chaining_expression"
+          | "nullish_coalescing_expression"
+          | "sequence_expression"
       ) || is_logical_operator(node)
     }
     Language::Python => {
@@ -157,6 +189,11 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
           | "conditional_expression"
           | "boolean_operator"
           | "comparison_operator"
+          | "list_comprehension"
+          | "dictionary_comprehension"
+          | "set_comprehension"
+          | "generator_expression"
+          | "lambda"
       )
     }
     Language::Rust => {
@@ -172,6 +209,11 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
           | "try_expression"
           | "binary_expression"
           | "range_expression"
+          | "closure_expression"
+          | "question_mark_expression"
+          | "await_expression"
+          | "if_let_expression"
+          | "while_let_expression"
       )
     }
     Language::Bash => {
@@ -186,6 +228,8 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
           | "case_item"
           | "test_command"
           | "binary_expression"
+          | "pipeline"
+          | "list"
       )
     }
     Language::Go => {
@@ -201,6 +245,8 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
           | "select_statement"
           | "communication_case"
           | "binary_expression"
+          | "func_literal"
+          | "type_switch_statement"
       )
     }
     Language::Ruby => {
@@ -221,6 +267,9 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
           | "binary"
           | "and"
           | "or"
+          | "ternary"
+          | "do_block"
+          | "brace_block"
       )
     }
     Language::Php => {
@@ -241,6 +290,8 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
           | "conditional_expression"
           | "ternary_expression"
           | "binary_expression"
+          | "anonymous_function_creation_expression"
+          | "closure_creation_expression"
       )
     }
   }
@@ -248,17 +299,51 @@ fn is_complexity_node(node: Node, language: Language) -> bool {
 
 /// Check if a node is a logical operator that adds complexity
 fn is_logical_operator(node: Node) -> bool {
-  if node.kind() == "binary_expression" {
-    // Check if it's a logical AND or OR
-    for i in 0..node.child_count() {
-      if let Some(child) = node.child(i) {
-        if matches!(child.kind(), "&&" | "||" | "and" | "or") {
-          return true;
+  match node.kind() {
+    // Direct logical operators
+    "logical_expression" | "boolean_operator" => true,
+
+    // Binary expressions that might be logical
+    "binary_expression" => {
+      // Check operator content by examining the source text
+      if let Some(operator_node) = find_operator_child(node) {
+        match operator_node.kind() {
+          "&&" | "||" | "and" | "or" | "AND" | "OR" => true,
+          _ => false,
         }
+      } else {
+        // Fallback: check if any child contains logical operators
+        for i in 0..node.child_count() {
+          if let Some(child) = node.child(i) {
+            if matches!(child.kind(), "&&" | "||" | "and" | "or" | "AND" | "OR") {
+              return true;
+            }
+          }
+        }
+        false
+      }
+    }
+
+    // Language-specific logical constructs
+    "conditional_expression" | "ternary_expression" => true,
+    "nullish_coalescing_expression" | "optional_chaining_expression" => true,
+    "question_mark_expression" => true, // Rust ? operator
+
+    _ => false,
+  }
+}
+
+/// Helper function to find the operator child in a binary expression
+fn find_operator_child(node: Node) -> Option<Node> {
+  for i in 0..node.child_count() {
+    if let Some(child) = node.child(i) {
+      // Operators are typically in the middle or have specific patterns
+      if matches!(child.kind(), "&&" | "||" | "and" | "or" | "AND" | "OR" | "?" | "??" | "?.") {
+        return Some(child);
       }
     }
   }
-  false
+  None
 }
 
 /// Analyze comments in a function to detect "no-duh" comments
@@ -1241,5 +1326,120 @@ class TestClass {
       // Should have reasonable complexity values
       assert!(metrics.cyclomatic_complexity >= 1);
     }
+  }
+
+  #[test]
+  fn test_enhanced_rust_complexity_detection() {
+    let code = r#"
+fn complex_rust() {
+    match value {
+        Ok(x) => {
+            if let Some(y) = x {
+                let closure = |z| {
+                    if z > 0 { z * 2 } else { 0 }
+                };
+                let result = risky_op(y)?;
+                closure(result)
+            } else {
+                0
+            }
+        }
+        Err(_) => 0,
+    }
+}
+"#;
+
+    let metrics = parse_and_analyze(code, Language::Rust);
+    // Should catch: match (1), match_arm (2), if_let (1), closure (1), if inside closure (1), ? operator (1)
+    // Base complexity (1) + additional = 8 minimum
+    assert!(
+      metrics.cyclomatic_complexity >= 8,
+      "Expected complexity >= 8, got {}",
+      metrics.cyclomatic_complexity
+    );
+    // Should catch deep nesting from match -> match_arm -> if_let -> closure -> if
+    assert!(metrics.max_depth >= 5, "Expected nesting >= 5, got {}", metrics.max_depth);
+  }
+
+  #[test]
+  fn test_enhanced_javascript_complexity_detection() {
+    let code = r#"
+function complexJs(arr) {
+    return arr
+        .filter(x => x != null)
+        .map(x => {
+            if (x > 10) {
+                return x * 2;
+            } else if (x > 5) {
+                return x + 1;
+            } else {
+                return x;
+            }
+        })
+        .reduce((acc, val) => acc + val, 0);
+}
+"#;
+
+    let metrics = parse_and_analyze(code, Language::JavaScript);
+    // Should catch: arrow functions, if/else if/else, method chaining complexity
+    assert!(
+      metrics.cyclomatic_complexity >= 6,
+      "Expected complexity >= 6, got {}",
+      metrics.cyclomatic_complexity
+    );
+    assert!(metrics.max_depth >= 3, "Expected nesting >= 3, got {}", metrics.max_depth);
+  }
+
+  #[test]
+  fn test_logical_operator_detection() {
+    let rust_code = r#"
+fn test_logical() {
+    if a && b || c {
+        let x = d?;
+        x
+    } else {
+        0
+    }
+}
+"#;
+
+    let metrics = parse_and_analyze(rust_code, Language::Rust);
+    // Should detect: if (1), logical operators (&& and ||) (2), ? operator (1), else (1)
+    // Base (1) + 5 = 6 minimum
+    assert!(
+      metrics.cyclomatic_complexity >= 6,
+      "Expected complexity >= 6 for logical operators, got {}",
+      metrics.cyclomatic_complexity
+    );
+  }
+
+  #[test]
+  fn test_async_and_closure_nesting() {
+    let rust_code = r#"
+async fn async_complex() {
+    let future = async {
+        let closure = || {
+            if condition {
+                async move {
+                    do_work().await
+                }
+            } else {
+                async move { 42 }
+            }
+        };
+        closure().await
+    };
+    future.await
+}
+"#;
+
+    let metrics = parse_and_analyze(rust_code, Language::Rust);
+    // Async blocks and closures should significantly increase nesting
+    assert!(metrics.max_depth >= 6, "Expected deep nesting >= 6, got {}", metrics.max_depth);
+    assert!(
+      metrics.cyclomatic_complexity >= 5,
+      "Expected complexity >= 5, got {}",
+      metrics.cyclomatic_complexity
+    );
   }
 }

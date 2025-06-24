@@ -42,16 +42,15 @@ jobs:
           echo "🎨 Building Violet for code complexity analysis..."
           cargo build --release --bin violet
 
-      - name: Run Violet code quality analysis
+      - name: Violet Code Quality Enforcement
         run: |
-          echo "🎨 Running Violet code complexity analysis..."
-          echo "Analyzing the codebase for complexity and code quality issues..."
-          
-          # Run on main source directories, but don't fail the build
-          ./target/release/violet crates --errors-only || {
-            echo "::warning::Violet detected code quality issues. Consider addressing them for better maintainability."
-            echo "ℹ️  This is not a blocking error, but improving code quality is always beneficial!"
-          }
+          if ./target/release/violet crates --errors-only; then
+            echo "✅ All code meets quality standards!"
+          else
+            echo "🔧 Fix the violations above before merging."
+            echo "💡 Remember: Quality code is not optional! AI can't handle it yet"
+            exit 1
+          fi
 
       - name: Lint success
         run: echo "✨ All linting checks passed! The code style is magnificent!" 

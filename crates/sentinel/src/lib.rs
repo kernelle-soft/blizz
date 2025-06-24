@@ -1,5 +1,7 @@
 use anyhow::{anyhow, Result};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
@@ -166,11 +168,22 @@ impl CryptoManager {
   }
 }
 
-/// Sentinel - The watchful guardian of secrets
-///
-/// Provides secure credential storage using encrypted files instead of OS keychain
+/// Configuration for Sentinel monitoring
+#[derive(Debug, Clone)]
+pub struct SentinelConfig {
+  pub endpoint: String,
+  pub api_key: Option<String>,
+  pub timeout_seconds: u64,
+  pub max_retries: u32,
+}
+
+/// Sentinel service for monitoring and alerting
+#[derive(Debug)]
 pub struct Sentinel {
+  #[allow(dead_code)] // TODO: Will be used when service features are implemented
   service_name: String,
+  config: SentinelConfig,
+  client: Client,
   crypto: CryptoManager,
   credentials_path_override: Option<PathBuf>,
 }
@@ -204,6 +217,13 @@ impl Sentinel {
   pub fn new() -> Self {
     Self {
       service_name: "kernelle".to_string(),
+      config: SentinelConfig {
+        endpoint: "https://api.example.com".to_string(),
+        api_key: None,
+        timeout_seconds: 10,
+        max_retries: 3,
+      },
+      client: Client::new(),
       crypto: CryptoManager::new(),
       credentials_path_override: None,
     }
@@ -484,6 +504,11 @@ pub mod services {
   }
 }
 
+fn get_or_create_token_cache(
+) -> &'static mut HashMap<String, crate::encryption::EncryptedCredential> {
+  CREDENTIAL_CACHE.lock().unwrap().or_default()
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -512,6 +537,13 @@ mod tests {
 
     Sentinel {
       service_name: format!("test_kernelle_{}", unique_id),
+      config: SentinelConfig {
+        endpoint: "https://api.example.com".to_string(),
+        api_key: None,
+        timeout_seconds: 10,
+        max_retries: 3,
+      },
+      client: Client::new(),
       crypto,
       credentials_path_override: Some(credentials_path),
     }
