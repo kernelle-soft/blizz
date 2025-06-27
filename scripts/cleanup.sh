@@ -35,26 +35,30 @@ ask_yes_no() {
 # Triple check about insights as per requirement
 echo "⚠️  IMPORTANT: Data Preservation Check"
 echo ""
-if ask_yes_no "Do you want to keep your Blizz insights? (FIRST CHECK)"; then
+echo "Your Blizz insights contain hundreds of files unique to your experiences and needs."
+echo "These help Kernelle work the way you want it to. Deleting them cannot be undone."
+echo ""
+if ask_yes_no "Do you want to keep your Blizz insights?" "yes"; then
     keep_insights=true
-    echo "✓ Insights will be preserved"
-    
-    if ask_yes_no "Are you SURE you want to keep your insights? (SECOND CHECK)" "yes"; then
-        echo "✓ Double-confirmed: insights will be preserved"
+    echo "✅ Insights will be preserved"
+else
+    echo "⚠️  You chose to delete your insights. This will permanently remove all your"
+    echo "    accumulated knowledge, patterns, and customizations."
+    echo ""
+    if ask_yes_no "Are you SURE you want to delete your ENTIRELY IRREPLACEABLE insights? (FIRST CONFIRMATION)"; then
+        echo "⚠️  Still planning to delete insights..."
         
-        if ask_yes_no "FINAL CHECK: Keep insights safe from deletion?" "yes"; then
-            echo "✅ Triple-confirmed: insights will be preserved"
-        else
+        if ask_yes_no "FINAL CHECK: Really DELETE all your valuable insights forever?" "no"; then
             keep_insights=false
-            echo "❌ Insights will be deleted"
+            echo "❌ Insights will be permanently deleted. I really hope you backed those up."
+        else
+            keep_insights=true
+            echo "✅ Insights will be preserved"
         fi
     else
-        keep_insights=false
-        echo "❌ Insights will be deleted"
+        keep_insights=true
+        echo "✅ Insights will be preserved"
     fi
-else
-    keep_insights=false
-    echo "❌ Insights will be deleted"
 fi
 
 echo ""
@@ -74,15 +78,15 @@ echo "🗑️  Removing global insights..."
 rm -rf "$KERNELLE_HOME/global-insights" 2>/dev/null || true
 
 echo "🔗 Removing cursor workflow symlinks..."
-# Find all symlinks pointing to ~/.kernelle/.cursor and remove them
-find . -name ".cursor" -type d 2>/dev/null | while read -r cursor_dir; do
-    if [ -d "$cursor_dir" ]; then
-        find "$cursor_dir" -type l | while read -r link; do
-            if readlink "$link" 2>/dev/null | grep -q "^$KERNELLE_HOME/.cursor"; then
-                rm -f "$link"
-                echo "  Removed: $link"
-            fi
-        done
+# Find all symlinks that point to ~/.kernelle/.cursor (much more efficient!)
+find . -type l -lname "$KERNELLE_HOME/.cursor" 2>/dev/null | while read -r link; do
+    rm -f "$link"
+    echo "  Removed: $link"
+    
+    # Remove empty .cursor directory if it only contained our symlink
+    cursor_dir="$(dirname "$link")"
+    if [ -d "$cursor_dir" ] && [ -z "$(ls -A "$cursor_dir" 2>/dev/null)" ]; then
+        rmdir "$cursor_dir" 2>/dev/null && echo "  Removed empty: $cursor_dir"
     fi
 done
 

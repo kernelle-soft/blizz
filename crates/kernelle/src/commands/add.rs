@@ -21,9 +21,25 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
     println!("Adding Kernelle cursor workflows to {}...", target_path.display());
 
-    // Recursively create symlinks for all files in ~/.kernelle/.cursor
-    create_symlinks(&cursor_source, &cursor_target)?;
+    // Create single symlink: .cursor/kernelle/ -> ~/.kernelle/.cursor/
+    let kernelle_link = cursor_target.join("kernelle");
+    
+    // Remove existing kernelle symlink/directory if it exists
+    if kernelle_link.exists() {
+        if kernelle_link.is_symlink() {
+            fs::remove_file(&kernelle_link)
+                .with_context(|| format!("Failed to remove existing symlink: {}", kernelle_link.display()))?;
+        } else {
+            anyhow::bail!("Directory .cursor/kernelle/ already exists and is not a symlink. Please remove it manually.");
+        }
+    }
 
+    // Create the symlink
+    std::os::unix::fs::symlink(&cursor_source, &kernelle_link)
+        .with_context(|| format!("Failed to create symlink: {} -> {}", 
+            cursor_source.display(), kernelle_link.display()))?;
+
+    println!("  Linked: .cursor/kernelle/ -> {}", cursor_source.display());
     println!("Cursor workflows added successfully!");
     println!("Open this project in Cursor to access Kernelle workflows.");
 
@@ -38,39 +54,4 @@ fn get_kernelle_home() -> Result<PathBuf> {
     } else {
         anyhow::bail!("Could not determine home directory")
     }
-}
-
-fn create_symlinks(source_dir: &Path, target_dir: &Path) -> Result<()> {
-    for entry in fs::read_dir(source_dir)
-        .with_context(|| format!("Failed to read directory: {}", source_dir.display()))?
-    {
-        let entry = entry?;
-        let source_path = entry.path();
-        let file_name = source_path.file_name().unwrap();
-        let target_path = target_dir.join(file_name);
-
-        if source_path.is_dir() {
-            // Create target directory and recurse
-            fs::create_dir_all(&target_path)
-                .with_context(|| format!("Failed to create directory: {}", target_path.display()))?;
-            create_symlinks(&source_path, &target_path)?;
-        } else {
-            // Remove existing file/link if it exists
-            if target_path.exists() {
-                fs::remove_file(&target_path)
-                    .with_context(|| format!("Failed to remove existing file: {}", target_path.display()))?;
-            }
-
-            // Create symlink
-            std::os::unix::fs::symlink(&source_path, &target_path)
-                .with_context(|| format!("Failed to create symlink: {} -> {}", 
-                    source_path.display(), target_path.display()))?;
-
-            // Get relative path for nice output
-            let relative_path = target_path.strip_prefix(target_dir.parent().unwrap_or(target_dir))
-                .unwrap_or(&target_path);
-            println!("  Linked: {}", relative_path.display());
-        }
-    }
-    Ok(())
 } 

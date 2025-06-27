@@ -14,11 +14,24 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
     println!("Removing Kernelle cursor workflows from {}...", target_path.display());
 
-    // Find and remove symlinks that point to ~/.kernelle/.cursor
-    remove_kernelle_symlinks(&cursor_dir, &kernelle_home)?;
-
-    // Remove empty directories
-    remove_empty_dirs(&cursor_dir)?;
+    // Check for the kernelle symlink
+    let kernelle_link = cursor_dir.join("kernelle");
+    let kernelle_cursor_path = kernelle_home.join(".cursor");
+    
+    if kernelle_link.exists() && kernelle_link.is_symlink() {
+        // Check if it points to ~/.kernelle/.cursor
+        if let Ok(target) = fs::read_link(&kernelle_link) {
+            if target == kernelle_cursor_path {
+                fs::remove_file(&kernelle_link)
+                    .with_context(|| format!("Failed to remove symlink: {}", kernelle_link.display()))?;
+                println!("  Removed: .cursor/kernelle/");
+            } else {
+                println!("  Skipped: .cursor/kernelle/ points to {}, not Kernelle", target.display());
+            }
+        }
+    } else if kernelle_link.exists() {
+        println!("  Skipped: .cursor/kernelle/ exists but is not a symlink");
+    }
 
     // Remove .cursor directory if it's empty
     if is_dir_empty(&cursor_dir)? {
@@ -40,45 +53,6 @@ fn get_kernelle_home() -> Result<PathBuf> {
     } else {
         anyhow::bail!("Could not determine home directory")
     }
-}
-
-fn remove_kernelle_symlinks(cursor_dir: &Path, kernelle_home: &Path) -> Result<()> {
-    let kernelle_cursor_path = kernelle_home.join(".cursor");
-    
-    for entry in walkdir::WalkDir::new(cursor_dir) {
-        let entry = entry?;
-        let path = entry.path();
-        
-        if path.is_symlink() {
-            if let Ok(target) = fs::read_link(path) {
-                // Check if the symlink points to something under ~/.kernelle/.cursor
-                if target.starts_with(&kernelle_cursor_path) {
-                    fs::remove_file(path)
-                        .with_context(|| format!("Failed to remove symlink: {}", path.display()))?;
-                    
-                    let relative_path = path.strip_prefix(cursor_dir.parent().unwrap_or(cursor_dir))
-                        .unwrap_or(path);
-                    println!("  Removed: {}", relative_path.display());
-                }
-            }
-        }
-    }
-    
-    Ok(())
-}
-
-fn remove_empty_dirs(dir: &Path) -> Result<()> {
-    for entry in walkdir::WalkDir::new(dir).contents_first(true) {
-        let entry = entry?;
-        let path = entry.path();
-        
-        if path.is_dir() && path != dir && is_dir_empty(path)? {
-            fs::remove_dir(path)
-                .with_context(|| format!("Failed to remove empty directory: {}", path.display()))?;
-        }
-    }
-    
-    Ok(())
 }
 
 fn is_dir_empty(dir: &Path) -> Result<bool> {
