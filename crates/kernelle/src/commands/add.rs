@@ -25,12 +25,15 @@ pub async fn execute(target_dir: &str) -> Result<()> {
     let kernelle_link = cursor_target.join("kernelle");
     
     // Remove existing kernelle symlink/directory if it exists
-    if kernelle_link.exists() {
-        if kernelle_link.is_symlink() {
+    // Use symlink_metadata to detect symlinks even if they're broken
+    if let Ok(metadata) = fs::symlink_metadata(&kernelle_link) {
+        if metadata.is_symlink() {
             fs::remove_file(&kernelle_link)
                 .with_context(|| format!("Failed to remove existing symlink: {}", kernelle_link.display()))?;
-        } else {
+        } else if metadata.is_dir() {
             anyhow::bail!("Directory .cursor/kernelle/ already exists and is not a symlink. Please remove it manually.");
+        } else {
+            anyhow::bail!("File .cursor/kernelle already exists and is not a symlink. Please remove it manually.");
         }
     }
 
