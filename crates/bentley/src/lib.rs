@@ -39,7 +39,7 @@ pub fn init() {
 /// Core logging function that handles the actual output
 fn log(message: &str) {
   for line in message.lines() {
-    eprintln!("{}", line);
+    eprintln!("{line}");
   }
 }
 
@@ -72,7 +72,7 @@ where
 pub fn info(message: &str) {
   let prefix = format_prefix(Color::Blue, "info");
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -80,7 +80,7 @@ pub fn info(message: &str) {
 pub fn warn(message: &str) {
   let prefix = format_prefix(Color::Yellow, "warn");
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -88,7 +88,7 @@ pub fn warn(message: &str) {
 pub fn error(message: &str) {
   let prefix = format_prefix(Color::Red, "error");
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -96,7 +96,7 @@ pub fn error(message: &str) {
 pub fn debug(message: &str) {
   let prefix = format_prefix(Color::Magenta, "debug");
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -104,7 +104,7 @@ pub fn debug(message: &str) {
 pub fn success(message: &str) {
   let prefix = format_prefix(Color::Green, "success");
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -113,7 +113,7 @@ pub fn event_info(message: &str) {
   let timestamp = Local::now().format("%H:%M:%S").to_string();
   let prefix = format!("[{}] [{}]", "event".blue().bold(), timestamp.cyan());
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -122,7 +122,7 @@ pub fn event_warn(message: &str) {
   let timestamp = Local::now().format("%H:%M:%S").to_string();
   let prefix = format!("[{}] [{}]", "event".yellow().bold(), timestamp.cyan());
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -131,7 +131,7 @@ pub fn event_error(message: &str) {
   let timestamp = Local::now().format("%H:%M:%S").to_string();
   let prefix = format!("[{}] [{}]", "event".red().bold(), timestamp.cyan());
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -140,7 +140,7 @@ pub fn event_debug(message: &str) {
   let timestamp = Local::now().format("%H:%M:%S").to_string();
   let prefix = format!("[{}] [{}]", "event".magenta().bold(), timestamp.cyan());
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
@@ -149,7 +149,7 @@ pub fn event_success(message: &str) {
   let timestamp = Local::now().format("%H:%M:%S").to_string();
   let prefix = format!("[{}] [{}]", "event".green().bold(), timestamp.cyan());
   for line in message.lines() {
-    log(&format!("{} {}", prefix, line));
+    log(&format!("{prefix} {line}"));
   }
 }
 
