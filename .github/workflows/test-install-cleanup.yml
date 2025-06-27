@@ -44,8 +44,8 @@ jobs:
         
     - name: Verify installation
       run: |
-        # Check that binaries were installed
-        ls -la ~/.local/bin/ | grep -E "(kernelle|jerrod|blizz|bentley|violet|adam|sentinel)"
+        # Check that binaries were installed (bentley is library-only, so exclude it)
+        ls -la ~/.local/bin/ | grep -E "(kernelle|jerrod|blizz|violet|adam|sentinel)"
         
         # Check that .kernelle.source was created
         test -f ~/.kernelle.source
@@ -118,6 +118,10 @@ jobs:
         # Verify binaries were removed
         test ! -f ~/.local/bin/kernelle
         test ! -f ~/.local/bin/jerrod
+        test ! -f ~/.local/bin/blizz
+        test ! -f ~/.local/bin/violet
+        test ! -f ~/.local/bin/adam
+        test ! -f ~/.local/bin/sentinel
         
         # Verify .kernelle directory was removed
         test ! -d ~/.kernelle

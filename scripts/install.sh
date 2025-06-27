@@ -67,14 +67,15 @@ cd "$REPO_ROOT"
 cargo build --release
 
 echo "📦 Installing binaries..."
-# Install all the tools to $INSTALL_DIR
-cp target/release/kernelle "$INSTALL_DIR/"
-cp target/release/jerrod "$INSTALL_DIR/"
-cp target/release/blizz "$INSTALL_DIR/"
-cp target/release/bentley "$INSTALL_DIR/"
-cp target/release/violet "$INSTALL_DIR/"
-cp target/release/adam "$INSTALL_DIR/"
-cp target/release/sentinel "$INSTALL_DIR/"
+# Install all the tools to $INSTALL_DIR (only binaries that exist)
+for binary in kernelle jerrod blizz violet adam sentinel; do
+    if [ -f "target/release/$binary" ]; then
+        cp "target/release/$binary" "$INSTALL_DIR/"
+        echo "  Installed: $binary"
+    else
+        echo "  Skipped: $binary (binary not found)"
+    fi
+done
 
 echo "📋 Setting up workflows..."
 # Copy .cursor rules to ~/.kernelle/.cursor
