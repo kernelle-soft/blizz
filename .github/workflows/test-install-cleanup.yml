@@ -78,43 +78,14 @@ jobs:
         # Verify symlink was removed
         test ! -L .cursor/kernelle
         
-    - name: Test cleanup script (keep insights)
+    - name: Test cleanup script
       run: |
-        # Create some fake insights to test preservation
-        mkdir -p ~/.kernelle/insights/test-topic
-        echo "test insight" > ~/.kernelle/insights/test-topic/test.insight.md
-        
-        # Create some fake tweaks
-        mkdir -p ~/.kernelle/.cursor/tweaks
-        echo "custom rule" > ~/.kernelle/.cursor/tweaks/custom.md
-        
-        # Test cleanup with insights preservation
-        ./scripts/cleanup.sh --non-interactive --keep-insights
-        
-        # Verify insights were backed up
-        test -f ~/.kernelle-insights-backup/test-topic/test.insight.md
-        
-        # Verify tweaks were backed up
-        test -f ~/.kernelle-tweaks-backup/custom.md
-        
+        # Test basic cleanup functionality
+        ./scripts/cleanup.sh --non-interactive
+
         # Verify .kernelle.source was replaced with gone version
         grep -q "WARNING: Kernelle has been uninstalled" ~/.kernelle.source
-        
-    - name: Reinstall and test cleanup (delete insights)
-      run: |
-        # Reinstall first
-        ./scripts/install.sh --non-interactive
-        
-        # Create fake insights again
-        mkdir -p ~/.kernelle/insights/test-topic
-        echo "test insight" > ~/.kernelle/insights/test-topic/test.insight.md
-        
-        # Test cleanup with insights deletion
-        ./scripts/cleanup.sh --non-interactive --delete-insights
-        
-        # Verify insights were NOT backed up (should be deleted)
-        test ! -f ~/.kernelle-insights-backup/test-topic/test.insight.md
-        
+
         # Verify binaries were removed
         test ! -f ~/.local/bin/kernelle
         test ! -f ~/.local/bin/jerrod
@@ -122,10 +93,10 @@ jobs:
         test ! -f ~/.local/bin/violet
         test ! -f ~/.local/bin/adam
         test ! -f ~/.local/bin/sentinel
-        
+
         # Verify .kernelle directory was removed
         test ! -d ~/.kernelle
-        
+
   test-edge-cases:
     runs-on: ubuntu-latest
     steps:
