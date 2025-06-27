@@ -4,6 +4,43 @@ set -euo pipefail
 # Kernelle Cleanup Script - Phase 1
 # This script safely removes Kernelle while preserving user data
 
+# Parse arguments
+NON_INTERACTIVE=false
+KEEP_INSIGHTS=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --non-interactive)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        --keep-insights)
+            KEEP_INSIGHTS="yes"
+            shift
+            ;;
+        --delete-insights)
+            KEEP_INSIGHTS="no"
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--non-interactive] [--keep-insights|--delete-insights]"
+            echo ""
+            echo "Options:"
+            echo "  --non-interactive    Skip interactive prompts (for CI/automation)"
+            echo "  --keep-insights      Keep insights when running non-interactively"
+            echo "  --delete-insights    Delete insights when running non-interactively"  
+            echo "  --help, -h          Show this help message"
+            echo ""
+            echo "Note: In interactive mode, you'll be prompted about insights preservation."
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--non-interactive] [--keep-insights|--delete-insights]"
+            exit 1
+            ;;
+    esac
+done
+
 echo "🧹 Kernelle Cleanup..."
 
 # Configuration
@@ -32,32 +69,44 @@ ask_yes_no() {
     done
 }
 
-# Triple check about insights as per requirement
-echo "⚠️  IMPORTANT: Data Preservation Check"
-echo ""
-echo "Your Blizz insights contain hundreds of files unique to your experiences and needs."
-echo "These help Kernelle work the way you want it to. Deleting them cannot be undone."
-echo ""
-if ask_yes_no "Do you want to keep your Blizz insights?" "yes"; then
-    keep_insights=true
-    echo "✅ Insights will be preserved"
+# Handle insights preservation
+if [ "$NON_INTERACTIVE" = true ]; then
+    # Non-interactive mode: use provided flag or default to keep
+    if [ "$KEEP_INSIGHTS" = "no" ]; then
+        keep_insights=false
+        echo "🤖 Non-interactive mode: Insights will be deleted (--delete-insights)"
+    else
+        keep_insights=true
+        echo "🤖 Non-interactive mode: Insights will be preserved (default)"
+    fi
 else
-    echo "⚠️  You chose to delete your insights. This will permanently remove all your"
-    echo "    accumulated knowledge, patterns, and customizations."
+    # Interactive mode: Triple check about insights as per requirement
+    echo "⚠️  IMPORTANT: Data Preservation Check"
     echo ""
-    if ask_yes_no "Are you SURE you want to delete your ENTIRELY IRREPLACEABLE insights? (FIRST CONFIRMATION)"; then
-        echo "⚠️  Still planning to delete insights..."
-        
-        if ask_yes_no "FINAL CHECK: Really DELETE all your valuable insights forever?" "no"; then
-            keep_insights=false
-            echo "❌ Insights will be permanently deleted. I really hope you backed those up."
+    echo "Your Blizz insights contain hundreds of files unique to your experiences and needs."
+    echo "These help Kernelle work the way you want it to. Deleting them cannot be undone."
+    echo ""
+    if ask_yes_no "Do you want to keep your Blizz insights?" "yes"; then
+        keep_insights=true
+        echo "✅ Insights will be preserved"
+    else
+        echo "⚠️  You chose to delete your insights. This will permanently remove all your"
+        echo "    accumulated knowledge, patterns, and customizations."
+        echo ""
+        if ask_yes_no "Are you SURE you want to delete your ENTIRELY IRREPLACEABLE insights? (FIRST CONFIRMATION)"; then
+            echo "⚠️  Still planning to delete insights..."
+            
+            if ask_yes_no "FINAL CHECK: Really DELETE all your valuable insights forever?" "no"; then
+                keep_insights=false
+                echo "❌ Insights will be permanently deleted. I really hope you backed those up."
+            else
+                keep_insights=true
+                echo "✅ Insights will be preserved"
+            fi
         else
             keep_insights=true
             echo "✅ Insights will be preserved"
         fi
-    else
-        keep_insights=true
-        echo "✅ Insights will be preserved"
     fi
 fi
 
@@ -94,9 +143,15 @@ done
 if [ -d "$KERNELLE_HOME/.cursor/tweaks" ]; then
     echo ""
     echo "📁 Found custom tweaks directory: $KERNELLE_HOME/.cursor/tweaks"
-    if ask_yes_no "Do you want to preserve your custom tweaks?"; then
+    if [ "$NON_INTERACTIVE" = true ]; then
+        # Non-interactive: always preserve tweaks (safer default)
         mv "$KERNELLE_HOME/.cursor/tweaks" "$HOME/.kernelle-tweaks-backup"
-        echo "✓ Tweaks backed up to ~/.kernelle-tweaks-backup"
+        echo "🤖 Non-interactive mode: Tweaks backed up to ~/.kernelle-tweaks-backup"
+    else
+        if ask_yes_no "Do you want to preserve your custom tweaks?"; then
+            mv "$KERNELLE_HOME/.cursor/tweaks" "$HOME/.kernelle-tweaks-backup"
+            echo "✓ Tweaks backed up to ~/.kernelle-tweaks-backup"
+        fi
     fi
 fi
 

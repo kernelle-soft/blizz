@@ -4,6 +4,30 @@ set -euo pipefail
 # Kernelle Installation Script - Phase 1
 # This script installs Kernelle and sets up the basic lifecycle infrastructure
 
+# Parse arguments
+NON_INTERACTIVE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --non-interactive)
+            NON_INTERACTIVE=true
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--non-interactive]"
+            echo ""
+            echo "Options:"
+            echo "  --non-interactive    Skip interactive prompts (for CI/automation)"
+            echo "  --help, -h          Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--non-interactive]"
+            exit 1
+            ;;
+    esac
+done
+
 echo "🚀 Installing Kernelle..."
 
 # Configuration
