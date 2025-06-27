@@ -1,5 +1,5 @@
 pub mod add;
-pub mod remove;
 pub mod daemon;
+pub mod remove;
+pub mod retrieve;
 pub mod store;
-pub mod retrieve; 

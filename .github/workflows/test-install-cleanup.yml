@@ -46,32 +46,32 @@ jobs:
       run: |
         # Check that binaries were installed (bentley is library-only, so exclude it)
         ls -la ~/.local/bin/ | grep -E "(kernelle|jerrod|blizz|violet|adam|sentinel)"
-        
+
         # Check that .kernelle.source was created
         test -f ~/.kernelle.source
-        
+
         # Check that .kernelle directory structure exists
         test -d ~/.kernelle
         test -d ~/.kernelle/.cursor
-        
+
         # Test that kernelle binary works
         ~/.local/bin/kernelle --help
-        
+
     - name: Test kernelle add/remove
       run: |
         # Create a test project
         mkdir -p /tmp/test-project
         cd /tmp/test-project
-        
+
         # Test add
         ~/.local/bin/kernelle add .
-        
+
         # Verify symlink was created
         test -L .cursor/kernelle
-        
+
         # Verify it points to the right place
         readlink .cursor/kernelle | grep -q "/.kernelle/.cursor"
-        
+
         # Test remove
         ~/.local/bin/kernelle remove .
         
