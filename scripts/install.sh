@@ -41,10 +41,28 @@ mkdir -p "$INSTALL_DIR"
 
 # For Phase 1, we'll assume we're running from the source directory
 # In Phase 2+, this would clone from a repo
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Portable way to get script directory (works in bash and zsh)
+if [ -n "${BASH_SOURCE[0]}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+    # zsh and other shells
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "🔨 Building Kernelle tools..."
+echo "Script directory: $SCRIPT_DIR"
+echo "Repository root: $REPO_ROOT"
+echo "Current directory: $(pwd)"
+echo "Looking for Cargo.toml at: $REPO_ROOT/Cargo.toml"
+
+if [ ! -f "$REPO_ROOT/Cargo.toml" ]; then
+    echo "❌ Error: Cargo.toml not found at $REPO_ROOT/Cargo.toml"
+    echo "Contents of $REPO_ROOT:"
+    ls -la "$REPO_ROOT"
+    exit 1
+fi
+
 cd "$REPO_ROOT"
 cargo build --release
 

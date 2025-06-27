@@ -36,7 +36,11 @@ jobs:
     - name: Test install script
       run: |
         echo "Testing install with ${{ matrix.shell }}"
-        ${{ matrix.shell }} ./scripts/install.sh --non-interactive
+        if [ "${{ matrix.shell }}" = "zsh" ]; then
+          zsh -c "./scripts/install.sh --non-interactive"
+        else
+          ./scripts/install.sh --non-interactive
+        fi
         
     - name: Verify installation
       run: |
