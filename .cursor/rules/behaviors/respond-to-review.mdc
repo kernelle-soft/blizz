@@ -17,33 +17,26 @@ This workflow implements a queue-based approach to MR reviews, treating each dis
 - **Comprehensive context**: Tools provide full diff context, timestamps, and thread relationships
 - **Self-Effective**: Aside from the need to ascertain the project and merge request/pull request ID to initialize the review, all parts of the review can be handled with the scripts provided.
 
-## Rule Imports and Modifications
-- [jerrod.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/personalities/jerrod.mdc) - Use Jerrod's personality layer by default. Can be turned off if asked.
-- [blizz-automatic-workflow.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-automatic-workflow.mdc) 
-  - Blizz should keep creating insights as Jerrod works through threads. This can be done during any step of the workflow
-  - Target topics like:
-    - wider architectural patterns
-    - odd implementation details
-    - coding style asked for by either the reviewer or patterned out in the code itself
-    - thread resolution patterns
-    - learnings for the given feature, task, or project
+## Read Also
+- .cursor/rules/definitions/jerrod-operations.mdc
 
-## Tool Locations
+- .cursor/rules/personalities/layers/jerrod.mdc
+  | Use Jerrod's personality layer by default
 
-The merge review CLI is called `jerrod`
+- .cursor/rules/behaviors/use-blizz.mdc
+  | - Blizz should keep creating insights as Jerrod works
+  | - This can be done during any step of this behavior's algorithm
+  | - Target topics like:
+  | - - wider architectural patterns
+  | - - odd implementation details
+  | - - coding style changes asked for by the reviewer
+  | - - coding style patterns evident in the code itself
+  | - - thread resolution patterns
+  | - - learnings from the given feature, task, or project
 
-- `jerrod start` - Initialize review session, fetch all MR data
-- `jerrod status` - Display current MR and queue status
-- `jerrod peek` - View next thread without removing from queue  
-- `jerrod pop` - Remove thread from queue (with optional --unresolved flag)
-- `jerrod comment` - Add comments to threads or MR (with --new flag)
-- `jerrod acknowledge` - Adds an "acknowledge` message or reaction to non-actionable threads
-- `jerrod resolve` - Mark threads as resolved
-- `jerrod finish` - Complete session and cleanup
-- `jerrod refresh` - Cleans up an existing session, then downloads it fresh again. (essentially just runs finish.sh, the start.sh). Don't use unless instructed.
-- `jerrod commit` - Creates formal, structured RRCs (Review Response Commits)
+## Algorithm
 
-## MR Workflow Algorithm
+### MR Workflow
 
 ```
 1. If provided with a project and mr OR a url pointing to an MR:
@@ -60,10 +53,11 @@ The merge review CLI is called `jerrod`
       i. If the list of unresolved threads is greater than 0, add a Markdown link back to each one on this comment, where the text is a quick snippet of what's unresolved about that thread
       ii. state that you're ready for the next round of review.
   
-   c. Run [finish.sh](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/tools/merge-review/finish.sh) 
+   c. Run `jerrod finish`
 ```
 
-## Thread Workflow Algorithm
+### Individual Thread Workflow Algorithm
+
 ```
 1. Run `peek` to get the next issue to address
 
