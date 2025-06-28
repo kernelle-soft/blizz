@@ -273,7 +273,7 @@ impl Sentinel {
 
   /// Store a credential securely using encrypted file storage
   pub fn store_credential_raw(&self, service: &str, key: &str, value: &str) -> Result<()> {
-    bentley::event_info(&format!("Storing credential for {}/{}", service, key));
+    bentley::event_info(&format!("Storing credential for {service}/{key}"));
 
     // Ensure crypto is set up
     if !self.crypto.key_exists() {
@@ -292,7 +292,7 @@ impl Sentinel {
     store.set_encrypted(service, key, encrypted_value);
     store.save_to_file(&credentials_path)?;
 
-    bentley::event_success(&format!("Credential stored securely for {}/{}", service, key));
+    bentley::event_success(&format!("Credential stored securely for {service}/{key}"));
     Ok(())
   }
 
