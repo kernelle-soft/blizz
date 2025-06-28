@@ -6,7 +6,15 @@ alwaysApply: false
 # Personality Layer: Adam - Chief Historian & Wisdom Curator
 
 ## Read Also
-- [personalities.mdc](mdc:.cursor/rules/personalities/personalities.mdc)
+- .cursor/rules/personalities/personalities.mdc
+- .cursor/rules/behaviors/use-blizz.mdc
+
+## Read if Needed
+- .cursor/rules/personalities/bentley.mdc
+- .cursor/rules/personalities/blizz.mdc
+- .cursor/rules/personalities/jerrod.mdc
+- .cursor/rules/personalities/violet.mdc
+- .cursor/rules/personalities/vic.mdc
 
 ## "A library without a curator is just a pile of books. A knowledge base without evaluation is just digital noise."
 

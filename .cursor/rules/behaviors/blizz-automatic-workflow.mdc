@@ -3,17 +3,12 @@ description: Historian automatic workflow for autonomous knowledge capture durin
 globs: 
 alwaysApply: true
 ---
----
-description: Blizz automatic workflow for autonomous knowledge capture during work
-globs:
-alwaysApply: true
----
 # Blizz Automatic Workflow
 
 This document defines the workflow for **autonomous knowledge capture** where you proactively identify and store valuable insights during work.
 
-## Rule Imports and Modifications
-- [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc): these are the types of tools Blizz has available.
+## Read Also
+- .cursor/rules/definitions/blizz-crud-operations.mdc
 
 ## Autonomous Knowledge Capture
 
@@ -26,7 +21,7 @@ This document defines the workflow for **autonomous knowledge capture** where yo
 - **Integration patterns** between tools/systems
 
 ### Natural Trigger Contexts
-Recognize opportunities for automatic storage when you encounter:
+Recognize opportunities for automatic storage when chats include messages like:
 - "This is how we handle..." (workflow patterns)
 - "I discovered that..." (debugging insights)
 - "The trick is to..." (best practices)
@@ -35,24 +30,23 @@ Recognize opportunities for automatic storage when you encounter:
 - "This repository uses..." (architectural insights)
 
 ### Storage Criteria
-Only store insights that meet ALL criteria from [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc)
+Only store insights that meet ALL criteria from `blizz-crud-operations.mdc`
 1. **Reusable** - likely to apply to future situations
 2. **Non-obvious** - not basic knowledge found in documentation
 3. **Contextual** - specific to this codebase/workflow/domain
 4. **Actionable** - provide clear guidance for future use
 5. **Single-purpose** - focused on one specific point or pattern
 
-### Process
-1. **Identify the insight** during natural workflow
-2. **Create topic/name** that aids future discovery (see Topic Organization in [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc))
-3. **Store quietly** using Create Operations from [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc)
-4. **Mention briefly** what was stored (1 sentence max)
-
 ### Examples
 
 #### During Debugging Session
 ```
-Assistant: "I've resolved the merge conflict by prioritizing the newer business logic while preserving the older validation patterns. 
+You: 
+"I've resolved the merge conflict by prioritizing the newer business logic while preserving the older validation patterns. 
+
+```
+blizz add "merge-conflicts" "business-logic-priority" [options...]
+```
 
 *Stored insight: merge-conflicts/business-logic-priority for future reference.*
 
@@ -61,18 +55,24 @@ The tests are now passing..."
 
 #### After Discovering Tool Integration
 ```
-Assistant: "The issue was resolved by configuring the MCP tool to use the specific endpoint format that Cursor expects.
+You: 
 
-*Added insight: cursor-mcp/endpoint-configuration*
+"The issue was resolved by configuring the MCP tool to use the specific endpoint format that Cursor expects.
+
+```
+blizz add cursor-mcp endpoint-configuration [options...]
+```
 
 Now the integration should work smoothly..."
 ```
 
 #### When Learning About Team Dynamics
 ```
-Assistant: "I noticed from our conversation that Jeff is the expert on MR workflows and tooling architecture.
+Assistant: "I noticed from our conversation that John is the expert on MR workflows and tooling architecture.
 
-*Stored: jeff-hilton/mr-workflow-expertise*
+```
+blizz add john-coderman mr-workflow-expertise [options...]
+```
 
 Let me continue with the implementation..."
 ```
@@ -80,9 +80,9 @@ Let me continue with the implementation..."
 ## Integration with Active Work
 
 ### Knowledge-First Approach
-- **Search existing insights** before solving problems (see Read Operations in [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc))
+- **Search existing insights** before solving problems (see Read Operations in `blizz-crud-operations.mdc`)
 - **Build on previous solutions** rather than solving from scratch
-- **Update existing insights** if you discover improvements (see Update Operations in [blizz-crud-operations.mdc](mdc:kernelle/kernelle/kernelle/.cursor/rules/workflows/blizz-crud-operations.mdc))
+- **Update existing insights** if you discover improvements (see Update Operations in `blizz-crud-operations.mdc`)
 
 ### During Problem-Solving
 - **Query knowledge base** when stuck

@@ -3,10 +3,18 @@ description:
 globs: 
 alwaysApply: false
 ---
-# Personality Layer: Violet - Code Complexity Artisan
+# Personality Layer: Violet - Code Readability
 
 ## Read Also
-- [personalities.mdc](mdc:.cursor/rules/personalities/personalities.mdc)
+- .cursor/rules/personalities/personalities.mdc
+- .cursor/rules/behaviors/use-blizz.mdc
+
+## Read if Needed
+- .cursor/rules/personalities/adam.mdc
+- .cursor/rules/personalities/bentley.mdc
+- .cursor/rules/personalities/blizz.mdc
+- .cursor/rules/personalities/jerrod.mdc
+- .cursor/rules/personalities/vic.mdc
 
 ## "I just need to make a few more color adjustments..."
 

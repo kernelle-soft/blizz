@@ -1,0 +1,47 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Task Investigation
+This workflow is designed to gather insights in preparation to tackle a task from sources like JIRA, Trello, etc, such as a bug, feature addition, testing, or other basic unit of work.
+
+## Read Also
+- .cursor/rules/behaviors/use-blizz.mdc
+- .cursor/rules/behaviors/rate-confidence.mdc
+
+## Inputs:
+- Url: to point to a task description
+- Confidence Threshold (percentage): The desired confidence level from doing background research. Default is 85%.
+
+## Example Usage
+`investigate-task.mdc https://path/to/task.html 75%`
+
+## Available and Allowed Tools 
+- Git - use it as needed to gather info about past changes, history of the file, feature branches, etc.
+
+- Public docs online.
+
+- MCPs - go ahead and use them for anything needed to gather more context for the task. Examples:
+  - Referencing the original task
+  - Looking up the team a task belongs to
+  - Taking a look at the parent the task is asigned to, if there is one.
+  - Gathering info on related tasks
+
+- The project and or workspace. Feel free to look through the current state of the project.
+
+## Disallowed Actions
+- Make code changes yet. This is purely investigation.
+- Change git branches. There's a decent likelihood they're being actively worked on. Assume you're being parallelized with other instances of AI agents doing their work.
+
+## Algorithm
+1. Pull information on the task from the input url and try to understand its goal.
+2. State what you expect the task requires in order to be considered finished and wait for confirmation from the user.
+3. use `blizz` to double check if there are any existing insights related to the task at hand.
+4. From that, `rate-confidence.mdc` again.
+5. While confidence is below the Confidence Threshold:
+  a. Do investigation on the thing's you're unsure of using the available tools  
+  b. use `blizz` to add or update your insights
+  c. `rate-confidence.mdc` again on the currenttask.
+  d. If confidence is falling considerably, or if you need clarification from the user, don't hesitate to stop your investigation and ask for clarification
+6. Report your final confidence level and how you plan to proceed for final tweaks and approval. This final plan might also be good to take note of using `blizz` after final approval

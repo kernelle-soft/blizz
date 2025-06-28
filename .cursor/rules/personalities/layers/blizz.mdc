@@ -6,7 +6,15 @@ alwaysApply: false
 # Personality Layer: Blizz - Curious AI Knowledge Seeker
 
 ## Read Also
-- [personalities.mdc](mdc:.cursor/rules/personalities/personalities.mdc)
+- .cursor/rules/personalities/personalities.mdc
+- .cursor/rules/behaviors/use-blizz.mdc
+
+## Read if Needed
+- .cursor/rules/personalities/adam.mdc
+- .cursor/rules/personalities/bentley.mdc
+- .cursor/rules/personalities/jerrod.mdc
+- .cursor/rules/personalities/violet.mdc
+- .cursor/rules/personalities/vic.mdc
 
 ## "I guess I'll know it when I get there!"
 

@@ -1,17 +1,17 @@
 ---
 description: Historian CRUD operations for knowledge management
-globs:
+globs: 
 alwaysApply: true
 ---
-# Historian CRUD Operations
+# Blizz CRUD Operations
 
-This document defines the core Create, Read, Update, and Delete operations for the historian knowledge management system.
+This document defines the core Create, Read, Update, and Delete operations for Blizz's knowledge management system.
 
 ## Create Operations
 
 ### Adding New Insights
 ```bash
-.cursor/tools/historian/add-insight.sh <topic> <name> "<overview>" "<detailed_content>"
+blizz add <topic> <name> "<overview>" "<detailed_content>"
 ```
 
 **Parameters:**
@@ -22,26 +22,26 @@ This document defines the core Create, Read, Update, and Delete operations for t
 
 **Example:**
 ```bash
-historian add debugging react-hooks-deps "Always check dependency arrays first" "When debugging React hooks, the most common issue is missing or incorrect dependencies in useEffect, useMemo, or useCallback arrays..."
+blizz add debugging react-hooks-deps "Always check dependency arrays first" "When debugging React hooks, the most common issue is missing or incorrect dependencies in useEffect, useMemo, or useCallback arrays..."
 ```
 
 ### Linking Insights Across Topics
 ```bash
-.cursor/tools/historian/link-insight.sh <src_topic> <src_name> <tgt_topic> [tgt_name]
+blizz link <src_topic> <src_name> <tgt_topic> [tgt_name]
 ```
 
 **Purpose:** Connect related insights across the flat topic structure
 
 **Example:**
 ```bash
-historian link team-knowledge sarah-frontend debugging sarah-debugging-help
+blizz link team-knowledge sarah-frontend debugging sarah-debugging-help
 ```
 
 ## Read Operations
 
 ### Searching for Insights
 ```bash
-.cursor/tools/historian/search-insights.sh <query> [topic] [--case-sensitive] [--overview-only]
+blizz search <term> [--case-sensitive] [--overview-only]
 ```
 
 **Use Cases:**
@@ -51,7 +51,7 @@ historian link team-knowledge sarah-frontend debugging sarah-debugging-help
 
 ### Retrieving Specific Insights
 ```bash
-.cursor/tools/historian/get-insight.sh <topic> <name> [--overview]
+blizz get <topic> <name> [--overview]
 ```
 
 **Use Cases:**
@@ -60,8 +60,11 @@ historian link team-knowledge sarah-frontend debugging sarah-debugging-help
 
 ### Browsing Available Knowledge
 ```bash
-.cursor/tools/historian/list-insights.sh [topic] [--verbose]
-.cursor/tools/historian/list-topics.sh
+# List insights globally or for a specific topic. --verbose also prints each insight's overview
+blizz list [topic] [--verbose]
+
+# List the topics that have at least one insight
+blizz topics
 ```
 
 **Use Cases:**
@@ -72,7 +75,7 @@ historian link team-knowledge sarah-frontend debugging sarah-debugging-help
 
 ### Modifying Existing Insights
 ```bash
-.cursor/tools/historian/update-insight.sh <topic> <name> [--overview "<new_overview>"] [--details "<new_details>"]
+blizz update <topic> <name> [--overview "<new_overview>"] [--details "<new_details>"]
 ```
 
 **When to Update:**
@@ -84,7 +87,7 @@ historian link team-knowledge sarah-frontend debugging sarah-debugging-help
 
 ### Removing Outdated Insights
 ```bash
-.cursor/tools/historian/delete-insight.sh <topic> <name> [--force]
+blizz delete <topic> <name> [--force]
 ```
 
 **When to Delete:**
@@ -110,7 +113,9 @@ historian link team-knowledge sarah-frontend debugging sarah-debugging-help
 ## Topic Organization
 
 ### Flat Structure with Specific Subjects
-The historian system uses `topic/*.insight.md` where topics are **specific subjects** rather than broad categories. This enables precise, targeted searches using standard tools like `grep`, `cat`, and `sed`.
+Blizz's insights caching system uses `topic/*.insight.md` where topics are **specific subjects** rather than broad categories. This enables precise, targeted searches using standard tools like `grep`, `cat`, and `sed` if `blizz` alone is not enough. 
+
+Blizz' outputs from `list` and `topics` subcommands play particularly nicely with `grep`.
 
 ### Design Philosophy
 - **Topics are specific subjects** - not broad categories
@@ -121,19 +126,17 @@ The historian system uses `topic/*.insight.md` where topics are **specific subje
 ### Example Topic Structure
 
 #### Repository-Specific Topics
-- `frontend-jfe` - insights about the frontend-jfe repository
+- `frontend-ui` - insights about the frontend-jfe repository
 - `backend-api` - insights about the backend API service
 - `bentley` - insights about this specific repository
 
 #### Team Member Topics  
-- `jeff-hilton` - expertise areas, preferred approaches, who to ask for help
-- `john-lookandfeel` - insights about John's expertise areas
-- `sarah-frontend` - frontend expertise and debugging approaches
+- `john-themerman` - insights about John's expertise areas
+- `sarah-frontendly` - frontend expertise and debugging approaches
 
 #### Tool-Specific Topics
 - `cursor-mcp` - Cursor's MCP integration patterns and troubleshooting
 - `gitlab-api` - GitLab API usage patterns and authentication
-- `sentinel-tool` - Sentinel code complexity analysis usage and configuration
 
 #### Technology/Pattern Topics
 - `react-hooks` - React hooks debugging patterns and best practices
@@ -147,6 +150,6 @@ The historian system uses `topic/*.insight.md` where topics are **specific subje
 - `tool-knowledge/cursor-mcp-endpoints.insight.md`
 
 ✅ **Do this instead:**
-- `jeff-hilton/mr-workflow-expertise.insight.md`
-- `frontend-jfe/architectural-quirks.insight.md`
+- `jeff-jefferson/mr-workflow-expertise.insight.md`
+- `frontend-ui/architectural-quirks.insight.md`
 - `cursor-mcp/endpoint-configuration.insight.md`
