@@ -316,8 +316,7 @@ impl Sentinel {
       // Check if this key is part of the service config
       if config.required_credentials.iter().any(|spec| spec.key == key) {
         bentley::info(&format!(
-          "Credential {}/{} not found. Setting up {} credentials...",
-          service, key, service
+          "Credential {service}/{key} not found. Setting up {service} credentials..."
         ));
         self.setup_service(&config)?;
         return self.get_credential_raw(service, key);
@@ -360,7 +359,7 @@ impl Sentinel {
 
   /// Delete a credential from encrypted file storage
   pub fn delete_credential(&self, service: &str, key: &str) -> Result<()> {
-    bentley::event_info(&format!("Deleting credential for {}/{}", service, key));
+    bentley::event_info(&format!("Deleting credential for {service}/{key}"));
 
     let credentials_path = self.get_credentials_path();
     let mut store = EncryptedCredentialStore::load_from_file(&credentials_path)?;
@@ -372,7 +371,7 @@ impl Sentinel {
           store.credentials.remove(service);
         }
         store.save_to_file(&credentials_path)?;
-        bentley::event_success(&format!("Credential deleted for {}/{}", service, key));
+        bentley::event_success(&format!("Credential deleted for {service}/{key}"));
         Ok(())
       } else {
         Err(anyhow!("Credential not found for {}/{}", service, key))
@@ -451,7 +450,7 @@ impl Sentinel {
     bentley::info(&format!("🔑 Enter {}: {}", spec.key, spec.description));
 
     if let Some(example) = &spec.example {
-      bentley::info(&format!("Example: {}", example));
+      bentley::info(&format!("Example: {example}"));
     }
 
     print!("> ");
