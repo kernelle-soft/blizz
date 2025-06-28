@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# Kernelle Uninstalled Warning
+# This file is left behind when Kernelle is uninstalled to notify users
+# that they should update their shell configuration files
+
+echo "WARNING: Kernelle has been uninstalled from this system."
+echo ""
+echo "You are sourcing 'kernelle.source' but Kernelle is no longer available."
+echo "Please update your shell configuration files (.bashrc, .zshrc, etc.) to remove"
+echo "any references to 'kernelle.source' or the Kernelle installation."
+echo ""
+echo "Common locations to check:"
+echo "  - ~/.bashrc"
+echo "  - ~/.zshrc" 
+echo "  - ~/.profile"
+echo "  - ~/.bash_profile"
+echo ""
+echo "Look for lines like:"
+echo "  source ~/.kernelle/kernelle.source"
+echo "  source /path/to/kernelle.source"
+echo ""
+echo "Remove or comment out these lines to stop seeing this warning." 
+echo ""
+echo "Current SHELL: $SHELL"

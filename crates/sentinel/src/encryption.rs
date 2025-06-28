@@ -68,7 +68,7 @@ impl EncryptionManager {
       hostname::get().map_err(|_| anyhow!("Failed to get hostname"))?.to_string_lossy().to_string();
 
     let username = whoami::username();
-    let machine_data = format!("{}:{}", hostname, username);
+    let machine_data = format!("{hostname}:{username}");
 
     // Hash the machine data to create a consistent key
     use std::collections::hash_map::DefaultHasher;

@@ -2,6 +2,7 @@
 
 # Kernelle Cursor Workflows Integration
 # This script provides functions to add/remove Cursor workflows to/from projects
+# Source this file to make the functions available in your shell
 
 # Check if Kernelle home exists
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
@@ -71,4 +72,4 @@ rm-workflows() {
 
 # Export functions so they're available in the shell
 export -f add-workflows 2>/dev/null || true
-export -f rm-workflows 2>/dev/null || true
+export -f rm-workflows 2>/dev/null || true 

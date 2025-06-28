@@ -1,0 +1,147 @@
+name: Test Install & Cleanup
+
+on:
+  push:
+    branches: [ main, kernelle--cleanup ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-install-cleanup:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shell: [bash, zsh]
+        include:
+          - shell: bash
+            shell_setup: ""
+          - shell: zsh
+            shell_setup: "sudo apt-get update && sudo apt-get install -y zsh"
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+        
+    - name: Setup shell
+      if: matrix.shell_setup != ''
+      run: ${{ matrix.shell_setup }}
+      
+    - name: Test install script
+      run: |
+        echo "Testing install with ${{ matrix.shell }}"
+        if [ "${{ matrix.shell }}" = "zsh" ]; then
+          zsh -c "./scripts/install.sh --non-interactive"
+        else
+          ./scripts/install.sh --non-interactive
+        fi
+        
+    - name: Verify installation
+      run: |
+        # Check that binaries were installed (bentley is library-only, so exclude it)
+        ls -la ~/.local/bin/ | grep -E "(kernelle|jerrod|blizz|violet|adam|sentinel)"
+
+        # Check that .kernelle.source was created
+        test -f ~/.kernelle.source
+
+        # Check that .kernelle directory structure exists
+        test -d ~/.kernelle
+        test -d ~/.kernelle/.cursor
+
+        # Test that kernelle binary works
+        ~/.local/bin/kernelle --help
+
+    - name: Test kernelle add/remove
+      run: |
+        # Create a test project
+        mkdir -p /tmp/test-project
+        cd /tmp/test-project
+
+        # Test add
+        ~/.local/bin/kernelle add .
+
+        # Verify symlink was created
+        test -L .cursor/kernelle
+
+        # Verify it points to the right place
+        readlink .cursor/kernelle | grep -q "/.kernelle/.cursor"
+
+        # Test remove
+        ~/.local/bin/kernelle remove .
+        
+        # Verify symlink was removed
+        test ! -L .cursor/kernelle
+        
+    - name: Test cleanup script
+      run: |
+        # Test basic cleanup functionality
+        ./scripts/cleanup.sh --non-interactive
+
+        # Verify .kernelle.source was replaced with gone version
+        grep -q "WARNING: Kernelle has been uninstalled" ~/.kernelle.source
+
+        # Verify binaries were removed
+        test ! -f ~/.local/bin/kernelle
+        test ! -f ~/.local/bin/jerrod
+        test ! -f ~/.local/bin/blizz
+        test ! -f ~/.local/bin/violet
+        test ! -f ~/.local/bin/adam
+        test ! -f ~/.local/bin/sentinel
+
+        # Verify .kernelle directory was removed
+        test ! -d ~/.kernelle
+
+  test-edge-cases:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+        
+    - name: Test install when directories already exist
+      run: |
+        # Create existing directories
+        mkdir -p ~/.local/bin
+        mkdir -p ~/.kernelle
+        
+        # Test install
+        ./scripts/install.sh --non-interactive
+        
+        # Should still work
+        test -f ~/.local/bin/kernelle
+        
+    - name: Test kernelle add when .cursor/kernelle already exists
+      run: |
+        ./scripts/install.sh --non-interactive
+        
+        mkdir -p /tmp/test-project/.cursor
+        cd /tmp/test-project
+        
+        # Create existing symlink
+        ln -s /some/other/path .cursor/kernelle
+        
+        # kernelle add should replace it
+        ~/.local/bin/kernelle add .
+        
+        # Should now point to kernelle
+        readlink .cursor/kernelle | grep -q "/.kernelle/.cursor"
+        
+    - name: Test cleanup when no kernelle symlinks exist
+      run: |
+        # Test cleanup on clean system
+        ./scripts/cleanup.sh --non-interactive --keep-insights
+        
+        # Should not error even if nothing to clean up
+        echo "Cleanup completed successfully" 
