@@ -23,7 +23,7 @@ No, this is not AI-generated hype. I use these tools myself. In fact, I used the
 Automatic Setup and Quick-Start guidance:
 
 ```bash
-curl https://github.com/TravelSizedLions/kernelle/raw/refs/heads/dev/scripts/install.sh | sh
+curl -fL https://github.com/TravelSizedLions/kernelle/raw/refs/heads/dev/scripts/install.sh | sh
 ```
 
 ## Who Is This For?
