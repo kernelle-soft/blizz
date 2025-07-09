@@ -19,8 +19,8 @@ Think of this section like an imports section for a rule. If the files reference
 
 The usual structure is just a bulleted list of relative paths from the project root, like so:
 ```
-- .cursor/path/to/rule1.mdc
-- .cursor/path/to/this/other/rule.mdc
+- [rule1](mdc:.cursor/path/to/rule1.mdc)
+- [rule2](mdc:.cursor/path/to/this/other/rule.mdc)
 ```
 
 #### Inline Rule Additions and Modifications
@@ -28,10 +28,10 @@ The usual structure is just a bulleted list of relative paths from the project r
 Read Also's can also be overwritten using `|` values below the path to the rule. For example:
 
 ```mdc
-- .cursor/path/to/addition.mdc
+- [addition](mdc:.cursor/path/to/addition.mdc)
   | Instead of taking input <A> and adding it to <B>, subtract it instead 
 
-- .cursor/path/to/personality-a.mdc
+- [personality-a](mdc:.cursor/path/to/personality-a.mdc)
   | keep in mind the following:
   | - You are not personality B
   | - You are not personality C

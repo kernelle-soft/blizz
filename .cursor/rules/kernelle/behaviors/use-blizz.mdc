@@ -4,7 +4,7 @@ globs:
 alwaysApply: false
 ---
 ## Read Also
-- .cursor/rules/definitions/blizz-crud-operations.mdc
+- [blizz-crud-operations](mdc:.cursor/rules/kernelle/definitions/blizz-crud-operations.mdc)
 
 ## Algorithm
 When solving problems or starting a new conversation:

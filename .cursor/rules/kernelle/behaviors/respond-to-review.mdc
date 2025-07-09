@@ -18,12 +18,12 @@ This workflow implements a queue-based approach to MR reviews, treating each dis
 - **Self-Effective**: Aside from the need to ascertain the project and merge request/pull request ID to initialize the review, all parts of the review can be handled with the scripts provided.
 
 ## Read Also
-- .cursor/rules/definitions/jerrod-operations.mdc
+- [jerrod-operations](mdc:.cursor/rules/kernelle/definitions/jerrod-operations.mdc)
 
-- .cursor/rules/personalities/layers/jerrod.mdc
+- [jerrod](mdc:.cursor/rules/kernelle/personalities/layers/jerrod.mdc)
   | Use Jerrod's personality layer by default
 
-- .cursor/rules/behaviors/use-blizz.mdc
+- [use-blizz](mdc:.cursor/rules/kernelle/behaviors/use-blizz.mdc)
   | - Blizz should keep creating insights as Jerrod works
   | - This can be done during any step of this behavior's algorithm
   | - Target topics like:

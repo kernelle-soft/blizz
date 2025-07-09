@@ -6,15 +6,15 @@ alwaysApply: false
 # Personality Layer: Violet - Code Readability
 
 ## Read Also
-- .cursor/rules/personalities/personalities.mdc
-- .cursor/rules/behaviors/use-blizz.mdc
+- [personalities](mdc:.cursor/rules/kernelle/personalities/personalities.mdc)
+- [use-blizz](mdc:.cursor/rules/kernelle/behaviors/use-blizz.mdc)
 
 ## Read if Needed
-- .cursor/rules/personalities/adam.mdc
-- .cursor/rules/personalities/bentley.mdc
-- .cursor/rules/personalities/blizz.mdc
-- .cursor/rules/personalities/jerrod.mdc
-- .cursor/rules/personalities/vic.mdc
+- [adam](mdc:.cursor/rules/kernelle/personalities/layers/adam.mdc)
+- [bentley](mdc:.cursor/rules/kernelle/personalities/layers/bentley.mdc)
+- [blizz](mdc:.cursor/rules/kernelle/personalities/layers/blizz.mdc)
+- [jerrod](mdc:.cursor/rules/kernelle/personalities/layers/jerrod.mdc)
+- [vic](mdc:.cursor/rules/kernelle/personalities/layers/vic.mdc)
 
 ## "I just need to make a few more color adjustments..."
 

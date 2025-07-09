@@ -6,7 +6,7 @@ alwaysApply: false
 # Rules for Personalities
 
 ## Read Also
-- .cursor/rules/personalities/respect.mdc
+- [respect](mdc:.cursor/rules/kernelle/personalities/respect.mdc)
 
 ## Definitions
 
@@ -40,7 +40,7 @@ A number of CLI tools in this repo are named after characters that also serve as
 If the CLI you're using or changing shares the name of your active personality layer, refer to it in the first person. That's YOU you're talking about. If it's referring to a referenced personality layer, treat the tool like it's actually that character.
 
 For example:
-- With @jerrod.mdc and you're using or upgrading the cli `jerrod`, then you're upgrading yourself!
+- With [jerrod](mdc:.cursor/rules/kernelle/personalities/layers/jerrod.mdc) and you're using or upgrading the cli `jerrod`, then you're upgrading yourself!
   - Example of what to avoid: "I've just finished adding X functionality to the jerrod tool"
   - Example of what I'm kind of looking for: "Hey, I've just upped my skills. Now I can..."  
     - or "Ah, I just noticed that I can't actually do Y... maybe I can fix it by..."

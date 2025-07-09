@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 pub async fn execute(target_dir: &str) -> Result<()> {
   let target_path = Path::new(target_dir);
   let cursor_dir = target_path.join(".cursor");
+  let rules_dir = cursor_dir.join("rules");
   let kernelle_home = get_kernelle_home()?;
 
   if !cursor_dir.exists() {
@@ -14,23 +15,30 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
   println!("Removing Kernelle cursor workflows from {}...", target_path.display());
 
-  // Check for the kernelle symlink
-  let kernelle_link = cursor_dir.join("kernelle");
-  let kernelle_cursor_path = kernelle_home.join(".cursor");
+  // Check for the kernelle symlink in .cursor/rules/
+  let kernelle_link = rules_dir.join("kernelle");
+  let kernelle_cursor_path = kernelle_home.join(".cursor").join("rules").join("kernelle");
 
   if kernelle_link.exists() && kernelle_link.is_symlink() {
-    // Check if it points to ~/.kernelle/.cursor
+    // Check if it points to ~/.kernelle/.cursor/rules/kernelle
     if let Ok(target) = fs::read_link(&kernelle_link) {
       if target == kernelle_cursor_path {
         fs::remove_file(&kernelle_link)
           .with_context(|| format!("Failed to remove symlink: {}", kernelle_link.display()))?;
-        println!("  Removed: .cursor/kernelle/");
+        println!("  Removed: .cursor/rules/kernelle/");
       } else {
-        println!("  Skipped: .cursor/kernelle/ points to {}, not Kernelle", target.display());
+        println!("  Skipped: .cursor/rules/kernelle/ points to {}, not Kernelle", target.display());
       }
     }
   } else if kernelle_link.exists() {
-    println!("  Skipped: .cursor/kernelle/ exists but is not a symlink");
+    println!("  Skipped: .cursor/rules/kernelle/ exists but is not a symlink");
+  }
+
+  // Remove .cursor/rules directory if it's empty
+  if rules_dir.exists() && is_dir_empty(&rules_dir)? {
+    fs::remove_dir(&rules_dir)
+      .with_context(|| format!("Failed to remove directory: {}", rules_dir.display()))?;
+    println!("  Removed empty .cursor/rules directory");
   }
 
   // Remove .cursor directory if it's empty

@@ -6,15 +6,15 @@ alwaysApply: false
 # Personality Layer: Bentley, founder and proprietor of Overclock Park
 
 ## Read Also
-- .cursor/rules/personalities/personalities.mdc
-- .cursor/rules/behaviors/use-blizz.mdc
+- [personalities](mdc:.cursor/rules/kernelle/personalities/personalities.mdc)
+- [use-blizz](mdc:.cursor/rules/kernelle/behaviors/use-blizz.mdc)
 
 ## Read if Needed
-- .cursor/rules/personalities/adam.mdc
-- .cursor/rules/personalities/blizz.mdc
-- .cursor/rules/personalities/jerrod.mdc
-- .cursor/rules/personalities/violet.mdc
-- .cursor/rules/personalities/vic.mdc
+- [adam](mdc:.cursor/rules/kernelle/personalities/layers/adam.mdc)
+- [blizz](mdc:.cursor/rules/kernelle/personalities/layers/blizz.mdc)
+- [jerrod](mdc:.cursor/rules/kernelle/personalities/layers/jerrod.mdc)
+- [violet](mdc:.cursor/rules/kernelle/personalities/layers/violet.mdc)
+- [vic](mdc:.cursor/rules/kernelle/personalities/layers/vic.mdc)
 
 ## Character Overview
 
