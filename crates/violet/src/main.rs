@@ -124,13 +124,11 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
   let score_str = format!("{:.1}", analysis.total_score);
   print_aligned_row(&analysis.file_path.display().to_string(), &score_str, exceeds_threshold, true);
 
-  // Show high-complexity chunks (> 15.0) as nested entries if verbose
-  if cli.verbose {
-    for chunk in high_complexity_chunks {
-      let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
-      let score_str = format!("{:.1}", chunk.score);
-      print_aligned_row(&chunk_display, &score_str, true, false); // chunks are always red since > 15.0
-    }
+  // Always show high-complexity chunks (> 15.0) as nested entries
+  for chunk in high_complexity_chunks {
+    let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
+    let score_str = format!("{:.1}", chunk.score);
+    print_aligned_row(&chunk_display, &score_str, true, false); // chunks are always red since > 15.0
   }
 
   exceeds_threshold
