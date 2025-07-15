@@ -95,7 +95,7 @@ fn main() {
 
   // Only print headers and output if there are violations
   if !violation_output.is_empty() {
-    println!("{}", "🎨 Violet - Simple Code Complexity Analysis".purple().bold());
+    println!("{}", "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold());
     println!("{}", "Information-theoretic complexity scoring".italic());
     println!();
 
