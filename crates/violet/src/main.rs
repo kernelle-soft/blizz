@@ -17,13 +17,9 @@ struct Cli {
   #[arg(value_name = "PATH")]
   paths: Vec<PathBuf>,
 
-  /// Complexity threshold for warnings (default: 10.0)
-  #[arg(short, long, default_value = "10.0")]
+  /// Complexity threshold for warnings (default: 15.0)
+  #[arg(short, long, default_value = "15.0")]
   threshold: f64,
-
-  /// Show detailed breakdown for each chunk
-  #[arg(short, long)]
-  verbose: bool,
 
   /// Only show files that exceed the threshold
   #[arg(short, long)]
@@ -70,7 +66,7 @@ fn main() {
       if let Ok(entries) = std::fs::read_dir(path) {
         for entry in entries.flatten() {
           let file_path = entry.path();
-          if is_source_file(&file_path) {
+          if file_path.is_file() {
             match analyze_file(&file_path) {
               Ok(analysis) => {
                 total_files += 1;
@@ -103,13 +99,13 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
     return false;
   }
 
-  // Check if file has any high-complexity chunks
-  let high_complexity_chunks: Vec<_> = analysis.chunk_scores.iter()
-    .filter(|chunk| chunk.score > 15.0)
+  // Check if file has any chunks exceeding threshold
+  let violating_chunks: Vec<_> = analysis.chunk_scores.iter()
+    .filter(|chunk| chunk.score > cli.threshold)
     .collect();
 
-  // Only show files that have high-complexity chunks
-  if high_complexity_chunks.is_empty() {
+  // Only show files that have violating chunks
+  if violating_chunks.is_empty() {
     return false;
   }
 
@@ -119,11 +115,11 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
   let score_str = format!("{:.1}", analysis.total_score);
   print_aligned_row(&analysis.file_path.display().to_string(), &score_str, exceeds_threshold, true);
 
-  // Always show high-complexity chunks (> 15.0) as nested entries
-  for chunk in high_complexity_chunks {
+  // Always show violating chunks as nested entries
+  for chunk in violating_chunks {
     let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
     let score_str = format!("{:.1}", chunk.score);
-    print_aligned_row(&chunk_display, &score_str, true, false); // chunks are always red since > 15.0
+    print_aligned_row(&chunk_display, &score_str, true, false); // chunks are always red since they exceed threshold
     
     // Show truncated preview of the chunk (preserve indentation)
     let preview_lines: Vec<&str> = chunk.preview.lines().take(5).collect();
@@ -144,9 +140,9 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
     let cognitive_load_factor = 2.0;
     
     // Apply the same logarithmic scaling to components as used in final score
-    let depth_scaled = (1.0 + b.depth_score).ln() * cognitive_load_factor;
-    let verbosity_scaled = (1.0 + b.verbosity_score).ln() * cognitive_load_factor;
-    let syntactic_scaled = (1.0 + b.syntactic_score).ln() * cognitive_load_factor;
+    let depth_scaled = (1.0_f64 + b.depth_score).ln() * cognitive_load_factor;
+    let verbosity_scaled = (1.0_f64 + b.verbosity_score).ln() * cognitive_load_factor;
+    let syntactic_scaled = (1.0_f64 + b.syntactic_score).ln() * cognitive_load_factor;
     
     println!("    depth: {:.1} ({:.0}%)", depth_scaled, b.depth_percent);
     println!("    verbosity: {:.1} ({:.0}%)", verbosity_scaled, b.verbosity_percent);
@@ -196,26 +192,4 @@ fn format_file_path(path: &str, max_width: usize) -> String {
   }
 }
 
-fn is_source_file(path: &std::path::Path) -> bool {
-  if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-    matches!(
-      ext,
-      "rs"
-        | "js"
-        | "ts"
-        | "py"
-        | "go"
-        | "java"
-        | "cpp"
-        | "c"
-        | "h"
-        | "hpp"
-        | "php"
-        | "rb"
-        | "sh"
-        | "bash"
-    )
-  } else {
-    false
-  }
-}
+

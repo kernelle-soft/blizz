@@ -135,7 +135,7 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
 
     // Calculate component scores
     let depth_component = (indents as f64).powf(2.0);
-    let verbosity_component = non_special_chars.powf(1.25);
+    let verbosity_component = non_special_chars.powf(1.05);
     let syntactic_component = special_chars.powf(1.5);
 
     depth_total += depth_component;
@@ -198,14 +198,14 @@ pub fn file_complexity(file_content: &str) -> f64 {
 
 /// Extract chunks from file content (separated by blank lines)
 pub fn get_chunks(content: &str) -> Vec<String> {
-  let mut chunks = Vec::new();
+  // First pass: split on blank lines (original logic)
+  let mut temp_chunks = Vec::new();
   let mut current_chunk = Vec::new();
 
   for line in content.lines() {
     if line.trim().is_empty() {
-      // End of chunk if we have content
       if !current_chunk.is_empty() {
-        chunks.push(current_chunk.join("\n"));
+        temp_chunks.push(current_chunk.join("\n"));
         current_chunk.clear();
       }
     } else {
@@ -213,12 +213,26 @@ pub fn get_chunks(content: &str) -> Vec<String> {
     }
   }
 
-  // Don't forget the last chunk if file doesn't end with blank line
   if !current_chunk.is_empty() {
-    chunks.push(current_chunk.join("\n"));
+    temp_chunks.push(current_chunk.join("\n"));
   }
 
-  chunks
+  // Second pass: merge chunks that don't start at top level with previous chunk
+  let mut final_chunks = Vec::new();
+  
+  for chunk in temp_chunks {
+    if let Some(first_line) = chunk.lines().next() {
+      // If chunk starts with indentation, merge with previous chunk
+      if (first_line.starts_with(' ') || first_line.starts_with('\t')) && !final_chunks.is_empty() {
+        let last_idx = final_chunks.len() - 1;
+        final_chunks[last_idx] = format!("{}\n\n{}", final_chunks[last_idx], chunk);
+      } else {
+        final_chunks.push(chunk);
+      }
+    }
+  }
+
+  final_chunks
 }
 
 /// Count indentation levels in a line
