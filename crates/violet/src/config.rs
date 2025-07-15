@@ -48,50 +48,7 @@ impl Default for ThresholdConfig {
 }
 
 fn default_threshold() -> f64 {
-  7.0
-}
-
-/// Get default ignore patterns for global configuration
-fn get_default_ignore_patterns() -> Vec<String> {
-  vec![
-    // Common directories
-    "node_modules/**".to_string(),
-    "target/**".to_string(),
-    "build/**".to_string(),
-    "dist/**".to_string(),
-    ".git/**".to_string(),
-    ".cargo/**".to_string(),
-    ".github/**".to_string(),
-    ".vscode/**".to_string(),
-    ".DS_Store".to_string(),
-    ".idea/**".to_string(),
-    ".cursor/**".to_string(),
-    // Binary file extensions
-    "*.png".to_string(),
-    "*.jpg".to_string(),
-    "*.jpeg".to_string(),
-    "*.gif".to_string(),
-    "*.pdf".to_string(),
-    "*.zip".to_string(),
-    "*.tar".to_string(),
-    "*.gz".to_string(),
-    "*.rlib".to_string(),
-    "*.so".to_string(),
-    "*.dylib".to_string(),
-    "*.dll".to_string(),
-    // Common config/text/text-based files
-    "*.md".to_string(),
-    "*.mdc".to_string(),
-    "*.txt".to_string(),
-    "*.yaml".to_string(),
-    "*.yml".to_string(),
-    "*.xml".to_string(),
-    "*.html".to_string(),
-    "*.json".to_string(),
-    "*.json5".to_string(),
-    "*.toml".to_string(),
-    "*.lock".to_string(),
-  ]
+  6.0
 }
 
 /// Provide sensible default global configuration for installed binaries
@@ -126,11 +83,11 @@ pub fn get_threshold_for_file<P: AsRef<Path>>(config: &VioletConfig, file_path: 
   config.default_threshold
 }
 
-/// Check if a file should be ignored based on ignore patterns
+/// Check if a file should be ignored
 pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -> bool {
   let path_str = file_path.as_ref().to_string_lossy();
 
-  // Also check with normalized path (strip leading ./ if present)
+  // strip leading ./ if present
   let normalized_path = if path_str.starts_with("./") { &path_str[2..] } else { &path_str };
 
   for pattern in &config.ignore_patterns {
@@ -288,6 +245,49 @@ fn matches_pattern(path: &str, pattern: &str) -> bool {
 
   // Exact filename match: ".DS_Store" matches exactly ".DS_Store"
   path == pattern || path.ends_with(&format!("/{}", pattern))
+}
+
+// violet ignore chunk - This is just the default configuration. Nothing too complex.
+fn get_default_ignore_patterns() -> Vec<String> {
+  vec![
+    // Common directories
+    "node_modules/**".to_string(),
+    "target/**".to_string(),
+    "build/**".to_string(),
+    "dist/**".to_string(),
+    ".git/**".to_string(),
+    ".cargo/**".to_string(),
+    ".github/**".to_string(),
+    ".vscode/**".to_string(),
+    ".DS_Store".to_string(),
+    ".idea/**".to_string(),
+    ".cursor/**".to_string(),
+    // Binary file extensions
+    "*.png".to_string(),
+    "*.jpg".to_string(),
+    "*.jpeg".to_string(),
+    "*.gif".to_string(),
+    "*.pdf".to_string(),
+    "*.zip".to_string(),
+    "*.tar".to_string(),
+    "*.gz".to_string(),
+    "*.rlib".to_string(),
+    "*.so".to_string(),
+    "*.dylib".to_string(),
+    "*.dll".to_string(),
+    // Common config/text/text-based files
+    "*.md".to_string(),
+    "*.mdc".to_string(),
+    "*.txt".to_string(),
+    "*.yaml".to_string(),
+    "*.yml".to_string(),
+    "*.xml".to_string(),
+    "*.html".to_string(),
+    "*.json".to_string(),
+    "*.json5".to_string(),
+    "*.toml".to_string(),
+    "*.lock".to_string(),
+  ]
 }
 
 // violet ignore chunk

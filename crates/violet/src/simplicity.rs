@@ -183,9 +183,9 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
     let non_special_chars = (line.trim().len() as f64) - special_chars;
 
     // Calculate component scores
-    let depth_component = (indents as f64).powf(2.0);
-    let verbosity_component = non_special_chars.powf(1.05);
-    let syntactic_component = special_chars.powf(1.5);
+    let verbosity_component = (1.05 as f64).powf(non_special_chars as f64);
+    let syntactic_component = (1.25 as f64).powf(special_chars as f64);
+    let depth_component = (2.0 as f64).powf(indents as f64);
 
     depth_total += depth_component;
     verbosity_total += verbosity_component;
@@ -197,8 +197,7 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
 
   // Information-theoretic scaling: ln(1 + sum) gives us base information content
   // Then scale by cognitive load factor - human processing isn't linear with information
-  let base_information = (1.0 + raw_sum).ln();
-  let final_score = base_information;
+  let final_score = raw_sum.ln();
 
   // Calculate percentages based on raw component scores (before logarithmic scaling)
   let total_raw = depth_total + verbosity_total + syntactic_total;
