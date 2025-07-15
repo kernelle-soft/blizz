@@ -103,38 +103,40 @@ fn main() {
 fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
   if analysis.ignored {
     if !cli.quiet {
-      print_aligned_row(&analysis.file_path.display().to_string(), "(ignored)", false);
+      print_aligned_row(&analysis.file_path.display().to_string(), "(ignored)", false, true);
     }
+    return false;
+  }
+
+  // Check if file has any high-complexity chunks
+  let high_complexity_chunks: Vec<_> = analysis.chunk_scores.iter()
+    .filter(|chunk| chunk.score > 15.0)
+    .collect();
+
+  // Only show files that have high-complexity chunks
+  if high_complexity_chunks.is_empty() {
     return false;
   }
 
   let exceeds_threshold = analysis.total_score > cli.threshold;
 
-  if cli.quiet && !exceeds_threshold {
-    return false;
-  }
-
   // Print file row with color-coded score
   let score_str = format!("{:.1}", analysis.total_score);
-  print_aligned_row(&analysis.file_path.display().to_string(), &score_str, exceeds_threshold);
+  print_aligned_row(&analysis.file_path.display().to_string(), &score_str, exceeds_threshold, true);
 
   // Show high-complexity chunks (> 15.0) as nested entries if verbose
   if cli.verbose {
-    let high_complexity_chunks: Vec<_> = analysis.chunk_scores.iter()
-      .filter(|chunk| chunk.score > 15.0)
-      .collect();
-    
     for chunk in high_complexity_chunks {
       let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
       let score_str = format!("{:.1}", chunk.score);
-      print_aligned_row(&chunk_display, &score_str, true); // chunks are always red since > 15.0
+      print_aligned_row(&chunk_display, &score_str, true, false); // chunks are always red since > 15.0
     }
   }
 
   exceeds_threshold
 }
 
-fn print_aligned_row(file_or_chunk: &str, score_text: &str, is_error: bool) {
+fn print_aligned_row(file_or_chunk: &str, score_text: &str, is_error: bool, is_file: bool) {
   // Calculate available width for the file/chunk column
   let avg_column_width = score_text.len();
   let file_column_width = TOTAL_WIDTH - avg_column_width - PADDING;
@@ -151,8 +153,16 @@ fn print_aligned_row(file_or_chunk: &str, score_text: &str, is_error: bool) {
     score_text.green().to_string()
   };
   
-  // Print with exact calculated widths
-  println!("{:<width$} {}", formatted_file, colored_score, width = file_column_width);
+  // Print with exact calculated widths using appropriate padding
+  if is_file {
+    // For files, pad with periods
+    let padding_needed = file_column_width - formatted_file.len();
+    let dots = ".".repeat(padding_needed);
+    println!("{}{} {}", formatted_file, dots, colored_score);
+  } else {
+    // For chunks, use normal space padding
+    println!("{:<width$} {}", formatted_file, colored_score, width = file_column_width);
+  }
 }
 
 fn format_file_path(path: &str, max_width: usize) -> String {
