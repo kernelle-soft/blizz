@@ -90,13 +90,8 @@ fn main() {
     }
   }
 
-  println!();
-  println!("📊 Summary: {} files analyzed", total_files);
   if violations > 0 {
-    println!("⚠️  {} files exceed complexity threshold of {}", violations, cli.threshold);
     process::exit(1);
-  } else {
-    println!("✅ All files within complexity threshold");
   }
 }
 
