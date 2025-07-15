@@ -68,32 +68,23 @@ fn main() {
         }
       }
     } else if path.is_dir() {
-      // Simple directory traversal for common source files
-      if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
-          let file_path = entry.path();
-          if file_path.is_file() {
-            // Check if file should be ignored
-            if config.should_ignore(&file_path) {
-              continue;
+      // Recursive directory traversal
+      let files = collect_files_recursively(path, &config);
+      for file_path in files {
+        match analyze_file(&file_path) {
+          Ok(analysis) => {
+            _total_files += 1;
+            let threshold = config.threshold_for_file(&file_path);
+            if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
+              // Count the number of chunks that exceed threshold in this file
+              let chunk_violations =
+                analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).count();
+              violating_chunks += chunk_violations;
+              violation_output.push(output);
             }
-
-            match analyze_file(&file_path) {
-              Ok(analysis) => {
-                _total_files += 1;
-                let threshold = config.threshold_for_file(&file_path);
-                if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
-                  // Count the number of chunks that exceed threshold in this file
-                  let chunk_violations =
-                    analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).count();
-                  violating_chunks += chunk_violations;
-                  violation_output.push(output);
-                }
-              }
-              Err(e) => {
-                eprintln!("Error analyzing {}: {}", file_path.display(), e);
-              }
-            }
+          }
+          Err(e) => {
+            eprintln!("Error analyzing {}: {}", file_path.display(), e);
           }
         }
       }
@@ -124,6 +115,31 @@ fn main() {
   if violating_chunks > 0 {
     process::exit(1);
   }
+}
+
+/// Recursively collect all files in a directory that should be analyzed
+fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBuf> {
+  let mut files = Vec::new();
+
+  if let Ok(entries) = std::fs::read_dir(dir) {
+    for entry in entries.flatten() {
+      let path = entry.path();
+
+      // Skip if the path should be ignored
+      if config.should_ignore(&path) {
+        continue;
+      }
+
+      if path.is_file() {
+        files.push(path);
+      } else if path.is_dir() {
+        // Recursively collect files from subdirectory
+        files.extend(collect_files_recursively(&path, config));
+      }
+    }
+  }
+
+  files
 }
 
 fn process_file_analysis(

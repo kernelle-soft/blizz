@@ -113,6 +113,7 @@ impl VioletConfig {
     ConfigFile {
       complexity: ComplexityConfig { thresholds: ThresholdConfig::default() },
       ignore: vec![
+        // Common directories
         "node_modules/**".to_string(),
         "target/**".to_string(),
         "build/**".to_string(),
@@ -123,6 +124,7 @@ impl VioletConfig {
         ".vscode/**".to_string(),
         ".DS_Store".to_string(),
         ".idea/**".to_string(),
+        ".cursor/**".to_string(),
         // Binary file extensions
         "*.png".to_string(),
         "*.jpg".to_string(),
@@ -136,11 +138,17 @@ impl VioletConfig {
         "*.so".to_string(),
         "*.dylib".to_string(),
         "*.dll".to_string(),
+        // Common config/text/text-based files
         "*.md".to_string(),
+        "*.mdc".to_string(),
+        "*.txt".to_string(),
+        "*.yaml".to_string(),
+        "*.yml".to_string(),
+        "*.xml".to_string(),
+        "*.html".to_string(),
         "*.json".to_string(),
         "*.json5".to_string(),
         "*.toml".to_string(),
-        "*.lock".to_string(),
         "*.lock".to_string(),
       ],
     }
