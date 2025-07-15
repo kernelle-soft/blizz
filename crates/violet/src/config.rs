@@ -129,41 +129,49 @@ fn load_project_config() -> Result<Option<ConfigFile>> {
   }
 }
 
+/// Check for development config path (in target/../crates/violet/.violet.json5)
+fn try_development_config() -> Option<PathBuf> {
+  let exe_path = std::env::current_exe().ok()?;
+  let target_dir = exe_path.parent()?.parent()?;
+
+  if target_dir.file_name()? != "target" {
+    return None;
+  }
+
+  let project_root = target_dir.parent()?;
+  let dev_config = project_root.join("crates/violet/.violet.json5");
+
+  if dev_config.exists() {
+    Some(dev_config)
+  } else {
+    None
+  }
+}
+
+/// Check for installed config path (alongside executable)
+fn try_installed_config() -> Option<PathBuf> {
+  let exe_path = std::env::current_exe().ok()?;
+  let exe_dir = exe_path.parent()?;
+  let installed_config = exe_dir.join(".violet.json5");
+
+  if installed_config.exists() {
+    Some(installed_config)
+  } else {
+    None
+  }
+}
+
 /// Find the global configuration file path
 fn find_global_config_path() -> Result<PathBuf> {
-  // Try to find the config relative to the current executable's location
-  // This allows for development and installed scenarios
-
-  if let Ok(exe_path) = std::env::current_exe() {
-    // In development: executable is in target/debug/violet or target/release/violet
-    // Config would be in crates/violet/.violet.json5
-    if let Some(target_dir) = exe_path.parent().and_then(|p| p.parent()) {
-      // Check if we're in a target directory (development)
-      if target_dir.file_name().map(|n| n == "target").unwrap_or(false) {
-        if let Some(project_root) = target_dir.parent() {
-          let dev_config = project_root.join("crates/violet/.violet.json5");
-          if dev_config.exists() {
-            return Ok(dev_config);
-          }
-        }
-      }
-    }
+  if let Some(config) = try_development_config() {
+    return Ok(config);
   }
 
-  // Fallback: look for config in a standard location relative to executable
-  // For installed binaries, this could be alongside the binary
-  if let Ok(exe_path) = std::env::current_exe() {
-    if let Some(exe_dir) = exe_path.parent() {
-      let installed_config = exe_dir.join(".violet.json5");
-      if installed_config.exists() {
-        return Ok(installed_config);
-      }
-    }
+  if let Some(config) = try_installed_config() {
+    return Ok(config);
   }
 
-  // For installed binaries, embed default global config inline
-  // rather than failing to find an external file
-  // This returns a path that doesn't exist, triggering use of hardcoded defaults
+  // Default path that triggers hardcoded defaults
   Ok(PathBuf::from(".violet.global.json5"))
 }
 
@@ -176,44 +184,41 @@ fn load_config_file(path: &Path) -> Result<ConfigFile> {
     .with_context(|| format!("Failed to parse JSON5 config file: {}", path.display()))
 }
 
+/// Merge ignore patterns from global and project configs, removing duplicates
+fn merge_ignore_patterns(
+  global_patterns: Vec<String>,
+  project_patterns: Vec<String>,
+) -> Vec<String> {
+  let mut ignore_set = HashSet::new();
+  let mut result = Vec::new();
+
+  for pattern in global_patterns.into_iter().chain(project_patterns) {
+    if ignore_set.insert(pattern.clone()) {
+      result.push(pattern);
+    }
+  }
+
+  result
+}
+
 /// Merge global and project configurations
 fn merge_configs(global: ConfigFile, project: Option<ConfigFile>) -> VioletConfig {
   let project = project.unwrap_or_default();
 
-  // Get the default threshold value before declaring our variable
-  let default_default = default_threshold();
+  // Use project default threshold if different from default, otherwise use global
+  let default_threshold = if project.complexity.thresholds.default != default_threshold() {
+    project.complexity.thresholds.default
+  } else {
+    global.complexity.thresholds.default
+  };
 
-  // Start with global default threshold
-  let mut default_threshold = global.complexity.thresholds.default;
-
-  // Override with project default if specified
-  if project.complexity.thresholds.default != default_default {
-    default_threshold = project.complexity.thresholds.default;
-  }
-
-  // Merge thresholds: start with global extensions, then add/override with project
+  // Merge thresholds: start with global, override with project
   let mut thresholds = global.complexity.thresholds.extensions.clone();
   for (ext, threshold) in project.complexity.thresholds.extensions {
     thresholds.insert(ext, threshold);
   }
 
-  // Merge ignore patterns: deduplicate with global first, project second
-  let mut ignore_set = HashSet::new();
-  let mut ignore_patterns = Vec::new();
-
-  // Add global patterns first
-  for pattern in global.ignore {
-    if ignore_set.insert(pattern.clone()) {
-      ignore_patterns.push(pattern);
-    }
-  }
-
-  // Add project patterns second
-  for pattern in project.ignore {
-    if ignore_set.insert(pattern.clone()) {
-      ignore_patterns.push(pattern);
-    }
-  }
+  let ignore_patterns = merge_ignore_patterns(global.ignore, project.ignore);
 
   VioletConfig { thresholds, ignore_patterns, default_threshold }
 }
