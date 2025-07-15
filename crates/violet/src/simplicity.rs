@@ -6,6 +6,7 @@
 //! the score is based on the amount of information that is needed to understand
 //! the code.
 
+use regex::Regex;
 use std::fs;
 use std::path::Path;
 
@@ -87,34 +88,78 @@ pub fn analyze_file<P: AsRef<Path>>(
 }
 
 pub fn preprocess_file(content: &str) -> Option<String> {
+  // Regex to match violet ignore directives - language agnostic
+  let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
+
   let lines: Vec<&str> = content.lines().collect();
 
   // Check for file-level ignore
-  if lines.iter().any(|line| line.trim().starts_with("// violet ignore file")) {
+  if lines.iter().any(|line| {
+    ignore_regex.captures(line).map_or(false, |caps| caps.get(1).unwrap().as_str() == "file")
+  }) {
     return None; // Entire file should be ignored
   }
 
   let mut result_lines = Vec::new();
   let mut ignore_depth = 0;
+  let mut skip_next_line = false;
+  let mut skip_next_chunk = false;
+  let mut currently_skipping_chunk = false;
 
-  for line in lines {
-    let trimmed = line.trim();
-
-    if trimmed.starts_with("// violet ignore start") {
-      ignore_depth += 1;
+  for line in lines.iter() {
+    // Handle line-level ignore from previous line
+    if skip_next_line {
+      skip_next_line = false;
       continue;
     }
 
-    if trimmed.starts_with("// violet ignore end") {
-      if ignore_depth > 0 {
-        ignore_depth -= 1;
+    // Handle chunk-level ignore logic
+    if skip_next_chunk {
+      // Look for the start of the next chunk (top-level, non-empty line)
+      if !line.trim().is_empty() && !line.starts_with(' ') && !line.starts_with('\t') {
+        currently_skipping_chunk = true;
+        skip_next_chunk = false;
+      }
+    }
+
+    if currently_skipping_chunk {
+      // Skip until we hit a blank line (end of chunk)
+      if line.trim().is_empty() {
+        currently_skipping_chunk = false;
       }
       continue;
     }
 
+    // Check for ignore directives in current line
+    if let Some(captures) = ignore_regex.captures(line) {
+      let directive = captures.get(1).unwrap().as_str();
+
+      match directive {
+        "start" => {
+          ignore_depth += 1;
+          continue;
+        }
+        "end" => {
+          if ignore_depth > 0 {
+            ignore_depth -= 1;
+          }
+          continue;
+        }
+        "line" => {
+          skip_next_line = true;
+          continue;
+        }
+        "chunk" => {
+          skip_next_chunk = true;
+          continue;
+        }
+        _ => {} // file is handled above
+      }
+    }
+
     // Only include line if we're not in an ignored section
     if ignore_depth == 0 {
-      result_lines.push(line);
+      result_lines.push(*line);
     }
   }
 
@@ -257,6 +302,7 @@ fn get_num_specials(line: &str) -> f64 {
   line.trim().chars().filter(|ch| special_chars.contains(*ch)).count() as f64
 }
 
+// violet ignore chunk
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -339,15 +385,19 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_ignore_entire_file() {
-    let content = "# violet ignore file\nfn main() {\n    println!(\"hello\");\n}";
-    let result = preprocess_file(content);
+    // Test with different comment styles
+    let content1 = "# violet ignore file\nfn main() {\n    println!(\"hello\");\n}";
+    let content2 = "// violet ignore file\nfn main() {\n    println!(\"hello\");\n}";
+    let content3 = "/* violet ignore file */\nfn main() {\n    println!(\"hello\");\n}";
 
-    assert_eq!(result, None);
+    assert_eq!(preprocess_file(content1), None);
+    assert_eq!(preprocess_file(content2), None);
+    assert_eq!(preprocess_file(content3), None);
   }
 
   #[test]
   fn test_preprocess_file_ignore_block() {
-    let content = "fn good() {\n    return 1;\n}\n\n// violet ignore start\nfn bad() {\n    if nested {\n        return 2;\n    }\n}\n// violet ignore end\n\nfn also_good() {\n    return 3;\n}";
+    let content = "fn good() {\n    return 1;\n}\n\n# violet ignore start\nfn bad() {\n    if nested {\n        return 2;\n    }\n}\n# violet ignore end\n\nfn also_good() {\n    return 3;\n}";
     let result = preprocess_file(content).unwrap();
 
     assert!(result.contains("fn good()"));
@@ -358,7 +408,7 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_nested_ignore_blocks() {
-    let content = "fn good() {\n    return 1;\n}\n\n/* violet ignore start */\nfn outer_bad() {\n    // violet ignore start\n    fn inner_bad() {\n        return 2;\n    }\n    // violet ignore end\n    return 3;\n}\n// violet ignore end\n\nfn also_good() {\n    return 4;\n}";
+    let content = "fn good() {\n    return 1;\n}\n\n/* violet ignore start */\nfn outer_bad() {\n    # violet ignore start\n    fn inner_bad() {\n        return 2;\n    }\n    # violet ignore end\n    return 3;\n}\n/* violet ignore end */\n\nfn also_good() {\n    return 4;\n}";
     let result = preprocess_file(content).unwrap();
 
     assert!(result.contains("fn good()"));
@@ -370,7 +420,7 @@ mod tests {
   #[test]
   fn test_preprocess_file_unmatched_ignore_end() {
     let content =
-      "fn good() {\n    return 1;\n}\n\n// violet ignore end\nfn still_good() {\n    return 2;\n}";
+      "fn good() {\n    return 1;\n}\n\n# violet ignore end\nfn still_good() {\n    return 2;\n}";
     let result = preprocess_file(content).unwrap();
 
     assert!(result.contains("fn good()"));
@@ -379,7 +429,7 @@ mod tests {
 
   #[test]
   fn test_complete_pipeline_with_ignores() {
-    let content = "fn simple() {\n    return 1;\n}\n\n// violet ignore start\nfn complex() {\n    if deeply {\n        if nested {\n            if very {\n                return 2;\n            }\n        }\n    }\n}\n// violet ignore end\n\nfn another_simple() {\n    return 3;\n}";
+    let content = "fn simple() {\n    return 1;\n}\n\n# violet ignore start\nfn complex() {\n    if deeply {\n        if nested {\n            if very {\n                return 2;\n            }\n        }\n    }\n}\n# violet ignore end\n\nfn another_simple() {\n    return 3;\n}";
 
     // First preprocess to remove ignored sections
     let preprocessed = preprocess_file(content).unwrap();
@@ -401,7 +451,7 @@ mod tests {
 
   #[test]
   fn test_complete_pipeline_file_ignore() {
-    let content = "// violet ignore file\nfn extremely_complex() {\n    if deeply {\n        if nested {\n            if very {\n                if much {\n                    return 42;\n                }\n            }\n        }\n    }\n}";
+    let content = "# violet ignore file\nfn extremely_complex() {\n    if deeply {\n        if nested {\n            if very {\n                if much {\n                    return 42;\n                }\n            }\n        }\n    }\n}";
 
     let preprocessed = preprocess_file(content);
     assert_eq!(preprocessed, None); // Entire file should be ignored
@@ -442,5 +492,53 @@ mod tests {
     assert!(short_score < medium_score);
     assert!(medium_score < 100.0); // Still reasonable
     assert!(minimal_score > 0.0); // But not zero
+  }
+
+  #[test]
+  fn test_preprocess_file_ignore_line() {
+    let content = "fn good() {\n    return 1;\n}\n\n// violet ignore line\nlet bad_line = very_complex_calculation();\n\nfn also_good() {\n    return 2;\n}";
+    let result = preprocess_file(content).unwrap();
+
+    assert!(result.contains("fn good()"));
+    assert!(result.contains("fn also_good()"));
+    assert!(!result.contains("let bad_line"));
+    assert!(!result.contains("very_complex_calculation"));
+  }
+
+  #[test]
+  fn test_preprocess_file_ignore_chunk() {
+    let content = "fn good() {\n    return 1;\n}\n\n/* violet ignore chunk */\n\nfn bad_chunk() {\n    if deeply {\n        nested();\n    }\n}\n\nfn also_good() {\n    return 2;\n}";
+    let result = preprocess_file(content).unwrap();
+
+    assert!(result.contains("fn good()"));
+    assert!(result.contains("fn also_good()"));
+    assert!(!result.contains("fn bad_chunk()"));
+    assert!(!result.contains("if deeply"));
+    assert!(!result.contains("nested()"));
+  }
+
+  #[test]
+  fn test_preprocess_file_ignore_multiple_chunks() {
+    let content = "fn good1() {\n    return 1;\n}\n\n# violet ignore chunk\n\nfn bad1() {\n    complex();\n}\n\nfn good2() {\n    return 2;\n}\n\n# violet ignore chunk\n\nfn bad2() {\n    also_complex();\n}\n\nfn good3() {\n    return 3;\n}";
+    let result = preprocess_file(content).unwrap();
+
+    assert!(result.contains("fn good1()"));
+    assert!(result.contains("fn good2()"));
+    assert!(result.contains("fn good3()"));
+    assert!(!result.contains("fn bad1()"));
+    assert!(!result.contains("fn bad2()"));
+    assert!(!result.contains("complex()"));
+    assert!(!result.contains("also_complex()"));
+  }
+
+  #[test]
+  fn test_preprocess_file_mixed_comment_styles() {
+    let content = "fn good() {\n    return 1;\n}\n\n// violet ignore line\nlet bad1 = complex();\n\n# violet ignore start\nfn bad_block() {\n    return 2;\n}\n/* violet ignore end */\n\nfn also_good() {\n    return 3;\n}";
+    let result = preprocess_file(content).unwrap();
+
+    assert!(result.contains("fn good()"));
+    assert!(result.contains("fn also_good()"));
+    assert!(!result.contains("let bad1"));
+    assert!(!result.contains("fn bad_block()"));
   }
 }
