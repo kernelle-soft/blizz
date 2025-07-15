@@ -291,7 +291,6 @@ fn matches_pattern(path: &str, pattern: &str) -> bool {
 }
 
 // violet ignore chunk
-
 #[cfg(test)]
 mod tests {
   use super::*;

@@ -61,14 +61,33 @@ pub fn analyze_file<P: AsRef<Path>>(
     }
   };
 
-  // Extract chunks and score them
-  let chunks = get_chunks(&preprocessed);
+  // Extract chunks and process them, skipping ignored chunks
+  let all_chunks = get_chunks(&preprocessed);
+  let chunk_ignore_regex = Regex::new(r"violet\s+ignore\s+chunk").unwrap();
+
   let mut chunk_scores = Vec::new();
   let mut current_line = 1;
+  let mut skip_next_chunk = false;
 
-  for chunk in &chunks {
-    let (score, breakdown) = chunk_complexity_with_breakdown(chunk);
+  for chunk in &all_chunks {
     let lines_in_chunk = chunk.lines().count();
+
+    // Check if this chunk contains an ignore directive
+    if chunk_ignore_regex.is_match(chunk) {
+      skip_next_chunk = true;
+      // Skip this directive chunk
+      current_line += lines_in_chunk + 1;
+      continue;
+    }
+
+    // Check if this chunk should be skipped due to previous directive
+    if skip_next_chunk {
+      skip_next_chunk = false;
+      current_line += lines_in_chunk + 1;
+      continue;
+    }
+
+    let (score, breakdown) = chunk_complexity_with_breakdown(chunk);
     let preview = chunk.lines().take(8).collect::<Vec<&str>>().join("\n");
 
     chunk_scores.push(ChunkScore {
@@ -103,30 +122,11 @@ pub fn preprocess_file(content: &str) -> Option<String> {
   let mut result_lines = Vec::new();
   let mut ignore_depth = 0;
   let mut skip_next_line = false;
-  let mut skip_next_chunk = false;
-  let mut currently_skipping_chunk = false;
 
   for line in lines.iter() {
     // Handle line-level ignore from previous line
     if skip_next_line {
       skip_next_line = false;
-      continue;
-    }
-
-    // Handle chunk-level ignore logic
-    if skip_next_chunk {
-      // Look for the start of the next chunk (top-level, non-empty line)
-      if !line.trim().is_empty() && !line.starts_with(' ') && !line.starts_with('\t') {
-        currently_skipping_chunk = true;
-        skip_next_chunk = false;
-      }
-    }
-
-    if currently_skipping_chunk {
-      // Skip until we hit a blank line (end of chunk)
-      if line.trim().is_empty() {
-        currently_skipping_chunk = false;
-      }
       continue;
     }
 
@@ -150,7 +150,11 @@ pub fn preprocess_file(content: &str) -> Option<String> {
           continue;
         }
         "chunk" => {
-          skip_next_chunk = true;
+          // Keep the directive line so we can identify chunks to remove later
+          // But only if we're not in an ignored section
+          if ignore_depth == 0 {
+            result_lines.push(*line);
+          }
           continue;
         }
         _ => {} // file is handled above
