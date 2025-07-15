@@ -1,0 +1,45 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Title - This is just a descriptive title for context
+
+## import
+- rules/simple.mdc
+- rules/overridable.mdc
+  * append: after
+  | Rules aren't just composable, they're overridable! 
+  | This text will be concatenated after overridable.mdc in the resolved
+  | rule file.
+- rules/A.mdc
+  * append: after
+  | The rest of this stuff is appended before the rule begins
+  |
+  | You can add arbitrary text and even append additional rules.
+  |
+  | ## imports
+  | - rules/B.mdc
+  | * append: before
+  | | In cases of nested overrides, the pre vs post concatenation 
+  | | resolves from the bottom-up
+  | | So the text here is appended before rule B but after rule A.
+- rules/conditional.mdc
+  * when:
+  | This rule only applies when the model thinks it's relevant
+  | (and according to user guidance here)
+- rules/hoisted.mdc
+  * hoist
+
+## overview
+This section is meant to give background
+
+## workflow
+This section describes a strict workflow for the model to follow.
+
+### import
+- rules/workflows/wf-a.mdc
+  * append: before
+  | It's possible to specify imports that get resolved within other sections.
+  | They get concatenated before or after the content of the section,
+  | but still within the section.
