@@ -31,7 +31,7 @@ pub struct ComplexityConfig {
   pub thresholds: ThresholdConfig,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ThresholdConfig {
   #[serde(default = "default_threshold")]
   pub default: f64,
@@ -39,6 +39,12 @@ pub struct ThresholdConfig {
   /// File extension specific thresholds (e.g., ".rs": 7.0, ".md": 5.0)
   #[serde(flatten)]
   pub extensions: HashMap<String, f64>,
+}
+
+impl Default for ThresholdConfig {
+  fn default() -> Self {
+    Self { default: default_threshold(), extensions: HashMap::new() }
+  }
 }
 
 fn default_threshold() -> f64 {
@@ -74,8 +80,13 @@ impl VioletConfig {
   pub fn should_ignore<P: AsRef<Path>>(&self, file_path: P) -> bool {
     let path_str = file_path.as_ref().to_string_lossy();
 
+    // Also check with normalized path (strip leading ./ if present)
+    let normalized_path = if path_str.starts_with("./") { &path_str[2..] } else { &path_str };
+
     for pattern in &self.ignore_patterns {
-      if Self::matches_pattern(&path_str, pattern) {
+      if Self::matches_pattern(&path_str, pattern)
+        || Self::matches_pattern(normalized_path, pattern)
+      {
         return true;
       }
     }
@@ -92,8 +103,46 @@ impl VioletConfig {
         format!("Failed to load global config from {}", global_config_path.display())
       })
     } else {
-      // If no global config found, return default
-      Ok(ConfigFile::default())
+      // If no global config found, use hardcoded sensible defaults
+      Ok(Self::default_global_config())
+    }
+  }
+
+  /// Provide sensible default global configuration for installed binaries
+  fn default_global_config() -> ConfigFile {
+    ConfigFile {
+      complexity: ComplexityConfig { thresholds: ThresholdConfig::default() },
+      ignore: vec![
+        "node_modules/**".to_string(),
+        "target/**".to_string(),
+        "build/**".to_string(),
+        "dist/**".to_string(),
+        ".git/**".to_string(),
+        ".cargo/**".to_string(),
+        ".github/**".to_string(),
+        ".vscode/**".to_string(),
+        ".DS_Store".to_string(),
+        ".idea/**".to_string(),
+        // Binary file extensions
+        "*.png".to_string(),
+        "*.jpg".to_string(),
+        "*.jpeg".to_string(),
+        "*.gif".to_string(),
+        "*.pdf".to_string(),
+        "*.zip".to_string(),
+        "*.tar".to_string(),
+        "*.gz".to_string(),
+        "*.rlib".to_string(),
+        "*.so".to_string(),
+        "*.dylib".to_string(),
+        "*.dll".to_string(),
+        "*.md".to_string(),
+        "*.json".to_string(),
+        "*.json5".to_string(),
+        "*.toml".to_string(),
+        "*.lock".to_string(),
+        "*.lock".to_string(),
+      ],
     }
   }
 
@@ -145,7 +194,9 @@ impl VioletConfig {
       }
     }
 
-    // Final fallback: return a default path (will be checked for existence later)
+    // For installed binaries, embed default global config inline
+    // rather than failing to find an external file
+    // This returns a path that doesn't exist, triggering use of hardcoded defaults
     Ok(PathBuf::from(".violet.global.json5"))
   }
 

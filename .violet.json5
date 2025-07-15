@@ -3,11 +3,5 @@
     thresholds: {
         ".sh": 8.0,
     },
-  },
-  ignore: [
-    "*.lock",
-    "*.json",
-    "*.json5",
-    "*.toml",
-  ]
+  }
 }
