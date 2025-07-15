@@ -4,6 +4,7 @@
 //! from the current working directory, with proper threshold and ignore list merging.
 
 use anyhow::{Context, Result};
+use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -225,31 +226,29 @@ fn merge_configs(global: ConfigFile, project: Option<ConfigFile>) -> VioletConfi
 
 /// Enhanced glob-like pattern matching for ignore patterns
 fn matches_pattern(path: &str, pattern: &str) -> bool {
-  // Handle different glob patterns
+  // Try to create a glob pattern
+  let glob_pattern = match Pattern::new(pattern) {
+    Ok(p) => p,
+    Err(_) => return false, // Invalid pattern
+  };
 
-  // Directory patterns: "target/**" matches target/ and all subdirectories
-  if pattern.ends_with("/**") {
-    let prefix = &pattern[..pattern.len() - 3];
-    return path.starts_with(prefix);
+  // Direct glob match
+  if glob_pattern.matches(path) {
+    return true;
   }
 
-  // File extension patterns: "*.json" matches any file ending in .json
-  if pattern.starts_with("*.") {
-    let extension = &pattern[1..]; // Include the dot: ".json"
-    return path.ends_with(extension);
-  }
-
-  // General wildcard patterns: "test*file" matches "test123file"
-  if pattern.contains('*') {
-    if let Some(star_pos) = pattern.find('*') {
-      let prefix = &pattern[..star_pos];
-      let suffix = &pattern[star_pos + 1..];
-      return path.starts_with(prefix) && path.ends_with(suffix);
+  // Special case: if pattern doesn't contain path separators,
+  // also try matching it as a filename anywhere in the path
+  if !pattern.contains('/') && !pattern.contains('\\') {
+    // Try matching as "*/pattern" to catch files in any directory
+    if let Ok(filename_pattern) = Pattern::new(&format!("*/{}", pattern)) {
+      if filename_pattern.matches(path) {
+        return true;
+      }
     }
   }
 
-  // Exact filename match: ".DS_Store" matches exactly ".DS_Store"
-  path == pattern || path.ends_with(&format!("/{}", pattern))
+  false
 }
 
 // violet ignore chunk - This is just the default configuration. Nothing too complex.
@@ -462,11 +461,11 @@ mod tests {
       ignore: vec![],
     };
 
-    // Project with default threshold same as the global default (7.0)
+    // Project with default threshold same as the global default (6.0)
     let project = ConfigFile {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig {
-          default: 7.0, // This is the hardcoded default
+          default: 6.0, // This is the hardcoded default
           extensions: HashMap::new(),
         },
       },
@@ -484,7 +483,7 @@ mod tests {
     let config = default_global_config();
 
     // Should have reasonable defaults
-    assert_eq!(config.complexity.thresholds.default, 7.0);
+    assert_eq!(config.complexity.thresholds.default, 6.0);
 
     // Should ignore common build/dependency directories
     assert!(config.ignore.contains(&"node_modules/**".to_string()));
@@ -503,14 +502,182 @@ mod tests {
   #[test]
   fn test_threshold_config_default() {
     let config = ThresholdConfig::default();
-    assert_eq!(config.default, 7.0);
+    assert_eq!(config.default, 6.0);
     assert!(config.extensions.is_empty());
   }
 
   #[test]
   fn test_config_file_default() {
     let config = ConfigFile::default();
-    assert_eq!(config.complexity.thresholds.default, 7.0);
+    assert_eq!(config.complexity.thresholds.default, 6.0); // Updated to match new default
     assert!(config.ignore.is_empty());
+  }
+
+  #[test]
+  fn test_merge_ignore_patterns_deduplication() {
+    let global = vec!["pattern1".to_string(), "pattern2".to_string(), "pattern3".to_string()];
+    let project = vec!["pattern2".to_string(), "pattern4".to_string(), "pattern1".to_string()];
+
+    let result = merge_ignore_patterns(global, project);
+
+    assert_eq!(result.len(), 4);
+    assert!(result.contains(&"pattern1".to_string()));
+    assert!(result.contains(&"pattern2".to_string()));
+    assert!(result.contains(&"pattern3".to_string()));
+    assert!(result.contains(&"pattern4".to_string()));
+  }
+
+  #[test]
+  fn test_merge_ignore_patterns_empty() {
+    let result = merge_ignore_patterns(vec![], vec![]);
+    assert!(result.is_empty());
+
+    let result = merge_ignore_patterns(vec!["pattern".to_string()], vec![]);
+    assert_eq!(result, vec!["pattern".to_string()]);
+
+    let result = merge_ignore_patterns(vec![], vec!["pattern".to_string()]);
+    assert_eq!(result, vec!["pattern".to_string()]);
+  }
+
+  #[test]
+  fn test_matches_pattern_edge_cases() {
+    // Empty patterns
+    assert!(!matches_pattern("file.rs", ""));
+    assert!(!matches_pattern("", "pattern"));
+    assert!(matches_pattern("", ""));
+
+    // Single wildcards with different content
+    assert!(matches_pattern("test123file", "test*file"));
+    assert!(matches_pattern("prefix_middle_suffix", "prefix*suffix"));
+    assert!(!matches_pattern("wrong_middle_suffix", "prefix*different"));
+
+    // Special characters in paths
+    assert!(matches_pattern("file with spaces.txt", "*.txt"));
+    assert!(matches_pattern("file-with-dashes.rs", "*.rs"));
+    assert!(matches_pattern("file.with.dots.json", "*.json"));
+
+    // Wildcard edge cases
+    assert!(matches_pattern("anything", "*"));
+    assert!(matches_pattern("prefix123", "prefix*"));
+    assert!(matches_pattern("123suffix", "*suffix"));
+  }
+
+  #[test]
+  fn test_matches_pattern_multiple_wildcards() {
+    // Multiple wildcards
+    assert!(matches_pattern("test123file456", "test*file*"));
+    assert!(matches_pattern("prefix_middle_end_suffix", "prefix*end*suffix"));
+    assert!(!matches_pattern("wrong_middle_suffix", "prefix*end*suffix"));
+
+    // Wildcard in middle of text
+    assert!(matches_pattern("mydebugfile", "*debug*"));
+    assert!(matches_pattern("app_debug_info.txt", "*debug*"));
+    assert!(matches_pattern("debug.log", "*debug*"));
+    assert!(!matches_pattern("release.log", "*debug*"));
+
+    // Complex multi-wildcard patterns
+    assert!(matches_pattern("test_spec_helper.rb", "test*spec*"));
+    assert!(matches_pattern("test123spec456", "test*spec*"));
+    assert!(!matches_pattern("testfile", "test*spec*"));
+
+    // Edge cases with multiple wildcards
+    assert!(matches_pattern("anything", "**"));
+    assert!(matches_pattern("anything", "*anything*"));
+    assert!(matches_pattern("", "*"));
+    assert!(matches_pattern("", "**"));
+  }
+
+  #[test]
+  fn test_threshold_for_file_edge_cases() {
+    let config =
+      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
+
+    // Files without extensions
+    assert_eq!(get_threshold_for_file(&config, "README"), 6.0);
+    assert_eq!(get_threshold_for_file(&config, "Makefile"), 6.0);
+
+    // Files with multiple extensions
+    assert_eq!(get_threshold_for_file(&config, "file.tar.gz"), 6.0);
+
+    // Empty file name
+    assert_eq!(get_threshold_for_file(&config, ""), 6.0);
+  }
+
+  #[test]
+  fn test_should_ignore_complex_patterns() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![
+        "test*file".to_string(),
+        "build/**".to_string(),
+        "temp*.tmp".to_string(),
+        "*debug*".to_string(),     // Multi-wildcard pattern
+        "*test*spec*".to_string(), // Complex multi-wildcard pattern
+      ],
+      default_threshold: 6.0,
+    };
+
+    // Complex wildcard patterns
+    assert!(should_ignore_file(&config, "test123file"));
+    assert!(should_ignore_file(&config, "testABCfile"));
+    assert!(!should_ignore_file(&config, "filetest"));
+
+    // Directory patterns
+    assert!(should_ignore_file(&config, "build/"));
+    assert!(should_ignore_file(&config, "build/output"));
+    assert!(should_ignore_file(&config, "build/nested/deep"));
+    assert!(!should_ignore_file(&config, "src/build")); // doesn't start with "build"
+
+    // Extension patterns
+    assert!(should_ignore_file(&config, "temp123.tmp"));
+    assert!(should_ignore_file(&config, "tempfile.tmp"));
+    assert!(!should_ignore_file(&config, "file.temp"));
+
+    // Multi-wildcard patterns
+    assert!(should_ignore_file(&config, "mydebugfile")); // Now works with *debug*
+    assert!(should_ignore_file(&config, "debug.log"));
+    assert!(should_ignore_file(&config, "app_debug_info.txt"));
+    assert!(!should_ignore_file(&config, "release.log"));
+
+    // Complex multi-wildcard patterns
+    assert!(should_ignore_file(&config, "test_spec_helper.rb"));
+    assert!(should_ignore_file(&config, "unit_test_integration_spec.js"));
+    assert!(!should_ignore_file(&config, "regular_file.rb"));
+  }
+
+  #[test]
+  fn test_default_threshold_value() {
+    // Verify the current default is 6.0
+    assert_eq!(default_threshold(), 6.0);
+
+    // Verify it's used consistently
+    let config = ThresholdConfig::default();
+    assert_eq!(config.default, 6.0);
+
+    let global_config = default_global_config();
+    assert_eq!(global_config.complexity.thresholds.default, 6.0);
+  }
+
+  #[test]
+  fn test_default_ignore_patterns_coverage() {
+    let patterns = get_default_ignore_patterns();
+
+    // Should have a reasonable number of patterns (not too few, not excessive)
+    assert!(patterns.len() > 10);
+    assert!(patterns.len() < 50);
+
+    // Should include key directories
+    assert!(patterns.iter().any(|p| p.contains("node_modules")));
+    assert!(patterns.iter().any(|p| p.contains("target")));
+    assert!(patterns.iter().any(|p| p.contains(".git")));
+
+    // Should include binary file types
+    assert!(patterns.iter().any(|p| p.contains("*.png")));
+    assert!(patterns.iter().any(|p| p.contains("*.pdf")));
+
+    // Should include config/documentation files
+    assert!(patterns.iter().any(|p| p.contains("*.md")));
+    assert!(patterns.iter().any(|p| p.contains("*.json")));
+    assert!(patterns.iter().any(|p| p.contains("*.toml")));
   }
 }

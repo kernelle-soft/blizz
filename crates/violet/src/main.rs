@@ -108,10 +108,12 @@ fn main() {
     println!("{:<width$} {}", "CHUNKS", "SCORE", width = chunk_width);
     println!("{}", "=".repeat(TOTAL_WIDTH));
 
-    // Print all violation output
     for output in violation_output {
       print!("{}", output);
     }
+  } else {
+    // All files are clean - print success message
+    println!("{} No issues found. What beautiful code you have!", "✅".green());
   }
 
   if violating_chunks > 0 {
