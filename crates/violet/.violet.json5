@@ -1,0 +1,19 @@
+{
+  complexity: {
+    thresholds: {
+      default: 7.0,
+    }
+  },
+  ignore: [
+    "node_modules/**",
+    "target/**",
+    "build/**",
+    "dist/**",    
+    ".git/**",
+    ".cargo/**",
+    ".github/**",
+    ".vscode/**",
+    ".DS_Store",
+    ".idea/**"
+  ]
+}

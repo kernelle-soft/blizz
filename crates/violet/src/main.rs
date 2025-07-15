@@ -2,6 +2,7 @@ use clap::Parser;
 use colored::*;
 use std::path::PathBuf;
 use std::process;
+use violet::config::VioletConfig;
 use violet::simplicity::{analyze_file, FileAnalysis};
 
 const TOTAL_WIDTH: usize = 80;
@@ -10,16 +11,12 @@ const PADDING: usize = 2;
 /// Violet - Simple Code Complexity Analysis
 #[derive(Parser)]
 #[command(name = "violet")]
-#[command(about = "Language-agnostic code complexity analysis using information theory")]
+#[command(about = "Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool")]
 #[command(version)]
 struct Cli {
   /// Files or directories to analyze
   #[arg(value_name = "PATH")]
   paths: Vec<PathBuf>,
-
-  /// Complexity threshold for warnings (default: 8.0)
-  #[arg(short, long, default_value = "8.0")]
-  threshold: f64,
 
   /// Only show files that exceed the threshold
   #[arg(short, long)]
@@ -34,27 +31,36 @@ fn main() {
     process::exit(1);
   }
 
-  println!("{}", "🎨 Violet - Simple Code Complexity Analysis".purple().bold());
-  println!("{}", "Information-theoretic complexity scoring".italic());
-  println!();
+  // Load configuration
+  let config = match VioletConfig::load() {
+    Ok(config) => config,
+    Err(e) => {
+      eprintln!("Error loading configuration: {}", e);
+      process::exit(1);
+    }
+  };
 
-  // Print table header with proper alignment
-  let avg_width = "AVG".len();
-  let file_width = TOTAL_WIDTH - avg_width - PADDING;
-  
-  println!("{:<width$} {}", "FILE", "AVG", width = file_width);
-  println!("{}", "=".repeat(TOTAL_WIDTH));
-
-  let mut total_files = 0;
-  let mut violations = 0;
+  let mut _total_files = 0;
+  let mut violating_chunks = 0;
+  let mut violation_output = Vec::new();
 
   for path in &cli.paths {
     if path.is_file() {
+      // Check if file should be ignored
+      if config.should_ignore(path) {
+        continue;
+      }
+
       match analyze_file(path) {
         Ok(analysis) => {
-          total_files += 1;
-          if process_file_analysis(&analysis, &cli) && analysis.total_score > cli.threshold {
-            violations += 1;
+          _total_files += 1;
+          let threshold = config.threshold_for_file(path);
+          if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
+            // Count the number of chunks that exceed threshold in this file
+            let chunk_violations =
+              analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).count();
+            violating_chunks += chunk_violations;
+            violation_output.push(output);
           }
         }
         Err(e) => {
@@ -67,11 +73,21 @@ fn main() {
         for entry in entries.flatten() {
           let file_path = entry.path();
           if file_path.is_file() {
+            // Check if file should be ignored
+            if config.should_ignore(&file_path) {
+              continue;
+            }
+
             match analyze_file(&file_path) {
               Ok(analysis) => {
-                total_files += 1;
-                if process_file_analysis(&analysis, &cli) && analysis.total_score > cli.threshold {
-                  violations += 1;
+                _total_files += 1;
+                let threshold = config.threshold_for_file(&file_path);
+                if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
+                  // Count the number of chunks that exceed threshold in this file
+                  let chunk_violations =
+                    analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).count();
+                  violating_chunks += chunk_violations;
+                  violation_output.push(output);
                 }
               }
               Err(e) => {
@@ -86,79 +102,120 @@ fn main() {
     }
   }
 
-  if violations > 0 {
+  // Only print headers and output if there are violations
+  if !violation_output.is_empty() {
+    println!("{}", "🎨 Violet - Simple Code Complexity Analysis".purple().bold());
+    println!("{}", "Information-theoretic complexity scoring".italic());
+    println!();
+
+    // Print table header for chunk violations
+    let score_width = "SCORE".len();
+    let chunk_width = TOTAL_WIDTH - score_width - PADDING;
+
+    println!("{:<width$} {}", "CHUNKS", "SCORE", width = chunk_width);
+    println!("{}", "=".repeat(TOTAL_WIDTH));
+
+    // Print all violation output
+    for output in violation_output {
+      print!("{}", output);
+    }
+  }
+
+  if violating_chunks > 0 {
     process::exit(1);
   }
 }
 
-fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
+fn process_file_analysis(
+  analysis: &FileAnalysis,
+  _config: &VioletConfig,
+  cli: &Cli,
+  threshold: f64,
+) -> Option<String> {
   if analysis.ignored {
     if !cli.quiet {
-      print_aligned_row(&analysis.file_path.display().to_string(), "(ignored)", false, true);
+      let mut output = String::new();
+      output.push_str(&format_aligned_row(
+        &analysis.file_path.display().to_string(),
+        "(ignored)",
+        false,
+        true,
+      ));
+      return Some(output);
     }
-    return false;
+    return None;
   }
 
   // Check if file has any chunks exceeding threshold
-  let violating_chunks: Vec<_> = analysis.chunk_scores.iter()
-    .filter(|chunk| chunk.score > cli.threshold)
-    .collect();
+  let violating_chunks: Vec<_> =
+    analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).collect();
 
   // Only show files that have violating chunks
   if violating_chunks.is_empty() {
-    return false;
+    return None;
   }
 
-  let exceeds_threshold = analysis.total_score > cli.threshold;
+  let mut output = String::new();
 
-  // Print file row with color-coded score
-  let score_str = format!("{:.1}", analysis.total_score);
-  print_aligned_row(&analysis.file_path.display().to_string(), &score_str, exceeds_threshold, true);
+  // Show file name without score (since we only care about chunks)
+  output.push_str(&format_file_header(&analysis.file_path.display().to_string()));
 
-  // Always show violating chunks as nested entries
+  // Show violating chunks as nested entries
   for chunk in violating_chunks {
     let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
     let score_str = format!("{:.1}", chunk.score);
-    print_aligned_row(&chunk_display, &score_str, true, false); // chunks are always red since they exceed threshold
-    
+    output.push_str(&format_aligned_row(&chunk_display, &score_str, true, false)); // chunks are always red since they exceed threshold
+
     // Show truncated preview of the chunk (preserve indentation)
     let preview_lines: Vec<&str> = chunk.preview.lines().take(5).collect();
     for line in preview_lines.iter() {
-      let truncated = if line.len() > 70 { 
-        format!("{}...", &line[..67])
-      } else { 
-        line.to_string() 
-      };
-      println!("    {}", truncated.dimmed());
+      let truncated =
+        if line.len() > 70 { format!("{}...", &line[..67]) } else { line.to_string() };
+      output.push_str(&format!("    {}\n", truncated.dimmed()));
     }
     if chunk.preview.lines().count() > 5 {
-      println!("    {}", "...".dimmed());
+      output.push_str(&format!("    {}\n", "...".dimmed()));
     }
-    
+
     // Show complexity breakdown - each component on its own line
     let b = &chunk.breakdown;
-    
+
     // Apply the same logarithmic scaling to components as used in final score
     let depth_scaled = (1.0_f64 + b.depth_score).ln();
     let verbosity_scaled = (1.0_f64 + b.verbosity_score).ln();
     let syntactic_scaled = (1.0_f64 + b.syntactic_score).ln();
-    
-    println!("    depth: {:.1} ({:.0}%)", depth_scaled, b.depth_percent);
-    println!("    verbosity: {:.1} ({:.0}%)", verbosity_scaled, b.verbosity_percent);
-    println!("    syntactics: {:.1} ({:.0}%)", syntactic_scaled, b.syntactic_percent);
+
+    output.push_str(&format!("    depth: {:.1} ({:.0}%)\n", depth_scaled, b.depth_percent));
+    output
+      .push_str(&format!("    verbosity: {:.1} ({:.0}%)\n", verbosity_scaled, b.verbosity_percent));
+    output.push_str(&format!(
+      "    syntactics: {:.1} ({:.0}%)\n",
+      syntactic_scaled, b.syntactic_percent
+    ));
   }
 
-  true // File was displayed since it has high-complexity chunks
+  Some(output) // Return the collected output
 }
 
-fn print_aligned_row(file_or_chunk: &str, score_text: &str, is_error: bool, is_file: bool) {
+fn format_file_header(file_path: &str) -> String {
+  // Format file name without score, using available width
+  let formatted_file = format_file_path(file_path, TOTAL_WIDTH - 2);
+  format!("{}\n", formatted_file.bold())
+}
+
+fn format_aligned_row(
+  file_or_chunk: &str,
+  score_text: &str,
+  is_error: bool,
+  is_file: bool,
+) -> String {
   // Calculate available width for the file/chunk column
   let avg_column_width = score_text.len();
   let file_column_width = TOTAL_WIDTH - avg_column_width - PADDING;
-  
+
   // Format the file/chunk text to fit exactly in the available space
   let formatted_file = format_file_path(file_or_chunk, file_column_width);
-  
+
   // Apply color to score if needed
   let colored_score = if is_error {
     score_text.red().to_string()
@@ -167,18 +224,18 @@ fn print_aligned_row(file_or_chunk: &str, score_text: &str, is_error: bool, is_f
   } else {
     score_text.green().to_string()
   };
-  
-  // Print with exact calculated widths using appropriate padding
+
+  // Format with exact calculated widths using appropriate padding
   if is_file {
     // For files, pad with dashes
     let padding_needed = file_column_width - formatted_file.len();
     let dashes = "-".repeat(padding_needed);
-    println!("{}{} {}", formatted_file, dashes, colored_score);
+    format!("{}{} {}\n", formatted_file, dashes, colored_score)
   } else {
     // For chunks, pad with dots
     let padding_needed = file_column_width - formatted_file.len();
     let dots = ".".repeat(padding_needed);
-    println!("{}{} {}", formatted_file, dots, colored_score);
+    format!("{}{} {}\n", formatted_file, dots, colored_score)
   }
 }
 
@@ -190,5 +247,3 @@ fn format_file_path(path: &str, max_width: usize) -> String {
     format!("...{}", &path[path.len() - truncated_len..])
   }
 }
-
-

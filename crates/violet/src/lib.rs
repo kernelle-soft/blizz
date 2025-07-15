@@ -4,6 +4,8 @@
 //! to measure cognitive load. No AST parsing, no language-specific rules -
 //! just simple, effective complexity scoring.
 
+pub mod config;
 pub mod simplicity;
 
+pub use config::VioletConfig;
 pub use simplicity::{analyze_file, ChunkScore, FileAnalysis};

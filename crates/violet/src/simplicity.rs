@@ -218,7 +218,7 @@ pub fn get_chunks(content: &str) -> Vec<String> {
 
   // Second pass: merge chunks that don't start at top level with previous chunk
   let mut final_chunks = Vec::new();
-  
+
   for chunk in temp_chunks {
     if let Some(first_line) = chunk.lines().next() {
       // If chunk starts with indentation, merge with previous chunk
@@ -339,7 +339,7 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_ignore_entire_file() {
-    let content = "// violet ignore file\nfn main() {\n    println!(\"hello\");\n}";
+    let content = "# violet ignore file\nfn main() {\n    println!(\"hello\");\n}";
     let result = preprocess_file(content);
 
     assert_eq!(result, None);
@@ -358,7 +358,7 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_nested_ignore_blocks() {
-    let content = "fn good() {\n    return 1;\n}\n\n// violet ignore start\nfn outer_bad() {\n    // violet ignore start\n    fn inner_bad() {\n        return 2;\n    }\n    // violet ignore end\n    return 3;\n}\n// violet ignore end\n\nfn also_good() {\n    return 4;\n}";
+    let content = "fn good() {\n    return 1;\n}\n\n/* violet ignore start */\nfn outer_bad() {\n    // violet ignore start\n    fn inner_bad() {\n        return 2;\n    }\n    // violet ignore end\n    return 3;\n}\n// violet ignore end\n\nfn also_good() {\n    return 4;\n}";
     let result = preprocess_file(content).unwrap();
 
     assert!(result.contains("fn good()"));
