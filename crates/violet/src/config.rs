@@ -288,3 +288,223 @@ impl VioletConfig {
     path == pattern || path.ends_with(&format!("/{}", pattern))
   }
 }
+
+// violet ignore chunk
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_matches_pattern_exact() {
+    assert!(VioletConfig::matches_pattern(".DS_Store", ".DS_Store"));
+    assert!(VioletConfig::matches_pattern("path/to/.DS_Store", ".DS_Store"));
+    assert!(!VioletConfig::matches_pattern("other.file", ".DS_Store"));
+  }
+
+  #[test]
+  fn test_matches_pattern_directory_glob() {
+    assert!(VioletConfig::matches_pattern("target/", "target/**"));
+    assert!(VioletConfig::matches_pattern("target/debug", "target/**"));
+    assert!(VioletConfig::matches_pattern("target/debug/deps/violet", "target/**"));
+    assert!(!VioletConfig::matches_pattern("src/target", "target/**"));
+    assert!(!VioletConfig::matches_pattern("other/", "target/**"));
+  }
+
+  #[test]
+  fn test_matches_pattern_file_extension() {
+    assert!(VioletConfig::matches_pattern("config.json", "*.json"));
+    assert!(VioletConfig::matches_pattern("path/to/config.json", "*.json"));
+    assert!(VioletConfig::matches_pattern("package.json5", "*.json5"));
+    assert!(!VioletConfig::matches_pattern("config.yaml", "*.json"));
+    assert!(!VioletConfig::matches_pattern("jsonfile", "*.json"));
+  }
+
+  #[test]
+  fn test_matches_pattern_wildcard() {
+    assert!(VioletConfig::matches_pattern("testfile", "test*"));
+    assert!(VioletConfig::matches_pattern("test123file", "test*file"));
+    assert!(VioletConfig::matches_pattern("prefix_middle_suffix", "prefix*suffix"));
+    assert!(!VioletConfig::matches_pattern("wrongprefix_suffix", "prefix*suffix"));
+    assert!(!VioletConfig::matches_pattern("prefix_wrong", "prefix*suffix"));
+  }
+
+  #[test]
+  fn test_threshold_for_file() {
+    let mut thresholds = HashMap::new();
+    thresholds.insert(".rs".to_string(), 8.0);
+    thresholds.insert(".js".to_string(), 6.0);
+
+    let config = VioletConfig { thresholds, ignore_patterns: vec![], default_threshold: 7.0 };
+
+    assert_eq!(config.threshold_for_file("main.rs"), 8.0);
+    assert_eq!(config.threshold_for_file("script.js"), 6.0);
+    assert_eq!(config.threshold_for_file("config.json"), 7.0); // default
+    assert_eq!(config.threshold_for_file("README.md"), 7.0); // default
+  }
+
+  #[test]
+  fn test_should_ignore() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![
+        "target/**".to_string(),
+        "*.json".to_string(),
+        ".DS_Store".to_string(),
+        "test*".to_string(),
+      ],
+      default_threshold: 7.0,
+    };
+
+    // Directory patterns
+    assert!(config.should_ignore("target/debug/main"));
+    assert!(config.should_ignore("target/"));
+    assert!(!config.should_ignore("src/target"));
+
+    // File extension patterns
+    assert!(config.should_ignore("package.json"));
+    assert!(config.should_ignore("path/to/config.json"));
+    assert!(!config.should_ignore("config.yaml"));
+
+    // Exact matches
+    assert!(config.should_ignore(".DS_Store"));
+    assert!(config.should_ignore("some/path/.DS_Store"));
+    assert!(!config.should_ignore("DS_Store"));
+
+    // Wildcard patterns
+    assert!(config.should_ignore("testfile"));
+    assert!(config.should_ignore("test123"));
+    assert!(!config.should_ignore("file_test"));
+  }
+
+  #[test]
+  fn test_should_ignore_normalized_paths() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec!["src/main.rs".to_string()],
+      default_threshold: 7.0,
+    };
+
+    assert!(config.should_ignore("src/main.rs"));
+    assert!(config.should_ignore("./src/main.rs")); // normalized
+  }
+
+  #[test]
+  fn test_merge_configs_defaults() {
+    let global = ConfigFile {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig { default: 8.0, extensions: HashMap::new() },
+      },
+      ignore: vec!["global_pattern".to_string()],
+    };
+
+    let result = VioletConfig::merge_configs(global, None);
+
+    assert_eq!(result.default_threshold, 8.0);
+    assert_eq!(result.ignore_patterns, vec!["global_pattern"]);
+  }
+
+  #[test]
+  fn test_merge_configs_project_overrides() {
+    let mut global_thresholds = HashMap::new();
+    global_thresholds.insert(".rs".to_string(), 8.0);
+    global_thresholds.insert(".js".to_string(), 6.0);
+
+    let global = ConfigFile {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig { default: 7.0, extensions: global_thresholds },
+      },
+      ignore: vec!["global1".to_string(), "global2".to_string()],
+    };
+
+    let mut project_thresholds = HashMap::new();
+    project_thresholds.insert(".rs".to_string(), 9.0); // override
+    project_thresholds.insert(".py".to_string(), 5.0); // new
+
+    let project = ConfigFile {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig {
+          default: 6.5, // override
+          extensions: project_thresholds,
+        },
+      },
+      ignore: vec!["project1".to_string(), "global1".to_string()], // global1 duplicate
+    };
+
+    let result = VioletConfig::merge_configs(global, Some(project));
+
+    // Default threshold should be overridden
+    assert_eq!(result.default_threshold, 6.5);
+
+    // Extension thresholds should be merged with project taking precedence
+    assert_eq!(result.thresholds.get(".rs"), Some(&9.0)); // overridden
+    assert_eq!(result.thresholds.get(".js"), Some(&6.0)); // from global
+    assert_eq!(result.thresholds.get(".py"), Some(&5.0)); // from project
+
+    // Ignore patterns should be merged and deduplicated
+    assert_eq!(result.ignore_patterns.len(), 3);
+    assert!(result.ignore_patterns.contains(&"global1".to_string()));
+    assert!(result.ignore_patterns.contains(&"global2".to_string()));
+    assert!(result.ignore_patterns.contains(&"project1".to_string()));
+  }
+
+  #[test]
+  fn test_merge_configs_project_default_not_changed() {
+    let global = ConfigFile {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig { default: 8.0, extensions: HashMap::new() },
+      },
+      ignore: vec![],
+    };
+
+    // Project with default threshold same as the global default (7.0)
+    let project = ConfigFile {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig {
+          default: 7.0, // This is the hardcoded default
+          extensions: HashMap::new(),
+        },
+      },
+      ignore: vec![],
+    };
+
+    let result = VioletConfig::merge_configs(global, Some(project));
+
+    // Should keep global default since project didn't really override it
+    assert_eq!(result.default_threshold, 8.0);
+  }
+
+  #[test]
+  fn test_default_global_config() {
+    let config = VioletConfig::default_global_config();
+
+    // Should have reasonable defaults
+    assert_eq!(config.complexity.thresholds.default, 7.0);
+
+    // Should ignore common build/dependency directories
+    assert!(config.ignore.contains(&"node_modules/**".to_string()));
+    assert!(config.ignore.contains(&"target/**".to_string()));
+    assert!(config.ignore.contains(&".git/**".to_string()));
+
+    // Should ignore binary file types
+    assert!(config.ignore.contains(&"*.png".to_string()));
+    assert!(config.ignore.contains(&"*.pdf".to_string()));
+
+    // Should ignore common config/text files
+    assert!(config.ignore.contains(&"*.md".to_string()));
+    assert!(config.ignore.contains(&"*.json".to_string()));
+  }
+
+  #[test]
+  fn test_threshold_config_default() {
+    let config = ThresholdConfig::default();
+    assert_eq!(config.default, 7.0);
+    assert!(config.extensions.is_empty());
+  }
+
+  #[test]
+  fn test_config_file_default() {
+    let config = ConfigFile::default();
+    assert_eq!(config.complexity.thresholds.default, 7.0);
+    assert!(config.ignore.is_empty());
+  }
+}
