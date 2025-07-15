@@ -18,6 +18,17 @@ pub struct FileAnalysis {
   pub ignored: bool,
 }
 
+/// Breakdown of complexity score by component
+#[derive(Debug, Clone)]
+pub struct ComplexityBreakdown {
+  pub depth_score: f64,
+  pub depth_percent: f64,
+  pub verbosity_score: f64,
+  pub verbosity_percent: f64,
+  pub syntactic_score: f64,
+  pub syntactic_percent: f64,
+}
+
 /// Score for an individual chunk with details
 #[derive(Debug, Clone)]
 pub struct ChunkScore {
@@ -25,6 +36,7 @@ pub struct ChunkScore {
   pub start_line: usize,
   pub end_line: usize,
   pub preview: String, // First line or two for identification
+  pub breakdown: ComplexityBreakdown,
 }
 
 /// Analyze a single file and return detailed results
@@ -54,7 +66,7 @@ pub fn analyze_file<P: AsRef<Path>>(
   let mut current_line = 1;
 
   for chunk in &chunks {
-    let score = chunk_complexity(chunk);
+    let (score, breakdown) = chunk_complexity_with_breakdown(chunk);
     let lines_in_chunk = chunk.lines().count();
     let preview = chunk.lines().next().unwrap_or("").trim().to_string();
 
@@ -63,6 +75,7 @@ pub fn analyze_file<P: AsRef<Path>>(
       start_line: current_line,
       end_line: current_line + lines_in_chunk - 1,
       preview,
+      breakdown,
     });
 
     current_line += lines_in_chunk + 1; // +1 for blank line separator
@@ -108,31 +121,66 @@ pub fn preprocess_file(content: &str) -> Option<String> {
   Some(result_lines.join("\n"))
 }
 
-/// Calculate complexity score for a single chunk of code
-pub fn chunk_complexity(chunk: &str) -> f64 {
+/// Calculate complexity score for a single chunk of code with breakdown
+pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown) {
   let lines: Vec<&str> = chunk.lines().collect();
-  let mut scores = Vec::new();
+  let mut depth_total = 0.0;
+  let mut verbosity_total = 0.0;
+  let mut syntactic_total = 0.0;
 
   for line in lines {
     let indents = get_indents(line);
     let special_chars = get_num_specials(line);
     let non_special_chars = (line.trim().len() as f64) - special_chars;
 
-    // Apply the scoring formula: non_special_chars^1.25 + special_chars^1.5 + indents^2
-    let line_score =
-      non_special_chars.powf(1.25) + special_chars.powf(1.5) + (indents as f64).powf(2.0);
-    scores.push(line_score);
+    // Calculate component scores
+    let depth_component = (indents as f64).powf(2.0);
+    let verbosity_component = non_special_chars.powf(1.25);
+    let syntactic_component = special_chars.powf(1.5);
+
+    depth_total += depth_component;
+    verbosity_total += verbosity_component;
+    syntactic_total += syntactic_component;
   }
 
-  // Sum all line scores (total "information content")
-  let sum: f64 = scores.iter().sum();
+  // Sum all component scores (total "information content")
+  let raw_sum = depth_total + verbosity_total + syntactic_total;
 
   // Information-theoretic scaling: ln(1 + sum) gives us base information content
   // Then scale by cognitive load factor - human processing isn't linear with information
-  let base_information = (1.0 + sum).ln();
+  let base_information = (1.0 + raw_sum).ln();
   let cognitive_load_factor = 2.0; // Tunable: how much cognitive load scales with information
+  let final_score = base_information * cognitive_load_factor;
 
-  base_information * cognitive_load_factor
+  // Calculate percentages based on raw component scores (before logarithmic scaling)
+  let total_raw = depth_total + verbosity_total + syntactic_total;
+  let breakdown = if total_raw > 0.0 {
+    ComplexityBreakdown {
+      depth_score: depth_total,
+      depth_percent: (depth_total / total_raw) * 100.0,
+      verbosity_score: verbosity_total,
+      verbosity_percent: (verbosity_total / total_raw) * 100.0,
+      syntactic_score: syntactic_total,
+      syntactic_percent: (syntactic_total / total_raw) * 100.0,
+    }
+  } else {
+    ComplexityBreakdown {
+      depth_score: 0.0,
+      depth_percent: 0.0,
+      verbosity_score: 0.0,
+      verbosity_percent: 0.0,
+      syntactic_score: 0.0,
+      syntactic_percent: 0.0,
+    }
+  };
+
+  (final_score, breakdown)
+}
+
+/// Calculate complexity score for a single chunk of code (legacy interface)
+pub fn chunk_complexity(chunk: &str) -> f64 {
+  let (score, _) = chunk_complexity_with_breakdown(chunk);
+  score
 }
 
 /// Calculate complexity score for an entire file (average complexity per chunk)

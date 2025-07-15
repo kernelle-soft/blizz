@@ -129,6 +129,19 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
     let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
     let score_str = format!("{:.1}", chunk.score);
     print_aligned_row(&chunk_display, &score_str, true, false); // chunks are always red since > 15.0
+    
+    // Show complexity breakdown - each component on its own line
+    let b = &chunk.breakdown;
+    let cognitive_load_factor = 2.0;
+    
+    // Apply the same logarithmic scaling to components as used in final score
+    let depth_scaled = (1.0 + b.depth_score).ln() * cognitive_load_factor;
+    let verbosity_scaled = (1.0 + b.verbosity_score).ln() * cognitive_load_factor;
+    let syntactic_scaled = (1.0 + b.syntactic_score).ln() * cognitive_load_factor;
+    
+    println!("      depth: {:.1} ({:.0}%)", depth_scaled, b.depth_percent);
+    println!("      verbosity: {:.1} ({:.0}%)", verbosity_scaled, b.verbosity_percent);
+    println!("      syntactics: {:.1} ({:.0}%)", syntactic_scaled, b.syntactic_percent);
   }
 
   exceeds_threshold
