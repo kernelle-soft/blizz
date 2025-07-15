@@ -130,6 +130,20 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
     let score_str = format!("{:.1}", chunk.score);
     print_aligned_row(&chunk_display, &score_str, true, false); // chunks are always red since > 15.0
     
+    // Show truncated preview of the chunk (preserve indentation)
+    let preview_lines: Vec<&str> = chunk.preview.lines().take(5).collect();
+    for line in preview_lines.iter() {
+      let truncated = if line.len() > 70 { 
+        format!("{}...", &line[..67])
+      } else { 
+        line.to_string() 
+      };
+      println!("    {}", truncated.dimmed());
+    }
+    if chunk.preview.lines().count() > 5 {
+      println!("    {}", "...".dimmed());
+    }
+    
     // Show complexity breakdown - each component on its own line
     let b = &chunk.breakdown;
     let cognitive_load_factor = 2.0;
@@ -139,9 +153,9 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
     let verbosity_scaled = (1.0 + b.verbosity_score).ln() * cognitive_load_factor;
     let syntactic_scaled = (1.0 + b.syntactic_score).ln() * cognitive_load_factor;
     
-    println!("      depth: {:.1} ({:.0}%)", depth_scaled, b.depth_percent);
-    println!("      verbosity: {:.1} ({:.0}%)", verbosity_scaled, b.verbosity_percent);
-    println!("      syntactics: {:.1} ({:.0}%)", syntactic_scaled, b.syntactic_percent);
+    println!("    depth: {:.1} ({:.0}%)", depth_scaled, b.depth_percent);
+    println!("    verbosity: {:.1} ({:.0}%)", verbosity_scaled, b.verbosity_percent);
+    println!("    syntactics: {:.1} ({:.0}%)", syntactic_scaled, b.syntactic_percent);
   }
 
   exceeds_threshold

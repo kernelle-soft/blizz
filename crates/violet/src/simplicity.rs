@@ -68,7 +68,7 @@ pub fn analyze_file<P: AsRef<Path>>(
   for chunk in &chunks {
     let (score, breakdown) = chunk_complexity_with_breakdown(chunk);
     let lines_in_chunk = chunk.lines().count();
-    let preview = chunk.lines().next().unwrap_or("").trim().to_string();
+    let preview = chunk.lines().take(8).collect::<Vec<&str>>().join("\n");
 
     chunk_scores.push(ChunkScore {
       score,
