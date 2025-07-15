@@ -47,7 +47,7 @@ fn main() {
   let file_width = TOTAL_WIDTH - avg_width - PADDING;
   
   println!("{:<width$} {}", "FILE", "AVG", width = file_width);
-  println!("{}", "─".repeat(TOTAL_WIDTH));
+  println!("{}", "=".repeat(TOTAL_WIDTH));
 
   let mut total_files = 0;
   let mut violations = 0;
@@ -57,7 +57,7 @@ fn main() {
       match analyze_file(path) {
         Ok(analysis) => {
           total_files += 1;
-          if process_file_analysis(&analysis, &cli) {
+          if process_file_analysis(&analysis, &cli) && analysis.total_score > cli.threshold {
             violations += 1;
           }
         }
@@ -74,7 +74,7 @@ fn main() {
             match analyze_file(&file_path) {
               Ok(analysis) => {
                 total_files += 1;
-                if process_file_analysis(&analysis, &cli) {
+                if process_file_analysis(&analysis, &cli) && analysis.total_score > cli.threshold {
                   violations += 1;
                 }
               }
@@ -158,7 +158,7 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
     println!("    syntactics: {:.1} ({:.0}%)", syntactic_scaled, b.syntactic_percent);
   }
 
-  exceeds_threshold
+  true // File was displayed since it has high-complexity chunks
 }
 
 fn print_aligned_row(file_or_chunk: &str, score_text: &str, is_error: bool, is_file: bool) {
@@ -180,13 +180,15 @@ fn print_aligned_row(file_or_chunk: &str, score_text: &str, is_error: bool, is_f
   
   // Print with exact calculated widths using appropriate padding
   if is_file {
-    // For files, pad with periods
+    // For files, pad with dashes
+    let padding_needed = file_column_width - formatted_file.len();
+    let dashes = "-".repeat(padding_needed);
+    println!("{}{} {}", formatted_file, dashes, colored_score);
+  } else {
+    // For chunks, pad with dots
     let padding_needed = file_column_width - formatted_file.len();
     let dots = ".".repeat(padding_needed);
     println!("{}{} {}", formatted_file, dots, colored_score);
-  } else {
-    // For chunks, use normal space padding
-    println!("{:<width$} {}", formatted_file, colored_score, width = file_column_width);
   }
 }
 
