@@ -51,281 +51,283 @@ fn default_threshold() -> f64 {
   7.0
 }
 
-impl VioletConfig {
-  /// Load configuration by merging global defaults with project overrides
-  pub fn load() -> Result<Self> {
-    let global_config = Self::load_global_config()?;
-    let project_config = Self::load_project_config()?;
+/// Get default ignore patterns for global configuration
+fn get_default_ignore_patterns() -> Vec<String> {
+  vec![
+    // Common directories
+    "node_modules/**".to_string(),
+    "target/**".to_string(),
+    "build/**".to_string(),
+    "dist/**".to_string(),
+    ".git/**".to_string(),
+    ".cargo/**".to_string(),
+    ".github/**".to_string(),
+    ".vscode/**".to_string(),
+    ".DS_Store".to_string(),
+    ".idea/**".to_string(),
+    ".cursor/**".to_string(),
+    // Binary file extensions
+    "*.png".to_string(),
+    "*.jpg".to_string(),
+    "*.jpeg".to_string(),
+    "*.gif".to_string(),
+    "*.pdf".to_string(),
+    "*.zip".to_string(),
+    "*.tar".to_string(),
+    "*.gz".to_string(),
+    "*.rlib".to_string(),
+    "*.so".to_string(),
+    "*.dylib".to_string(),
+    "*.dll".to_string(),
+    // Common config/text/text-based files
+    "*.md".to_string(),
+    "*.mdc".to_string(),
+    "*.txt".to_string(),
+    "*.yaml".to_string(),
+    "*.yml".to_string(),
+    "*.xml".to_string(),
+    "*.html".to_string(),
+    "*.json".to_string(),
+    "*.json5".to_string(),
+    "*.toml".to_string(),
+    "*.lock".to_string(),
+  ]
+}
 
-    Ok(Self::merge_configs(global_config, project_config))
+/// Provide sensible default global configuration for installed binaries
+fn default_global_config() -> ConfigFile {
+  ConfigFile {
+    complexity: ComplexityConfig { thresholds: ThresholdConfig::default() },
+    ignore: get_default_ignore_patterns(),
   }
+}
 
-  /// Get the appropriate threshold for a given file path
-  pub fn threshold_for_file<P: AsRef<Path>>(&self, file_path: P) -> f64 {
-    let path = file_path.as_ref();
+/// Load configuration by merging global defaults with project overrides
+pub fn load_config() -> Result<VioletConfig> {
+  let global_config = load_global_config()?;
+  let project_config = load_project_config()?;
 
-    // Get file extension
-    if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-      let ext_key = format!(".{}", extension);
-      if let Some(&threshold) = self.thresholds.get(&ext_key) {
-        return threshold;
-      }
-    }
+  Ok(merge_configs(global_config, project_config))
+}
 
-    // Fall back to default
-    self.default_threshold
-  }
+/// Get the appropriate threshold for a given file path
+pub fn get_threshold_for_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -> f64 {
+  let path = file_path.as_ref();
 
-  /// Check if a file should be ignored based on ignore patterns
-  pub fn should_ignore<P: AsRef<Path>>(&self, file_path: P) -> bool {
-    let path_str = file_path.as_ref().to_string_lossy();
-
-    // Also check with normalized path (strip leading ./ if present)
-    let normalized_path = if path_str.starts_with("./") { &path_str[2..] } else { &path_str };
-
-    for pattern in &self.ignore_patterns {
-      if Self::matches_pattern(&path_str, pattern)
-        || Self::matches_pattern(normalized_path, pattern)
-      {
-        return true;
-      }
-    }
-    false
-  }
-
-  /// Load global configuration from the crate's .violet.json5
-  fn load_global_config() -> Result<ConfigFile> {
-    // Find the global config relative to the current executable or use a fallback
-    let global_config_path = Self::find_global_config_path()?;
-
-    if global_config_path.exists() {
-      Self::load_config_file(&global_config_path).with_context(|| {
-        format!("Failed to load global config from {}", global_config_path.display())
-      })
-    } else {
-      // If no global config found, use hardcoded sensible defaults
-      Ok(Self::default_global_config())
-    }
-  }
-
-  /// Provide sensible default global configuration for installed binaries
-  fn default_global_config() -> ConfigFile {
-    ConfigFile {
-      complexity: ComplexityConfig { thresholds: ThresholdConfig::default() },
-      ignore: vec![
-        // Common directories
-        "node_modules/**".to_string(),
-        "target/**".to_string(),
-        "build/**".to_string(),
-        "dist/**".to_string(),
-        ".git/**".to_string(),
-        ".cargo/**".to_string(),
-        ".github/**".to_string(),
-        ".vscode/**".to_string(),
-        ".DS_Store".to_string(),
-        ".idea/**".to_string(),
-        ".cursor/**".to_string(),
-        // Binary file extensions
-        "*.png".to_string(),
-        "*.jpg".to_string(),
-        "*.jpeg".to_string(),
-        "*.gif".to_string(),
-        "*.pdf".to_string(),
-        "*.zip".to_string(),
-        "*.tar".to_string(),
-        "*.gz".to_string(),
-        "*.rlib".to_string(),
-        "*.so".to_string(),
-        "*.dylib".to_string(),
-        "*.dll".to_string(),
-        // Common config/text/text-based files
-        "*.md".to_string(),
-        "*.mdc".to_string(),
-        "*.txt".to_string(),
-        "*.yaml".to_string(),
-        "*.yml".to_string(),
-        "*.xml".to_string(),
-        "*.html".to_string(),
-        "*.json".to_string(),
-        "*.json5".to_string(),
-        "*.toml".to_string(),
-        "*.lock".to_string(),
-      ],
+  // Get file extension
+  if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
+    let ext_key = format!(".{}", extension);
+    if let Some(&threshold) = config.thresholds.get(&ext_key) {
+      return threshold;
     }
   }
 
-  /// Load project-specific configuration from current working directory
-  fn load_project_config() -> Result<Option<ConfigFile>> {
-    let current_dir = std::env::current_dir().context("Failed to get current working directory")?;
+  // Fall back to default
+  config.default_threshold
+}
 
-    let project_config_path = current_dir.join(".violet.json5");
+/// Check if a file should be ignored based on ignore patterns
+pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -> bool {
+  let path_str = file_path.as_ref().to_string_lossy();
 
-    if project_config_path.exists() {
-      let config = Self::load_config_file(&project_config_path).with_context(|| {
-        format!("Failed to load project config from {}", project_config_path.display())
-      })?;
-      Ok(Some(config))
-    } else {
-      Ok(None)
+  // Also check with normalized path (strip leading ./ if present)
+  let normalized_path = if path_str.starts_with("./") { &path_str[2..] } else { &path_str };
+
+  for pattern in &config.ignore_patterns {
+    if matches_pattern(&path_str, pattern) || matches_pattern(normalized_path, pattern) {
+      return true;
     }
   }
+  false
+}
 
-  /// Find the global configuration file path
-  fn find_global_config_path() -> Result<PathBuf> {
-    // Try to find the config relative to the current executable's location
-    // This allows for development and installed scenarios
+/// Load global configuration from the crate's .violet.json5
+fn load_global_config() -> Result<ConfigFile> {
+  // Find the global config relative to the current executable or use a fallback
+  let global_config_path = find_global_config_path()?;
 
-    if let Ok(exe_path) = std::env::current_exe() {
-      // In development: executable is in target/debug/violet or target/release/violet
-      // Config would be in crates/violet/.violet.json5
-      if let Some(target_dir) = exe_path.parent().and_then(|p| p.parent()) {
-        // Check if we're in a target directory (development)
-        if target_dir.file_name().map(|n| n == "target").unwrap_or(false) {
-          if let Some(project_root) = target_dir.parent() {
-            let dev_config = project_root.join("crates/violet/.violet.json5");
-            if dev_config.exists() {
-              return Ok(dev_config);
-            }
+  if global_config_path.exists() {
+    load_config_file(&global_config_path).with_context(|| {
+      format!("Failed to load global config from {}", global_config_path.display())
+    })
+  } else {
+    // If no global config found, use hardcoded sensible defaults
+    Ok(default_global_config())
+  }
+}
+
+/// Load project-specific configuration from current working directory
+fn load_project_config() -> Result<Option<ConfigFile>> {
+  let current_dir = std::env::current_dir().context("Failed to get current working directory")?;
+
+  let project_config_path = current_dir.join(".violet.json5");
+
+  if project_config_path.exists() {
+    let config = load_config_file(&project_config_path).with_context(|| {
+      format!("Failed to load project config from {}", project_config_path.display())
+    })?;
+    Ok(Some(config))
+  } else {
+    Ok(None)
+  }
+}
+
+/// Find the global configuration file path
+fn find_global_config_path() -> Result<PathBuf> {
+  // Try to find the config relative to the current executable's location
+  // This allows for development and installed scenarios
+
+  if let Ok(exe_path) = std::env::current_exe() {
+    // In development: executable is in target/debug/violet or target/release/violet
+    // Config would be in crates/violet/.violet.json5
+    if let Some(target_dir) = exe_path.parent().and_then(|p| p.parent()) {
+      // Check if we're in a target directory (development)
+      if target_dir.file_name().map(|n| n == "target").unwrap_or(false) {
+        if let Some(project_root) = target_dir.parent() {
+          let dev_config = project_root.join("crates/violet/.violet.json5");
+          if dev_config.exists() {
+            return Ok(dev_config);
           }
         }
       }
     }
-
-    // Fallback: look for config in a standard location relative to executable
-    // For installed binaries, this could be alongside the binary
-    if let Ok(exe_path) = std::env::current_exe() {
-      if let Some(exe_dir) = exe_path.parent() {
-        let installed_config = exe_dir.join(".violet.json5");
-        if installed_config.exists() {
-          return Ok(installed_config);
-        }
-      }
-    }
-
-    // For installed binaries, embed default global config inline
-    // rather than failing to find an external file
-    // This returns a path that doesn't exist, triggering use of hardcoded defaults
-    Ok(PathBuf::from(".violet.global.json5"))
   }
 
-  /// Load a single configuration file
-  fn load_config_file(path: &Path) -> Result<ConfigFile> {
-    let content = std::fs::read_to_string(path)
-      .with_context(|| format!("Failed to read config file: {}", path.display()))?;
-
-    json5::from_str(&content)
-      .with_context(|| format!("Failed to parse JSON5 config file: {}", path.display()))
-  }
-
-  /// Merge global and project configurations
-  fn merge_configs(global: ConfigFile, project: Option<ConfigFile>) -> Self {
-    let project = project.unwrap_or_default();
-
-    // Get the default threshold value before declaring our variable
-    let default_default = default_threshold();
-
-    // Start with global default threshold
-    let mut default_threshold = global.complexity.thresholds.default;
-
-    // Override with project default if specified
-    if project.complexity.thresholds.default != default_default {
-      default_threshold = project.complexity.thresholds.default;
-    }
-
-    // Merge thresholds: start with global extensions, then add/override with project
-    let mut thresholds = global.complexity.thresholds.extensions.clone();
-    for (ext, threshold) in project.complexity.thresholds.extensions {
-      thresholds.insert(ext, threshold);
-    }
-
-    // Merge ignore patterns: deduplicate with global first, project second
-    let mut ignore_set = HashSet::new();
-    let mut ignore_patterns = Vec::new();
-
-    // Add global patterns first
-    for pattern in global.ignore {
-      if ignore_set.insert(pattern.clone()) {
-        ignore_patterns.push(pattern);
+  // Fallback: look for config in a standard location relative to executable
+  // For installed binaries, this could be alongside the binary
+  if let Ok(exe_path) = std::env::current_exe() {
+    if let Some(exe_dir) = exe_path.parent() {
+      let installed_config = exe_dir.join(".violet.json5");
+      if installed_config.exists() {
+        return Ok(installed_config);
       }
     }
-
-    // Add project patterns second
-    for pattern in project.ignore {
-      if ignore_set.insert(pattern.clone()) {
-        ignore_patterns.push(pattern);
-      }
-    }
-
-    Self { thresholds, ignore_patterns, default_threshold }
   }
 
-  /// Enhanced glob-like pattern matching for ignore patterns
-  fn matches_pattern(path: &str, pattern: &str) -> bool {
-    // Handle different glob patterns
+  // For installed binaries, embed default global config inline
+  // rather than failing to find an external file
+  // This returns a path that doesn't exist, triggering use of hardcoded defaults
+  Ok(PathBuf::from(".violet.global.json5"))
+}
 
-    // Directory patterns: "target/**" matches target/ and all subdirectories
-    if pattern.ends_with("/**") {
-      let prefix = &pattern[..pattern.len() - 3];
-      return path.starts_with(prefix);
-    }
+/// Load a single configuration file
+fn load_config_file(path: &Path) -> Result<ConfigFile> {
+  let content = std::fs::read_to_string(path)
+    .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-    // File extension patterns: "*.json" matches any file ending in .json
-    if pattern.starts_with("*.") {
-      let extension = &pattern[1..]; // Include the dot: ".json"
-      return path.ends_with(extension);
-    }
+  json5::from_str(&content)
+    .with_context(|| format!("Failed to parse JSON5 config file: {}", path.display()))
+}
 
-    // General wildcard patterns: "test*file" matches "test123file"
-    if pattern.contains('*') {
-      if let Some(star_pos) = pattern.find('*') {
-        let prefix = &pattern[..star_pos];
-        let suffix = &pattern[star_pos + 1..];
-        return path.starts_with(prefix) && path.ends_with(suffix);
-      }
-    }
+/// Merge global and project configurations
+fn merge_configs(global: ConfigFile, project: Option<ConfigFile>) -> VioletConfig {
+  let project = project.unwrap_or_default();
 
-    // Exact filename match: ".DS_Store" matches exactly ".DS_Store"
-    path == pattern || path.ends_with(&format!("/{}", pattern))
+  // Get the default threshold value before declaring our variable
+  let default_default = default_threshold();
+
+  // Start with global default threshold
+  let mut default_threshold = global.complexity.thresholds.default;
+
+  // Override with project default if specified
+  if project.complexity.thresholds.default != default_default {
+    default_threshold = project.complexity.thresholds.default;
   }
+
+  // Merge thresholds: start with global extensions, then add/override with project
+  let mut thresholds = global.complexity.thresholds.extensions.clone();
+  for (ext, threshold) in project.complexity.thresholds.extensions {
+    thresholds.insert(ext, threshold);
+  }
+
+  // Merge ignore patterns: deduplicate with global first, project second
+  let mut ignore_set = HashSet::new();
+  let mut ignore_patterns = Vec::new();
+
+  // Add global patterns first
+  for pattern in global.ignore {
+    if ignore_set.insert(pattern.clone()) {
+      ignore_patterns.push(pattern);
+    }
+  }
+
+  // Add project patterns second
+  for pattern in project.ignore {
+    if ignore_set.insert(pattern.clone()) {
+      ignore_patterns.push(pattern);
+    }
+  }
+
+  VioletConfig { thresholds, ignore_patterns, default_threshold }
+}
+
+/// Enhanced glob-like pattern matching for ignore patterns
+fn matches_pattern(path: &str, pattern: &str) -> bool {
+  // Handle different glob patterns
+
+  // Directory patterns: "target/**" matches target/ and all subdirectories
+  if pattern.ends_with("/**") {
+    let prefix = &pattern[..pattern.len() - 3];
+    return path.starts_with(prefix);
+  }
+
+  // File extension patterns: "*.json" matches any file ending in .json
+  if pattern.starts_with("*.") {
+    let extension = &pattern[1..]; // Include the dot: ".json"
+    return path.ends_with(extension);
+  }
+
+  // General wildcard patterns: "test*file" matches "test123file"
+  if pattern.contains('*') {
+    if let Some(star_pos) = pattern.find('*') {
+      let prefix = &pattern[..star_pos];
+      let suffix = &pattern[star_pos + 1..];
+      return path.starts_with(prefix) && path.ends_with(suffix);
+    }
+  }
+
+  // Exact filename match: ".DS_Store" matches exactly ".DS_Store"
+  path == pattern || path.ends_with(&format!("/{}", pattern))
 }
 
 // violet ignore chunk
+
 #[cfg(test)]
 mod tests {
   use super::*;
 
   #[test]
   fn test_matches_pattern_exact() {
-    assert!(VioletConfig::matches_pattern(".DS_Store", ".DS_Store"));
-    assert!(VioletConfig::matches_pattern("path/to/.DS_Store", ".DS_Store"));
-    assert!(!VioletConfig::matches_pattern("other.file", ".DS_Store"));
+    assert!(matches_pattern(".DS_Store", ".DS_Store"));
+    assert!(matches_pattern("path/to/.DS_Store", ".DS_Store"));
+    assert!(!matches_pattern("other.file", ".DS_Store"));
   }
 
   #[test]
   fn test_matches_pattern_directory_glob() {
-    assert!(VioletConfig::matches_pattern("target/", "target/**"));
-    assert!(VioletConfig::matches_pattern("target/debug", "target/**"));
-    assert!(VioletConfig::matches_pattern("target/debug/deps/violet", "target/**"));
-    assert!(!VioletConfig::matches_pattern("src/target", "target/**"));
-    assert!(!VioletConfig::matches_pattern("other/", "target/**"));
+    assert!(matches_pattern("target/", "target/**"));
+    assert!(matches_pattern("target/debug", "target/**"));
+    assert!(matches_pattern("target/debug/deps/violet", "target/**"));
+    assert!(!matches_pattern("src/target", "target/**"));
+    assert!(!matches_pattern("other/", "target/**"));
   }
 
   #[test]
   fn test_matches_pattern_file_extension() {
-    assert!(VioletConfig::matches_pattern("config.json", "*.json"));
-    assert!(VioletConfig::matches_pattern("path/to/config.json", "*.json"));
-    assert!(VioletConfig::matches_pattern("package.json5", "*.json5"));
-    assert!(!VioletConfig::matches_pattern("config.yaml", "*.json"));
-    assert!(!VioletConfig::matches_pattern("jsonfile", "*.json"));
+    assert!(matches_pattern("config.json", "*.json"));
+    assert!(matches_pattern("path/to/config.json", "*.json"));
+    assert!(matches_pattern("package.json5", "*.json5"));
+    assert!(!matches_pattern("config.yaml", "*.json"));
+    assert!(!matches_pattern("jsonfile", "*.json"));
   }
 
   #[test]
   fn test_matches_pattern_wildcard() {
-    assert!(VioletConfig::matches_pattern("testfile", "test*"));
-    assert!(VioletConfig::matches_pattern("test123file", "test*file"));
-    assert!(VioletConfig::matches_pattern("prefix_middle_suffix", "prefix*suffix"));
-    assert!(!VioletConfig::matches_pattern("wrongprefix_suffix", "prefix*suffix"));
-    assert!(!VioletConfig::matches_pattern("prefix_wrong", "prefix*suffix"));
+    assert!(matches_pattern("testfile", "test*"));
+    assert!(matches_pattern("test123file", "test*file"));
+    assert!(matches_pattern("prefix_middle_suffix", "prefix*suffix"));
+    assert!(!matches_pattern("wrongprefix_suffix", "prefix*suffix"));
+    assert!(!matches_pattern("prefix_wrong", "prefix*suffix"));
   }
 
   #[test]
@@ -336,10 +338,10 @@ mod tests {
 
     let config = VioletConfig { thresholds, ignore_patterns: vec![], default_threshold: 7.0 };
 
-    assert_eq!(config.threshold_for_file("main.rs"), 8.0);
-    assert_eq!(config.threshold_for_file("script.js"), 6.0);
-    assert_eq!(config.threshold_for_file("config.json"), 7.0); // default
-    assert_eq!(config.threshold_for_file("README.md"), 7.0); // default
+    assert_eq!(get_threshold_for_file(&config, "main.rs"), 8.0);
+    assert_eq!(get_threshold_for_file(&config, "script.js"), 6.0);
+    assert_eq!(get_threshold_for_file(&config, "config.json"), 7.0); // default
+    assert_eq!(get_threshold_for_file(&config, "README.md"), 7.0); // default
   }
 
   #[test]
@@ -356,24 +358,24 @@ mod tests {
     };
 
     // Directory patterns
-    assert!(config.should_ignore("target/debug/main"));
-    assert!(config.should_ignore("target/"));
-    assert!(!config.should_ignore("src/target"));
+    assert!(should_ignore_file(&config, "target/debug/main"));
+    assert!(should_ignore_file(&config, "target/"));
+    assert!(!should_ignore_file(&config, "src/target"));
 
     // File extension patterns
-    assert!(config.should_ignore("package.json"));
-    assert!(config.should_ignore("path/to/config.json"));
-    assert!(!config.should_ignore("config.yaml"));
+    assert!(should_ignore_file(&config, "package.json"));
+    assert!(should_ignore_file(&config, "path/to/config.json"));
+    assert!(!should_ignore_file(&config, "config.yaml"));
 
     // Exact matches
-    assert!(config.should_ignore(".DS_Store"));
-    assert!(config.should_ignore("some/path/.DS_Store"));
-    assert!(!config.should_ignore("DS_Store"));
+    assert!(should_ignore_file(&config, ".DS_Store"));
+    assert!(should_ignore_file(&config, "some/path/.DS_Store"));
+    assert!(!should_ignore_file(&config, "DS_Store"));
 
     // Wildcard patterns
-    assert!(config.should_ignore("testfile"));
-    assert!(config.should_ignore("test123"));
-    assert!(!config.should_ignore("file_test"));
+    assert!(should_ignore_file(&config, "testfile"));
+    assert!(should_ignore_file(&config, "test123"));
+    assert!(!should_ignore_file(&config, "file_test"));
   }
 
   #[test]
@@ -384,8 +386,8 @@ mod tests {
       default_threshold: 7.0,
     };
 
-    assert!(config.should_ignore("src/main.rs"));
-    assert!(config.should_ignore("./src/main.rs")); // normalized
+    assert!(should_ignore_file(&config, "src/main.rs"));
+    assert!(should_ignore_file(&config, "./src/main.rs")); // normalized
   }
 
   #[test]
@@ -397,7 +399,7 @@ mod tests {
       ignore: vec!["global_pattern".to_string()],
     };
 
-    let result = VioletConfig::merge_configs(global, None);
+    let result = merge_configs(global, None);
 
     assert_eq!(result.default_threshold, 8.0);
     assert_eq!(result.ignore_patterns, vec!["global_pattern"]);
@@ -430,7 +432,7 @@ mod tests {
       ignore: vec!["project1".to_string(), "global1".to_string()], // global1 duplicate
     };
 
-    let result = VioletConfig::merge_configs(global, Some(project));
+    let result = merge_configs(global, Some(project));
 
     // Default threshold should be overridden
     assert_eq!(result.default_threshold, 6.5);
@@ -467,7 +469,7 @@ mod tests {
       ignore: vec![],
     };
 
-    let result = VioletConfig::merge_configs(global, Some(project));
+    let result = merge_configs(global, Some(project));
 
     // Should keep global default since project didn't really override it
     assert_eq!(result.default_threshold, 8.0);
@@ -475,7 +477,7 @@ mod tests {
 
   #[test]
   fn test_default_global_config() {
-    let config = VioletConfig::default_global_config();
+    let config = default_global_config();
 
     // Should have reasonable defaults
     assert_eq!(config.complexity.thresholds.default, 7.0);

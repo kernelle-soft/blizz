@@ -2,7 +2,7 @@ use clap::Parser;
 use colored::*;
 use std::path::PathBuf;
 use std::process;
-use violet::config::VioletConfig;
+use violet::config::{get_threshold_for_file, load_config, should_ignore_file, VioletConfig};
 use violet::simplicity::{analyze_file, FileAnalysis};
 
 const TOTAL_WIDTH: usize = 80;
@@ -32,7 +32,7 @@ fn main() {
   }
 
   // Load configuration
-  let config = match VioletConfig::load() {
+  let config = match load_config() {
     Ok(config) => config,
     Err(e) => {
       eprintln!("Error loading configuration: {}", e);
@@ -47,14 +47,14 @@ fn main() {
   for path in &cli.paths {
     if path.is_file() {
       // Check if file should be ignored
-      if config.should_ignore(path) {
+      if should_ignore_file(&config, path) {
         continue;
       }
 
       match analyze_file(path) {
         Ok(analysis) => {
           _total_files += 1;
-          let threshold = config.threshold_for_file(path);
+          let threshold = get_threshold_for_file(&config, path);
           if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
             // Count the number of chunks that exceed threshold in this file
             let chunk_violations =
@@ -74,7 +74,7 @@ fn main() {
         match analyze_file(&file_path) {
           Ok(analysis) => {
             _total_files += 1;
-            let threshold = config.threshold_for_file(&file_path);
+            let threshold = get_threshold_for_file(&config, &file_path);
             if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
               // Count the number of chunks that exceed threshold in this file
               let chunk_violations =
@@ -128,7 +128,7 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
       let path = entry.path();
 
       // Skip if the path should be ignored
-      if config.should_ignore(&path) {
+      if should_ignore_file(&config, &path) {
         continue;
       }
 
