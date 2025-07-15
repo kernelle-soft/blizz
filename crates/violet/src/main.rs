@@ -17,8 +17,8 @@ struct Cli {
   #[arg(value_name = "PATH")]
   paths: Vec<PathBuf>,
 
-  /// Complexity threshold for warnings (default: 15.0)
-  #[arg(short, long, default_value = "15.0")]
+  /// Complexity threshold for warnings (default: 8.0)
+  #[arg(short, long, default_value = "8.0")]
   threshold: f64,
 
   /// Only show files that exceed the threshold
@@ -137,12 +137,11 @@ fn process_file_analysis(analysis: &FileAnalysis, cli: &Cli) -> bool {
     
     // Show complexity breakdown - each component on its own line
     let b = &chunk.breakdown;
-    let cognitive_load_factor = 2.0;
     
     // Apply the same logarithmic scaling to components as used in final score
-    let depth_scaled = (1.0_f64 + b.depth_score).ln() * cognitive_load_factor;
-    let verbosity_scaled = (1.0_f64 + b.verbosity_score).ln() * cognitive_load_factor;
-    let syntactic_scaled = (1.0_f64 + b.syntactic_score).ln() * cognitive_load_factor;
+    let depth_scaled = (1.0_f64 + b.depth_score).ln();
+    let verbosity_scaled = (1.0_f64 + b.verbosity_score).ln();
+    let syntactic_scaled = (1.0_f64 + b.syntactic_score).ln();
     
     println!("    depth: {:.1} ({:.0}%)", depth_scaled, b.depth_percent);
     println!("    verbosity: {:.1} ({:.0}%)", verbosity_scaled, b.verbosity_percent);

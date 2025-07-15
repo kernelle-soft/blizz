@@ -149,8 +149,7 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
   // Information-theoretic scaling: ln(1 + sum) gives us base information content
   // Then scale by cognitive load factor - human processing isn't linear with information
   let base_information = (1.0 + raw_sum).ln();
-  let cognitive_load_factor = 2.0; // Tunable: how much cognitive load scales with information
-  let final_score = base_information * cognitive_load_factor;
+  let final_score = base_information;
 
   // Calculate percentages based on raw component scores (before logarithmic scaling)
   let total_raw = depth_total + verbosity_total + syntactic_total;
