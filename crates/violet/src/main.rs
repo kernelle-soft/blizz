@@ -3,7 +3,7 @@ use colored::*;
 use std::path::PathBuf;
 use std::process;
 use violet::config::{get_threshold_for_file, load_config, should_ignore_file, VioletConfig};
-use violet::simplicity::{analyze_file, FileAnalysis, ChunkScore, ComplexityBreakdown};
+use violet::simplicity::{analyze_file, ChunkScore, ComplexityBreakdown, FileAnalysis};
 
 const TOTAL_WIDTH: usize = 80;
 const PADDING: usize = 2;
@@ -124,9 +124,11 @@ fn main() {
 
   for path in &cli.paths {
     if path.is_file() {
-      violating_chunks += process_single_file(path, &config, &cli, &mut _total_files, &mut violation_output);
+      violating_chunks +=
+        process_single_file(path, &config, &cli, &mut _total_files, &mut violation_output);
     } else if path.is_dir() {
-      violating_chunks += process_directory(path, &config, &cli, &mut _total_files, &mut violation_output);
+      violating_chunks +=
+        process_directory(path, &config, &cli, &mut _total_files, &mut violation_output);
     } else {
       eprintln!("Warning: {} is not a file or directory", path.display());
     }
@@ -168,17 +170,17 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
 fn format_chunk_preview(chunk: &ChunkScore) -> String {
   let mut output = String::new();
   let preview_lines: Vec<&str> = chunk.preview.lines().take(5).collect();
-  
+
   for line in preview_lines.iter() {
-    let truncated =
-      if line.len() > 70 { format!("{}...", &line[..67]) } else { line.to_string() };
+    let truncated = if line.len() > 70 { format!("{}...", &line[..67]) } else { line.to_string() };
+
     output.push_str(&format!("    {}\n", truncated.dimmed()));
   }
-  
+
   if chunk.preview.lines().count() > 5 {
     output.push_str(&format!("    {}\n", "...".dimmed()));
   }
-  
+
   output
 }
 
@@ -187,33 +189,37 @@ fn scale_component_score(score: f64) -> f64 {
   (1.0_f64 + score).ln()
 }
 
-/// Format complexity breakdown with scaling
+/// Format a single subscore component (depth, verbosity, or syntactic)
+fn report_subscore(name: &str, scaled_score: f64, percent: f64) -> String {
+  format!("    {}: {:.1} ({:.0}%)\n", name, scaled_score, percent)
+}
+
+/// Format complexity breakdown with percentage scaling
 fn format_complexity_breakdown(breakdown: &ComplexityBreakdown) -> String {
   let mut output = String::new();
-  
-  // Apply the same logarithmic scaling to components as used in final score
+
   let depth_scaled = scale_component_score(breakdown.depth_score);
   let verbosity_scaled = scale_component_score(breakdown.verbosity_score);
   let syntactic_scaled = scale_component_score(breakdown.syntactic_score);
 
-  output.push_str(&format!("    depth: {:.1} ({:.0}%)\n", depth_scaled, breakdown.depth_percent));
-  output.push_str(&format!("    verbosity: {:.1} ({:.0}%)\n", verbosity_scaled, breakdown.verbosity_percent));
-  output.push_str(&format!("    syntactics: {:.1} ({:.0}%)\n", syntactic_scaled, breakdown.syntactic_percent));
-  
+  output.push_str(&report_subscore("depth", depth_scaled, breakdown.depth_percent));
+  output.push_str(&report_subscore("verbosity", verbosity_scaled, breakdown.verbosity_percent));
+  output.push_str(&report_subscore("syntactics", syntactic_scaled, breakdown.syntactic_percent));
+
   output
 }
 
 /// Format a single violating chunk
 fn format_violating_chunk(chunk: &ChunkScore) -> String {
   let mut output = String::new();
-  
+
   let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
   let score_str = format!("{:.1}", chunk.score);
   output.push_str(&format_aligned_row(&chunk_display, &score_str, true, false));
-  
+
   output.push_str(&format_chunk_preview(chunk));
   output.push_str(&format_complexity_breakdown(&chunk.breakdown));
-  
+
   output
 }
 
@@ -382,11 +388,8 @@ mod tests {
   #[test]
   fn test_collect_files_recursively_empty_config() {
     let temp_dir = TempDir::new().unwrap();
-    let config = VioletConfig {
-      thresholds: HashMap::new(),
-      ignore_patterns: vec![],
-      default_threshold: 6.0,
-    };
+    let config =
+      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
 
     // Create test files
     let file1_path = temp_dir.path().join("test1.rs");
@@ -432,11 +435,8 @@ mod tests {
   #[test]
   fn test_collect_files_recursively_nested_directories() {
     let temp_dir = TempDir::new().unwrap();
-    let config = VioletConfig {
-      thresholds: HashMap::new(),
-      ignore_patterns: vec![],
-      default_threshold: 6.0,
-    };
+    let config =
+      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
 
     // Create nested directory structure
     let deep_dir = temp_dir.path().join("level1").join("level2");
@@ -458,11 +458,8 @@ mod tests {
 
   #[test]
   fn test_process_file_analysis_ignored_file() {
-    let config = VioletConfig {
-      thresholds: HashMap::new(),
-      ignore_patterns: vec![],
-      default_threshold: 6.0,
-    };
+    let config =
+      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
     let cli = Cli { paths: vec![], quiet: false };
 
     let analysis = FileAnalysis {
@@ -479,11 +476,8 @@ mod tests {
 
   #[test]
   fn test_process_file_analysis_ignored_file_quiet_mode() {
-    let config = VioletConfig {
-      thresholds: HashMap::new(),
-      ignore_patterns: vec![],
-      default_threshold: 6.0,
-    };
+    let config =
+      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
     let cli = Cli { paths: vec![], quiet: true };
 
     let analysis = FileAnalysis {
@@ -499,11 +493,8 @@ mod tests {
 
   #[test]
   fn test_process_file_analysis_no_violations() {
-    let config = VioletConfig {
-      thresholds: HashMap::new(),
-      ignore_patterns: vec![],
-      default_threshold: 6.0,
-    };
+    let config =
+      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
     let cli = Cli { paths: vec![], quiet: false };
 
     let breakdown = ComplexityBreakdown {
@@ -536,11 +527,8 @@ mod tests {
 
   #[test]
   fn test_process_file_analysis_with_violations() {
-    let config = VioletConfig {
-      thresholds: HashMap::new(),
-      ignore_patterns: vec![],
-      default_threshold: 6.0,
-    };
+    let config =
+      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
     let cli = Cli { paths: vec![], quiet: false };
 
     let breakdown = ComplexityBreakdown {
@@ -569,7 +557,7 @@ mod tests {
 
     let result = process_file_analysis(&analysis, &config, &cli, 6.0);
     assert!(result.is_some());
-    
+
     let output = result.unwrap();
     assert!(output.contains("test.rs"));
     assert!(output.contains("- lines 15-25"));
@@ -582,11 +570,8 @@ mod tests {
 
   #[test]
   fn test_process_file_analysis_long_preview_truncation() {
-    let config = VioletConfig {
-      thresholds: HashMap::new(),
-      ignore_patterns: vec![],
-      default_threshold: 6.0,
-    };
+    let config =
+      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
     let cli = Cli { paths: vec![], quiet: false };
 
     let breakdown = ComplexityBreakdown {
@@ -604,13 +589,8 @@ mod tests {
       .collect::<Vec<_>>()
       .join("\n");
 
-    let chunk = ChunkScore {
-      score: 7.5,
-      start_line: 1,
-      end_line: 10,
-      preview: long_preview,
-      breakdown,
-    };
+    let chunk =
+      ChunkScore { score: 7.5, start_line: 1, end_line: 10, preview: long_preview, breakdown };
 
     let analysis = FileAnalysis {
       file_path: PathBuf::from("test.rs"),

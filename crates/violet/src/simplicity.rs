@@ -97,7 +97,7 @@ fn process_line<'a>(
   result_lines: &mut Vec<&'a str>,
 ) -> bool {
   let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
-  
+
   // Handle line-level ignore from previous line
   if *skip_next_line {
     *skip_next_line = false;
@@ -118,7 +118,7 @@ pub fn preprocess_file(content: &str) -> Option<String> {
   let lines: Vec<&str> = content.lines().collect();
 
   // Check for file-level ignore
-  if has_file_ignore_directive(&lines) {  
+  if has_file_ignore_directive(&lines) {
     return None; // Entire file should be ignored
   }
 
@@ -142,7 +142,7 @@ pub fn preprocess_file(content: &str) -> Option<String> {
 
 /// Calculate complexity components for a single line
 fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
-  let indents = get_indents(line);
+  let indents = get_indents(line).saturating_sub(1); // Don't penalize first indentation level
   let special_chars = get_num_specials(line);
   let non_special_chars = (line.trim().len() as f64) - special_chars;
 
@@ -154,9 +154,13 @@ fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
 }
 
 /// Create a ComplexityBreakdown from component totals
-fn create_breakdown(depth_total: f64, verbosity_total: f64, syntactic_total: f64) -> ComplexityBreakdown {
+fn create_breakdown(
+  depth_total: f64,
+  verbosity_total: f64,
+  syntactic_total: f64,
+) -> ComplexityBreakdown {
   let total_raw = depth_total + verbosity_total + syntactic_total;
-  
+
   if total_raw > 0.0 {
     ComplexityBreakdown {
       depth_score: depth_total,
@@ -186,7 +190,8 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
   let mut syntactic_total = 0.0;
 
   for line in lines {
-    let (depth_component, verbosity_component, syntactic_component) = calculate_line_complexity(line);
+    let (depth_component, verbosity_component, syntactic_component) =
+      calculate_line_complexity(line);
     depth_total += depth_component;
     verbosity_total += verbosity_component;
     syntactic_total += syntactic_component;
@@ -350,7 +355,13 @@ fn process_chunks(all_chunks: &[String]) -> Vec<ChunkScore> {
   for chunk in all_chunks {
     let lines_in_chunk = chunk.lines().count();
 
-    if should_skip_chunk(chunk, &chunk_ignore_regex, &mut skip_next_chunk, &mut current_line, lines_in_chunk) {
+    if should_skip_chunk(
+      chunk,
+      &chunk_ignore_regex,
+      &mut skip_next_chunk,
+      &mut current_line,
+      lines_in_chunk,
+    ) {
       continue;
     }
 
