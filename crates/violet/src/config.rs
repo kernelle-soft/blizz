@@ -89,7 +89,8 @@ pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -
   let path_str = file_path.as_ref().to_string_lossy();
 
   // strip leading ./ if present
-  let normalized_path = if path_str.starts_with("./") { &path_str[2..] } else { &path_str };
+  let normalized_path =
+    if let Some(stripped) = path_str.strip_prefix("./") { stripped } else { &path_str };
 
   for pattern in &config.ignore_patterns {
     if matches_pattern(&path_str, pattern) || matches_pattern(normalized_path, pattern) {

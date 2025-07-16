@@ -42,15 +42,15 @@ fn process_single_file(
   total_files: &mut i32,
   violation_output: &mut Vec<String>,
 ) -> usize {
-  if should_ignore_file(&config, path) {
+  if should_ignore_file(config, path) {
     return 0;
   }
 
   match analyze_file(path) {
     Ok(analysis) => {
       *total_files += 1;
-      let threshold = get_threshold_for_file(&config, path);
-      if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
+      let threshold = get_threshold_for_file(config, path);
+      if let Some(output) = process_file_analysis(&analysis, config, cli, threshold) {
         let chunk_violations =
           analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).count();
         violation_output.push(output);
@@ -97,7 +97,7 @@ fn print_results(violation_output: Vec<String>) {
     let score_width = "SCORE".len();
     let chunk_width = TOTAL_WIDTH - score_width - PADDING;
 
-    println!("{:<width$} {}", "CHUNKS", "SCORE", width = chunk_width);
+    println!("{:<width$} SCORE", "CHUNKS", width = chunk_width);
     println!("{}", "=".repeat(TOTAL_WIDTH));
 
     for output in violation_output {
@@ -150,7 +150,7 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
       let path = entry.path();
 
       // Skip if the path should be ignored
-      if should_ignore_file(&config, &path) {
+      if should_ignore_file(config, &path) {
         continue;
       }
 
@@ -172,7 +172,11 @@ fn format_chunk_preview(chunk: &ChunkScore) -> String {
   let preview_lines: Vec<&str> = chunk.preview.lines().take(5).collect();
 
   for line in preview_lines.iter() {
-    let truncated = if line.len() > 70 { format!("{}...", &line[..67]) } else { line.to_string() };
+    let truncated = if line.len() > 70 { 
+      format!("{}...", &line[..67])
+    } else {
+      line.to_string()
+    };
 
     output.push_str(&format!("    {}\n", truncated.dimmed()));
   }

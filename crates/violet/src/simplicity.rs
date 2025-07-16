@@ -54,7 +54,7 @@ fn create_ignored_file_analysis(path: &Path) -> FileAnalysis {
 fn has_file_ignore_directive(lines: &[&str]) -> bool {
   let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
   lines.iter().any(|line| {
-    ignore_regex.captures(line).map_or(false, |caps| caps.get(1).unwrap().as_str() == "file")
+    ignore_regex.captures(line).is_some_and(|caps| caps.get(1).unwrap().as_str() == "file")
   })
 }
 
@@ -146,9 +146,9 @@ fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
   let special_chars = get_num_specials(line);
   let non_special_chars = (line.trim().len() as f64) - special_chars;
 
-  let verbosity_component = (1.05 as f64).powf(non_special_chars as f64);
-  let syntactic_component = (1.25 as f64).powf(special_chars as f64);
-  let depth_component = (2.0 as f64).powf(indents as f64);
+  let verbosity_component = 1.05_f64.powf(non_special_chars);
+  let syntactic_component = 1.25_f64.powf(special_chars);
+  let depth_component = 2.0_f64.powf(indents as f64);
 
   (depth_component, verbosity_component, syntactic_component)
 }
