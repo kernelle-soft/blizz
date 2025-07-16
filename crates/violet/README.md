@@ -333,18 +333,65 @@ Most remarkably, this elegant theory emerged not from theoretical design but fro
 
 ## 9. Implications for AI-Assisted Development
 
-A striking architectural similarity exists between transformer-based language models and the cognitive constraints described by Cognitive Load Theory. Both systems exhibit:
+### 9.1 Transformer Architecture and Cognitive Load Theory
 
-- **Limited context windows** analogous to working memory constraints
-- **Parallel processing and sequential consideration** with attention mechanisms that mirror human reading patterns  
-- **Performance degradation** when presented with highly concentrated information
-- **Improved comprehension** when complex information is distributed across manageable chunks
+The architectural foundations of modern AI systems exhibit remarkable convergence with human cognitive constraints as described by Cognitive Load Theory (CLT). This convergence is not coincidental—it reflects fundamental limitations in information processing that apply to both biological and artificial systems.
 
-This convergence suggests that Violet's complexity scoring—designed to align with human cognitive patterns—also serves as a crucial tool for improving the performance of artificial intelligence in comprehending and editing code. As software development increasingly incorporates AI assistance for code generation, review, and modification, maintaining code that respects both human and artificial cognitive constraints becomes strategically important.
+#### 9.1.1 Cognitive Load Theory Foundations
 
-The transformer-cognitive load parallel creates a testable hypothesis: code with lower Violet complexity scores should be more accurately understood and modified by large language models, suggesting that readability optimization serves dual purposes in modern development workflows.
+Cognitive Load Theory, developed by John Sweller, identifies three types of cognitive load that affect human learning and comprehension:
 
-### 9.1 Availability
+- **Intrinsic Load**: The inherent difficulty of the material itself
+- **Extraneous Load**: Cognitive burden imposed by poor presentation or organization
+- **Germane Load**: Mental effort devoted to processing and understanding
+
+CLT demonstrates that human working memory can effectively process only 7±2 discrete information elements simultaneously before performance degrades exponentially.
+
+#### 9.1.2 Transformer Architecture Characteristics
+
+Transformer-based language models exhibit both similarities to and key differences from human cognitive constraints:
+
+**Context Window Limitations**: Modern transformers process information within fixed-size context windows (typically 32k-128k tokens), creating a computational analog to working memory limitations, though with much larger capacity.
+
+**Attention Mechanism**: Self-attention was specifically designed to overcome the sequential processing and distance limitations that constrain previous models for text processing and generation. 
+
+Transformers can attend to any position in a sequence with equal ease, regardless of distance—analogous to our capacity to consider words and sentences wholistically, rather than in individual characters or word pieces. In addition, the practical deployment of LLMs with constraints on parameter count and quantization directly affects a model's capacity to pick up on nuances and syntactical sugar in code may not always be apparent when not presented in a legible manner, again similar to patterns in human text comprehension.
+
+#### 9.1.3 Similarities and Critical Differences
+
+**Shared Constraints:**
+
+1. **Finite Capacity**: Both systems have hard limits—human working memory (7±2 elements) and transformer context windows (32k-128k tokens)
+2. **Information Density Sensitivity**: Both struggle when complex, interdependent operations are concentrated in small regions
+3. **Processing Efficiency**: Both perform better when complex information is distributed across manageable chunks
+
+**Key Differences:**
+
+1. **Attention Capabilities**: Transformers have precise selective attention that can focus on any position with equal ease; humans have limited, sequential attention that degrades with distance
+2. **Processing Style**: Transformers process all positions in parallel; humans process sequentially from left-to-right, top-to-bottom
+3. **Distance Effects**: Transformers have no inherent distance decay; humans struggle with distant contextual dependencies
+
+**The Critical Insight**: Despite transformers' superior attention mechanisms, both systems benefit from complexity distribution. This suggests the advantage comes not from attention limitations, but from fundamental information processing constraints when dealing with dense, interdependent relationships.
+
+#### 9.1.4 Information Density Effects
+
+The second diagram demonstrates how concentrated versus distributed complexity affects both human and artificial intelligence processing:
+
+The concentrated example requires both humans and transformers to resolve multiple complex interdependencies simultaneously within a small region. While transformers can attend to all parts equally, the *density of relationships* still creates processing difficulty. The distributed version spreads these relationships across space, making them easier for both sequential human cognition and parallel transformer processing to handle effectively.
+
+#### 9.1.5 Implications for Violet's Approach
+
+This architectural convergence validates Violet's core insight: **complexity distribution matters more than absolute complexity**. The exponential penalties in Violet's scoring function—$(1.25)^{special\_chars}$ and $(2.0)^{indentation}$—mathematically model the performance degradation both humans and AI systems experience when presented with concentrated information.
+
+**Empirical Research Opportunity**: The transformer-CLT parallel suggests a concrete research program:
+
+- **Hypothesis**: Code with lower Violet complexity scores should be more accurately understood and modified by large language models
+- **Methodology**: Compare LLM performance on functionally equivalent code samples with different Violet scores
+- **Expected Outcome**: Strong correlation between Violet scores and AI comprehension accuracy
+
+This convergence suggests that optimizing code for human readability simultaneously optimizes it for AI comprehension—a crucial insight as software development becomes increasingly AI-assisted.
+
+### 9.2 Availability
 
 Violet is open-source software written in Rust, available for integration with git hooks, CI/CD pipelines, and development workflows. The complete source code and documentation are available at the project repository.
 
