@@ -389,19 +389,22 @@ mod tests {
   #[test]
   fn test_preprocess_file_ignore_entire_file() {
     // Test with different comment styles
-    let content1 = "# violet ignore file\nfn main() {\n    println!(\"hello\");\n}";
-    let content2 = "// violet ignore file\nfn main() {\n    println!(\"hello\");\n}";
-    let content3 = "/* violet ignore file */\nfn main() {\n    println!(\"hello\");\n}";
+    let content1 =
+      format!("# violet ignore {}\nfn main() {{\n    println!(\"hello\");\n}}", "file");
+    let content2 =
+      format!("// violet ignore {}\nfn main() {{\n    println!(\"hello\");\n}}", "file");
+    let content3 =
+      format!("/* violet ignore {} */\nfn main() {{\n    println!(\"hello\");\n}}", "file");
 
-    assert_eq!(preprocess_file(content1), None);
-    assert_eq!(preprocess_file(content2), None);
-    assert_eq!(preprocess_file(content3), None);
+    assert_eq!(preprocess_file(&content1), None);
+    assert_eq!(preprocess_file(&content2), None);
+    assert_eq!(preprocess_file(&content3), None);
   }
 
   #[test]
   fn test_preprocess_file_ignore_block() {
-    let content = "fn good() {\n    return 1;\n}\n\n# violet ignore start\nfn bad() {\n    if nested {\n        return 2;\n    }\n}\n# violet ignore end\n\nfn also_good() {\n    return 3;\n}";
-    let result = preprocess_file(content).unwrap();
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn bad() {{\n    if nested {{\n        return 2;\n    }}\n}}\n# violet ignore {}\n\nfn also_good() {{\n    return 3;\n}}", "start", "end");
+    let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
     assert!(result.contains("fn also_good()"));
@@ -411,8 +414,8 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_nested_ignore_blocks() {
-    let content = "fn good() {\n    return 1;\n}\n\n/* violet ignore start */\nfn outer_bad() {\n    # violet ignore start\n    fn inner_bad() {\n        return 2;\n    }\n    # violet ignore end\n    return 3;\n}\n/* violet ignore end */\n\nfn also_good() {\n    return 4;\n}";
-    let result = preprocess_file(content).unwrap();
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n/* violet ignore {} */\nfn outer_bad() {{\n    # violet ignore {}\n    fn inner_bad() {{\n        return 2;\n    }}\n    # violet ignore {}\n    return 3;\n}}\n/* violet ignore {} */\n\nfn also_good() {{\n    return 4;\n}}", "start", "start", "end", "end");
+    let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
     assert!(result.contains("fn also_good()"));
@@ -422,9 +425,11 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_unmatched_ignore_end() {
-    let content =
-      "fn good() {\n    return 1;\n}\n\n# violet ignore end\nfn still_good() {\n    return 2;\n}";
-    let result = preprocess_file(content).unwrap();
+    let content = format!(
+      "fn good() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn still_good() {{\n    return 2;\n}}", 
+      "end"
+    );
+    let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
     assert!(result.contains("fn still_good()"));
@@ -432,10 +437,10 @@ mod tests {
 
   #[test]
   fn test_complete_pipeline_with_ignores() {
-    let content = "fn simple() {\n    return 1;\n}\n\n# violet ignore start\nfn complex() {\n    if deeply {\n        if nested {\n            if very {\n                return 2;\n            }\n        }\n    }\n}\n# violet ignore end\n\nfn another_simple() {\n    return 3;\n}";
+    let content = format!("fn simple() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn complex() {{\n    if deeply {{\n        if nested {{\n            if very {{\n                return 2;\n            }}\n        }}\n    }}\n}}\n# violet ignore {}\n\nfn another_simple() {{\n    return 3;\n}}", "start", "end");
 
     // First preprocess to remove ignored sections
-    let preprocessed = preprocess_file(content).unwrap();
+    let preprocessed = preprocess_file(&content).unwrap();
 
     // Should only have the simple functions
     assert!(preprocessed.contains("fn simple()"));
@@ -454,9 +459,9 @@ mod tests {
 
   #[test]
   fn test_complete_pipeline_file_ignore() {
-    let content = "# violet ignore file\nfn extremely_complex() {\n    if deeply {\n        if nested {\n            if very {\n                if much {\n                    return 42;\n                }\n            }\n        }\n    }\n}";
+    let content = format!("# violet ignore {}\nfn extremely_complex() {{\n    if deeply {{\n        if nested {{\n            if very {{\n                if much {{\n                    return 42;\n                }}\n            }}\n        }}\n    }}\n}}", "file");
 
-    let preprocessed = preprocess_file(content);
+    let preprocessed = preprocess_file(&content);
     assert_eq!(preprocessed, None); // Entire file should be ignored
   }
 
@@ -499,8 +504,8 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_ignore_line() {
-    let content = "fn good() {\n    return 1;\n}\n\n// violet ignore line\nlet bad_line = very_complex_calculation();\n\nfn also_good() {\n    return 2;\n}";
-    let result = preprocess_file(content).unwrap();
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n// violet ignore {}\nlet bad_line = very_complex_calculation();\n\nfn also_good() {{\n    return 2;\n}}", "line");
+    let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
     assert!(result.contains("fn also_good()"));
@@ -510,34 +515,103 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_ignore_chunk() {
-    let content = "fn good() {\n    return 1;\n}\n\n/* violet ignore chunk */\n\nfn bad_chunk() {\n    if deeply {\n        nested();\n    }\n}\n\nfn also_good() {\n    return 2;\n}";
-    let result = preprocess_file(content).unwrap();
+    // Chunk directives are processed during analyze_file, not preprocess_file
+    // preprocess_file only keeps the directive line for later processing
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n/* violet ignore {} */\n\nfn bad_chunk() {{\n    if deeply {{\n        nested();\n    }}\n}}\n\nfn also_good() {{\n    return 2;\n}}", "chunk");
+    let result = preprocess_file(&content).unwrap();
 
+    // preprocess_file should keep the directive line
     assert!(result.contains("fn good()"));
     assert!(result.contains("fn also_good()"));
-    assert!(!result.contains("fn bad_chunk()"));
-    assert!(!result.contains("if deeply"));
-    assert!(!result.contains("nested()"));
+    assert!(result.contains("violet ignore chunk")); // directive line preserved
+    assert!(result.contains("fn bad_chunk()")); // chunk content preserved for later processing
+  }
+
+  #[test]
+  fn test_analyze_file_ignore_chunk() {
+    use std::fs;
+
+    // Create a temporary file for testing
+    let temp_path = "test_chunk_ignore.rs";
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n/* violet ignore {} */\n\nfn bad_chunk() {{\n    if deeply {{\n        nested();\n    }}\n}}\n\nfn also_good() {{\n    return 2;\n}}", "chunk");
+
+    fs::write(temp_path, &content).unwrap();
+
+    // Analyze the file
+    let analysis = analyze_file(temp_path).unwrap();
+
+    // Should have 2 chunks (good functions), bad_chunk should be ignored
+    assert_eq!(analysis.chunk_scores.len(), 2);
+
+    // Check that the chunks are the good functions
+    let chunk_previews: Vec<&str> = analysis
+      .chunk_scores
+      .iter()
+      .map(|chunk| chunk.preview.lines().next().unwrap_or(""))
+      .collect();
+
+    assert!(chunk_previews.iter().any(|preview| preview.contains("fn good()")));
+    assert!(chunk_previews.iter().any(|preview| preview.contains("fn also_good()")));
+    assert!(!chunk_previews.iter().any(|preview| preview.contains("fn bad_chunk()")));
+
+    // Clean up
+    fs::remove_file(temp_path).unwrap();
   }
 
   #[test]
   fn test_preprocess_file_ignore_multiple_chunks() {
-    let content = "fn good1() {\n    return 1;\n}\n\n# violet ignore chunk\n\nfn bad1() {\n    complex();\n}\n\nfn good2() {\n    return 2;\n}\n\n# violet ignore chunk\n\nfn bad2() {\n    also_complex();\n}\n\nfn good3() {\n    return 3;\n}";
-    let result = preprocess_file(content).unwrap();
+    // This test should also be about preprocess behavior, not chunk removal
+    let directive = "chunk";
+    let content = format!("fn good1() {{\n    return 1;\n}}\n\n# violet ignore {}\n\nfn bad1() {{\n    complex();\n}}\n\nfn good2() {{\n    return 2;\n}}\n\n# violet ignore {}\n\nfn bad2() {{\n    also_complex();\n}}\n\nfn good3() {{\n    return 3;\n}}", directive, directive);
+    let result = preprocess_file(&content).unwrap();
 
+    // preprocess_file should preserve content but keep directive lines
     assert!(result.contains("fn good1()"));
     assert!(result.contains("fn good2()"));
     assert!(result.contains("fn good3()"));
-    assert!(!result.contains("fn bad1()"));
-    assert!(!result.contains("fn bad2()"));
-    assert!(!result.contains("complex()"));
-    assert!(!result.contains("also_complex()"));
+    assert!(result.contains("fn bad1()")); // content preserved for later chunk processing
+    assert!(result.contains("fn bad2()")); // content preserved for later chunk processing
+    assert!(result.contains("violet ignore chunk")); // directive lines preserved
+  }
+
+  #[test]
+  fn test_analyze_file_ignore_multiple_chunks() {
+    use std::fs;
+
+    // Create a temporary file for testing
+    let temp_path = "test_multiple_chunk_ignore.rs";
+    let directive = "chunk";
+    let content = format!("fn good1() {{\n    return 1;\n}}\n\n# violet ignore {}\n\nfn bad1() {{\n    complex();\n}}\n\nfn good2() {{\n    return 2;\n}}\n\n# violet ignore {}\n\nfn bad2() {{\n    also_complex();\n}}\n\nfn good3() {{\n    return 3;\n}}", directive, directive);
+
+    fs::write(temp_path, &content).unwrap();
+
+    // Analyze the file
+    let analysis = analyze_file(temp_path).unwrap();
+
+    // Should have 3 chunks (good functions), bad functions should be ignored
+    assert_eq!(analysis.chunk_scores.len(), 3);
+
+    // Check that the chunks are the good functions
+    let chunk_previews: Vec<&str> = analysis
+      .chunk_scores
+      .iter()
+      .map(|chunk| chunk.preview.lines().next().unwrap_or(""))
+      .collect();
+
+    assert!(chunk_previews.iter().any(|preview| preview.contains("fn good1()")));
+    assert!(chunk_previews.iter().any(|preview| preview.contains("fn good2()")));
+    assert!(chunk_previews.iter().any(|preview| preview.contains("fn good3()")));
+    assert!(!chunk_previews.iter().any(|preview| preview.contains("fn bad1()")));
+    assert!(!chunk_previews.iter().any(|preview| preview.contains("fn bad2()")));
+
+    // Clean up
+    fs::remove_file(temp_path).unwrap();
   }
 
   #[test]
   fn test_preprocess_file_mixed_comment_styles() {
-    let content = "fn good() {\n    return 1;\n}\n\n// violet ignore line\nlet bad1 = complex();\n\n# violet ignore start\nfn bad_block() {\n    return 2;\n}\n/* violet ignore end */\n\nfn also_good() {\n    return 3;\n}";
-    let result = preprocess_file(content).unwrap();
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n// violet ignore {}\nlet bad1 = complex();\n\n# violet ignore {}\nfn bad_block() {{\n    return 2;\n}}\n/* violet ignore {} */\n\nfn also_good() {{\n    return 3;\n}}", "line", "start", "end");
+    let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
     assert!(result.contains("fn also_good()"));
