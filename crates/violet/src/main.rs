@@ -3,7 +3,7 @@ use colored::*;
 use std::path::PathBuf;
 use std::process;
 use violet::config::{get_threshold_for_file, load_config, should_ignore_file, VioletConfig};
-use violet::simplicity::{analyze_file, FileAnalysis};
+use violet::simplicity::{analyze_file, FileAnalysis, ChunkScore, ComplexityBreakdown};
 
 const TOTAL_WIDTH: usize = 80;
 const PADDING: usize = 2;
@@ -23,77 +23,69 @@ struct Cli {
   quiet: bool,
 }
 
-fn main() {
-  let cli = Cli::parse();
-
-  if cli.paths.is_empty() {
-    eprintln!("Error: No paths specified");
-    process::exit(1);
-  }
-
-  // Load configuration
-  let config = match load_config() {
+/// Load configuration and exit on error
+fn load_config_or_exit() -> VioletConfig {
+  match load_config() {
     Ok(config) => config,
     Err(e) => {
       eprintln!("Error loading configuration: {}", e);
       process::exit(1);
     }
-  };
+  }
+}
 
-  let mut _total_files = 0;
-  let mut violating_chunks = 0;
-  let mut violation_output = Vec::new();
-
-  for path in &cli.paths {
-    if path.is_file() {
-      // Check if file should be ignored
-      if should_ignore_file(&config, path) {
-        continue;
-      }
-
-      match analyze_file(path) {
-        Ok(analysis) => {
-          _total_files += 1;
-          let threshold = get_threshold_for_file(&config, path);
-          if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
-            // Count the number of chunks that exceed threshold in this file
-            let chunk_violations =
-              analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).count();
-            violating_chunks += chunk_violations;
-            violation_output.push(output);
-          }
-        }
-        Err(e) => {
-          eprintln!("Error analyzing {}: {}", path.display(), e);
-        }
-      }
-    } else if path.is_dir() {
-      // Recursive directory traversal
-      let files = collect_files_recursively(path, &config);
-      for file_path in files {
-        match analyze_file(&file_path) {
-          Ok(analysis) => {
-            _total_files += 1;
-            let threshold = get_threshold_for_file(&config, &file_path);
-            if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
-              // Count the number of chunks that exceed threshold in this file
-              let chunk_violations =
-                analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).count();
-              violating_chunks += chunk_violations;
-              violation_output.push(output);
-            }
-          }
-          Err(e) => {
-            eprintln!("Error analyzing {}: {}", file_path.display(), e);
-          }
-        }
-      }
-    } else {
-      eprintln!("Warning: {} is not a file or directory", path.display());
-    }
+/// Process a single file and return chunk violations count and output
+fn process_single_file(
+  path: &PathBuf,
+  config: &VioletConfig,
+  cli: &Cli,
+  total_files: &mut i32,
+  violation_output: &mut Vec<String>,
+) -> usize {
+  if should_ignore_file(&config, path) {
+    return 0;
   }
 
-  // Only print headers and output if there are violations
+  match analyze_file(path) {
+    Ok(analysis) => {
+      *total_files += 1;
+      let threshold = get_threshold_for_file(&config, path);
+      if let Some(output) = process_file_analysis(&analysis, &config, &cli, threshold) {
+        let chunk_violations =
+          analysis.chunk_scores.iter().filter(|chunk| chunk.score > threshold).count();
+        violation_output.push(output);
+        chunk_violations
+      } else {
+        0
+      }
+    }
+    Err(e) => {
+      eprintln!("Error analyzing {}: {}", path.display(), e);
+      0
+    }
+  }
+}
+
+/// Process a directory recursively and return total chunk violations
+fn process_directory(
+  path: &PathBuf,
+  config: &VioletConfig,
+  cli: &Cli,
+  total_files: &mut i32,
+  violation_output: &mut Vec<String>,
+) -> usize {
+  let files = collect_files_recursively(path, config);
+  let mut violations = 0;
+
+  for file_path in files {
+    violations += process_single_file(&file_path, config, cli, total_files, violation_output);
+  }
+
+  violations
+}
+
+/// Print output header and violations
+fn print_results(violation_output: Vec<String>) {
   if !violation_output.is_empty() {
     println!(
       "{}",
@@ -115,6 +107,32 @@ fn main() {
     // All files are clean - print success message
     println!("{} No issues found. What beautiful code you have!", "✅".green());
   }
+}
+
+fn main() {
+  let cli = Cli::parse();
+
+  if cli.paths.is_empty() {
+    eprintln!("Error: No paths specified");
+    process::exit(1);
+  }
+
+  let config = load_config_or_exit();
+  let mut _total_files = 0;
+  let mut violating_chunks = 0;
+  let mut violation_output = Vec::new();
+
+  for path in &cli.paths {
+    if path.is_file() {
+      violating_chunks += process_single_file(path, &config, &cli, &mut _total_files, &mut violation_output);
+    } else if path.is_dir() {
+      violating_chunks += process_directory(path, &config, &cli, &mut _total_files, &mut violation_output);
+    } else {
+      eprintln!("Warning: {} is not a file or directory", path.display());
+    }
+  }
+
+  print_results(violation_output);
 
   if violating_chunks > 0 {
     process::exit(1);
@@ -146,6 +164,75 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
   files
 }
 
+/// Format preview lines with truncation
+fn format_chunk_preview(chunk: &ChunkScore) -> String {
+  let mut output = String::new();
+  let preview_lines: Vec<&str> = chunk.preview.lines().take(5).collect();
+  
+  for line in preview_lines.iter() {
+    let truncated =
+      if line.len() > 70 { format!("{}...", &line[..67]) } else { line.to_string() };
+    output.push_str(&format!("    {}\n", truncated.dimmed()));
+  }
+  
+  if chunk.preview.lines().count() > 5 {
+    output.push_str(&format!("    {}\n", "...".dimmed()));
+  }
+  
+  output
+}
+
+/// Apply logarithmic scaling to a component score
+fn scale_component_score(score: f64) -> f64 {
+  (1.0_f64 + score).ln()
+}
+
+/// Format complexity breakdown with scaling
+fn format_complexity_breakdown(breakdown: &ComplexityBreakdown) -> String {
+  let mut output = String::new();
+  
+  // Apply the same logarithmic scaling to components as used in final score
+  let depth_scaled = scale_component_score(breakdown.depth_score);
+  let verbosity_scaled = scale_component_score(breakdown.verbosity_score);
+  let syntactic_scaled = scale_component_score(breakdown.syntactic_score);
+
+  output.push_str(&format!("    depth: {:.1} ({:.0}%)\n", depth_scaled, breakdown.depth_percent));
+  output.push_str(&format!("    verbosity: {:.1} ({:.0}%)\n", verbosity_scaled, breakdown.verbosity_percent));
+  output.push_str(&format!("    syntactics: {:.1} ({:.0}%)\n", syntactic_scaled, breakdown.syntactic_percent));
+  
+  output
+}
+
+/// Format a single violating chunk
+fn format_violating_chunk(chunk: &ChunkScore) -> String {
+  let mut output = String::new();
+  
+  let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
+  let score_str = format!("{:.1}", chunk.score);
+  output.push_str(&format_aligned_row(&chunk_display, &score_str, true, false));
+  
+  output.push_str(&format_chunk_preview(chunk));
+  output.push_str(&format_complexity_breakdown(&chunk.breakdown));
+  
+  output
+}
+
+/// Handle ignored file formatting
+fn handle_ignored_file(analysis: &FileAnalysis, cli: &Cli) -> Option<String> {
+  if !cli.quiet {
+    let mut output = String::new();
+    output.push_str(&format_aligned_row(
+      &analysis.file_path.display().to_string(),
+      "(ignored)",
+      false,
+      true,
+    ));
+    Some(output)
+  } else {
+    None
+  }
+}
+
 fn process_file_analysis(
   analysis: &FileAnalysis,
   _config: &VioletConfig,
@@ -153,17 +240,7 @@ fn process_file_analysis(
   threshold: f64,
 ) -> Option<String> {
   if analysis.ignored {
-    if !cli.quiet {
-      let mut output = String::new();
-      output.push_str(&format_aligned_row(
-        &analysis.file_path.display().to_string(),
-        "(ignored)",
-        false,
-        true,
-      ));
-      return Some(output);
-    }
-    return None;
+    return handle_ignored_file(analysis, cli);
   }
 
   // Check if file has any chunks exceeding threshold
@@ -182,39 +259,10 @@ fn process_file_analysis(
 
   // Show violating chunks as nested entries
   for chunk in violating_chunks {
-    let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
-    let score_str = format!("{:.1}", chunk.score);
-    output.push_str(&format_aligned_row(&chunk_display, &score_str, true, false)); // chunks are always red since they exceed threshold
-
-    // Show truncated preview of the chunk (preserve indentation)
-    let preview_lines: Vec<&str> = chunk.preview.lines().take(5).collect();
-    for line in preview_lines.iter() {
-      let truncated =
-        if line.len() > 70 { format!("{}...", &line[..67]) } else { line.to_string() };
-      output.push_str(&format!("    {}\n", truncated.dimmed()));
-    }
-    if chunk.preview.lines().count() > 5 {
-      output.push_str(&format!("    {}\n", "...".dimmed()));
-    }
-
-    // Show complexity breakdown - each component on its own line
-    let b = &chunk.breakdown;
-
-    // Apply the same logarithmic scaling to components as used in final score
-    let depth_scaled = (1.0_f64 + b.depth_score).ln();
-    let verbosity_scaled = (1.0_f64 + b.verbosity_score).ln();
-    let syntactic_scaled = (1.0_f64 + b.syntactic_score).ln();
-
-    output.push_str(&format!("    depth: {:.1} ({:.0}%)\n", depth_scaled, b.depth_percent));
-    output
-      .push_str(&format!("    verbosity: {:.1} ({:.0}%)\n", verbosity_scaled, b.verbosity_percent));
-    output.push_str(&format!(
-      "    syntactics: {:.1} ({:.0}%)\n",
-      syntactic_scaled, b.syntactic_percent
-    ));
+    output.push_str(&format_violating_chunk(chunk));
   }
 
-  Some(output) // Return the collected output
+  Some(output)
 }
 
 fn format_file_header(file_path: &str) -> String {
@@ -265,5 +313,319 @@ fn format_file_path(path: &str, max_width: usize) -> String {
   } else {
     let truncated_len = max_width - 3; // Reserve 3 chars for "..."
     format!("...{}", &path[path.len() - truncated_len..])
+  }
+}
+
+// violet ignore chunk
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::collections::HashMap;
+  use std::fs;
+  use tempfile::TempDir;
+  use violet::simplicity::{ChunkScore, ComplexityBreakdown};
+
+  #[test]
+  fn test_format_file_path_no_truncation() {
+    let path = "src/main.rs";
+    let result = format_file_path(path, 20);
+    assert_eq!(result, "src/main.rs");
+  }
+
+  #[test]
+  fn test_format_file_path_with_truncation() {
+    let path = "very/long/path/to/some/file.rs";
+    let result = format_file_path(path, 15);
+    assert_eq!(result, "...some/file.rs"); // Corrected expectation
+    assert_eq!(result.len(), 15); // Should be exactly max_width
+  }
+
+  #[test]
+  fn test_format_file_path_exact_length() {
+    let path = "exact_length";
+    let result = format_file_path(path, 12);
+    assert_eq!(result, "exact_length");
+  }
+
+  #[test]
+  fn test_format_file_header() {
+    let result = format_file_header("src/test.rs");
+    assert!(result.contains("src/test.rs"));
+    assert!(result.ends_with('\n'));
+  }
+
+  #[test]
+  fn test_format_aligned_row_chunk() {
+    let result = format_aligned_row("- lines 10-20", "7.5", true, false);
+    assert!(result.contains("- lines 10-20"));
+    assert!(result.contains("7.5"));
+    assert!(result.contains('.'));
+    assert!(result.ends_with('\n'));
+  }
+
+  #[test]
+  fn test_format_aligned_row_file() {
+    let result = format_aligned_row("src/main.rs", "6.2", false, true);
+    assert!(result.contains("src/main.rs"));
+    assert!(result.contains("6.2"));
+    assert!(result.contains('-'));
+    assert!(result.ends_with('\n'));
+  }
+
+  #[test]
+  fn test_format_aligned_row_ignored() {
+    let result = format_aligned_row("src/ignored.rs", "(ignored)", false, true);
+    assert!(result.contains("src/ignored.rs"));
+    assert!(result.contains("(ignored)"));
+  }
+
+  #[test]
+  fn test_collect_files_recursively_empty_config() {
+    let temp_dir = TempDir::new().unwrap();
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![],
+      default_threshold: 6.0,
+    };
+
+    // Create test files
+    let file1_path = temp_dir.path().join("test1.rs");
+    fs::write(&file1_path, "fn main() {}").unwrap();
+
+    let subdir = temp_dir.path().join("subdir");
+    fs::create_dir(&subdir).unwrap();
+    let file2_path = subdir.join("test2.rs");
+    fs::write(&file2_path, "fn test() {}").unwrap();
+
+    let files = collect_files_recursively(&temp_dir.path().to_path_buf(), &config);
+
+    assert_eq!(files.len(), 2);
+    assert!(files.iter().any(|f| f.file_name().unwrap() == "test1.rs"));
+    assert!(files.iter().any(|f| f.file_name().unwrap() == "test2.rs"));
+  }
+
+  #[test]
+  fn test_collect_files_recursively_with_ignore_patterns() {
+    let temp_dir = TempDir::new().unwrap();
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec!["*.ignored".to_string(), "temp*".to_string()],
+      default_threshold: 6.0,
+    };
+
+    // Create test files
+    let included_file = temp_dir.path().join("included.rs");
+    fs::write(&included_file, "fn main() {}").unwrap();
+
+    let ignored_file1 = temp_dir.path().join("test.ignored");
+    fs::write(&ignored_file1, "should be ignored").unwrap();
+
+    let ignored_file2 = temp_dir.path().join("temp_file.rs");
+    fs::write(&ignored_file2, "should be ignored").unwrap();
+
+    let files = collect_files_recursively(&temp_dir.path().to_path_buf(), &config);
+
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].file_name().unwrap(), "included.rs");
+  }
+
+  #[test]
+  fn test_collect_files_recursively_nested_directories() {
+    let temp_dir = TempDir::new().unwrap();
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![],
+      default_threshold: 6.0,
+    };
+
+    // Create nested directory structure
+    let deep_dir = temp_dir.path().join("level1").join("level2");
+    fs::create_dir_all(&deep_dir).unwrap();
+
+    let file1 = temp_dir.path().join("root.rs");
+    fs::write(&file1, "fn main() {}").unwrap();
+
+    let file2 = temp_dir.path().join("level1").join("mid.rs");
+    fs::write(&file2, "fn test() {}").unwrap();
+
+    let file3 = deep_dir.join("deep.rs");
+    fs::write(&file3, "fn deep() {}").unwrap();
+
+    let files = collect_files_recursively(&temp_dir.path().to_path_buf(), &config);
+
+    assert_eq!(files.len(), 3);
+  }
+
+  #[test]
+  fn test_process_file_analysis_ignored_file() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![],
+      default_threshold: 6.0,
+    };
+    let cli = Cli { paths: vec![], quiet: false };
+
+    let analysis = FileAnalysis {
+      file_path: PathBuf::from("test.rs"),
+      total_score: 0.0,
+      chunk_scores: vec![],
+      ignored: true,
+    };
+
+    let result = process_file_analysis(&analysis, &config, &cli, 6.0);
+    assert!(result.is_some());
+    assert!(result.unwrap().contains("(ignored)"));
+  }
+
+  #[test]
+  fn test_process_file_analysis_ignored_file_quiet_mode() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![],
+      default_threshold: 6.0,
+    };
+    let cli = Cli { paths: vec![], quiet: true };
+
+    let analysis = FileAnalysis {
+      file_path: PathBuf::from("test.rs"),
+      total_score: 0.0,
+      chunk_scores: vec![],
+      ignored: true,
+    };
+
+    let result = process_file_analysis(&analysis, &config, &cli, 6.0);
+    assert!(result.is_none());
+  }
+
+  #[test]
+  fn test_process_file_analysis_no_violations() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![],
+      default_threshold: 6.0,
+    };
+    let cli = Cli { paths: vec![], quiet: false };
+
+    let breakdown = ComplexityBreakdown {
+      depth_score: 2.0,
+      depth_percent: 30.0,
+      verbosity_score: 3.0,
+      verbosity_percent: 45.0,
+      syntactic_score: 1.5,
+      syntactic_percent: 25.0,
+    };
+
+    let chunk = ChunkScore {
+      score: 5.0, // Below threshold
+      start_line: 1,
+      end_line: 10,
+      preview: "fn main() {\n    println!(\"hello\");\n}".to_string(),
+      breakdown,
+    };
+
+    let analysis = FileAnalysis {
+      file_path: PathBuf::from("test.rs"),
+      total_score: 5.0,
+      chunk_scores: vec![chunk],
+      ignored: false,
+    };
+
+    let result = process_file_analysis(&analysis, &config, &cli, 6.0);
+    assert!(result.is_none()); // No violations, so no output
+  }
+
+  #[test]
+  fn test_process_file_analysis_with_violations() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![],
+      default_threshold: 6.0,
+    };
+    let cli = Cli { paths: vec![], quiet: false };
+
+    let breakdown = ComplexityBreakdown {
+      depth_score: 10.0,
+      depth_percent: 40.0,
+      verbosity_score: 8.0,
+      verbosity_percent: 35.0,
+      syntactic_score: 5.0,
+      syntactic_percent: 25.0,
+    };
+
+    let chunk = ChunkScore {
+      score: 7.5, // Above threshold
+      start_line: 15,
+      end_line: 25,
+      preview: "fn complex() {\n    if condition {\n        nested();\n    }\n}".to_string(),
+      breakdown,
+    };
+
+    let analysis = FileAnalysis {
+      file_path: PathBuf::from("test.rs"),
+      total_score: 7.5,
+      chunk_scores: vec![chunk],
+      ignored: false,
+    };
+
+    let result = process_file_analysis(&analysis, &config, &cli, 6.0);
+    assert!(result.is_some());
+    
+    let output = result.unwrap();
+    assert!(output.contains("test.rs"));
+    assert!(output.contains("- lines 15-25"));
+    assert!(output.contains("7.5"));
+    assert!(output.contains("depth:"));
+    assert!(output.contains("verbosity:"));
+    assert!(output.contains("syntactics:"));
+    assert!(output.contains("fn complex()"));
+  }
+
+  #[test]
+  fn test_process_file_analysis_long_preview_truncation() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![],
+      default_threshold: 6.0,
+    };
+    let cli = Cli { paths: vec![], quiet: false };
+
+    let breakdown = ComplexityBreakdown {
+      depth_score: 10.0,
+      depth_percent: 40.0,
+      verbosity_score: 8.0,
+      verbosity_percent: 35.0,
+      syntactic_score: 5.0,
+      syntactic_percent: 25.0,
+    };
+
+    // Create a long preview with many lines
+    let long_preview = (1..=10)
+      .map(|i| format!("line_{}_with_very_long_content_that_should_be_truncated_when_displayed", i))
+      .collect::<Vec<_>>()
+      .join("\n");
+
+    let chunk = ChunkScore {
+      score: 7.5,
+      start_line: 1,
+      end_line: 10,
+      preview: long_preview,
+      breakdown,
+    };
+
+    let analysis = FileAnalysis {
+      file_path: PathBuf::from("test.rs"),
+      total_score: 7.5,
+      chunk_scores: vec![chunk],
+      ignored: false,
+    };
+
+    let result = process_file_analysis(&analysis, &config, &cli, 6.0);
+    assert!(result.is_some());
+
+    let output = result.unwrap();
+    // Should only show first 5 lines
+    assert!(output.matches("line_").count() == 5);
+    // Should show truncation indicator
+    assert!(output.contains("..."));
   }
 }

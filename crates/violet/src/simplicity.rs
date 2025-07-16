@@ -219,9 +219,8 @@ pub fn file_complexity(file_content: &str) -> f64 {
   average_complexity
 }
 
-/// Extract chunks from file content (separated by blank lines)
-pub fn get_chunks(content: &str) -> Vec<String> {
-  // First pass: split on blank lines (original logic)
+/// Split content on blank lines into temporary chunks
+fn split_on_blank_lines(content: &str) -> Vec<String> {
   let mut temp_chunks = Vec::new();
   let mut current_chunk = Vec::new();
 
@@ -240,22 +239,41 @@ pub fn get_chunks(content: &str) -> Vec<String> {
     temp_chunks.push(current_chunk.join("\n"));
   }
 
-  // Second pass: merge chunks that don't start at top level with previous chunk
+  temp_chunks
+}
+
+/// Check if a chunk starts with indentation (not at top level)
+fn chunk_starts_with_indentation(chunk: &str) -> bool {
+  if let Some(first_line) = chunk.lines().next() {
+    first_line.starts_with(' ') || first_line.starts_with('\t')
+  } else {
+    false
+  }
+}
+
+/// Merge indented chunks with previous chunks to maintain top-level grouping
+fn merge_indented_chunks(temp_chunks: Vec<String>) -> Vec<String> {
   let mut final_chunks = Vec::new();
 
   for chunk in temp_chunks {
-    if let Some(first_line) = chunk.lines().next() {
-      // If chunk starts with indentation, merge with previous chunk
-      if (first_line.starts_with(' ') || first_line.starts_with('\t')) && !final_chunks.is_empty() {
-        let last_idx = final_chunks.len() - 1;
-        final_chunks[last_idx] = format!("{}\n\n{}", final_chunks[last_idx], chunk);
-      } else {
-        final_chunks.push(chunk);
-      }
+    if chunk_starts_with_indentation(&chunk) && !final_chunks.is_empty() {
+      let last_idx = final_chunks.len() - 1;
+      final_chunks[last_idx] = format!("{}\n\n{}", final_chunks[last_idx], chunk);
+    } else {
+      final_chunks.push(chunk);
     }
   }
 
   final_chunks
+}
+
+/// Extract chunks from file content (separated by blank lines)
+pub fn get_chunks(content: &str) -> Vec<String> {
+  // First pass: split on blank lines (original logic)
+  let temp_chunks = split_on_blank_lines(content);
+
+  // Second pass: merge chunks that don't start at top level with previous chunk
+  merge_indented_chunks(temp_chunks)
 }
 
 /// Count indentation levels in a line
@@ -275,10 +293,12 @@ fn get_indents(line: &str) -> usize {
   indent_count / 2
 }
 
+/// violet ignore line - Special characters used for complexity calculation
+const SPECIAL_CHARS: &str = "()[]{}+*?^$|.\\<>=!&|:;,";
+
 /// Count special characters in a line
 fn get_num_specials(line: &str) -> f64 {
-  let special_chars = "()[]{}+*?^$|.\\<>=!&|:;,";
-  line.trim().chars().filter(|ch| special_chars.contains(*ch)).count() as f64
+  line.trim().chars().filter(|ch| SPECIAL_CHARS.contains(*ch)).count() as f64
 }
 
 /// Check if a chunk should be skipped and update state accordingly
