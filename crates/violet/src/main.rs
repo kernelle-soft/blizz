@@ -172,13 +172,12 @@ fn format_chunk_preview(chunk: &ChunkScore) -> String {
   let preview_lines: Vec<&str> = chunk.preview.lines().take(5).collect();
 
   for line in preview_lines.iter() {
-    let truncated = if line.len() > 70 { 
-      format!("{}...", &line[..67])
+    if line.len() > 70 {
+      let truncated = format!("{}...", &line[..67]);
+      output.push_str(&format!("    {}\n", truncated.dimmed()));
     } else {
-      line.to_string()
-    };
-
-    output.push_str(&format!("    {}\n", truncated.dimmed()));
+      output.push_str(&format!("    {}\n", line));
+    }
   }
 
   if chunk.preview.lines().count() > 5 {
