@@ -40,82 +40,85 @@ pub struct ChunkScore {
   pub breakdown: ComplexityBreakdown,
 }
 
-/// Analyze a single file and return detailed results
-pub fn analyze_file<P: AsRef<Path>>(
-  file_path: P,
-) -> Result<FileAnalysis, Box<dyn std::error::Error>> {
-  let path = file_path.as_ref();
-  let content = fs::read_to_string(path)?;
+/// Create a FileAnalysis for an ignored file
+fn create_ignored_file_analysis(path: &Path) -> FileAnalysis {
+  FileAnalysis {
+    file_path: path.to_path_buf(),
+    total_score: 0.0,
+    chunk_scores: vec![],
+    ignored: true,
+  }
+}
 
-  // Preprocess to handle ignore comments
-  let preprocessed = match preprocess_file(&content) {
-    Some(processed) => processed,
-    None => {
-      // Entire file is ignored
-      return Ok(FileAnalysis {
-        file_path: path.to_path_buf(),
-        total_score: 0.0,
-        chunk_scores: vec![],
-        ignored: true,
-      });
+/// Check if file should be completely ignored based on file-level directives
+fn has_file_ignore_directive(lines: &[&str]) -> bool {
+  let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
+  lines.iter().any(|line| {
+    ignore_regex.captures(line).map_or(false, |caps| caps.get(1).unwrap().as_str() == "file")
+  })
+}
+
+/// Process a single directive and update state
+fn process_directive<'a>(
+  directive: &str,
+  ignore_depth: &mut usize,
+  skip_next_line: &mut bool,
+  result_lines: &mut Vec<&'a str>,
+  line: &'a str,
+) {
+  match directive {
+    "start" => {
+      *ignore_depth += 1;
     }
-  };
-
-  // Extract chunks and process them, skipping ignored chunks
-  let all_chunks = get_chunks(&preprocessed);
-  let chunk_ignore_regex = Regex::new(r"violet\s+ignore\s+chunk").unwrap();
-
-  let mut chunk_scores = Vec::new();
-  let mut current_line = 1;
-  let mut skip_next_chunk = false;
-
-  for chunk in &all_chunks {
-    let lines_in_chunk = chunk.lines().count();
-
-    // Check if this chunk contains an ignore directive
-    if chunk_ignore_regex.is_match(chunk) {
-      skip_next_chunk = true;
-      // Skip this directive chunk
-      current_line += lines_in_chunk + 1;
-      continue;
+    "end" => {
+      if *ignore_depth > 0 {
+        *ignore_depth -= 1;
+      }
     }
-
-    // Check if this chunk should be skipped due to previous directive
-    if skip_next_chunk {
-      skip_next_chunk = false;
-      current_line += lines_in_chunk + 1;
-      continue;
+    "line" => {
+      *skip_next_line = true;
     }
+    "chunk" => {
+      // Keep the directive line so we can identify chunks to remove later
+      // But only if we're not in an ignored section
+      if *ignore_depth == 0 {
+        result_lines.push(line);
+      }
+    }
+    _ => {} // file is handled elsewhere
+  }
+}
 
-    let (score, breakdown) = chunk_complexity_with_breakdown(chunk);
-    let preview = chunk.lines().take(8).collect::<Vec<&str>>().join("\n");
-
-    chunk_scores.push(ChunkScore {
-      score,
-      start_line: current_line,
-      end_line: current_line + lines_in_chunk - 1,
-      preview,
-      breakdown,
-    });
-
-    current_line += lines_in_chunk + 1; // +1 for blank line separator
+/// Process a single line during preprocessing
+fn process_line<'a>(
+  line: &'a str,
+  ignore_depth: &mut usize,
+  skip_next_line: &mut bool,
+  result_lines: &mut Vec<&'a str>,
+) -> bool {
+  let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
+  
+  // Handle line-level ignore from previous line
+  if *skip_next_line {
+    *skip_next_line = false;
+    return true; // Skip this line
   }
 
-  let total_score = file_complexity(&preprocessed);
+  // Check for ignore directives in current line
+  if let Some(captures) = ignore_regex.captures(line) {
+    let directive = captures.get(1).unwrap().as_str();
+    process_directive(directive, ignore_depth, skip_next_line, result_lines, line);
+    return true; // Skip adding this line to normal processing
+  }
 
-  Ok(FileAnalysis { file_path: path.to_path_buf(), total_score, chunk_scores, ignored: false })
+  false // Don't skip, process normally
 }
 
 pub fn preprocess_file(content: &str) -> Option<String> {
-  // Regex to match violet ignore directives - language agnostic
-  let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
-
   let lines: Vec<&str> = content.lines().collect();
 
   // Check for file-level ignore
-  if lines.iter().any(|line| {
-    ignore_regex.captures(line).map_or(false, |caps| caps.get(1).unwrap().as_str() == "file")
-  }) {
+  if has_file_ignore_directive(&lines) {  
     return None; // Entire file should be ignored
   }
 
@@ -124,41 +127,8 @@ pub fn preprocess_file(content: &str) -> Option<String> {
   let mut skip_next_line = false;
 
   for line in lines.iter() {
-    // Handle line-level ignore from previous line
-    if skip_next_line {
-      skip_next_line = false;
+    if process_line(line, &mut ignore_depth, &mut skip_next_line, &mut result_lines) {
       continue;
-    }
-
-    // Check for ignore directives in current line
-    if let Some(captures) = ignore_regex.captures(line) {
-      let directive = captures.get(1).unwrap().as_str();
-
-      match directive {
-        "start" => {
-          ignore_depth += 1;
-          continue;
-        }
-        "end" => {
-          if ignore_depth > 0 {
-            ignore_depth -= 1;
-          }
-          continue;
-        }
-        "line" => {
-          skip_next_line = true;
-          continue;
-        }
-        "chunk" => {
-          // Keep the directive line so we can identify chunks to remove later
-          // But only if we're not in an ignored section
-          if ignore_depth == 0 {
-            result_lines.push(*line);
-          }
-          continue;
-        }
-        _ => {} // file is handled above
-      }
     }
 
     // Only include line if we're not in an ignored section
@@ -170,38 +140,24 @@ pub fn preprocess_file(content: &str) -> Option<String> {
   Some(result_lines.join("\n"))
 }
 
-/// Calculate complexity score for a single chunk of code with breakdown
-pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown) {
-  let lines: Vec<&str> = chunk.lines().collect();
-  let mut depth_total = 0.0;
-  let mut verbosity_total = 0.0;
-  let mut syntactic_total = 0.0;
+/// Calculate complexity components for a single line
+fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
+  let indents = get_indents(line);
+  let special_chars = get_num_specials(line);
+  let non_special_chars = (line.trim().len() as f64) - special_chars;
 
-  for line in lines {
-    let indents = get_indents(line);
-    let special_chars = get_num_specials(line);
-    let non_special_chars = (line.trim().len() as f64) - special_chars;
+  let verbosity_component = (1.05 as f64).powf(non_special_chars as f64);
+  let syntactic_component = (1.25 as f64).powf(special_chars as f64);
+  let depth_component = (2.0 as f64).powf(indents as f64);
 
-    // Calculate component scores
-    let verbosity_component = (1.05 as f64).powf(non_special_chars as f64);
-    let syntactic_component = (1.25 as f64).powf(special_chars as f64);
-    let depth_component = (2.0 as f64).powf(indents as f64);
+  (depth_component, verbosity_component, syntactic_component)
+}
 
-    depth_total += depth_component;
-    verbosity_total += verbosity_component;
-    syntactic_total += syntactic_component;
-  }
-
-  // Sum all component scores (total "information content")
-  let raw_sum = depth_total + verbosity_total + syntactic_total;
-
-  // Information-theoretic scaling: ln(1 + sum) gives us base information content
-  // Then scale by cognitive load factor - human processing isn't linear with information
-  let final_score = raw_sum.ln();
-
-  // Calculate percentages based on raw component scores (before logarithmic scaling)
+/// Create a ComplexityBreakdown from component totals
+fn create_breakdown(depth_total: f64, verbosity_total: f64, syntactic_total: f64) -> ComplexityBreakdown {
   let total_raw = depth_total + verbosity_total + syntactic_total;
-  let breakdown = if total_raw > 0.0 {
+  
+  if total_raw > 0.0 {
     ComplexityBreakdown {
       depth_score: depth_total,
       depth_percent: (depth_total / total_raw) * 100.0,
@@ -219,9 +175,29 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
       syntactic_score: 0.0,
       syntactic_percent: 0.0,
     }
-  };
+  }
+}
 
-  (final_score, breakdown)
+/// Calculate complexity score for a single chunk of code with breakdown
+pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown) {
+  let lines: Vec<&str> = chunk.lines().collect();
+  let mut depth_total = 0.0;
+  let mut verbosity_total = 0.0;
+  let mut syntactic_total = 0.0;
+
+  for line in lines {
+    let (depth_component, verbosity_component, syntactic_component) = calculate_line_complexity(line);
+    depth_total += depth_component;
+    verbosity_total += verbosity_component;
+    syntactic_total += syntactic_component;
+  }
+
+  let sum = depth_total + verbosity_total + syntactic_total;
+  let score = sum.ln();
+
+  let breakdown = create_breakdown(depth_total, verbosity_total, syntactic_total);
+
+  (score, breakdown)
 }
 
 /// Calculate complexity score for a single chunk of code (legacy interface)
@@ -303,6 +279,89 @@ fn get_indents(line: &str) -> usize {
 fn get_num_specials(line: &str) -> f64 {
   let special_chars = "()[]{}+*?^$|.\\<>=!&|:;,";
   line.trim().chars().filter(|ch| special_chars.contains(*ch)).count() as f64
+}
+
+/// Check if a chunk should be skipped and update state accordingly
+fn should_skip_chunk(
+  chunk: &str,
+  chunk_ignore_regex: &Regex,
+  skip_next_chunk: &mut bool,
+  current_line: &mut usize,
+  lines_in_chunk: usize,
+) -> bool {
+  // Check if this chunk contains an ignore directive
+  if chunk_ignore_regex.is_match(chunk) {
+    *skip_next_chunk = true;
+    *current_line += lines_in_chunk + 1;
+    return true;
+  }
+
+  // Check if this chunk should be skipped due to previous directive
+  if *skip_next_chunk {
+    *skip_next_chunk = false;
+    *current_line += lines_in_chunk + 1;
+    return true;
+  }
+
+  false
+}
+
+/// Create a ChunkScore from a chunk
+fn create_chunk_score(chunk: &str, current_line: usize, lines_in_chunk: usize) -> ChunkScore {
+  let (score, breakdown) = chunk_complexity_with_breakdown(chunk);
+  let preview = chunk.lines().take(8).collect::<Vec<&str>>().join("\n");
+
+  ChunkScore {
+    score,
+    start_line: current_line,
+    end_line: current_line + lines_in_chunk - 1,
+    preview,
+    breakdown,
+  }
+}
+
+/// Process all chunks and return chunk scores, handling chunk ignore directives
+fn process_chunks(all_chunks: &[String]) -> Vec<ChunkScore> {
+  let chunk_ignore_regex = Regex::new(r"violet\s+ignore\s+chunk").unwrap();
+  let mut chunk_scores = Vec::new();
+  let mut current_line = 1;
+  let mut skip_next_chunk = false;
+
+  for chunk in all_chunks {
+    let lines_in_chunk = chunk.lines().count();
+
+    if should_skip_chunk(chunk, &chunk_ignore_regex, &mut skip_next_chunk, &mut current_line, lines_in_chunk) {
+      continue;
+    }
+
+    let chunk_score = create_chunk_score(chunk, current_line, lines_in_chunk);
+    chunk_scores.push(chunk_score);
+
+    current_line += lines_in_chunk + 1; // +1 for blank line separator
+  }
+
+  chunk_scores
+}
+
+/// Analyze a single file and return detailed results
+pub fn analyze_file<P: AsRef<Path>>(
+  file_path: P,
+) -> Result<FileAnalysis, Box<dyn std::error::Error>> {
+  let path = file_path.as_ref();
+  let content = fs::read_to_string(path)?;
+
+  // Preprocess to handle ignore comments
+  let preprocessed = match preprocess_file(&content) {
+    Some(processed) => processed,
+    None => return Ok(create_ignored_file_analysis(path)),
+  };
+
+  // Extract chunks and process them, skipping ignored chunks
+  let all_chunks = get_chunks(&preprocessed);
+  let chunk_scores = process_chunks(&all_chunks);
+  let total_score = file_complexity(&preprocessed);
+
+  Ok(FileAnalysis { file_path: path.to_path_buf(), total_score, chunk_scores, ignored: false })
 }
 
 // violet ignore chunk
