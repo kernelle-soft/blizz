@@ -1,4 +1,4 @@
-# Violet: from Code Complexity Analysis to Code Legibility Analysis
+# Violet: an Informational Approach to Code Legibility Analysis
 
 *A language-agnostic complexity analyzer based on distributional information theory principles*
 
@@ -28,26 +28,84 @@ Information theory suggests that concentrated information requires more cognitiv
 
 We hypothesize that similar principles apply to code readability: concentrated syntactic complexity overwhelms human working memory, while distributed complexity allows for sequential cognitive processing. Violet tests this hypothesis through both mathematical formalization and empirical validation.
 
-### 2.1 Analysis of Real-world Need
+### 2.1 A Real-World Analysis of Complexity
 
-Complexity Scores are currently:
-- Recursive in analysis
-- Abstract: NPATH and CC produce scores that do represent a defined concept, but do not bridge the gap between the metric they're measuring and how it effects the likelihood of a person understanding the code written.
+#### 2.1.1 The Measurement-Prediction Gap
 
-But we're trying to solve a legibility problem from the bottom up instead of the top down. While from a rigorous perspective that sounds like a good thing, it means we're focusing too much on the properties of the code itself, in complete isolation from how the code actually feels to read.
+Current complexity metrics exhibit incomplete modeling: they measure control flow while claiming to predict cognitive load, but ignore crucial factors affecting readability. Consider these equivalent JavaScript expressions:
 
-Complexity Scores should be:
-- Linear in Analysis: A good complexity metric reads code like a person would. Most people in the world, including industry veteran developers, still read from left to right, top to bottom.
-- Sensible and Intuitive: a developer should be able to understand why their score is higher or lower, and be able to learn the sensibilities needed to resolve issues quickly
-- Actionable: They should be a reasonable enough representation of code quality to work as a gating mechanism in production workflows, such as in CI/CD and git hooks
-- Usable across languages
-- Accurate: finding all definite cases of overly complex code
-- Precise: avoiding false negatives
-- Tunable: Some projects and teams are more sensitive to code complexity than others. Some require a functional approach to code, while others prefer OOP design principles. A good complexity system should be capable of calibrating to enforce the needs of the individual team's coding style, allow for both warning and error thresholds, and allow individual style factors to be punished more or less heavily
-- Robust to domain specific patterns, such as the mixing of JS, CSS, and HTML tokenization within the same file in web development frameworks such as React, Vue, and Svelte.
-- Maintainable: Practical Implementation should be simple to apply to a project regardless of project needs.
+```javascript
+// McCabe Complexity = 1, NPATH = 1
+const result = data?.items?.[idx]?.transform?.()?.process?.() ?? fallback;
 
-Also include specific failure modes for existing complexity metrics
+// McCabe Complexity = 4, NPATH = 8  
+let result = fallback;
+if (data && data.items && data.items[idx]) {
+    const item = data.items[idx];
+    if (item.transform) {
+        const transformed = item.transform();
+        if (transformed.process) {
+            result = transformed.process();
+        }
+    }
+}
+```
+
+While the first version is structurally simpler, traditional metrics suggest it's dramatically simpler (8× difference), ignoring critical readability factors: 
+- Syntactic density (14 special characters to express optional chaining alone)
+- Cognitive parsing load
+- Effect on working memory
+
+The metrics capture control flow differences but does not consider how syntactic concentration affects human comprehension.
+
+#### 2.1.2 Cognitive Load Misalignment
+
+Existing approaches ignore fundamental constraints of human information processing:
+
+- **Sequential Processing**: Humans read left-to-right, top-to-bottom, but current metrics treat code as abstract syntax trees
+- **Working Memory Limits**: Concentrated syntactic density overwhelms the 7±2 item processing limit  
+- **Chunking Requirements**: Related operations must be cognitively groupable
+
+These limitations create predictable failure modes where low-complexity code remains unreadable, and readable code receives high complexity penalties.
+
+#### 2.1.3 Distribution Blindness
+
+Current metrics are blind to how complexity is distributed across lines. Consider these functionally equivalent approaches:
+
+```javascript
+// Concentrated: All complexity on one line
+const result = ((data?.items?.[idx] ?? fallback)?.transform());
+
+// Distributed: Same information spread across multiple lines  
+const items = data?.items;
+const item = items?.[idx] ?? fallback;
+const result = item?.transform();
+```
+
+Traditional metrics treat both identically, measuring total control flow without considering how syntactic density affects line-by-line comprehension. This **distribution blindness** ignores a fundamental cognitive reality: concentrated complexity overwhelms working memory, while distributed complexity allows sequential processing.
+
+#### 2.1.4 Formal Problem Statement
+
+Given source code $S$, predict cognitive processing time $T$ for developer comprehension, where existing metrics optimize for structural properties $P_{S}$ assuming $P_{S} \propto T$—an assumption we've demonstrated to have its limitations.
+
+Our hypothesis is that this relationship is not linearly proportional, but exponential, i.e., that exponential penalties for syntactic concentration correlate more strongly with human readability assessments than linear structural complexity measures.
+
+#### 2.1.5 Requirements for Cognitive-Aligned Metrics
+
+[TODO]: We haven't actually, systematically identified the gaps here based on prior subsections of 2.1. These are the intuitions on what current complexity metrics fail to have to be generally useful in real-world development.
+ 
+Based on these theoretical gaps, effective complexity metrics must satisfy:
+
+- **Linear Analysis**: Process code sequentially like human cognition, not recursively like parsers
+- **Distributional Sensitivity**: Exponentially penalize information concentration while rewarding reasonable dispersion
+- **Intuitive Correspondence**: Scores should correlate with human difficulty assessments and be explainable to developers
+- **Actionable Guidance**: Enable developers to understand and resolve complexity violations quickly
+- **Language Agnosticism**: Operate on text patterns rather than language-specific syntax trees
+- **Precision & Accuracy**: Find definite cases of complex code while avoiding false positives
+- **Configurability**: Adapt to team-specific coding standards and domain requirements
+- **Practical Integration**: Function effectively in CI/CD pipelines, git hooks, and other development workflows
+- **Domain Robustness**: Handle mixed-language contexts (e.g., React components with JS/CSS/HTML)
+- **Maintenance Simplicity**: Remain simple to deploy and maintain across diverse project contexts
 
 
 ### 2.1 Mathematical Foundation
