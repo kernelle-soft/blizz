@@ -38,7 +38,17 @@ But we're trying to solve a legibility problem from the bottom up instead of the
 
 Complexity Scores should be:
 - Linear in Analysis: A good complexity metric reads code like a person would. Most people in the world, including industry veteran developers, still read from left to right, top to bottom.
-- Intuitive: a developer should be able to understand why their score is higher or lower
+- Sensible and Intuitive: a developer should be able to understand why their score is higher or lower, and be able to learn the sensibilities needed to resolve issues quickly
+- Actionable: They should be a reasonable enough representation of code quality to work as a gating mechanism in production workflows, such as in CI/CD and git hooks
+- Usable across languages
+- Accurate: finding all definite cases of overly complex code
+- Precise: avoiding false negatives
+- Tunable: Some projects and teams are more sensitive to code complexity than others. Some require a functional approach to code, while others prefer OOP design principles. A good complexity system should be capable of calibrating to enforce the needs of the individual team's coding style, allow for both warning and error thresholds, and allow individual style factors to be punished more or less heavily
+- Robust to domain specific patterns, such as the mixing of JS, CSS, and HTML tokenization within the same file in web development frameworks such as React, Vue, and Svelte.
+- Maintainable: Practical Implementation should be simple to apply to a project regardless of project needs.
+
+Also include specific failure modes for existing complexity metrics
+
 
 ### 2.1 Mathematical Foundation
 
