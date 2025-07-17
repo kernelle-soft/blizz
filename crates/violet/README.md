@@ -145,9 +145,9 @@ $$V = \sum_{i=1}^{n} V(\ell_i)$$
 - Concentrating complexity in a single line is also punished exponentially
 - Breaking from typical natural language processing
 
-## 3. Case Studies
+## 5. Evaluation and Case Studies
 
-### 3.1 Distributional Effects
+### 5.1 Distributional Effects
 
 Consider the following equivalent Rust expressions:
 
@@ -170,7 +170,7 @@ let result = processed?;            // 1 special char: 1.25
 
 The algorithm mathematically prefers the distributed version by a factor of 3.5×, despite identical functionality.
 
-### 3.2 Cognitive Alignment
+### 5.2 Cognitive Alignment
 
 This mathematical preference aligns with cognitive science principles:
 
@@ -180,7 +180,7 @@ This mathematical preference aligns with cognitive science principles:
 
 **Chunking Theory:** Each distributed line forms a coherent cognitive chunk, while the concentrated version requires simultaneous processing of multiple concepts.
 
-### 3.3 Real-World Validation
+### 5.3 Real-World Validation
 
 Testing Violet on its own codebase produced remarkable results:
 
@@ -190,9 +190,7 @@ Testing Violet on its own codebase produced remarkable results:
 
 **Refactoring Validation:** During development, code refactoring guided by Violet's scoring consistently improved human readability assessments from multiple developers.
 
-## 4. Language-Agnostic Design
-
-### 4.1 Text-Based Analysis
+### 5.4 Text-Based Analysis
 
 Unlike traditional complexity metrics that require language-specific parsing, Violet operates on textual patterns:
 
@@ -200,7 +198,7 @@ Unlike traditional complexity metrics that require language-specific parsing, Vi
 - **Indentation Analysis:** Universal whitespace-based depth calculation  
 - **Line-by-Line Processing:** Independent analysis avoiding complex syntax tree requirements
 
-### 4.2 Universal Applicability
+### 5.6 Universal Applicability
 
 This design enables analysis across programming languages, configuration files, and even natural language text:
 
@@ -220,35 +218,7 @@ const result = data?.items?.[index]?.process() ?? fallback;
 let result = ((data?.items?.[index] ?? fallback)?.process())?;
 ```
 
-## 5. Implementation Architecture
-
-### 5.1 Functional Design
-
-Violet's implementation follows strict functional programming principles:
-
-- **Pure Functions:** All complexity calculations are deterministic and side-effect-free
-- **Immutable Data:** No mutable state during analysis
-- **Composable Operations:** Small, focused functions that compose cleanly
-
-### 5.2 Performance Characteristics
-
-- **Linear Time Complexity:** O(n) where n is the number of lines
-- **Constant Space Complexity:** O(1) memory usage regardless of file size
-- **Parallel Processing:** Independent line analysis enables parallelization
-
-### 5.3 Configurability
-
-```toml
-[violet]
-complexity_threshold = 6.0
-special_chars = "(){}[]<>!@#$%^&*+-=|\\:;\"',./?"
-indentation_size = 2
-ignore_patterns = ["*.test.*", "debug_*"]
-```
-
-## 6. Empirical Validation
-
-### 6.1 Self-Validation Experiment
+### 5.7 Self-Validation Experiment
 
 The most compelling validation comes from Violet's ability to analyze its own codebase successfully. After iterative refactoring guided by complexity scores:
 
@@ -256,7 +226,7 @@ The most compelling validation comes from Violet's ability to analyze its own co
 - **Zero complexity violations:** All functions score ≤ 6.0 threshold
 - **High developer satisfaction:** Multiple developers reported improved code readability
 
-### 6.2 Refactoring Case Study
+### 5.8 Refactoring Case Study
 
 Original function (Score: 8.0):
 ```rust
@@ -279,92 +249,20 @@ fn load_config_or_exit() -> Config { /* ... */ }
 fn process_single_file(path: &Path, config: &Config) { /* ... */ }
 ```
 
-### 6.3 Distributional Discovery
+### 5.9 Distributional Discovery
 
 The most remarkable finding emerged during final testing: spreading a complex expression across multiple lines *reduced* the complexity score despite adding more lines and indentation. This counterintuitive result revealed the algorithm's mathematical elegance—it naturally encourages human-readable patterns through pure mathematical properties.
 
-## 7. Theoretical Implications
+## 7. Discusion
 
-### 7.1 Information-Theoretic Insights
 
-Violet demonstrates that code complexity analysis benefits from information theory principles, but not in the traditionally expected ways:
+## 7.1 Implications of this Work
 
-**Traditional Approach:** Compression ratios, entropy measurements, surprisal calculations
-**Violet's Approach:** Distributional penalties, concentration costs, cognitive load modeling
+## 7.2 Limitations
 
-### 7.2 Cognitive Science Alignment
+## 7.3 Future Work
 
-The accidental alignment with cognitive science principles suggests deep connections between mathematical information theory and human information processing:
-
-- **Exponential penalties** model the nonlinear cognitive cost of concentrated complexity
-- **Linear rewards** reflect the human brain's sequential text processing capabilities
-- **Threshold effects** align with working memory capacity limitations
-
-### 7.3 Future Research Directions
-
-1. **Cross-Language Validation:** Systematic testing across more programming languages
-2. **Human Subject Studies:** Controlled experiments measuring correlation with readability assessments  
-3. **Cognitive Load Modeling:** EEG/fMRI studies of brain activity during code comprehension
-4. **Optimization Applications:** Using distributional principles for automatic code formatting
-
-## 8. Conclusion
-
-Violet represents a paradigm shift in code complexity analysis—from counting control structures to measuring information distribution. The algorithm's mathematical elegance emerges from a simple insight: exponential penalties for concentration naturally encourage patterns that human cognition finds easier to process.
-
-The theoretical implications extend beyond software engineering. Violet demonstrates how mathematical principles from information theory can align with cognitive science findings, suggesting deeper connections between mathematical elegance and human information processing than previously recognized.
-
-Most remarkably, this elegant theory emerged not from theoretical design but from practical iteration—a testament to the idea that mathematical beauty often reveals itself through empirical discovery rather than pure theoretical construction.
-
-## 10. Limitations and Future Work
-
-### 10.1 Current Limitations
-
-#### 9.1.1 Domain-Specific Complexity
-Violet's current approach may not adequately capture inherent domain complexity. Consider financial calculations or cryptographic operations where complexity stems from business logic rather than syntactic density:
-
-```rust
-// Inherently complex domain logic
-let compound_interest = principal * (1.0 + rate).powf(periods);
-let tax_liability = calculate_progressive_tax(income, brackets);
-```
-
-These examples score low on Violet's metrics despite representing cognitive complexity for developers unfamiliar with the domain.
-
-#### 9.1.2 Semantic Context Blindness
-The language-agnostic design, while advantageous for broad applicability, ignores semantic meaning that affects readability:
-
-```javascript
-// Low Violet score, but semantically dense
-const result = users.filter(u => u.active).map(u => u.id);
-
-// Higher Violet score, but semantically clearer  
-const activeUsers = users.filter(user => user.active);
-const userIds = activeUsers.map(user => user.id);
-const result = userIds;
-```
-
-The semantic richness of functional programming patterns may warrant different complexity treatment than imperative constructs.
-
-#### 9.1.3 Cultural and Team Variations
-Violet's thresholds and penalty functions were calibrated on specific codebases and developer teams. Different programming cultures may have varying tolerance for syntactic density:
-
-- **Functional programming communities** often embrace point-free style and composition
-- **Systems programming teams** may prioritize performance over readability patterns
-- **Domain-specific languages** may have established idioms that violate Violet's assumptions
-
-#### 9.1.4 Score Interpretation Challenges
-The abstract nature of Violet scores creates interpretation difficulties. A score of 6.0 lacks intuitive meaning—is this "twice as complex" as 3.0? The exponential basis makes linear interpretation misleading.
-
-#### 9.1.5 Edge Case Scenarios
-Several edge cases reveal current limitations:
-
-- **Generated code** (protobuf, GraphQL schemas) may score poorly despite being machine-maintained
-- **Configuration-heavy code** (dependency injection, framework boilerplate) concentrates complexity necessarily
-- **Mathematical expressions** may require dense notation for clarity in scientific computing contexts
-
-### 10.2 Future Research Directions
-
-#### 9.2.1 Empirical Validation Studies
+#### 7.3.1 Empirical Validation Studies
 
 **Cross-Language Validation**
 Systematic testing across programming languages with controlled experiments:
@@ -378,7 +276,7 @@ Controlled experiments measuring correlation with readability assessments:
 - **Measures**: Comprehension time, error rates, subjective difficulty ratings
 - **Goal**: Establish empirical correlation between scores and human cognitive load
 
-#### 9.2.2 Cognitive Load Modeling
+#### 7.3.2 Cognitive Load Modeling
 
 **EEG/fMRI Integration**
 Direct measurement of brain activity during code comprehension:
@@ -392,7 +290,7 @@ Test specific claims about 7±2 element processing limits:
 - **Hypothesis**: Distributed complexity improves working memory performance
 - **Impact**: Strengthen cognitive science foundations
 
-#### 9.2.3 Advanced Algorithmic Development
+#### 7.3.3 Advanced Algorithmic Development
 
 **Semantic-Aware Extensions**
 Incorporate semantic analysis while maintaining language agnosticism:
@@ -412,7 +310,7 @@ Extend analysis to code evolution and maintenance patterns:
 - **Applications**: Predict maintenance hotspots, guide refactoring priorities
 - **Data Sources**: Git history, issue tracking, code review comments
 
-#### 9.2.4 Practical Integration Research
+#### 7.3.4 Practical Integration Research
 
 **IDE Integration Studies**
 Real-time complexity feedback in development environments:
@@ -426,7 +324,7 @@ Integration with automated code review processes:
 - **Methodology**: Historical analysis of high-scoring changes and subsequent bug reports
 - **Applications**: Intelligent review assignment, automated complexity warnings
 
-#### 9.2.5 Theoretical Extensions
+#### 7.3.5 Theoretical Extensions
 
 **Information-Theoretic Foundations**
 Deeper mathematical analysis of distributional complexity:
@@ -440,7 +338,7 @@ Apply distributional complexity principles beyond code:
 - **Visual Design**: UI complexity, information architecture
 - **System Architecture**: Distributed system complexity, configuration management
 
-### 10.3 Open Research Questions
+### 7.4 Open Research Questions
 
 1. **Threshold Universality**: Do optimal complexity thresholds generalize across programming cultures and domains?
 
@@ -452,70 +350,13 @@ Apply distributional complexity principles beyond code:
 
 5. **Learning Adaptation**: Can Violet scores be automatically calibrated based on team-specific readability patterns?
 
-## 11. Implications for AI-Assisted Development
+## 8. Conclusion
 
-### 11.1 Transformer Architecture and Cognitive Load Theory
+Violet represents a paradigm shift in code complexity analysis—from counting control structures to measuring information distribution. The algorithm's mathematical elegance emerges from a simple insight: exponential penalties for concentration naturally encourage patterns that human cognition finds easier to process.
 
-The architectural foundations of modern AI systems exhibit remarkable convergence with human cognitive constraints as described by Cognitive Load Theory (CLT). This convergence is not coincidental—it reflects fundamental limitations in information processing that apply to both biological and artificial systems.
+The theoretical implications extend beyond software engineering. Violet demonstrates how mathematical principles from information theory can align with cognitive science findings, suggesting deeper connections between mathematical elegance and human information processing than previously recognized.
 
-#### 9.1.1 Cognitive Load Theory Foundations
-
-Cognitive Load Theory, developed by John Sweller, identifies three types of cognitive load that affect human learning and comprehension:
-
-- **Intrinsic Load**: The inherent difficulty of the material itself
-- **Extraneous Load**: Cognitive burden imposed by poor presentation or organization
-- **Germane Load**: Mental effort devoted to processing and understanding
-
-CLT demonstrates that human working memory can effectively process only 7±2 discrete information elements simultaneously before performance degrades exponentially.
-
-#### 9.1.2 Transformer Architecture Characteristics
-
-Transformer-based language models exhibit both similarities to and key differences from human cognitive constraints:
-
-**Context Window Limitations**: Modern transformers process information within fixed-size context windows (typically 32k-128k tokens), creating a computational analog to working memory limitations, though with much larger capacity.
-
-**Attention Mechanism**: Self-attention was specifically designed to overcome the sequential processing and distance limitations that constrain previous models for text processing and generation. 
-
-Transformers can attend to any position in a sequence with equal ease, regardless of distance—analogous to our capacity to consider words and sentences wholistically, rather than in individual characters or word pieces. In addition, the practical deployment of LLMs with constraints on parameter count and quantization directly affects a model's capacity to pick up on nuances and syntactical sugar in code may not always be apparent when not presented in a legible manner, again similar to patterns in human text comprehension.
-
-#### 9.1.3 Similarities and Critical Differences
-
-**Shared Constraints:**
-
-1. **Finite Capacity**: Both systems have hard limits—human working memory (7±2 elements) and transformer context windows (32k-128k tokens)
-2. **Information Density Sensitivity**: Both struggle when complex, interdependent operations are concentrated in small regions
-3. **Processing Efficiency**: Both perform better when complex information is distributed across manageable chunks
-
-**Key Differences:**
-
-1. **Attention Capabilities**: Transformers have precise selective attention that can focus on any position with equal ease; humans have limited, sequential attention that degrades with distance
-2. **Processing Style**: Transformers process all positions in parallel; humans process sequentially from left-to-right, top-to-bottom
-3. **Distance Effects**: Transformers have no inherent distance decay; humans struggle with distant contextual dependencies
-
-**The Critical Insight**: Despite transformers' superior attention mechanisms, both systems benefit from complexity distribution. This suggests the advantage comes not from attention limitations, but from fundamental information processing constraints when dealing with dense, interdependent relationships.
-
-#### 9.1.4 Information Density Effects
-
-The second diagram demonstrates how concentrated versus distributed complexity affects both human and artificial intelligence processing:
-
-The concentrated example requires both humans and transformers to resolve multiple complex interdependencies simultaneously within a small region. While transformers can attend to all parts equally, the *density of relationships* still creates processing difficulty. The distributed version spreads these relationships across space, making them easier for both sequential human cognition and parallel transformer processing to handle effectively.
-
-#### 9.1.5 Implications for Violet's Approach
-
-This architectural convergence validates Violet's core insight: **complexity distribution matters more than absolute complexity**. The exponential penalties in Violet's scoring function—$(1.25)^{special\_chars}$ and $(2.0)^{indentation}$—mathematically model the performance degradation both humans and AI systems experience when presented with concentrated information.
-
-**Empirical Research Opportunity**: The transformer-CLT parallel suggests a concrete research program:
-
-- **Hypothesis**: Code with lower Violet complexity scores should be more accurately understood and modified by large language models
-- **Methodology**: Compare LLM performance on functionally equivalent code samples with different Violet scores
-- **Expected Outcome**: Strong correlation between Violet scores and AI comprehension accuracy
-
-This convergence suggests that optimizing code for human readability simultaneously optimizes it for AI comprehension—a crucial insight as software development becomes increasingly AI-assisted.
-
-### 11.2 Availability
-
-Violet is open-source software written in Rust, available for integration with git hooks, CI/CD pipelines, and development workflows. The complete source code and documentation are available at the project repository.
-
+Most remarkably, this elegant theory emerged not from theoretical design but from practical iteration—a testament to the idea that mathematical beauty often reveals itself through empirical discovery rather than pure theoretical construction.
 
 ## References
 
