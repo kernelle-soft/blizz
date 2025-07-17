@@ -180,16 +180,6 @@ This mathematical preference aligns with cognitive science principles:
 
 **Chunking Theory:** Each distributed line forms a coherent cognitive chunk, while the concentrated version requires simultaneous processing of multiple concepts.
 
-### 5.3 Real-World Validation
-
-Testing Violet on its own codebase produced remarkable results:
-
-**Self-Analysis Success:** Violet successfully analyzes its own complexity with "✅ No issues found. What beautiful code you have!"
-
-**Threshold Calibration:** The 6.0 complexity threshold effectively identifies problematic code patterns while avoiding false positives on well-structured functions.
-
-**Refactoring Validation:** During development, code refactoring guided by Violet's scoring consistently improved human readability assessments from multiple developers.
-
 ### 5.4 Text-Based Analysis
 
 Unlike traditional complexity metrics that require language-specific parsing, Violet operates on textual patterns:
