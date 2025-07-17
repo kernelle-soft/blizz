@@ -13,34 +13,12 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
-
-anyhow.workspace = true
-thiserror.workspace = true
-
-dirs.workspace = true
-
 colored.workspace = true
-console.workspace = true
-
-tracing.workspace = true
-tracing-subscriber.workspace = true
-
-serde.workspace = true
-serde_json.workspace = true
-
-# Tree-sitter parsing
-tree-sitter = "0.25"
-tree-sitter-javascript = "0.23"
-tree-sitter-typescript = "0.23"
-tree-sitter-python = "0.23"
-tree-sitter-rust = "0.24"
-tree-sitter-bash = "0.25"
-tree-sitter-go = "0.23"
-tree-sitter-ruby = "0.23"
-tree-sitter-php = "0.23"
-
-# File operations and path handling
-walkdir = "2.4"
-globset = "0.4"
+json5 = "0.4"
+serde = { workspace = true }
+anyhow.workspace = true
+dirs.workspace = true
+glob = "0.3"
+regex = "1.10"
 [dev-dependencies]
 tempfile.workspace = true 
