@@ -1,7 +1,5 @@
 # Violet: an Informational Approach to Code Legibility Analysis
 
-*A language-agnostic complexity analyzer based on distributional information theory principles*
-
 ## Abstract
 
 Traditional code complexity metrics focus on structural analysis (cyclomatic complexity, NPATH) but fail to capture the fundamental question: what makes code difficult for humans to read and understand? This paper presents Violet, a complexity analyzer that applies information-theoretic principles to measure how complexity is distributed across source code. Through exponential penalties for concentrated complexity and linear rewards for distribution, Violet creates mathematical incentives that naturally align with human cognitive patterns for readable code.
@@ -10,105 +8,62 @@ Our empirical analysis reveals elegant mathematical properties that align with p
 
 ## 1. Introduction
 
-Traditional code complexity metrics—McCabe cyclomatic complexity, NPATH complexity—measure structural properties of programs but have seen limited adoption in production development workflows. Despite decades of research, these metrics remain primarily academic tools due to the need for language-specific implementations and lack of clear ties back to code reability, suggesting a fundamental mismatch between what they measure, how they measure it and what developers need for practical code quality assessment.
+### 1.1 Motivation
 
-I present a paradigm shift: Legibility Analysis. Instead of analyzing code structure through recursive counting, I propose shifting towards analysis of code *readability* based on Cognitive Load Theory and the application of information-theoretic principles. 
+#### 1.1.1 Legibility is becoming more important with the emergence of automatic code generation
 
-By constructing a heuristic informed by how people process text and the inherent information contained within that text, code legibility shifts focus away from machine-reading strategies (tokenization, recursion, and branching), to a model of natural reading strategies (chunking, line-by-line scanning, and line-wise skimming). This shift in paradigm offers a language-agnostic, theoretically sound, and mathematically elegant approach to understanding source code. I propose this shift while still recognizing the need to make explicit considerations for how source code differs from natural language in its affect on cognitive load, and then demonstrate that this heuristic, informational approach matches practical intuition better than existing code complexity metrics.
+Enforcing legibility makes for more human-readable code.
 
-### 1.1 Distributing Complexity
+Enforcing legibility also makes for more model-readable code.
 
-While existing metrics effectively capture control flow complexity, they treat all complexity as equivalent regardless of how it's distributed. Consider these functionally identical code patterns:
 
-```rust
-// Pattern A: Concentrated complexity
-let result = ((data?.items?.[idx] ?? fallback)?.transform())?;
+#### 1.1.2 There is no widespread, practical, empirical legibility tool used in production software
 
-// Pattern B: Distributed complexity  
-let items = data?.items;
-let item = items?.[idx] ?? fallback;
-let result = item?.transform()?;
-```
+Cyclomatic or path counting approaches have essentially no adoption, despite decades of research and a degree of intuitability behind this type of scoring.
 
-Both contain identical logical operations, but human cognitive processing differs significantly between concentrated and distributed presentations. This observation forms the core insight behind Violet's approach.
+Software complexity and commonality continues to expand. Code isn't getting less complex.
 
-### 1.2 Information-Theoretic Foundations
+#### 1.1.3 Current methods don't bridge the gap between human readability and code properties
 
-Violet applies principles from information theory to code analysis, drawing on Shannon's work on signal distribution and channel capacity. Just as concentrated information signals require more resources to decode accurately, concentrated syntactic complexity overwhelms human working memory while distributed complexity allows sequential cognitive processing.
+Traditional code complexity metrics—McCabe cyclomatic complexity, NPATH complexity—measure structural properties of programs but have seen limited adoption in production development workflows. Despite decades of research, these metrics remain primarily academic tools due to the need for language-specific implementations and lack of clear ties back to code reability, suggesting a fundamental mismatch between what they measure, how they measure it, and what developers need for practical code quality assessment.
 
-### 1.3 Language-Agnostic Design
+### 1.2 Problem Statement
 
-By analyzing textual patterns rather than language-specific syntax trees, Violet provides consistent complexity assessment across programming languages. This approach enables teams to maintain code quality standards regardless of their technology stack, while remaining simple to integrate into existing development workflows.
+### 1.3 Contributions
 
-## 2. Technical Analysis
+### 1.4 Our Proposal: A versatile, intuitive, and open-source legibility evaluation tool
 
-### 2.1 A Real-World Analysis of Complexity
+We present a paradigm shift: Legibility analysis. Instead of analyzing code structure through recursive branch counting, we propose shifting towards the analysis of text readability based on Cognitive Load Theory and the application of information-theoretic principles. 
 
-#### 2.1.1 The Measurement-Prediction Gap
+By constructing a heuristic informed by how people process text and the inherent information contained within that text, code legibility shifts focus away from machine-reading strategies (tokenization, recursion, and branching), to a model of natural reading strategies (chunking, line-by-line scanning, and line-wise skimming). This shift in paradigm offers a language-agnostic, theoretically sound, and mathematically elegant approach to understanding source code. We propose this shift while still recognizing the need to make explicit considerations for how source code differs from natural language in its affect on cognitive load, and then demonstrate that this informational approach matches practical intuition better than existing code complexity metrics.
 
-Current complexity metrics exhibit incomplete modeling: they measure control flow while claiming to predict cognitive load, but ignore crucial factors affecting readability. Consider these equivalent JavaScript expressions:
+## 2. Background and Related Work
 
-```javascript
-// McCabe Complexity = 1, NPATH = 1
-const result = data?.items?.[idx]?.transform?.()?.process?.() ?? fallback;
+### 2.1 The Problem of Code Complexity
 
-// McCabe Complexity = 4, NPATH = 8  
-let result = fallback;
-if (data && data.items && data.items[idx]) {
-    const item = data.items[idx];
-    if (item.transform) {
-        const transformed = item.transform();
-        if (transformed.process) {
-            result = transformed.process();
-        }
-    }
-}
-```
+#### 2.1.1 Differences Between Natural Language and Code
 
-While the first version is structurally simpler, traditional metrics suggest it's dramatically simpler (8× difference), ignoring critical readability factors: 
-- Syntactic density (14 special characters to express optional chaining alone)
-- Cognitive parsing load
-- Effect on working memory
+#### 2.1.2
 
-The metrics capture control flow differences but does not consider how syntactic concentration affects human comprehension.
+### 2.2 Existing Code Complexity Research and Metrics
 
-#### 2.1.2 Cognitive Load Misalignment
+#### 2.2.1 McCabe Cyclomatic Complexity
 
-Existing approaches ignore fundamental constraints of human information processing:
+#### 2.2.2 NPATH
 
-- **Sequential Processing**: Humans read left-to-right, top-to-bottom, but current metrics treat code as abstract syntax trees
-- **Working Memory Limits**: Concentrated syntactic density overwhelms the 7±2 item processing limit  
-- **Chunking Requirements**: Related operations must be cognitively groupable
+### 2.3 Research on Human Comprehension
 
-These limitations create predictable failure modes where low-complexity code remains unreadable, and readable code receives high complexity penalties.
+### 2.4 Research on Reading Strategy
 
-#### 2.1.3 Distribution Blindness
+### 2.5 Empirical Comparisons between Natural Language and Programming Languages
 
-Current metrics are blind to how complexity is distributed across lines. Consider these functionally equivalent approaches:
+## 3. Requirements for Cognitive-Aligned Metrics
 
-```javascript
-// Concentrated: All complexity on one line
-const result = ((data?.items?.[idx] ?? fallback)?.transform());
+### 3.1 Practical Expectations
 
-// Distributed: Same information spread across multiple lines  
-const items = data?.items;
-const item = items?.[idx] ?? fallback;
-const result = item?.transform();
-```
+[TODO] This should be based on insights from section 2 as well as practical industry experience.
 
-Traditional metrics treat both identically, measuring total control flow without considering how syntactic density affects line-by-line comprehension. This **distribution blindness** ignores a fundamental cognitive reality: concentrated complexity overwhelms working memory, while distributed complexity allows sequential processing.
-
-#### 2.1.4 Formal Problem Statement
-
-Given source code $S$, predict cognitive processing time $T$ for developer comprehension, where existing metrics optimize for structural properties $P_{S}$ assuming $P_{S} \propto T$—an assumption we've demonstrated to have its limitations.
-
-Our hypothesis is that this relationship is not linearly proportional, but exponential, i.e., that exponential penalties for syntactic concentration correlate more strongly with human readability assessments than linear structural complexity measures.
-
-#### 2.1.5 Requirements for Cognitive-Aligned Metrics
-
-[TODO]: We haven't actually, systematically identified the gaps here based on prior subsections of 2.1. These are the intuitions on what current complexity metrics fail to have to be generally useful in real-world development.
- 
-Based on these theoretical gaps, effective complexity metrics must satisfy:
+Effective complexity metrics must satisfy:
 
 - **Linear Analysis**: Process code sequentially like human cognition, not recursively like parsers
 - **Distributional Sensitivity**: Exponentially penalize information concentration while rewarding reasonable dispersion
@@ -122,44 +77,73 @@ Based on these theoretical gaps, effective complexity metrics must satisfy:
 - **Maintenance Simplicity**: Remain simple to deploy and maintain across diverse project contexts
 
 
-### 2.1 Mathematical Foundation
+### 3.2 Correlation with Human Readability
 
-#### 2.1.1 Core Algorithm
+Given a body of text $T$, describe an impression $R$ for developer readability with a score $V$. 
 
-For each line $\ell$ in a code chunk, Violet calculates three complexity components:
+Our hypothesis is that the mapping of $V$ onto $R$ is logarithmic, i.e., that exponential penalties for syntactic concentration correlate more strongly with human readability assessments than linear structural complexity measures.
 
-$$C_{line}(\ell) = C_{depth}(\ell) + C_{verbosity}(\ell) + C_{syntax}(\ell)$$
+**Formal Optimization Target:**
+
+[TODO]
+
+Needs fleshing out.
+
+[/TODO]
+
+Let $R(T)$ be the human readability assessment of source code $T$, and $V(T)$ be Violet's complexity score. We seek to maximize the correlation:
+
+$$\rho(R, V) = \min_{\theta} \text{corr}(R(T_i), V_{\theta}(T_i))$$
+
+Where $V_{\theta}$ represents the parameterized Violet scoring function with thresholds and penalty coefficients $\theta$.
+
+This formalization transforms the abstract goal of "measuring complexity" into the concrete objective of "predicting human cognitive load through distributional analysis."
+
+## 4. Violet's Core Scoring Algorithm
+
+### 4.1 Mathematical Foundation
+[TODO] 
+
+This section is meant to take the background research on various reading and comprehension studies and tether them together to what will become our intuitive basis for why Violet actually does improve the readability of code.
+
+[/TODO]
+
+### 4.2 Chunking
+
+[TODO]
+
+This section is meant to explain the methodology for chunking up files for analysis. Ideally, it connects the method back to the intuition that programmers still search for top level scopes as landmarks to begin processing sections of code
+
+[/TODO]
+
+### 4.3 Legibility Scoring
+
+Given a line of code $\ell$, Violet calculates three legibility factors:
+
+$$V(\ell) = V_{\delta}(\ell) + V_{\nu}(\ell) + V_{\sigma}(\ell)$$
 
 Where:
-- $C_{depth}(\ell) = (2.0)^{d(\ell)}$ — exponential penalty for nesting depth
-- $C_{verbosity}(\ell) = (1.05)^{n(\ell)}$ — mild penalty for line length  
-- $C_{syntax}(\ell) = (1.25)^{s(\ell)}$ — exponential penalty for special characters
+- $V_{\delta}(\ell) = \theta_{\delta}^{\delta(\ell)}$ — penalty for nesting depth
+- $V_{\nu}(\ell) = \theta_{\nu}^{\nu(\ell)}$ — penalty for line length  
+- $V_{\sigma}(\ell) = \theta_{\sigma}^{\sigma(\ell)}$ — penalty for "syntactics", or non-plain text characters typically representative of operators.
 
 And:
-- $d(\ell)$ = indentation depth of line $\ell$ (adjusted: $\max(0, \text{indents} - 1)$)
-- $n(\ell)$ = number of non-special characters in $\ell$
-- $s(\ell)$ = number of special characters in $\ell$ (operators, brackets, punctuation)
+- $\delta(\ell)$ = indentation depth of line $\ell$ (adjusted: $\max(0, \text{indents} - 1)$)
+- $\nu(\ell)$ = number of non-special characters in $\ell$, or the verbosity of $\ell$
+- $\sigma(\ell)$ = number of special characters in $\ell$ (operators, brackets, punctuation)
+- $\theta_\delta$, $\theta_\nu$, and $\theta_\sigma$ are parameterized exponential penalties for each feature of a line.
 
-### 2.2 Chunk Complexity
+The legibility of a code chunk, then, is simply the sum of its line-wise legibility:
 
-The complexity of a code chunk (function, method, or logical block) is the sum of its line complexities:
+$$V = \sum_{i=1}^{n} V(\ell_i)$$
 
-$$C_{chunk} = \sum_{i=1}^{n} C_{line}(\ell_i)$$
 
-This linear summation is crucial—it creates the distributional incentive that makes the algorithm theoretically elegant.
+### 4.4 Features of this Approach
 
-### 2.3 Information-Theoretic Interpretation
-
-The mathematical structure embodies a profound insight about information distribution:
-
-**Exponential Penalties for Concentration:**
-Each line's complexity uses exponential growth in special characters: $(1.25)^{s(\ell)}$
-
-**Linear Rewards for Distribution:**  
-Total complexity sums linearly across lines: $\sum_{i=1}^{n} (1.25)^{s(\ell_i)}$
-
-**Mathematical Consequence:**
-Concentrating $k$ special characters on one line yields $(1.25)^k$, while distributing them across $n$ lines yields approximately $n \cdot (1.25)^{k/n}$. For large $k$, the concentrated penalty grows exponentially faster than the distributed penalty.
+#### 4.4.1 Exponential Punishment
+- Depth is exponentially punished as is typically expected of a complexity metric
+- Concentrating complexity in a single line is also punished exponentially
+- Breaking from typical natural language processing
 
 ## 3. Case Studies
 
@@ -331,9 +315,146 @@ The theoretical implications extend beyond software engineering. Violet demonstr
 
 Most remarkably, this elegant theory emerged not from theoretical design but from practical iteration—a testament to the idea that mathematical beauty often reveals itself through empirical discovery rather than pure theoretical construction.
 
-## 9. Implications for AI-Assisted Development
+## 10. Limitations and Future Work
 
-### 9.1 Transformer Architecture and Cognitive Load Theory
+### 10.1 Current Limitations
+
+#### 9.1.1 Domain-Specific Complexity
+Violet's current approach may not adequately capture inherent domain complexity. Consider financial calculations or cryptographic operations where complexity stems from business logic rather than syntactic density:
+
+```rust
+// Inherently complex domain logic
+let compound_interest = principal * (1.0 + rate).powf(periods);
+let tax_liability = calculate_progressive_tax(income, brackets);
+```
+
+These examples score low on Violet's metrics despite representing cognitive complexity for developers unfamiliar with the domain.
+
+#### 9.1.2 Semantic Context Blindness
+The language-agnostic design, while advantageous for broad applicability, ignores semantic meaning that affects readability:
+
+```javascript
+// Low Violet score, but semantically dense
+const result = users.filter(u => u.active).map(u => u.id);
+
+// Higher Violet score, but semantically clearer  
+const activeUsers = users.filter(user => user.active);
+const userIds = activeUsers.map(user => user.id);
+const result = userIds;
+```
+
+The semantic richness of functional programming patterns may warrant different complexity treatment than imperative constructs.
+
+#### 9.1.3 Cultural and Team Variations
+Violet's thresholds and penalty functions were calibrated on specific codebases and developer teams. Different programming cultures may have varying tolerance for syntactic density:
+
+- **Functional programming communities** often embrace point-free style and composition
+- **Systems programming teams** may prioritize performance over readability patterns
+- **Domain-specific languages** may have established idioms that violate Violet's assumptions
+
+#### 9.1.4 Score Interpretation Challenges
+The abstract nature of Violet scores creates interpretation difficulties. A score of 6.0 lacks intuitive meaning—is this "twice as complex" as 3.0? The exponential basis makes linear interpretation misleading.
+
+#### 9.1.5 Edge Case Scenarios
+Several edge cases reveal current limitations:
+
+- **Generated code** (protobuf, GraphQL schemas) may score poorly despite being machine-maintained
+- **Configuration-heavy code** (dependency injection, framework boilerplate) concentrates complexity necessarily
+- **Mathematical expressions** may require dense notation for clarity in scientific computing contexts
+
+### 10.2 Future Research Directions
+
+#### 9.2.1 Empirical Validation Studies
+
+**Cross-Language Validation**
+Systematic testing across programming languages with controlled experiments:
+- **Methodology**: Identical algorithms implemented in 10+ languages, scored by Violet
+- **Hypothesis**: Consistent complexity patterns across language paradigms
+- **Expected Outcome**: Language-specific calibration factors for threshold adjustment
+
+**Human Subject Studies**  
+Controlled experiments measuring correlation with readability assessments:
+- **Design**: Developers read functionally equivalent code samples with different Violet scores
+- **Measures**: Comprehension time, error rates, subjective difficulty ratings
+- **Goal**: Establish empirical correlation between scores and human cognitive load
+
+#### 9.2.2 Cognitive Load Modeling
+
+**EEG/fMRI Integration**
+Direct measurement of brain activity during code comprehension:
+- **Research Question**: Do Violet scores correlate with neural indicators of cognitive load?
+- **Methodology**: Brain imaging while developers read high/low scoring code samples
+- **Applications**: Validate theoretical cognitive load assumptions
+
+**Working Memory Experiments**
+Test specific claims about 7±2 element processing limits:
+- **Design**: Measure recall accuracy for code elements in high vs. low scoring functions  
+- **Hypothesis**: Distributed complexity improves working memory performance
+- **Impact**: Strengthen cognitive science foundations
+
+#### 9.2.3 Advanced Algorithmic Development
+
+**Semantic-Aware Extensions**
+Incorporate semantic analysis while maintaining language agnosticism:
+- **Approach**: Universal semantic patterns (assignment, composition, iteration)
+- **Goal**: Balance syntactic and semantic complexity measurement
+- **Challenge**: Maintain computational efficiency and broad applicability
+
+**Dynamic Threshold Adaptation**
+Machine learning approaches to context-specific threshold calibration:
+- **Training Data**: Team-specific readability assessments paired with Violet scores
+- **Features**: Language, domain, team experience, codebase size
+- **Output**: Automatically calibrated thresholds for different contexts
+
+**Temporal Complexity Analysis**
+Extend analysis to code evolution and maintenance patterns:
+- **Metrics**: Complexity change over time, refactoring frequency, bug correlation
+- **Applications**: Predict maintenance hotspots, guide refactoring priorities
+- **Data Sources**: Git history, issue tracking, code review comments
+
+#### 9.2.4 Practical Integration Research
+
+**IDE Integration Studies**
+Real-time complexity feedback in development environments:
+- **Design**: A/B testing with developers using Violet-integrated vs. standard IDEs
+- **Measures**: Code quality, development velocity, developer satisfaction
+- **Goal**: Quantify productivity impact of real-time complexity feedback
+
+**Code Review Enhancement**
+Integration with automated code review processes:
+- **Research**: Effectiveness of Violet scores in identifying problematic changes
+- **Methodology**: Historical analysis of high-scoring changes and subsequent bug reports
+- **Applications**: Intelligent review assignment, automated complexity warnings
+
+#### 9.2.5 Theoretical Extensions
+
+**Information-Theoretic Foundations**
+Deeper mathematical analysis of distributional complexity:
+- **Questions**: Optimal penalty functions, theoretical limits, convergence properties
+- **Methods**: Information geometry, signal processing theory, compression analysis
+- **Goal**: Stronger theoretical foundations for empirically-derived constants
+
+**Cross-Domain Applications**
+Apply distributional complexity principles beyond code:
+- **Natural Language**: Technical documentation, legal texts, academic papers
+- **Visual Design**: UI complexity, information architecture
+- **System Architecture**: Distributed system complexity, configuration management
+
+### 10.3 Open Research Questions
+
+1. **Threshold Universality**: Do optimal complexity thresholds generalize across programming cultures and domains?
+
+2. **Penalty Function Optimality**: Are the current exponential bases (1.25, 2.0, 1.05) mathematically optimal or empirically convenient?
+
+3. **Semantic Integration**: How can semantic complexity be incorporated without sacrificing language agnosticism?
+
+4. **Scale Effects**: Does Violet's effectiveness change for very large codebases or microservice architectures?
+
+5. **Learning Adaptation**: Can Violet scores be automatically calibrated based on team-specific readability patterns?
+
+## 11. Implications for AI-Assisted Development
+
+### 11.1 Transformer Architecture and Cognitive Load Theory
 
 The architectural foundations of modern AI systems exhibit remarkable convergence with human cognitive constraints as described by Cognitive Load Theory (CLT). This convergence is not coincidental—it reflects fundamental limitations in information processing that apply to both biological and artificial systems.
 
@@ -391,13 +512,10 @@ This architectural convergence validates Violet's core insight: **complexity dis
 
 This convergence suggests that optimizing code for human readability simultaneously optimizes it for AI comprehension—a crucial insight as software development becomes increasingly AI-assisted.
 
-### 9.2 Availability
+### 11.2 Availability
 
 Violet is open-source software written in Rust, available for integration with git hooks, CI/CD pipelines, and development workflows. The complete source code and documentation are available at the project repository.
 
----
-
-*"Information theory intuitions, but not in the way most people expect."*
 
 ## References
 
@@ -469,6 +587,8 @@ Violet is open-source software written in Rust, available for integration with g
 - **AI tooling perspective**: Insights from machine learning-powered code analysis providers on the limitations of traditional complexity metrics
 - **Automated analysis challenges**: Highlights the difficulties AI systems face when traditional metrics don't align with actual code maintainability
 - **Relation to Violet**: Validates from an AI perspective that current complexity measures are insufficient for automated code quality assessment
+
+[deep research report](https://claude.ai/chat/a4f0d7b1-8c7b-4a7c-a10c-d36bbea9009f) - will be used to gather further references and reading materials
 
 ### Historical Context
 
