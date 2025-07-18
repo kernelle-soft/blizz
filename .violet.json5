@@ -3,5 +3,12 @@
     thresholds: {
         ".sh": 8.0,
     },
-  }
+  },
+  ignore: [
+    // [tsl-voxel] - Future cleanup project
+    "crates/jerrod/**",
+    "crates/sentinel/**",
+    "crates/kernelle/**",
+    "crates/blizz/**"
+  ]
 }
