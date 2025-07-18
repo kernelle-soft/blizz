@@ -1,6 +1,5 @@
 use clap::Parser;
 use colored::*;
-use std::error::Error;
 use std::path::PathBuf;
 use std::process;
 use violet::config::{get_threshold_for_file, load_config, should_ignore_file, VioletConfig};
@@ -30,14 +29,14 @@ fn load_config_or_exit() -> VioletConfig {
     Ok(config) => config,
     Err(e) => {
       eprintln!("Error loading configuration: {}", e);
-      
+
       // Print the full error chain for more detailed diagnostics
       let mut source = e.source();
       while let Some(err) = source {
         eprintln!("  Caused by: {}", err);
         source = err.source();
       }
-      
+
       process::exit(1);
     }
   }

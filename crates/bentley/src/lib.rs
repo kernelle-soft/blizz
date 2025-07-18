@@ -1,3 +1,4 @@
+// violet ignore chunk
 //! Bentley - The Town Crier of Kernelle
 //!
 //! A theatrical logging library that brings the dramatic flair of a three-ring circus

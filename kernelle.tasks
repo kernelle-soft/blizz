@@ -35,10 +35,6 @@
   // Thorough CI pipeline (complete local CI/CD simulation including coverage)
   "ci:all": "kernelle do ci && kernelle do coverage",
 
-  // Git Tasks
-  "git:del:all": "git checkout dev && git branch | grep -v \"dev\" | xargs git branch -D",
-  tweak: "kernelle do tidy && kernelle do ci && git add . && git commit -m \"tweaks\" && git push",
-
   // ------------------------------------------------------------
   // Build & Development tasks
   // ------------------------------------------------------------
