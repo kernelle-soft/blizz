@@ -280,6 +280,13 @@ fn get_default_ignore_patterns() -> Vec<String> {
     "*.so".to_string(),
     "*.dylib".to_string(),
     "*.dll".to_string(),
+    "*.pyc".to_string(),
+    "*.pyo".to_string(),
+    "*.pyd".to_string(),
+    "*.pyw".to_string(),
+    "*.pyz".to_string(),
+    "*.pywz".to_string(),
+    "*.pyzw".to_string(),
     // Common config/text/text-based files
     "*.md".to_string(),
     "*.mdc".to_string(),
@@ -292,6 +299,7 @@ fn get_default_ignore_patterns() -> Vec<String> {
     "*.json5".to_string(),
     "*.toml".to_string(),
     "*.lock".to_string(),
+    "*.tasks".to_string(),
   ]
 }
 
