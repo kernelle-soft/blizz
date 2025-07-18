@@ -32,12 +32,10 @@ echo "🚀 Installing Kernelle..."
 
 # Configuration
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
 # Create directories
 echo "📁 Creating directories..."
 mkdir -p "$KERNELLE_HOME"
-mkdir -p "$INSTALL_DIR"
 
 # For Phase 1, we'll assume we're running from the source directory
 # In Phase 2+, this would clone from a repo
@@ -50,7 +48,7 @@ else
 fi
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
-echo "🔨 Building Kernelle tools..."
+echo "🔨 Installing Kernelle tools..."
 echo "Script directory: $SCRIPT_DIR"
 echo "Repository root: $REPO_ROOT"
 echo "Current directory: $(pwd)"
@@ -64,16 +62,19 @@ if [ ! -f "$REPO_ROOT/Cargo.toml" ]; then
 fi
 
 cd "$REPO_ROOT"
-cargo build --release
 
 echo "📦 Installing binaries..."
-# Install all the tools to $INSTALL_DIR (only binaries that exist)
-for binary in kernelle jerrod blizz violet adam sentinel; do
-    if [ -f "target/release/$binary" ]; then
-        cp "target/release/$binary" "$INSTALL_DIR/"
-        echo "  Installed: $binary"
-    else
-        echo "  Skipped: $binary (binary not found)"
+# Install all binary crates using cargo install --path
+for crate_dir in crates/*/; do
+    if [ -d "$crate_dir" ]; then
+        crate=$(basename "$crate_dir")
+        # Check if this crate has binary targets by looking for [[bin]] in Cargo.toml
+        if grep -q '\[\[bin\]\]' "$crate_dir/Cargo.toml"; then
+            echo "  Installing: $crate"
+            cargo install --path "$crate_dir" --force
+        else
+            echo "  Skipped: $crate (library only)"
+        fi
     fi
 done
 
