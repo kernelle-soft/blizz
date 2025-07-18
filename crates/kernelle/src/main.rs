@@ -1,11 +1,15 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use std::process;
 
 mod commands;
 
 #[derive(Parser)]
 #[command(name = "kernelle")]
-#[command(about = "Kernelle toolshed package manager and workflow orchestrator")]
+#[command(about = "It takes a village.
+
+Kernelle is a tool for managing projects from a personal perspective, and enabling them to work together with AI agents.
+")]
 #[command(version)]
 struct Cli {
   #[command(subcommand)]
@@ -43,6 +47,29 @@ enum Commands {
     /// The key to retrieve
     key: String,
   },
+  /// Run a task from the tasks file
+  Do {
+    /// The task name to run
+    name: String,
+    /// Arguments to pass to the task
+    #[arg(trailing_var_arg = true)]
+    args: Vec<String>,
+    /// Run task silently (no output streaming)
+    #[arg(long)]
+    silent: bool,
+    /// Path to tasks file
+    #[arg(long, short = 'f')]
+    file: Option<String>,
+  },
+  /// List available tasks
+  Tasks {
+    /// Path to tasks file
+    #[arg(long, short = 'f')]
+    file: Option<String>,
+    /// Show task commands as well as names
+    #[arg(long)]
+    verbose: bool,
+  },
 }
 
 #[derive(Subcommand)]
@@ -66,5 +93,57 @@ async fn main() -> Result<()> {
     },
     Commands::Store { key, value } => commands::store::execute(&key, value.as_deref()).await,
     Commands::Retrieve { key } => commands::retrieve::execute(&key).await,
+    Commands::Do { name, args, silent, file } => execute_task(&name, &args, silent, file).await,
+    Commands::Tasks { file, verbose } => list_tasks(file, verbose).await,
   }
+}
+
+async fn execute_task(
+  name: &str,
+  args: &[String],
+  silent: bool,
+  file: Option<String>,
+) -> Result<()> {
+  let options = commands::r#do::TaskRunnerOptions { silent, tasks_file_path: file };
+
+  let result = commands::r#do::run_task(name, args, options).await?;
+
+  if !result.success {
+    if let Some(exit_code) = result.exit_code {
+      process::exit(exit_code);
+    } else {
+      process::exit(1);
+    }
+  }
+
+  Ok(())
+}
+
+async fn list_tasks(file: Option<String>, verbose: bool) -> Result<()> {
+  if verbose {
+    let tasks_file = commands::r#do::get_tasks_file(file).await?;
+    println!("Available tasks:");
+
+    // Find the longest task name for alignment
+    let max_name_length = tasks_file.keys().map(|name| name.len()).max().unwrap_or(0);
+
+    // Sort tasks for consistent output
+    let mut sorted_tasks: Vec<_> = tasks_file.iter().collect();
+    sorted_tasks.sort_by_key(|(name, _)| *name);
+
+    for (name, command) in sorted_tasks {
+      let dots_count = max_name_length - name.len() + 4; // +4 for some padding
+      let dots = "·".repeat(dots_count);
+      println!("• {} {} {}", name, dots, command);
+    }
+  } else {
+    let mut tasks = commands::r#do::list_tasks(file).await?;
+    tasks.sort(); // Sort for consistent output
+    println!("Available tasks:");
+    for task in tasks {
+      println!("• {}", task);
+    }
+  }
+
+  Ok(())
 }

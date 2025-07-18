@@ -1,0 +1,35 @@
+name: Linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-linux:
+    name: Test (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kernelle Dependencies
+        uses: ./.github/actions/setup-kernelle
+
+      - name: Build Project
+        run: kernelle do ci:build
+
+      - name: Generate Coverage Report
+        run: kernelle do coverage
+
+      - name: Upload Coverage Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-coverage
+          path: coverage/
+          retention-days: 30 
