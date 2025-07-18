@@ -1,0 +1,45 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  code-quality:
+    name: Run Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kernelle Dependencies
+        uses: ./.github/actions/setup-kernelle
+        with:
+          rust-components: rustfmt,clippy
+
+      - name: Run Quality Control Tasks
+        run: kernelle do ci:tidy
+
+      - name: Run Functional Complexity Analysis
+        run: kernelle do quality
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kernelle Dependencies
+        uses: ./.github/actions/setup-kernelle
+
+      - name: Run Security Audit
+        run: kernelle do ci:secure 

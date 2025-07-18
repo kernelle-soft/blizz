@@ -1,0 +1,88 @@
+name: 'Setup Kernelle Dependencies'
+description: 'Sets up Rust toolchain, installs dependencies, and bootstraps Kernelle CLI tools'
+
+inputs:
+  rust-components:
+    description: 'Additional Rust components to install (e.g., rustfmt, clippy)'
+    required: false
+    default: 'rustfmt,clippy'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        components: ${{ inputs.rust-components }}
+        # Enable caching and cache on failure for better cache utilization
+        cache: true
+        cache-on-failure: true
+
+    # Cache cargo registry and git dependencies
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    # Cache target directory
+    - name: Cache Rust target directory
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: ${{ runner.os }}-kernelle-target-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-kernelle-target-
+
+    # Cache kernelle bootstrap artifacts
+    - name: Cache kernelle bootstrap
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.local/bin/kernelle
+          ~/.local/bin/jerrod
+          ~/.local/bin/blizz
+          ~/.local/bin/violet
+          ~/.local/bin/adam
+          ~/.local/bin/sentinel
+          ~/.kernelle
+        key: ${{ runner.os }}-kernelle-bootstrap-${{ hashFiles('crates/**/Cargo.toml', 'Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-kernelle-bootstrap-
+
+    - name: Install cargo-audit for security auditing
+      run: cargo install cargo-audit --locked
+      shell: bash
+
+    - name: Install cargo-tarpaulin for coverage
+      if: runner.os == 'Linux'
+      run: cargo install cargo-tarpaulin --locked
+      shell: bash
+
+    - name: Bootstrap kernelle
+      run: ./scripts/install.sh --non-interactive
+      shell: bash
+
+    - name: Add kernelle to PATH (Unix)
+      if: runner.os != 'Windows'
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+      shell: bash
+
+    - name: Add kernelle to PATH (Windows)
+      if: runner.os == 'Windows'
+      run: echo "$env:USERPROFILE\.local\bin" >> $env:GITHUB_PATH
+      shell: pwsh
+
+    - name: Verify kernelle installation
+      run: |
+        kernelle --help
+        jerrod --help
+        blizz --help
+        violet --help
+      shell: bash 

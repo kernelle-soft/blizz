@@ -1,0 +1,28 @@
+name: macOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-macos:
+    name: Test (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kernelle Dependencies
+        uses: ./.github/actions/setup-kernelle
+
+      - name: Build Project
+        run: kernelle do ci:build
+
+      - name: Test
+        run: kernelle do test 
