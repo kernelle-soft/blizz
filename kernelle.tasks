@@ -4,7 +4,7 @@
   // ------------------------------------------------------------
 
   // Build the entire project
-  build: "kernelle do rust:build:clean",
+  build: "kernelle do rust:build",
 
   // Clean the project  
   clean: "cargo clean",
