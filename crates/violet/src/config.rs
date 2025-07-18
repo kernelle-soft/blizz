@@ -74,7 +74,7 @@ pub fn get_threshold_for_file<P: AsRef<Path>>(config: &VioletConfig, file_path: 
 
   // Get file extension
   if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
-    let ext_key = format!(".{}", extension);
+    let ext_key = format!(".{extension}");
     if let Some(&threshold) = config.thresholds.get(&ext_key) {
       return threshold;
     }
@@ -242,7 +242,7 @@ fn matches_pattern(path: &str, pattern: &str) -> bool {
   // also try matching it as a filename anywhere in the path
   if !pattern.contains('/') && !pattern.contains('\\') {
     // Try matching as "*/pattern" to catch files in any directory
-    if let Ok(filename_pattern) = Pattern::new(&format!("*/{}", pattern)) {
+    if let Ok(filename_pattern) = Pattern::new(&format!("*/{pattern}")) {
       if filename_pattern.matches(path) {
         return true;
       }

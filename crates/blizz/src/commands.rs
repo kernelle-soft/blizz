@@ -86,7 +86,7 @@ pub fn search_insights(
                   };
 
                   if line_matches {
-                    println!("{}", line);
+                    println!("{line}");
                   }
                 }
                 println!();
@@ -173,9 +173,9 @@ pub fn link_insight(
   let insights_root = get_insights_root()?;
   let target_name = target_name.unwrap_or(src_name);
 
-  let src_path = insights_root.join(src_topic).join(format!("{}.insight.md", src_name));
+  let src_path = insights_root.join(src_topic).join(format!("{src_name}.insight.md"));
   let target_dir = insights_root.join(target_topic);
-  let target_path = target_dir.join(format!("{}.insight.md", target_name));
+  let target_path = target_dir.join(format!("{target_name}.insight.md"));
 
   // Check if source insight exists
   if !src_path.exists() {

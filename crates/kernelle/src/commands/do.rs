@@ -147,14 +147,14 @@ async fn execute_with_streaming(cmd: &mut Command) -> Result<TaskResult> {
   let stdout_handle = tokio::spawn(async move {
     let mut lines = stdout_reader.lines();
     while let Ok(Some(line)) = lines.next_line().await {
-      println!("{}", line);
+      println!("{line}");
     }
   });
 
   let stderr_handle = tokio::spawn(async move {
     let mut lines = stderr_reader.lines();
     while let Ok(Some(line)) = lines.next_line().await {
-      eprintln!("{}", line);
+      eprintln!("{line}");
     }
   });
 

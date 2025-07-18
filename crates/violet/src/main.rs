@@ -28,12 +28,12 @@ fn load_config_or_exit() -> VioletConfig {
   match load_config() {
     Ok(config) => config,
     Err(e) => {
-      eprintln!("Error loading configuration: {}", e);
+      eprintln!("Error loading configuration: {e}");
 
       // Print the full error chain for more detailed diagnostics
       let mut source = e.source();
       while let Some(err) = source {
-        eprintln!("  Caused by: {}", err);
+        eprintln!("  Caused by: {err}");
         source = err.source();
       }
 
@@ -109,7 +109,7 @@ fn print_results(violation_output: Vec<String>) {
     println!("{}", "=".repeat(TOTAL_WIDTH));
 
     for output in violation_output {
-      print!("{}", output);
+      print!("{output}");
     }
   } else {
     // All files are clean - print success message
@@ -184,7 +184,7 @@ fn format_chunk_preview(chunk: &ChunkScore) -> String {
       let truncated = format!("{}...", &line[..67]);
       output.push_str(&format!("    {}\n", truncated.dimmed()));
     } else {
-      output.push_str(&format!("    {}\n", line));
+      output.push_str(&format!("    {line}\n"));
     }
   }
 
@@ -202,7 +202,7 @@ fn scale_component_score(score: f64) -> f64 {
 
 /// Format a single subscore component (depth, verbosity, or syntactic)
 fn report_subscore(name: &str, scaled_score: f64, percent: f64) -> String {
-  format!("    {}: {:.1} ({:.0}%)\n", name, scaled_score, percent)
+  format!("    {name}: {scaled_score:.1} ({percent:.0}%)\n")
 }
 
 /// Format complexity breakdown with percentage scaling
@@ -315,12 +315,12 @@ fn format_aligned_row(
     // For files, pad with dashes
     let padding_needed = file_column_width - formatted_file.len();
     let dashes = "-".repeat(padding_needed);
-    format!("{}{} {}\n", formatted_file, dashes, colored_score)
+    format!("{formatted_file}{dashes} {colored_score}\n")
   } else {
     // For chunks, pad with dots
     let padding_needed = file_column_width - formatted_file.len();
     let dots = ".".repeat(padding_needed);
-    format!("{}{} {}\n", formatted_file, dots, colored_score)
+    format!("{formatted_file}{dots} {colored_score}\n")
   }
 }
 
@@ -596,7 +596,7 @@ mod tests {
 
     // Create a long preview with many lines
     let long_preview = (1..=10)
-      .map(|i| format!("line_{}_with_very_long_content_that_should_be_truncated_when_displayed", i))
+      .map(|i| format!("line_{i}_with_very_long_content_that_should_be_truncated_when_displayed"))
       .collect::<Vec<_>>()
       .join("\n");
 

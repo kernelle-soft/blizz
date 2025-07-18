@@ -441,7 +441,7 @@ mod tests {
     let chunk = "fn simple() {\n    println!(\"hello\");\n}";
     let score = chunk_complexity(chunk);
 
-    println!("Simple chunk score: {}", score);
+    println!("Simple chunk score: {score}");
 
     // Should be a reasonable positive number
     assert!(score > 0.0);
@@ -652,7 +652,7 @@ mod tests {
   fn test_preprocess_file_ignore_multiple_chunks() {
     // This test should also be about preprocess behavior, not chunk removal
     let directive = "chunk";
-    let content = format!("fn good1() {{\n    return 1;\n}}\n\n# violet ignore {}\n\nfn bad1() {{\n    complex();\n}}\n\nfn good2() {{\n    return 2;\n}}\n\n# violet ignore {}\n\nfn bad2() {{\n    also_complex();\n}}\n\nfn good3() {{\n    return 3;\n}}", directive, directive);
+    let content = format!("fn good1() {{\n    return 1;\n}}\n\n# violet ignore {directive}\n\nfn bad1() {{\n    complex();\n}}\n\nfn good2() {{\n    return 2;\n}}\n\n# violet ignore {directive}\n\nfn bad2() {{\n    also_complex();\n}}\n\nfn good3() {{\n    return 3;\n}}");
     let result = preprocess_file(&content).unwrap();
 
     // preprocess_file should preserve content but keep directive lines
@@ -671,7 +671,7 @@ mod tests {
     // Create a temporary file for testing
     let temp_path = "test_multiple_chunk_ignore.rs";
     let directive = "chunk";
-    let content = format!("fn good1() {{\n    return 1;\n}}\n\n# violet ignore {}\n\nfn bad1() {{\n    complex();\n}}\n\nfn good2() {{\n    return 2;\n}}\n\n# violet ignore {}\n\nfn bad2() {{\n    also_complex();\n}}\n\nfn good3() {{\n    return 3;\n}}", directive, directive);
+    let content = format!("fn good1() {{\n    return 1;\n}}\n\n# violet ignore {directive}\n\nfn bad1() {{\n    complex();\n}}\n\nfn good2() {{\n    return 2;\n}}\n\n# violet ignore {directive}\n\nfn bad2() {{\n    also_complex();\n}}\n\nfn good3() {{\n    return 3;\n}}");
 
     fs::write(temp_path, &content).unwrap();
 
