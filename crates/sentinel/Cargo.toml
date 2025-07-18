@@ -21,7 +21,7 @@ rpassword = "7.3"
 tokio-util = { version = "0.7", features = ["codec"] }
 futures = "0.3"
 aes-gcm = "0.10"
-rand = "0.8"
+rand = "0.9"
 base64 = "0.20"
 native-dialog = "0.7"
 
