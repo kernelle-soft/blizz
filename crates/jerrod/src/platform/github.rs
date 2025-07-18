@@ -87,7 +87,7 @@ impl GitHubPlatform {
       }
     });
 
-    bentley::info(&format!("Cache-busting GraphQL query with timestamp: {}", cache_buster));
+    bentley::info(&format!("Cache-busting GraphQL query with timestamp: {cache_buster}"));
 
     let response: serde_json::Value =
       self.client.graphql(&payload).await.map_err(|e| anyhow!("GraphQL query failed: {:?}", e))?;
@@ -127,8 +127,7 @@ impl GitHubPlatform {
     let comment_id: u64 =
       comment_id.parse().map_err(|_| anyhow!("Invalid comment ID: {}", comment_id))?;
 
-    let url =
-      format!("/repos/{}/{}/pulls/{}/comments/{}/replies", owner, repo, pr_number, comment_id);
+    let url = format!("/repos/{owner}/{repo}/pulls/{pr_number}/comments/{comment_id}/replies");
 
     let request_body = serde_json::json!({
       "body": text
@@ -168,8 +167,7 @@ impl GitHubPlatform {
     comment_id: &str,
   ) -> Result<bool> {
     bentley::info(&format!(
-      "Attempting to resolve comment {} in PR #{} via GraphQL",
-      comment_id, pr_number
+      "Attempting to resolve comment {comment_id} in PR #{pr_number} via GraphQL"
     ));
 
     // First, get all review threads and build the comment-to-thread mapping
@@ -227,7 +225,7 @@ impl GitHubPlatform {
         if let Some(database_id) = comment["databaseId"].as_u64() {
           if database_id == comment_id_num {
             target_thread_id = Some(thread_id.to_string());
-            bentley::info(&format!("Found comment {} in thread {}", comment_id, thread_id));
+            bentley::info(&format!("Found comment {comment_id} in thread {thread_id}"));
             break;
           }
         }
@@ -253,7 +251,7 @@ impl GitHubPlatform {
       }
     "#;
 
-    bentley::info(&format!("Resolving thread {} via GraphQL mutation...", thread_id));
+    bentley::info(&format!("Resolving thread {thread_id} via GraphQL mutation..."));
 
     let mutation_payload = serde_json::json!({
       "query": mutation,
@@ -272,7 +270,7 @@ impl GitHubPlatform {
     if let Some(errors) = mutation_response["errors"].as_array() {
       if !errors.is_empty() {
         let error_msg = errors[0]["message"].as_str().unwrap_or("Unknown GraphQL error");
-        bentley::warn(&format!("GraphQL mutation failed: {}", error_msg));
+        bentley::warn(&format!("GraphQL mutation failed: {error_msg}"));
         return Ok(false);
       }
     }
@@ -282,7 +280,7 @@ impl GitHubPlatform {
     {
       let is_resolved = thread_data["isResolved"].as_bool().unwrap_or(false);
       if is_resolved {
-        bentley::success(&format!("Successfully resolved thread {} via GraphQL", thread_id));
+        bentley::success(&format!("Successfully resolved thread {thread_id} via GraphQL"));
         return Ok(true);
       }
     }
@@ -300,11 +298,11 @@ impl GitPlatform for GitHubPlatform {
     Ok(Repository {
       owner: owner.to_string(),
       name: repo.to_string(),
-      full_name: repo_data.full_name.unwrap_or_else(|| format!("{}/{}", owner, repo)),
+      full_name: repo_data.full_name.unwrap_or_else(|| format!("{owner}/{repo}")),
       url: repo_data
         .html_url
         .map(|u| u.to_string())
-        .unwrap_or_else(|| format!("https://github.com/{}/{}", owner, repo)),
+        .unwrap_or_else(|| format!("https://github.com/{owner}/{repo}")),
     })
   }
 
@@ -356,7 +354,7 @@ impl GitPlatform for GitHubPlatform {
     Ok(MergeRequest {
       id: pr.id.to_string(),
       number,
-      title: pr.title.unwrap_or_else(|| format!("Pull Request #{}", number)),
+      title: pr.title.unwrap_or_else(|| format!("Pull Request #{number}")),
       description: pr.body,
       state,
       author,
@@ -366,7 +364,7 @@ impl GitPlatform for GitHubPlatform {
       url: pr
         .html_url
         .map(|u| u.to_string())
-        .unwrap_or_else(|| format!("https://github.com/{}/{}/pull/{}", owner, repo, number)),
+        .unwrap_or_else(|| format!("https://github.com/{owner}/{repo}/pull/{number}")),
       created_at: pr.created_at.unwrap_or_else(chrono::Utc::now),
       updated_at: pr.updated_at.unwrap_or_else(chrono::Utc::now),
     })
@@ -377,7 +375,7 @@ impl GitPlatform for GitHubPlatform {
 
     // Cache-busting: Add timestamp to force fresh data
     let cache_buster = chrono::Utc::now().timestamp_millis();
-    bentley::info(&format!("Cache-busting API calls with timestamp: {}", cache_buster));
+    bentley::info(&format!("Cache-busting API calls with timestamp: {cache_buster}"));
 
     // Fetch regular issue comments (top-level comments on the PR)
     // Add per_page and cache-busting parameters to force fresh data
@@ -559,7 +557,7 @@ impl GitPlatform for GitHubPlatform {
             Ok(false)
           }
           Err(e) => {
-            bentley::warn(&format!("GraphQL thread resolution error: {}", e));
+            bentley::warn(&format!("GraphQL thread resolution error: {e}"));
             Ok(false)
           }
         }
@@ -586,10 +584,8 @@ impl GitPlatform for GitHubPlatform {
     // - Review comments: POST /repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions
     // - Issue comments: POST /repos/{owner}/{repo}/issues/comments/{comment_id}/reactions
 
-    let review_comment_url =
-      format!("/repos/{}/{}/pulls/comments/{}/reactions", owner, repo, comment_id);
-    let issue_comment_url =
-      format!("/repos/{}/{}/issues/comments/{}/reactions", owner, repo, comment_id);
+    let review_comment_url = format!("/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions");
+    let issue_comment_url = format!("/repos/{owner}/{repo}/issues/comments/{comment_id}/reactions");
 
     let reaction_body = serde_json::json!({
       "content": reaction.github_name()
@@ -629,7 +625,7 @@ impl GitPlatform for GitHubPlatform {
       }
       Err(e) => {
         // Check if this is a permission error and provide helpful guidance
-        let error_msg = format!("{:?}", e);
+        let error_msg = format!("{e:?}");
         if error_msg.contains("403") || error_msg.contains("Resource not accessible") {
           Err(anyhow!(
             "Failed to add reaction {} to comment {}: Permission denied.\n\n\
@@ -700,7 +696,7 @@ impl GitPlatform for GitHubPlatform {
 
         match delete_result {
           Ok(_) => return Ok(true),
-          Err(e) => bentley::warn(&format!("Failed to remove reaction: {}", e)),
+          Err(e) => bentley::warn(&format!("Failed to remove reaction: {e}")),
         }
       }
     }
@@ -756,10 +752,10 @@ impl GitPlatform for GitHubPlatform {
   }
 
   fn format_comment_url(&self, mr_url: &str, comment_id: &str) -> String {
-    format!("{}#issuecomment-{}", mr_url, comment_id)
+    format!("{mr_url}#issuecomment-{comment_id}")
   }
 
   fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String {
-    format!("https://github.com/{}/{}/pull/{}", owner, repo, number)
+    format!("https://github.com/{owner}/{repo}/pull/{number}")
   }
 }

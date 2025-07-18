@@ -148,7 +148,7 @@ impl GitPlatform for MockGitHub {
       return Err(anyhow::anyhow!("Mock failure"));
     }
 
-    let key = format!("mr{}", number);
+    let key = format!("mr{number}");
     self.merge_requests.get(&key).cloned().ok_or_else(|| anyhow::anyhow!("Merge request not found"))
   }
 
@@ -162,7 +162,7 @@ impl GitPlatform for MockGitHub {
       return Err(anyhow::anyhow!("Mock failure"));
     }
 
-    let key = format!("mr{}", number);
+    let key = format!("mr{number}");
     Ok(self.discussions.get(&key).cloned().unwrap_or_default())
   }
 
@@ -296,11 +296,11 @@ impl GitPlatform for MockGitHub {
   }
 
   fn format_comment_url(&self, pr_url: &str, comment_id: &str) -> String {
-    format!("{}#issuecomment-{}", pr_url, comment_id)
+    format!("{pr_url}#issuecomment-{comment_id}")
   }
 
   fn format_merge_request_url(&self, owner: &str, repo: &str, number: u64) -> String {
-    format!("https://github.com/{}/{}/pull/{}", owner, repo, number)
+    format!("https://github.com/{owner}/{repo}/pull/{number}")
   }
 }
 

@@ -17,10 +17,10 @@ pub async fn handle() -> Result<()> {
     return Ok(());
   };
 
-  bentley::info(&format!("Fetching diff context for {}", file_path));
+  bentley::info(&format!("Fetching diff context for {file_path}"));
 
   if let Err(e) = show_file_diff(&session, file_path).await {
-    bentley::warn(&format!("Could not fetch diff context: {}", e));
+    bentley::warn(&format!("Could not fetch diff context: {e}"));
   }
 
   Ok(())

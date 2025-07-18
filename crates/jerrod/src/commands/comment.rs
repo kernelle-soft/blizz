@@ -74,7 +74,7 @@ pub async fn handle(text: String, new: bool) -> Result<()> {
       }
     } else {
       bentley::warn("Could not find thread context, using fallback format");
-      let referenced_text = format!("Re: comment {}\n\n{}", thread_id, text);
+      let referenced_text = format!("Re: comment {thread_id}\n\n{text}");
 
       let pr_number = session.merge_request.number.to_string();
       let _note =
@@ -83,6 +83,6 @@ pub async fn handle(text: String, new: bool) -> Result<()> {
     }
   }
 
-  bentley::info(&format!("Comment: {}", text));
+  bentley::info(&format!("Comment: {text}"));
   Ok(())
 }

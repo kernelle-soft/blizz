@@ -21,7 +21,7 @@ pub async fn handle(
     let current_thread_id =
       thread_id.or_else(|| session.peek_next_thread().map(|thread| thread.id.clone()));
     let mr_url = &session.merge_request.url;
-    commit_msg.push_str(&format!("\n\nMerge Request: {}", mr_url));
+    commit_msg.push_str(&format!("\n\nMerge Request: {mr_url}"));
 
     if let Some(thread_id) = current_thread_id {
       // Use strategy pattern for platform-specific URL formatting
@@ -29,10 +29,10 @@ pub async fn handle(
         create_platform_with_host(&session.platform, session.host.as_deref()).await
       {
         let comment_url = platform.format_comment_url(mr_url, &thread_id);
-        commit_msg.push_str(&format!("\nAddressing Thread:\n{}", comment_url));
+        commit_msg.push_str(&format!("\nAddressing Thread:\n{comment_url}"));
       } else {
         // Fallback to generic thread reference if platform creation fails
-        commit_msg.push_str(&format!("\nAddressing Thread: {} (thread {})", mr_url, thread_id));
+        commit_msg.push_str(&format!("\nAddressing Thread: {mr_url} (thread {thread_id})"));
       }
     }
   }
@@ -55,7 +55,7 @@ pub async fn handle(
       display_commit_banner(&commit_msg, &stats_text);
     } else {
       println!("---");
-      println!("{}", commit_msg);
+      println!("{commit_msg}");
       println!("---");
     }
   } else {
@@ -70,15 +70,15 @@ fn display_commit_banner(commit_msg: &str, stats_text: &str) {
   let width = 80;
   let line = bentley::banner_line(width, '-');
 
-  println!("{}", line);
+  println!("{line}");
 
   // Parse stats for summary line
   let stats_summary = parse_git_stats(stats_text);
   if !stats_summary.is_empty() {
-    println!("📝 {}", stats_summary);
+    println!("📝 {stats_summary}");
   }
 
-  println!("{}", line);
+  println!("{line}");
 
   // Display commit message with word wrapping
   let mut current_line = String::new();
@@ -90,18 +90,18 @@ fn display_commit_banner(commit_msg: &str, stats_text: &str) {
       }
       current_line.push_str(word);
     } else if !current_line.is_empty() {
-      println!("{}", current_line);
+      println!("{current_line}");
       current_line = word.to_string();
     } else {
-      println!("{}", word);
+      println!("{word}");
     }
   }
 
   if !current_line.is_empty() {
-    println!("{}", current_line);
+    println!("{current_line}");
   }
 
-  println!("{}", line);
+  println!("{line}");
 }
 
 /// Parse git stats output into a human-readable summary

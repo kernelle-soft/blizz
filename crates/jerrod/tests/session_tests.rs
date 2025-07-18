@@ -53,9 +53,9 @@ fn create_test_discussion(
   line_number: Option<u32>,
 ) -> Discussion {
   let note = Note {
-    id: format!("note_{}", id),
+    id: format!("note_{id}"),
     author: create_test_user(),
-    body: format!("Test discussion comment {}", id),
+    body: format!("Test discussion comment {id}"),
     created_at: Utc::now(),
     updated_at: Utc::now(),
   };

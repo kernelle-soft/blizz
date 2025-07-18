@@ -36,7 +36,7 @@ impl GitLabPlatform {
       format!("https://{}", options.host)
     };
 
-    bentley::info(&format!("Creating GitLab GraphQL client for host: {}", base_url));
+    bentley::info(&format!("Creating GitLab GraphQL client for host: {base_url}"));
 
     let client = Client::new();
 
@@ -84,7 +84,7 @@ impl GitLabPlatform {
 
   /// Get the project full path from owner and repo
   fn get_project_path(&self, owner: &str, repo: &str) -> String {
-    format!("{}/{}", owner, repo)
+    format!("{owner}/{repo}")
   }
 
   /// Convert GitLab merge request state to our common type
@@ -375,7 +375,7 @@ impl GitPlatform for GitLabPlatform {
   }
 
   async fn get_diffs(&self, owner: &str, repo: &str, number: u64) -> Result<Vec<FileDiff>> {
-    bentley::info(&format!("Fetching file diffs for GitLab MR #{}", number));
+    bentley::info(&format!("Fetching file diffs for GitLab MR #{number}"));
 
     let project_path = self.get_project_path(owner, repo);
 
@@ -494,8 +494,7 @@ impl GitPlatform for GitLabPlatform {
 
   async fn resolve_discussion(&self, owner: &str, repo: &str, discussion_id: &str) -> Result<bool> {
     bentley::info(&format!(
-      "Resolving GitLab discussion using note-based approach: {}",
-      discussion_id
+      "Resolving GitLab discussion using note-based approach: {discussion_id}"
     ));
 
     // Extract hash from Global ID if needed
@@ -541,29 +540,26 @@ impl GitPlatform for GitLabPlatform {
         match self.resolve_note_rest(owner, repo, mr_number, thread_hash, &note_id).await {
           Ok(true) => {
             resolved_count += 1;
-            bentley::info(&format!("✓ Resolved note {}", note_id));
+            bentley::info(&format!("✓ Resolved note {note_id}"));
           }
           Ok(false) => {
-            bentley::warn(&format!("Failed to resolve note {}", note_id));
+            bentley::warn(&format!("Failed to resolve note {note_id}"));
           }
           Err(e) => {
-            bentley::warn(&format!("Error resolving note {}: {}", note_id, e));
+            bentley::warn(&format!("Error resolving note {note_id}: {e}"));
           }
         }
       }
 
       if resolved_count > 0 {
-        bentley::success(&format!(
-          "Resolved {} note(s) in discussion {}",
-          resolved_count, thread_hash
-        ));
+        bentley::success(&format!("Resolved {resolved_count} note(s) in discussion {thread_hash}"));
         Ok(true)
       } else {
         bentley::warn("Failed to resolve any notes in the discussion");
         Ok(false)
       }
     } else {
-      bentley::warn(&format!("Discussion {} not found in session context", thread_hash));
+      bentley::warn(&format!("Discussion {thread_hash} not found in session context"));
       Ok(false)
     }
   }
@@ -711,8 +707,7 @@ impl GitPlatform for GitLabPlatform {
       .ok_or_else(|| anyhow!("Could not find discussion containing comment {}", comment_id))?;
 
     bentley::info(&format!(
-      "Found comment {} in discussion {}, replying to discussion",
-      comment_id, disc_id
+      "Found comment {comment_id} in discussion {disc_id}, replying to discussion"
     ));
 
     // Use the discussion ID directly - it should be a Global ID we can reply to
@@ -736,7 +731,7 @@ impl GitPlatform for GitLabPlatform {
       format!("https://{}", self.host)
     };
 
-    format!("{}/{}/{}/-/merge_requests/{}", base_url, owner, repo, number)
+    format!("{base_url}/{owner}/{repo}/-/merge_requests/{number}")
   }
 
   async fn add_comment(
@@ -772,7 +767,7 @@ impl GitLabPlatform {
     discussion_id: &str,
     text: &str,
   ) -> Result<Note> {
-    bentley::info(&format!("Adding discussion reply via REST API to thread: {}", discussion_id));
+    bentley::info(&format!("Adding discussion reply via REST API to thread: {discussion_id}"));
 
     // Get current session to get MR number
     let session = crate::session::load_current_session()
@@ -830,8 +825,7 @@ impl GitLabPlatform {
     let author = &note_response["author"];
 
     bentley::success(&format!(
-      "Successfully added discussion reply via REST API to thread {}",
-      discussion_id
+      "Successfully added discussion reply via REST API to thread {discussion_id}"
     ));
 
     Ok(Note {
@@ -859,7 +853,7 @@ impl GitLabPlatform {
     mr_number: &str,
     text: &str,
   ) -> Result<Note> {
-    bentley::info(&format!("Adding top-level MR comment via GraphQL to MR #{}", mr_number));
+    bentley::info(&format!("Adding top-level MR comment via GraphQL to MR #{mr_number}"));
 
     let project_path = self.get_project_path(owner, repo);
 
@@ -929,8 +923,7 @@ impl GitLabPlatform {
     .with_timezone(&chrono::Utc);
 
     bentley::success(&format!(
-      "Successfully added top-level MR comment via GraphQL to MR #{}",
-      mr_number
+      "Successfully added top-level MR comment via GraphQL to MR #{mr_number}"
     ));
 
     Ok(Note {

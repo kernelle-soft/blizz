@@ -107,8 +107,7 @@ async fn test_resolve_with_thread() -> Result<()> {
         || error_msg.contains("GitHub")
         || error_msg.contains("401 Unauthorized")
         || error_msg.contains("HTTP 401"),
-      "Unexpected error: {}",
-      error_msg
+      "Unexpected error: {error_msg}"
     );
   }
 

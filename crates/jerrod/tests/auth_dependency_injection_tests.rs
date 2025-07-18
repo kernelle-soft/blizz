@@ -22,7 +22,7 @@ impl MockSentinel {
 
 impl CredentialProvider for MockSentinel {
   fn get_credential(&self, service: &str, key: &str) -> Result<String> {
-    let lookup_key = format!("{}:{}", service, key);
+    let lookup_key = format!("{service}:{key}");
     self
       .credentials
       .get(&lookup_key)

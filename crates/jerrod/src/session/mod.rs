@@ -294,13 +294,12 @@ impl SessionDiscovery {
 
               let repo_name = repo_entry.file_name().to_string_lossy().to_string();
               let org_name = org_entry.file_name().to_string_lossy().to_string();
-              let repository_path = format!("{}/{}", org_name, repo_name);
+              let repository_path = format!("{org_name}/{repo_name}");
 
               manager.with_session_context(&platform_name, &repository_path, mr_number)?;
 
               bentley::info(&format!(
-                "Found session: {} #{} ({})",
-                repository_path, mr_number, platform_name
+                "Found session: {repository_path} #{mr_number} ({platform_name})"
               ));
 
               return Ok(Some(manager));

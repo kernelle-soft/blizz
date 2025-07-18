@@ -10,7 +10,7 @@ pub async fn handle() -> Result<()> {
   let mr_number = session.merge_request.number;
   let platform = session.platform.clone();
 
-  bentley::info(&format!("Refreshing session for {} MR #{}", repository, mr_number));
+  bentley::info(&format!("Refreshing session for {repository} MR #{mr_number}"));
 
   bentley::info("Cleaning up existing session...");
   finish::handle().await?;
