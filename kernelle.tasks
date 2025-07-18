@@ -1,0 +1,35 @@
+{
+  // ------------------------------------------------------------
+  // Build & Development tasks
+  // ------------------------------------------------------------
+  
+  // Build all crates in the workspace
+  watch: "bacon all",
+  
+  // Build in release mode
+  "build:release": "bacon all --release",
+  
+  // Clean build artifacts
+  clean: "cargo clean",
+  
+  // Run tests for all crates
+  test: "bacon test",
+
+  // ------------------------------------------------------------
+  // Build & Development tasks
+  // ------------------------------------------------------------  
+  all: "bacon clippy && bacon test",
+
+  lint: "cargo clippy --workspace -- -D warnings",
+
+  // ------------------------------------------------------------
+  // Installation
+  // ------------------------------------------------------------  
+  install: "scripts/install.sh",
+
+  uninstall: "scripts/uninstall.sh",
+
+  // Test task for merge precedence
+  "shared-task": "echo 'This is from .cursor and should win!'",
+  "cursor-only": "echo 'Only available in .cursor file'",
+}

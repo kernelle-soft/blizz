@@ -34,8 +34,10 @@ pub async fn run_task(
   args: &[String],
   options: TaskRunnerOptions,
 ) -> Result<TaskResult> {
-  let tasks_file_path = options.tasks_file_path.unwrap_or_else(|| "./.cursor/kernelle.tasks".to_string());
-  let tasks = load_tasks_file(&tasks_file_path)?;
+  let tasks = match options.tasks_file_path {
+    Some(path) => load_tasks_file(&path)?,
+    None => load_merged_tasks_file()?,
+  };
 
   let task_command = tasks.get(alias).ok_or_else(|| {
     let task_names: Vec<String> = tasks.keys().cloned().collect();
@@ -49,14 +51,18 @@ pub async fn run_task(
 }
 
 pub async fn list_tasks(tasks_file_path: Option<String>) -> Result<Vec<String>> {
-  let tasks_file_path = tasks_file_path.unwrap_or_else(|| "./.cursor/kernelle.tasks".to_string());
-  let tasks = load_tasks_file(&tasks_file_path)?;
+  let tasks = match tasks_file_path {
+    Some(path) => load_tasks_file(&path)?,
+    None => load_merged_tasks_file()?,
+  };
   Ok(tasks.keys().cloned().collect())
 }
 
 pub async fn get_tasks_file(tasks_file_path: Option<String>) -> Result<TasksFile> {
-  let tasks_file_path = tasks_file_path.unwrap_or_else(|| "./.cursor/kernelle.tasks".to_string());
-  load_tasks_file(&tasks_file_path)
+  match tasks_file_path {
+    Some(path) => load_tasks_file(&path),
+    None => load_merged_tasks_file(),
+  }
 }
 
 fn load_tasks_file(path: &str) -> Result<TasksFile> {
@@ -68,6 +74,37 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
     fs::read_to_string(path).map_err(|e| anyhow!("Failed to read tasks file '{}': {}", path, e))?;
 
   json5::from_str(&content).map_err(|e| anyhow!("Failed to parse tasks file '{}': {}", path, e))
+}
+
+fn load_merged_tasks_file() -> Result<TasksFile> {
+  let cursor_path = "./.cursor/kernelle.tasks";
+  let root_path = "./kernelle.tasks";
+  
+  let cursor_exists = Path::new(cursor_path).exists();
+  let root_exists = Path::new(root_path).exists();
+  
+  match (cursor_exists, root_exists) {
+    (true, true) => {
+      // Both exist - merge them with cursor taking precedence
+      let mut root_tasks = load_tasks_file(root_path)?;
+      let cursor_tasks = load_tasks_file(cursor_path)?;
+      
+      // Start with root tasks, then overlay cursor tasks (cursor wins conflicts)
+      root_tasks.extend(cursor_tasks);
+      Ok(root_tasks)
+    },
+    (true, false) => {
+      // Only cursor exists
+      load_tasks_file(cursor_path)
+    },
+    (false, true) => {
+      // Only root exists
+      load_tasks_file(root_path)
+    },
+    (false, false) => {
+      Err(anyhow!("No tasks file found. Looked for:\n  - {}\n  - {}", cursor_path, root_path))
+    }
+  }
 }
 
 async fn execute_command(
