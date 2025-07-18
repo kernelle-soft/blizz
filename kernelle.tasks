@@ -20,20 +20,17 @@
   // Test the project
   test: "kernelle do rust:test",
 
-  // Test without colors (for CI/CD)
-  ,
-
   // Generate coverage reports
   coverage: "kernelle do rust:coverage",
 
   // Check code quality (never-nester principles)  
   quality: "kernelle do readability",
 
-  // Fast CI pipeline (essential checks that can cause workflow failures)
-  ci: "kernelle do ci:base && kernelle do test",
+  // Fast Simulated CI pipeline (essential checks that can cause workflow failures)
+  checks: "kernelle do ci:base && kernelle do test",
 
-  // Thorough CI pipeline (complete local CI/CD simulation including coverage)
-  "ci:all": "kernelle do ci:base && kernelle do coverage",
+  // Thorough Simulated CI pipeline (complete local CI/CD simulation including coverage)
+  "checks:full": "kernelle do ci:base && kernelle do coverage",
 
   // ------------------------------------------------------------
   // Build & Development tasks

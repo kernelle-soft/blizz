@@ -3,9 +3,7 @@
 Brief description of the changes in this PR.
 
 ## Testing
-- [ ] I have run `kernelle do ci` and all checks pass
-- [ ] New and existing tests pass locally with my changes
-- [ ] Code quality checks pass (`kernelle do quality`)
+- [ ] I have run `kernelle do checks` and all checks pass
 
 ## Checklist
 - [ ] I have made corresponding changes to the documentation

@@ -2,9 +2,9 @@ name: Test Install & Cleanup
 
 on:
   push:
-    branches: [ main, kernelle--cleanup ]
+    branches: [ dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ dev ]
 
 jobs:
   test-install-cleanup:
