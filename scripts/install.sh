@@ -85,10 +85,21 @@ if [ -d "$REPO_ROOT/.cursor" ]; then
 else
     echo "⚠️  No .cursor directory found - workflows will not be available"
 fi
+echo ""
 
-echo "🔗 Creating source file..."
-# Copy kernelle.source template to ~/.kernelle/
-cp "$SCRIPT_DIR/templates/kernelle.source.template" "$HOME/.kernelle.source"
+# Copy kernelle.source template to ~/.kernelle/ only if it doesn't exist
+if [[ ! -f "$HOME/.kernelle.source" ]]; then
+    echo "🔗 Setting up shell source files..."
+    cp "$SCRIPT_DIR/templates/kernelle.source.template" "$HOME/.kernelle.source"
+else
+    echo "~/.kernelle.source already exists - keeping existing file"
+    if ! grep -q "kernelle.internal.source" "$HOME/.kernelle.source"; then
+        echo "⚠️ If the line `source \"$KERNELLE_HOME/kernelle.internal.source\"` does not exist in this file already, please add it."
+    fi
+fi
+echo ""
+
+cp "$SCRIPT_DIR/templates/kernelle.internal.source.template" "$KERNELLE_HOME/kernelle.internal.source"
 
 echo "✅ Kernelle installed successfully!"
 echo ""
@@ -102,4 +113,4 @@ echo "3. Test the installation:"
 echo "   kernelle --help"
 echo "   kernelle add .  # (in a project directory)"
 echo ""
-echo "🎉 Welcome to Kernelle!" 
+echo "🎉 Enjoy your time using Kernelle!"

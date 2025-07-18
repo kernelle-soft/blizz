@@ -1,12 +1,5 @@
 #!/bin/sh
 # Kernelle Cursor Workflows Integration
 
-# Check if Kernelle home exists
-KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
-
-# No need to export functions in zsh
-if [ $SHELL != "/bin/zsh" ]; then
-    # Export functions so they're available in the shell
-    export -f add-workflows 2>/dev/null || true
-    export -f rm-workflows 2>/dev/null || true 
-fi
+# Please do not remove or move this line. It is used to do manage internal setup for kernelle.
+source "$KERNELLE_HOME/kernelle.internal.source"

@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# Check if Kernelle home exists
+KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"

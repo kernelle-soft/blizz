@@ -111,9 +111,9 @@ else
 fi
 
 echo ""
-echo "🔄 Replacing kernelle.source with soft-delete version..."
+echo "Soft deleting kernelle shell source files..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cp "$SCRIPT_DIR/templates/kernelle.source.gone" "$HOME/.kernelle.source"
+cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source"
 
 if [ "$keep_insights" = true ]; then
     echo "💾 Preserving insights..."
