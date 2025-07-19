@@ -135,9 +135,8 @@ fn process_directory(
 }
 
 fn print_results(violation_output: Vec<String>, config: &config::VioletConfig) {
-  print_header(config);
-
   if !violation_output.is_empty() {
+    print_header(config);
     print_violations_table(&violation_output);
   } else {
     print_success_message();
@@ -166,7 +165,7 @@ fn print_violations_table(violation_output: &[String]) {
 }
 
 fn print_success_message() {
-  println!("{} No issues found. What beautiful code you have!", "✅".green());
+  println!("{} No issues found. What beautiful code you have!", "✨".purple());
 }
 
 fn main() {
