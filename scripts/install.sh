@@ -13,20 +13,28 @@ show_install_usage() {
     echo "  --help, -h          Show this help message"
 }
 
+# Handle help and unknown options
+handle_install_help_and_errors() {
+    local option="$1"
+    
+    if [[ "$option" == "--help" || "$option" == "-h" ]]; then
+        show_install_usage
+        exit 0
+    else
+        echo "Unknown option: $option"
+        show_install_usage
+        exit 1
+    fi
+}
+
 # Process a single command line option
 process_install_option() {
     case $1 in
         --non-interactive)
             NON_INTERACTIVE=true
             ;;
-        --help|-h)
-            show_install_usage
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            show_install_usage
-            exit 1
+        --help|-h|*)
+            handle_install_help_and_errors "$1"
             ;;
     esac
 }

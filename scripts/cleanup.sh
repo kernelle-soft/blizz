@@ -17,6 +17,20 @@ show_cleanup_usage() {
     echo "Note: In interactive mode, you'll be prompted about insights preservation."
 }
 
+# Handle help and unknown options
+handle_cleanup_help_and_errors() {
+    local option="$1"
+    
+    if [[ "$option" == "--help" || "$option" == "-h" ]]; then
+        show_cleanup_usage
+        exit 0
+    else
+        echo "Unknown option: $option"
+        show_cleanup_usage
+        exit 1
+    fi
+}
+
 # Process a single command line option
 process_cleanup_option() {
     case $1 in
@@ -29,14 +43,8 @@ process_cleanup_option() {
         --delete-insights)
             KEEP_INSIGHTS="no"
             ;;
-        --help|-h)
-            show_cleanup_usage
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            show_cleanup_usage
-            exit 1
+        --help|-h|*)
+            handle_cleanup_help_and_errors "$1"
             ;;
     esac
 }
@@ -61,19 +69,34 @@ echo "🧹 Kernelle Cleanup..."
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 
+# Get the appropriate prompt for yes/no questions
+get_yes_no_prompt() {
+    local question="$1"
+    local default="$2"
+    
+    if [ "$default" = "yes" ]; then
+        echo "$question [Y/n]: "
+    else
+        echo "$question [y/N]: "
+    fi
+}
+
+# Get user input with default value
+get_answer_with_default() {
+    local default="$1"
+    local answer
+    read -p "$(get_yes_no_prompt "$2" "$default")" answer
+    echo "${answer:-$default}"
+}
+
 # Helper function to ask yes/no questions
 ask_yes_no() {
     local question="$1"
     local default="${2:-no}"
     
     while true; do
-        if [ "$default" = "yes" ]; then
-            read -p "$question [Y/n]: " answer
-            answer="${answer:-yes}"
-        else
-            read -p "$question [y/N]: " answer
-            answer="${answer:-no}"
-        fi
+        local answer
+        answer=$(get_answer_with_default "$default" "$question")
         
         case "$answer" in
             [Yy]|[Yy][Ee][Ss]) return 0 ;;
@@ -124,22 +147,32 @@ show_insights_warning() {
     echo ""
 }
 
-# Perform the triple-check process for insights deletion
-perform_triple_check_deletion() {
+# Show deletion warning and get first confirmation
+show_deletion_warning_and_confirm() {
     echo "⚠️  You chose to delete your insights. This will permanently remove all your"
     echo "    accumulated knowledge, patterns, and customizations."
     echo ""
     
-    if ask_yes_no "Are you SURE you want to delete your ENTIRELY IRREPLACEABLE insights? (FIRST CONFIRMATION)"; then
-        echo "⚠️  Still planning to delete insights..."
-        
-        if ask_yes_no "FINAL CHECK: Really DELETE all your valuable insights forever?" "no"; then
-            keep_insights=false
-            echo "❌ Insights will be permanently deleted. I really hope you backed those up."
-        else
-            keep_insights=true
-            echo "✅ Insights will be preserved"
-        fi
+    ask_yes_no "Are you SURE you want to delete your ENTIRELY IRREPLACEABLE insights? (FIRST CONFIRMATION)"
+}
+
+# Perform final confirmation for insights deletion
+perform_final_deletion_check() {
+    echo "⚠️  Still planning to delete insights..."
+    
+    if ask_yes_no "FINAL CHECK: Really DELETE all your valuable insights forever?" "no"; then
+        keep_insights=false
+        echo "❌ Insights will be permanently deleted. I really hope you backed those up."
+    else
+        keep_insights=true
+        echo "✅ Insights will be preserved"
+    fi
+}
+
+# Perform the triple-check process for insights deletion
+perform_triple_check_deletion() {
+    if show_deletion_warning_and_confirm; then
+        perform_final_deletion_check
     else
         keep_insights=true
         echo "✅ Insights will be preserved"

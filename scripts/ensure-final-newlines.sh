@@ -11,29 +11,41 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Check if file needs a final newline
+file_needs_newline() {
+    local file="$1"
+    [[ -s "$file" && "$(tail -c1 "$file" | wc -l)" -eq 0 ]]
+}
+
+# Fix missing newline in file
+fix_file_newline() {
+    local file="$1"
+    echo "" >> "$file"
+    echo -e "${GREEN}✓ Fixed${NC} $file (added final newline)"
+}
+
+# Report missing newline
+report_missing_newline() {
+    local file="$1"
+    echo -e "${RED}✗ Missing${NC} $file (missing final newline)"
+}
+
 # Function to check and fix final newline
 check_and_fix_file() {
     local file="$1"
     local fix_mode="${2:-false}"
     
-    # Skip empty files
-    if [[ ! -s "$file" ]]; then
-        return 0
+    if ! file_needs_newline "$file"; then
+        return 0  # OK
     fi
     
-    # Check if file ends with newline
-    if [[ "$(tail -c1 "$file" | wc -l)" -eq 0 ]]; then
-        if [[ "$fix_mode" == "true" ]]; then
-            echo "" >> "$file"
-            echo -e "${GREEN}✓ Fixed${NC} $file (added final newline)"
-            return 1  # Fixed
-        else
-            echo -e "${RED}✗ Missing${NC} $file (missing final newline)"
-            return 1  # Error
-        fi
+    if [[ "$fix_mode" == "true" ]]; then
+        fix_file_newline "$file"
+    else
+        report_missing_newline "$file"
     fi
     
-    return 0  # OK
+    return 1  # Fixed or Error
 }
 
 # Process a single command line option
