@@ -182,6 +182,7 @@ fn matches_glob(path: &str, pattern: &str) -> bool {
   false
 }
 
+// violet ignore chunk -- just a list of files that are ignored by default
 fn get_default_ignored_files() -> Vec<String> {
   vec![
     // Build artifacts and dependencies
