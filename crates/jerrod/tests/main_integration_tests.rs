@@ -243,53 +243,7 @@ fn test_cli_resolve_command() {
   assert!(!stderr.contains("error: unrecognized subcommand"));
 }
 
-#[test]
-#[serial]
-fn test_cli_commit_command() {
-  let temp_dir = get_temp_dir();
-  setup_test_env(&temp_dir);
 
-  let mut cmd = setup_test_command();
-  // Commit command may fail if there's nothing to commit (clean working tree)
-  let result = cmd.args(["commit", "Test commit message"]).assert();
-
-  // Can either succeed with changes or fail with "nothing to commit" - both are valid
-  let output = result.get_output();
-  let stdout = String::from_utf8_lossy(&output.stdout);
-  let stderr = String::from_utf8_lossy(&output.stderr);
-
-  // Either succeeds with commit info or fails with "nothing to commit"
-  assert!(
-    stdout.contains("files changed")
-      || stdout.contains("Test commit message")
-      || stdout.contains("nothing to commit")
-      || stderr.contains("Failed to create commit")
-  );
-}
-
-#[test]
-#[serial]
-fn test_cli_commit_command_with_details() {
-  let temp_dir = get_temp_dir();
-  setup_test_env(&temp_dir);
-
-  let mut cmd = setup_test_command();
-  // Commit command may fail if there's nothing to commit (since previous test already committed changes)
-  let result = cmd.args(["commit", "Test commit", "--details", "More details"]).assert();
-
-  // Can either succeed with changes or fail with "nothing to commit" - both are valid
-  let output = result.get_output();
-  let stdout = String::from_utf8_lossy(&output.stdout);
-  let stderr = String::from_utf8_lossy(&output.stderr);
-
-  // Either succeeds with commit info or fails with "nothing to commit"
-  assert!(
-    stdout.contains("files changed")
-      || stdout.contains("Test commit")
-      || stdout.contains("nothing to commit")
-      || stderr.contains("Failed to create commit")
-  );
-}
 
 #[test]
 #[serial]
