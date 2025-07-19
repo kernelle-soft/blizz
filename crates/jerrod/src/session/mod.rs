@@ -102,6 +102,9 @@ impl SessionManager {
         .join(".kernelle")
     };
 
+    // Ensure the base directory exists
+    std::fs::create_dir_all(&base_dir)?;
+
     Ok(Self { base_dir, current_session_path: None })
   }
 
