@@ -1,3 +1,5 @@
+//! Language-agnostic code complexity analysis using information theory
+
 pub mod config;
 pub mod simplicity;
 

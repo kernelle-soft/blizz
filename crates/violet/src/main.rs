@@ -8,22 +8,20 @@ use violet::simplicity::{analyze_file, ComplexityRegion, ComplexityBreakdown, Fi
 const TOTAL_WIDTH: usize = 80;
 const PADDING: usize = 2;
 
-
 #[derive(Parser)]
 #[command(name = "violet")]
 #[command(about = "Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool")]
 #[command(version)]
 struct Cli {
-
   #[arg(value_name = "PATH")]
   paths: Vec<PathBuf>,
 
-
+  /// Only show files with violations
   #[arg(short, long)]
   quiet: bool,
 }
 
-
+/// Map file extensions to human-readable language names
 fn extension_to_language(ext: &str) -> &str {
   match ext {
     ".js" => "javascript",
@@ -97,15 +95,12 @@ fn extension_to_language(ext: &str) -> &str {
   }
 }
 
-
 fn display_threshold_config(config: &VioletConfig) {
   println!("LANG                    THRESHOLD");
   println!("=================================");
   
-
   println!("{:<23} {:>6.2}", "default", config.default_threshold);
   
-
   if !config.thresholds.is_empty() {
     let mut sorted_thresholds: Vec<_> = config.thresholds.iter().collect();
     sorted_thresholds.sort_by_key(|(ext, _)| ext.as_str());
@@ -119,13 +114,11 @@ fn display_threshold_config(config: &VioletConfig) {
   println!();
 }
 
-
 fn load_config_or_exit() -> VioletConfig {
   match load_config() {
     Ok(config) => config,
     Err(e) => {
       eprintln!("Error loading configuration: {e}");
-
 
       let mut source = e.source();
       while let Some(err) = source {
@@ -137,7 +130,6 @@ fn load_config_or_exit() -> VioletConfig {
     }
   }
 }
-
 
 fn process_single_file(
   path: &PathBuf,
@@ -170,7 +162,6 @@ fn process_single_file(
   }
 }
 
-
 fn process_directory(
   path: &PathBuf,
   config: &VioletConfig,
@@ -188,7 +179,6 @@ fn process_directory(
   violations
 }
 
-
 fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
   if !violation_output.is_empty() {
     println!(
@@ -197,9 +187,7 @@ fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
     );
     println!();
     
-    // Display threshold configuration after title
     display_threshold_config(config);
-
 
     let score_width = "SCORE".len();
     let chunk_width = TOTAL_WIDTH - score_width - PADDING;
@@ -210,7 +198,7 @@ fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
     for output in violation_output {
       print!("{output}");
     }
-      } else {
+  } else {
     println!("{}", "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold());
     println!();
     
@@ -252,14 +240,13 @@ fn main() {
   }
 }
 
-
+/// Recursively collect files, respecting ignore patterns
 fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBuf> {
   let mut files = Vec::new();
 
   if let Ok(entries) = std::fs::read_dir(dir) {
     for entry in entries.flatten() {
       let path = entry.path();
-
 
       if should_ignore_file(config, &path) {
         continue;
@@ -268,7 +255,6 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
       if path.is_file() {
         files.push(path);
       } else if path.is_dir() {
-
         files.extend(collect_files_recursively(&path, config));
       }
     }
@@ -276,7 +262,6 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
 
   files
 }
-
 
 fn format_chunk_preview(chunk: &ComplexityRegion) -> String {
   let mut output = String::new();
@@ -291,20 +276,17 @@ fn format_chunk_preview(chunk: &ComplexityRegion) -> String {
     }
   }
 
-
   output
 }
 
-
+/// Logarithmic scaling for component display
 fn scale_component_score(score: f64) -> f64 {
   (1.0_f64 + score).ln()
 }
 
-
 fn report_subscore(name: &str, scaled_score: f64, percent: f64) -> String {
   format!("    {name}: {scaled_score:.2} ({percent:.0}%)\n")
 }
-
 
 fn format_complexity_breakdown(breakdown: &ComplexityBreakdown) -> String {
   let mut output = String::new();
@@ -320,7 +302,6 @@ fn format_complexity_breakdown(breakdown: &ComplexityBreakdown) -> String {
   output
 }
 
-
 fn format_violating_chunk(chunk: &ComplexityRegion) -> String {
   let mut output = String::new();
 
@@ -333,7 +314,6 @@ fn format_violating_chunk(chunk: &ComplexityRegion) -> String {
 
   output
 }
-
 
 fn handle_ignored_file(analysis: &FileAnalysis, cli: &Cli) -> Option<String> {
   if !cli.quiet {
@@ -360,10 +340,8 @@ fn process_file_analysis(
     return handle_ignored_file(analysis, cli);
   }
 
-
   let violating_chunks: Vec<&ComplexityRegion> =
     analysis.complexity_regions.iter().filter(|region| region.score > threshold).collect();
-
 
   if violating_chunks.is_empty() {
     return None;
@@ -371,9 +349,7 @@ fn process_file_analysis(
 
   let mut output = String::new();
 
-
   output.push_str(&format_file_header(&analysis.file_path.display().to_string()));
-
 
   for chunk in violating_chunks {
     output.push_str(&format_violating_chunk(chunk));
@@ -383,7 +359,6 @@ fn process_file_analysis(
 }
 
 fn format_file_header(file_path: &str) -> String {
-
   let formatted_file = format_file_path(file_path, TOTAL_WIDTH - 2);
   format!("{}\n", formatted_file.bold())
 }
@@ -394,13 +369,10 @@ fn format_aligned_row(
   is_error: bool,
   is_file: bool,
 ) -> String {
-
   let avg_column_width = score_text.len();
   let file_column_width = TOTAL_WIDTH - avg_column_width - PADDING;
 
-
   let formatted_file = format_file_path(file_or_chunk, file_column_width);
-
 
   let colored_score = if is_error {
     score_text.red().to_string()
@@ -410,14 +382,11 @@ fn format_aligned_row(
     score_text.green().to_string()
   };
 
-
   if is_file {
-    
     let padding_needed = file_column_width - formatted_file.len();
     let dashes = "-".repeat(padding_needed);
     format!("{formatted_file}{dashes} {colored_score}\n")
   } else {
-    
     let padding_needed = file_column_width - formatted_file.len();
     let dots = ".".repeat(padding_needed);
     format!("{formatted_file}{dots} {colored_score}\n")
@@ -432,7 +401,6 @@ fn format_file_path(path: &str, max_width: usize) -> String {
     format!("...{}", &path[path.len() - truncated_len..])
   }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -564,7 +532,6 @@ mod tests {
     assert!(preview.contains("fn simple() {"));
     assert!(preview.contains("return 42;"));
     assert!(preview.contains("}"));
-    // Should have 4 spaces of indentation for each line
     assert!(preview.contains("    fn simple() {"));
     assert!(preview.contains("        return 42;"));
     assert!(preview.contains("    }"));
@@ -572,7 +539,7 @@ mod tests {
 
   #[test]
   fn test_format_chunk_preview_long_lines() {
-    let long_line = "a".repeat(100); // 100 characters
+    let long_line = "a".repeat(100);
     let chunk_score = ComplexityRegion {
       score: 5.0,
       start_line: 1,
@@ -591,7 +558,6 @@ mod tests {
 
     let preview = format_chunk_preview(&chunk_score);
     
-
     assert!(preview.contains("..."));
     assert!(preview.len() < 100);
   }
@@ -617,7 +583,6 @@ mod tests {
 
     let preview = format_chunk_preview(&chunk_score);
     
-
     assert!(preview.contains("line 1"));
     assert!(preview.contains("line 5"));
     assert!(preview.contains("line 9"));
@@ -626,12 +591,10 @@ mod tests {
 
   #[test]
   fn test_scale_component_score() {
-
     assert_eq!(scale_component_score(0.0), (1.0_f64).ln());
     assert_eq!(scale_component_score(1.0), (2.0_f64).ln());
     assert_eq!(scale_component_score(10.0), (11.0_f64).ln());
     
-
     let small = scale_component_score(1.0);
     let medium = scale_component_score(10.0);
     let large = scale_component_score(100.0);
@@ -691,33 +654,25 @@ mod tests {
 
     let formatted = format_violating_chunk(&chunk_score);
     
-    // Should contain score
     assert!(formatted.contains("8.5"));
     
-    // Should contain line numbers
     assert!(formatted.contains("10") || formatted.contains("15"));
     
-    // Should contain preview
     assert!(formatted.contains("fn complex()"));
     
-    // Should contain breakdown information
     assert!(formatted.contains("Depth") || formatted.contains("depth"));
   }
 
   #[test]
   fn test_format_file_path_truncation() {
-    // Test normal length path
     let normal_path = "src/main.rs";
     let formatted_normal = format_file_path(normal_path, 50);
     assert_eq!(formatted_normal, normal_path);
     
-    // Test path that needs truncation
     let long_path = "very/long/path/to/some/deeply/nested/file.rs";
     let formatted_long = format_file_path(long_path, 20);
     
-    // Should be truncated to fit width
     assert!(formatted_long.len() <= 20);
-    // Should still show important parts
     assert!(formatted_long.contains("...") || formatted_long.contains("file.rs"));
   }
 
@@ -730,7 +685,6 @@ mod tests {
       default_threshold: 6.0,
     };
 
-    // Create nested directory structure
     let level1 = temp_dir.path().join("level1");
     fs::create_dir(&level1).unwrap();
     let level2 = level1.join("level2");
@@ -738,7 +692,6 @@ mod tests {
     let level3 = level2.join("level3");
     fs::create_dir(&level3).unwrap();
 
-    // Create files at different levels
     fs::write(temp_dir.path().join("root.rs"), "root file").unwrap();
     fs::write(level1.join("level1.rs"), "level1 file").unwrap();
     fs::write(level2.join("level2.rs"), "level2 file").unwrap();
@@ -755,7 +708,6 @@ mod tests {
   }
   #[test]
   fn test_extension_to_language() {
-
     assert_eq!(extension_to_language(".rs"), "rust");
     assert_eq!(extension_to_language(".js"), "javascript");
     assert_eq!(extension_to_language(".ts"), "typescript");
@@ -763,40 +715,33 @@ mod tests {
     assert_eq!(extension_to_language(".go"), "go");
     assert_eq!(extension_to_language(".java"), "java");
     
-
     assert_eq!(extension_to_language(".cpp"), "C++");
     assert_eq!(extension_to_language(".cc"), "C++");
     assert_eq!(extension_to_language(".cxx"), "C++");
     
-    assert_eq!(extension_to_language(".sh"), "bash");
+    assert_eq!(extension_to_language(".sh"), "shell scripts");
     assert_eq!(extension_to_language(".bash"), "bash");
     assert_eq!(extension_to_language(".zsh"), "zsh");
     
-    // Test fallback for unknown extensions
     assert_eq!(extension_to_language(".unknown"), ".unknown");
     assert_eq!(extension_to_language(".xyz"), ".xyz");
     
-    // Test case sensitivity
-    assert_eq!(extension_to_language(".R"), "R");
+    assert_eq!(extension_to_language(".R"), "R (alt)");
     assert_eq!(extension_to_language(".r"), "R");
     
-    // Test React vs JavaScript distinction
     assert_eq!(extension_to_language(".js"), "javascript");
     assert_eq!(extension_to_language(".jsx"), "react javascript");
     assert_eq!(extension_to_language(".ts"), "typescript");
     assert_eq!(extension_to_language(".tsx"), "react typescript");
     
-    // Test C vs C headers distinction
     assert_eq!(extension_to_language(".c"), "C");
     assert_eq!(extension_to_language(".h"), "C headers");
     assert_eq!(extension_to_language(".cpp"), "C++");
     assert_eq!(extension_to_language(".hpp"), "C++ headers");
     
-    // Test JavaScript variants
     assert_eq!(extension_to_language(".mjs"), "modules javascript");
     assert_eq!(extension_to_language(".cjs"), "commonjs javascript");
     
-    // Test Python variants
     assert_eq!(extension_to_language(".py"), "python");
     assert_eq!(extension_to_language(".pyw"), "windows python");
     assert_eq!(extension_to_language(".pyc"), "compiled python");

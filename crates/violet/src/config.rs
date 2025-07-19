@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+/// Merged configuration from global defaults and project overrides
 #[derive(Debug, Clone)]
 pub struct VioletConfig {
   pub thresholds: HashMap<String, f64>,
@@ -11,6 +12,7 @@ pub struct VioletConfig {
   pub default_threshold: f64,
 }
 
+/// Raw .violet.json5 file format
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct ConfigFile {
   #[serde(default)]
@@ -30,6 +32,7 @@ pub struct ThresholdConfig {
   #[serde(default = "default_threshold")]
   pub default: f64,
 
+  /// Per-extension thresholds (e.g., ".rs": 7.0)
   #[serde(flatten)]
   pub extensions: HashMap<String, f64>,
 }
@@ -51,6 +54,7 @@ fn default_global_config() -> ConfigFile {
   }
 }
 
+/// Load and merge global + project configurations
 pub fn load_config() -> Result<VioletConfig> {
   let global_config = load_global_config()?;
   let project_config = load_project_config()?;
@@ -74,6 +78,7 @@ pub fn get_threshold_for_file<P: AsRef<Path>>(config: &VioletConfig, file_path: 
 pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -> bool {
   let path_str = file_path.as_ref().to_string_lossy();
 
+  // Handle both "./path" and "path" formats
   let normalized_path =
     if let Some(stripped) = path_str.strip_prefix("./") { stripped } else { &path_str };
 
@@ -112,6 +117,7 @@ fn load_project_config() -> Result<Option<ConfigFile>> {
   }
 }
 
+/// Try to find config in development environment
 fn try_development_config() -> Option<PathBuf> {
   let exe_path = std::env::current_exe().ok()?;
   let target_dir = exe_path.parent()?.parent()?;
@@ -130,6 +136,7 @@ fn try_development_config() -> Option<PathBuf> {
   }
 }
 
+/// Try to find config alongside installed binary
 fn try_installed_config() -> Option<PathBuf> {
   let exe_path = std::env::current_exe().ok()?;
   let exe_dir = exe_path.parent()?;
@@ -151,6 +158,7 @@ fn find_global_config_path() -> Result<PathBuf> {
     return Ok(config);
   }
 
+  // Fallback that triggers hardcoded defaults
   Ok(PathBuf::from(".violet.global.json5"))
 }
 
@@ -162,6 +170,7 @@ fn load_config_file(path: &Path) -> Result<ConfigFile> {
     .with_context(|| format!("Failed to parse JSON5 config file: {}", path.display()))
 }
 
+/// Merge ignore patterns, removing duplicates
 fn merge_ignore_patterns(
   global_patterns: Vec<String>,
   project_patterns: Vec<String>,
@@ -181,12 +190,14 @@ fn merge_ignore_patterns(
 fn merge_configs(global: ConfigFile, project: Option<ConfigFile>) -> VioletConfig {
   let project = project.unwrap_or_default();
 
+  // Only use project default if it was explicitly changed
   let default_threshold = if project.complexity.thresholds.default != default_threshold() {
     project.complexity.thresholds.default
   } else {
     global.complexity.thresholds.default
   };
 
+  // Project overrides global for specific extensions
   let mut thresholds = global.complexity.thresholds.extensions.clone();
   for (ext, threshold) in project.complexity.thresholds.extensions {
     thresholds.insert(ext, threshold);
@@ -197,6 +208,7 @@ fn merge_configs(global: ConfigFile, project: Option<ConfigFile>) -> VioletConfi
   VioletConfig { thresholds, ignore_patterns, default_threshold }
 }
 
+/// Enhanced glob matching with filename fallback
 fn matches_pattern(path: &str, pattern: &str) -> bool {
   let glob_pattern = match Pattern::new(pattern) {
     Ok(p) => p,
@@ -207,6 +219,7 @@ fn matches_pattern(path: &str, pattern: &str) -> bool {
     return true;
   }
 
+  // If pattern has no path separators, try matching as filename anywhere
   if !pattern.contains('/') && !pattern.contains('\\') {
     if let Ok(filename_pattern) = Pattern::new(&format!("*/{pattern}")) {
       if filename_pattern.matches(path) {
@@ -220,6 +233,7 @@ fn matches_pattern(path: &str, pattern: &str) -> bool {
 
 fn get_default_ignore_patterns() -> Vec<String> {
   vec![
+    // Build artifacts and dependencies
     "node_modules/**".to_string(),
     "target/**".to_string(),
     "build/**".to_string(),
@@ -231,6 +245,7 @@ fn get_default_ignore_patterns() -> Vec<String> {
     ".DS_Store".to_string(),
     ".idea/**".to_string(),
     ".cursor/**".to_string(),
+    // Binary files
     "*.png".to_string(),
     "*.jpg".to_string(),
     "*.jpeg".to_string(),
@@ -250,6 +265,7 @@ fn get_default_ignore_patterns() -> Vec<String> {
     "*.pyz".to_string(),
     "*.pywz".to_string(),
     "*.pyzw".to_string(),
+    // Config and documentation
     "*.md".to_string(),
     "*.mdc".to_string(),
     "*.txt".to_string(),

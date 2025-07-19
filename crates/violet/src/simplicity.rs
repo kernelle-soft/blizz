@@ -1,3 +1,5 @@
+//! Information-theoretic complexity scoring based on indentation, syntax, and verbosity
+
 use regex::Regex;
 use std::fs;
 use std::path::Path;
@@ -11,6 +13,7 @@ pub struct FileAnalysis {
   pub ignored: bool,
 }
 
+/// Breakdown showing which factors contribute to complexity
 #[derive(Debug, Clone)]
 pub struct ComplexityBreakdown {
   pub depth_score: f64,
@@ -21,6 +24,7 @@ pub struct ComplexityBreakdown {
   pub syntactic_percent: f64,
 }
 
+/// A region of code that exceeds complexity thresholds
 #[derive(Debug, Clone)]
 pub struct ComplexityRegion {
   pub score: f64,
@@ -73,6 +77,7 @@ fn process_directive<'a>(
       *skip_next_line = true;
     }
     "chunk" => {
+      // Keep directive lines for chunk removal during analysis
       if *ignore_depth == 0 {
         result_lines.push(line);
       }
@@ -103,6 +108,7 @@ fn process_line<'a>(
   false
 }
 
+/// Strip out violet ignore directives, returning None if entire file should be ignored
 pub fn preprocess_file(content: &str) -> Option<String> {
   let lines: Vec<&str> = content.lines().collect();
 
@@ -127,8 +133,9 @@ pub fn preprocess_file(content: &str) -> Option<String> {
   Some(result_lines.join("\n"))
 }
 
+/// Calculate complexity components: depth (indentation), verbosity (length), syntax (special chars)
 fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
-  let indents = get_indents(line).saturating_sub(1);
+  let indents = get_indents(line).saturating_sub(1); // First level is free
   let special_chars = get_num_specials(line);
   let non_special_chars = (line.trim().len() as f64) - special_chars;
 
@@ -167,6 +174,7 @@ fn create_breakdown(
   }
 }
 
+/// Calculate complexity with component breakdown
 pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown) {
   let lines: Vec<&str> = chunk.lines().collect();
   let mut depth_total = 0.0;
@@ -183,6 +191,7 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
 
   let sum = depth_total + verbosity_total + syntactic_total;
   
+  // Natural log for information-theoretic scaling
   let score = if sum > 0.0 { sum.ln() } else { 0.0 };
 
   let breakdown = create_breakdown(depth_total, verbosity_total, syntactic_total);
@@ -190,12 +199,14 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
   (score, breakdown)
 }
 
+/// Simple complexity score (legacy interface)
 pub fn chunk_complexity(chunk: &str) -> f64 {
   let (score, _) = chunk_complexity_with_breakdown(chunk);
 
   (score * 100.0).round() / 100.0
 }
 
+/// Average complexity across all chunks in file
 pub fn file_complexity(file_content: &str) -> f64 {
   let chunks = get_chunks(file_content);
   if chunks.is_empty() {
@@ -230,12 +241,13 @@ fn split_on_blank_lines(content: &str) -> Vec<String> {
   temp_chunks
 }
 
+/// Split content into natural chunks separated by blank lines
 pub fn get_chunks(content: &str) -> Vec<String> {
   split_on_blank_lines(content)
 }
 
 fn get_indents(line: &str) -> usize {
-  get_indents_with_tab_size(line, 2)
+  get_indents_with_tab_size(line, 2) // 2 spaces = 1 indent level
 }
 
 fn get_indents_with_tab_size(line: &str, spaces_per_indent: usize) -> usize {
@@ -247,11 +259,12 @@ fn get_indents_with_tab_size(line: &str, spaces_per_indent: usize) -> usize {
     match ch {
       ' ' => space_count += 1,
       '\t' => {
+        // Convert accumulated spaces to indents, then add tab
         indent_levels += space_count / spaces_per_indent;
         space_count = 0;
         indent_levels += 1;
       },
-      _ => break,
+      _ => break, // Stop at first non-whitespace
     }
   }
 
@@ -260,6 +273,7 @@ fn get_indents_with_tab_size(line: &str, spaces_per_indent: usize) -> usize {
   indent_levels
 }
 
+/// Characters that increase syntactic complexity
 const SPECIAL_CHARS: &str = "()[]{}+*?^$|.\\<>=!&|:;,";
 
 fn get_num_specials(line: &str) -> f64 {
@@ -271,6 +285,7 @@ fn should_ignore_chunk(chunk_content: &str) -> bool {
   chunk_content.lines().any(|line| ignore_regex.is_match(line))
 }
 
+/// Analyze file and identify complexity hotspots
 pub fn analyze_file<P: AsRef<Path>>(
   file_path: P,
   config: &VioletConfig,
@@ -295,6 +310,7 @@ pub fn analyze_file<P: AsRef<Path>>(
   let threshold = get_threshold_for_file(config, path);
   let lines: Vec<&str> = preprocessed.lines().collect();
   
+  // Use line lengths to guide chunk fusion algorithm
   let line_lengths: Vec<f64> = lines.iter()
     .map(|line| line.len() as f64)
     .collect();
@@ -362,13 +378,16 @@ fn create_chunk_preview(lines: &[&str]) -> String {
   preview_lines.join("\n")
 }
 
+/// Iterative fusion algorithm to discover natural code boundaries
 fn analyze_file_iterative_fusion(lines: &[&str], line_lengths: &[f64]) -> Vec<(usize, usize, f64)> {
   if lines.is_empty() {
     return vec![];
   }
   
+  // Start with blank-line boundaries
   let mut chunks = split_into_text_chunks(lines);
   
+  // Iteratively merge compatible chunks until stable
   loop {
     let initial_count = chunks.len();
     chunks = fuse_compatible_chunks(chunks, line_lengths, lines);
@@ -383,6 +402,7 @@ fn analyze_file_iterative_fusion(lines: &[&str], line_lengths: &[f64]) -> Vec<(u
     .collect()
 }
 
+/// Initial chunking based on blank lines
 fn split_into_text_chunks(lines: &[&str]) -> Vec<(usize, usize)> {
   let mut chunks = Vec::new();
   let mut current_start = 0;
@@ -407,6 +427,7 @@ fn split_into_text_chunks(lines: &[&str]) -> Vec<(usize, usize)> {
   chunks
 }
 
+/// Merge adjacent chunks that likely belong together
 fn fuse_compatible_chunks(chunks: Vec<(usize, usize)>, line_lengths: &[f64], lines: &[&str]) -> Vec<(usize, usize)> {
   if chunks.len() <= 1 {
     return chunks;
@@ -431,25 +452,28 @@ fn fuse_compatible_chunks(chunks: Vec<(usize, usize)>, line_lengths: &[f64], lin
   fused_chunks
 }
 
+/// Decide whether to fuse chunks based on indentation patterns and line length transitions
 fn should_fuse_chunks(chunk1: (usize, usize), chunk2: (usize, usize), line_lengths: &[f64], lines: &[&str]) -> bool {
   if chunk1.0 >= lines.len() || chunk1.1 <= chunk1.0 || 
      chunk2.0 >= lines.len() || chunk2.1 <= chunk2.0 {
     return false;
   }
   
+  // Check for block entry/exit pattern (indentation increases then decreases)
   let prev_chunk_start_indent = get_indents(lines[chunk1.0]) as f64;
   let prev_chunk_end_indent = get_indents(lines[chunk1.1.saturating_sub(1)]) as f64;
   
   if prev_chunk_end_indent > prev_chunk_start_indent {
-    
     let next_chunk_start_indent = get_indents(lines[chunk2.0]) as f64;
     let next_chunk_end_indent = get_indents(lines[chunk2.1.saturating_sub(1)]) as f64;
     
+    // If we entered a block and are now exiting, these chunks likely belong together
     if next_chunk_start_indent >= next_chunk_end_indent {
       return true;
     }
   }
   
+  // Fallback: check line length transition smoothness
   let last_line_idx = chunk1.1.saturating_sub(1);
   let first_line_idx = chunk2.0;
   
@@ -462,6 +486,7 @@ fn should_fuse_chunks(chunk1: (usize, usize), chunk2: (usize, usize), line_lengt
     first_line_length / last_line_length
   };
   
+  // Fuse if transition is gradual (ratio > 2.0 suggests structural boundary)
   length_ratio <= 2.0
 }
 
