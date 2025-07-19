@@ -1,5 +1,5 @@
 use aes_gcm::{
-  aead::{Aead, AeadCore, KeyInit},
+  aead::{Aead, AeadCore, KeyInit, OsRng as AeadOsRng},
   Aes256Gcm, Key, Nonce,
 };
 use anyhow::{anyhow, Result};
@@ -125,7 +125,7 @@ impl EncryptionManager {
   ) -> Result<EncryptedBlob> {
     // Generate salt and machine key
     let mut salt = vec![0u8; 16];
-    rand::thread_rng().fill_bytes(&mut salt);
+    rand::rng().fill_bytes(&mut salt);
 
     let machine_key = Self::machine_key()?;
     let encryption_key = Self::derive_key(master_password, &machine_key, &salt)?;
@@ -136,7 +136,9 @@ impl EncryptionManager {
     // Encrypt with AES-GCM
     let key = Key::<Aes256Gcm>::from_slice(&encryption_key);
     let cipher = Aes256Gcm::new(key);
-    let nonce = Aes256Gcm::generate_nonce(&mut rand::thread_rng());
+
+    // Use AeadOsRng for nonce generation to avoid trait conflicts
+    let nonce = Aes256Gcm::generate_nonce(&mut AeadOsRng);
 
     let encrypted_data = cipher
       .encrypt(&nonce, credentials_json.as_ref())

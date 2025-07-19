@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 use aes_gcm::{
-  aead::{Aead, KeyInit, OsRng},
+  aead::{Aead, KeyInit},
   Aes256Gcm, Key, Nonce,
 };
 use rand::RngCore;
@@ -135,7 +135,7 @@ impl CryptoManager {
     bentley::info("🔐 Generating AES encryption key for secure credential storage...");
 
     let mut key = [0u8; 32]; // 256-bit key for AES-256
-    OsRng.fill_bytes(&mut key);
+    rand::rng().fill_bytes(&mut key);
 
     // Create directory if it doesn't exist
     if let Some(parent) = self.key_path.parent() {
@@ -179,7 +179,7 @@ impl CryptoManager {
 
     // Generate random nonce
     let mut nonce_bytes = [0u8; 12]; // 96-bit nonce for GCM
-    OsRng.fill_bytes(&mut nonce_bytes);
+    rand::rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     // Encrypt the value
