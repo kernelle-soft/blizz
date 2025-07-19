@@ -1,5 +1,5 @@
 //! Violet directive processing
-//! 
+//!
 //! Handles parsing and processing of violet directives in source code.
 
 use regex::Regex;
@@ -51,7 +51,7 @@ pub fn has_ignored_patterns(chunk_content: &str, ignore_patterns: &[String]) -> 
   if is_ignored_chunk(chunk_content) {
     return true;
   }
-  
+
   for pattern in ignore_patterns {
     if let Ok(regex) = Regex::new(pattern) {
       if regex.is_match(chunk_content) {
@@ -59,7 +59,7 @@ pub fn has_ignored_patterns(chunk_content: &str, ignore_patterns: &[String]) -> 
       }
     }
   }
-  
+
   false
 }
 
@@ -128,18 +128,18 @@ mod tests {
     let directive_start = "violet";
     let directive_ignore = "ignore";
     let directive_chunk = "chunk";
-    let full_directive = format!("{} {} {}", directive_start, directive_ignore, directive_chunk);
+    let full_directive = format!("{directive_start} {directive_ignore} {directive_chunk}");
 
-    let ignored_chunk = format!("// {}\nfn complex() {{\n    if deeply {{\n        if nested {{\n            return 42;\n        }}\n    }}\n}}", full_directive);
+    let ignored_chunk = format!("// {full_directive}\nfn complex() {{\n    if deeply {{\n        if nested {{\n            return 42;\n        }}\n    }}\n}}");
     assert!(is_ignored_chunk(&ignored_chunk));
 
-    let ignored_chunk2 = format!("# {}\nfn another() {{ return 1; }}", full_directive);
+    let ignored_chunk2 = format!("# {full_directive}\nfn another() {{ return 1; }}");
     assert!(is_ignored_chunk(&ignored_chunk2));
 
-    let ignored_chunk3 = format!("/* {} */\nfn yet_another() {{ return 2; }}", full_directive);
+    let ignored_chunk3 = format!("/* {full_directive} */\nfn yet_another() {{ return 2; }}");
     assert!(is_ignored_chunk(&ignored_chunk3));
 
-    let ignored_chunk4 = format!("// {} - this is a comment explaining why the chunk is ignored  \nfn spaced() {{ return 3; }}", full_directive);
+    let ignored_chunk4 = format!("// {full_directive} - this is a comment explaining why the chunk is ignored  \nfn spaced() {{ return 3; }}");
     assert!(is_ignored_chunk(&ignored_chunk4));
   }
 
@@ -154,9 +154,12 @@ mod tests {
   #[test]
   fn test_preprocess_file_ignore_entire_file() {
     let file_directive = "file";
-    let content1 = format!("# violet ignore {}\nfn main() {{\n    println!(\"hello\");\n}}", file_directive);
-    let content2 = format!("// violet ignore {}\nfn main() {{\n    println!(\"hello\");\n}}", file_directive);
-    let content3 = format!("/* violet ignore {} */\nfn main() {{\n    println!(\"hello\");\n}}", file_directive);
+    let content1 =
+      format!("# violet ignore {file_directive}\nfn main() {{\n    println!(\"hello\");\n}}");
+    let content2 =
+      format!("// violet ignore {file_directive}\nfn main() {{\n    println!(\"hello\");\n}}");
+    let content3 =
+      format!("/* violet ignore {file_directive} */\nfn main() {{\n    println!(\"hello\");\n}}");
 
     assert_eq!(preprocess_file(&content1), None);
     assert_eq!(preprocess_file(&content2), None);
@@ -167,7 +170,7 @@ mod tests {
   fn test_preprocess_file_ignore_block() {
     let start_directive = "start";
     let end_directive = "end";
-    let content = format!("fn good() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn bad() {{\n    if nested {{\n        return 2;\n    }}\n}}\n# violet ignore {}\n\nfn also_good() {{\n    return 3;\n}}", start_directive, end_directive);
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n# violet ignore {start_directive}\nfn bad() {{\n    if nested {{\n        return 2;\n    }}\n}}\n# violet ignore {end_directive}\n\nfn also_good() {{\n    return 3;\n}}");
     let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
@@ -180,7 +183,7 @@ mod tests {
   fn test_preprocess_file_nested_ignore_blocks() {
     let start_directive = "start";
     let end_directive = "end";
-    let content = format!("fn good() {{\n    return 1;\n}}\n\n/* violet ignore {} */\nfn outer_bad() {{\n    # violet ignore {}\n    fn inner_bad() {{\n        return 2;\n    }}\n    # violet ignore {}\n    return 3;\n}}\n/* violet ignore {} */\n\nfn also_good() {{\n    return 4;\n}}", start_directive, start_directive, end_directive, end_directive);
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n/* violet ignore {start_directive} */\nfn outer_bad() {{\n    # violet ignore {start_directive}\n    fn inner_bad() {{\n        return 2;\n    }}\n    # violet ignore {end_directive}\n    return 3;\n}}\n/* violet ignore {end_directive} */\n\nfn also_good() {{\n    return 4;\n}}");
     let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
@@ -193,9 +196,8 @@ mod tests {
   fn test_preprocess_file_unmatched_ignore_end() {
     let end_directive = "end";
     let content = format!(
-      "fn good() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn still_good() {{\n    return 2;\n}}", 
-      end_directive
-    );
+        "fn good() {{\n    return 1;\n}}\n\n# violet ignore {end_directive}\nfn still_good() {{\n    return 2;\n}}"
+      );
     let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
@@ -205,7 +207,7 @@ mod tests {
   #[test]
   fn test_preprocess_file_ignore_line() {
     let line_directive = "line";
-    let content = format!("fn good() {{\n    return 1;\n}}\n\n// violet ignore {}\nlet bad_line = very_complex_calculation();\n\nfn also_good() {{\n    return 2;\n}}", line_directive);
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n// violet ignore {line_directive}\nlet bad_line = very_complex_calculation();\n\nfn also_good() {{\n    return 2;\n}}");
     let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
@@ -219,7 +221,7 @@ mod tests {
     let line_directive = "line";
     let start_directive = "start";
     let end_directive = "end";
-    let content = format!("fn good() {{\n    return 1;\n}}\n\n// violet ignore {}\nlet bad1 = complex();\n\n# violet ignore {}\nfn bad_block() {{\n    return 2;\n}}\n/* violet ignore {} */\n\nfn also_good() {{\n    return 3;\n}}", line_directive, start_directive, end_directive);
+    let content = format!("fn good() {{\n    return 1;\n}}\n\n// violet ignore {line_directive}\nlet bad1 = complex();\n\n# violet ignore {start_directive}\nfn bad_block() {{\n    return 2;\n}}\n/* violet ignore {end_directive} */\n\nfn also_good() {{\n    return 3;\n}}");
     let result = preprocess_file(&content).unwrap();
 
     assert!(result.contains("fn good()"));
@@ -231,9 +233,9 @@ mod tests {
   #[test]
   fn test_preprocess_file_ignore_entire_file_directive() {
     let file_directive = "file";
-    let content = format!("# violet ignore {}\nfn extremely_complex() {{\n    if deeply {{\n        if nested {{\n            if very {{\n                if much {{\n                    return 42;\n                }}\n            }}\n        }}\n    }}\n}}", file_directive);
+    let content = format!("# violet ignore {file_directive}\nfn extremely_complex() {{\n    if deeply {{\n        if nested {{\n            if very {{\n                if much {{\n                    return 42;\n                }}\n            }}\n        }}\n    }}\n}}");
 
     let preprocessed = preprocess_file(&content);
     assert_eq!(preprocessed, None);
   }
-} 
+}

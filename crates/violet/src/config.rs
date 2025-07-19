@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Configuration file format
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
@@ -53,7 +53,7 @@ fn default_global_config() -> VioletConfig {
 pub fn load_config() -> Result<VioletConfig> {
   let global_config = default_global_config();
   let project_config = load_project_config()?;
-  
+
   Ok(merge(global_config, project_config))
 }
 
@@ -85,8 +85,6 @@ pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -
   }
   false
 }
-
-
 
 fn load_project_config() -> Result<Option<VioletConfig>> {
   let current_dir = std::env::current_dir().context("Failed to get current working directory")?;
@@ -130,21 +128,18 @@ fn merge_ignore_patterns(
 
 fn merge(global: VioletConfig, project: Option<VioletConfig>) -> VioletConfig {
   let project = project.unwrap_or_default();
-  
+
   let merged_thresholds = merge_threshold_configs(&global, &project);
   let merged_ignores = merge_ignore_configs(&global, &project);
-  
+
   build_merged_config(merged_thresholds, merged_ignores)
 }
 
 fn merge_threshold_configs(global: &VioletConfig, project: &VioletConfig) -> ThresholdConfig {
   let default_threshold = determine_default_threshold(global, project);
   let extensions = merge_extension_thresholds(global, project);
-  
-  ThresholdConfig {
-    default: default_threshold,
-    extensions,
-  }
+
+  ThresholdConfig { default: default_threshold, extensions }
 }
 
 fn determine_default_threshold(global: &VioletConfig, project: &VioletConfig) -> f64 {
@@ -155,7 +150,10 @@ fn determine_default_threshold(global: &VioletConfig, project: &VioletConfig) ->
   }
 }
 
-fn merge_extension_thresholds(global: &VioletConfig, project: &VioletConfig) -> HashMap<String, f64> {
+fn merge_extension_thresholds(
+  global: &VioletConfig,
+  project: &VioletConfig,
+) -> HashMap<String, f64> {
   let mut thresholds = global.complexity.thresholds.extensions.clone();
   for (ext, threshold) in &project.complexity.thresholds.extensions {
     thresholds.insert(ext.clone(), *threshold);
@@ -163,18 +161,22 @@ fn merge_extension_thresholds(global: &VioletConfig, project: &VioletConfig) -> 
   thresholds
 }
 
-fn merge_ignore_configs(global: &VioletConfig, project: &VioletConfig) -> (Vec<String>, Vec<String>) {
-  let ignore_files = merge_ignore_patterns(global.ignore_files.clone(), project.ignore_files.clone());
-  let ignore_patterns = merge_ignore_patterns(global.ignore_patterns.clone(), project.ignore_patterns.clone());
+fn merge_ignore_configs(
+  global: &VioletConfig,
+  project: &VioletConfig,
+) -> (Vec<String>, Vec<String>) {
+  let ignore_files =
+    merge_ignore_patterns(global.ignore_files.clone(), project.ignore_files.clone());
+  let ignore_patterns =
+    merge_ignore_patterns(global.ignore_patterns.clone(), project.ignore_patterns.clone());
   (ignore_files, ignore_patterns)
 }
 
-fn build_merged_config(thresholds: ThresholdConfig, (ignore_files, ignore_patterns): (Vec<String>, Vec<String>)) -> VioletConfig {
-  VioletConfig {
-    complexity: ComplexityConfig { thresholds },
-    ignore_files,
-    ignore_patterns,
-  }
+fn build_merged_config(
+  thresholds: ThresholdConfig,
+  (ignore_files, ignore_patterns): (Vec<String>, Vec<String>),
+) -> VioletConfig {
+  VioletConfig { complexity: ComplexityConfig { thresholds }, ignore_files, ignore_patterns }
 }
 
 /// Enhanced glob matching with filename fallback
@@ -297,10 +299,7 @@ mod tests {
 
     let config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 7.0,
-          extensions: thresholds,
-        },
+        thresholds: ThresholdConfig { default: 7.0, extensions: thresholds },
       },
       ..Default::default()
     };
@@ -315,10 +314,7 @@ mod tests {
   fn test_should_ignore() {
     let config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 7.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: ThresholdConfig { default: 7.0, extensions: HashMap::new() },
       },
       ignore_files: vec![
         "target/**".to_string(),
@@ -350,10 +346,7 @@ mod tests {
   fn test_should_ignore_normalized_paths() {
     let config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 7.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: ThresholdConfig { default: 7.0, extensions: HashMap::new() },
       },
       ignore_files: vec!["src/main.rs".to_string()],
       ..Default::default()
@@ -399,10 +392,7 @@ mod tests {
 
     let project = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 6.5,
-          extensions: project_thresholds,
-        },
+        thresholds: ThresholdConfig { default: 6.5, extensions: project_thresholds },
       },
       ignore_files: vec!["project1".to_string(), "global1".to_string()],
       ..Default::default()
@@ -433,10 +423,7 @@ mod tests {
 
     let project = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 6.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
       },
       ..Default::default()
     };
@@ -547,10 +534,7 @@ mod tests {
   fn test_threshold_for_file_edge_cases() {
     let config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 6.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
       },
       ..Default::default()
     };
@@ -567,10 +551,7 @@ mod tests {
   fn test_should_ignore_complex_patterns() {
     let config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 6.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
       },
       ignore_files: vec![
         "test*file".to_string(),
@@ -638,15 +619,18 @@ mod tests {
   #[test]
   fn test_default_global_config_comprehensive() {
     let config = default_global_config();
-    
+
     assert_eq!(config.complexity.thresholds.default, 6.0);
     assert!(config.complexity.thresholds.extensions.is_empty());
     assert!(!config.ignore_files.is_empty());
-    
-    let has_directories = config.ignore_files.iter().any(|p| p.contains("node_modules") || p.contains("target"));
-    let has_binaries = config.ignore_files.iter().any(|p| p.contains("*.png") || p.contains("*.pdf"));
-    let has_configs = config.ignore_files.iter().any(|p| p.contains("*.json") || p.contains("*.toml"));
-    
+
+    let has_directories =
+      config.ignore_files.iter().any(|p| p.contains("node_modules") || p.contains("target"));
+    let has_binaries =
+      config.ignore_files.iter().any(|p| p.contains("*.png") || p.contains("*.pdf"));
+    let has_configs =
+      config.ignore_files.iter().any(|p| p.contains("*.json") || p.contains("*.toml"));
+
     assert!(has_directories);
     assert!(has_binaries);
     assert!(has_configs);
@@ -654,9 +638,9 @@ mod tests {
 
   #[test]
   fn test_load_config_file_json5_parsing() {
-    use tempfile::NamedTempFile;
     use std::io::Write;
-    
+    use tempfile::NamedTempFile;
+
     let mut temp_file = NamedTempFile::new().unwrap();
     let valid_json5 = r#"{
       complexity: {
@@ -671,10 +655,10 @@ mod tests {
         "temp/**"
       ]
     }"#;
-    
+
     temp_file.write_all(valid_json5.as_bytes()).unwrap();
     let result = load_config_file(temp_file.path());
-    
+
     assert!(result.is_ok());
     let config = result.unwrap();
     assert_eq!(config.complexity.thresholds.default, 8.0);
@@ -687,9 +671,9 @@ mod tests {
 
   #[test]
   fn test_load_config_file_invalid_json5() {
-    use tempfile::NamedTempFile;
     use std::io::Write;
-    
+    use tempfile::NamedTempFile;
+
     let mut temp_file = NamedTempFile::new().unwrap();
     let invalid_json5 = r#"{
       complexity: {
@@ -702,10 +686,10 @@ mod tests {
         "temp/**"
       ]
     }"#;
-    
+
     temp_file.write_all(invalid_json5.as_bytes()).unwrap();
     let result = load_config_file(temp_file.path());
-    
+
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("Failed to parse JSON5"));
@@ -714,10 +698,10 @@ mod tests {
   #[test]
   fn test_load_config_file_nonexistent() {
     use std::path::Path;
-    
+
     let nonexistent_path = Path::new("/this/path/does/not/exist.json5");
     let result = load_config_file(nonexistent_path);
-    
+
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
     assert!(error_msg.contains("Failed to read config file"));
@@ -727,9 +711,9 @@ mod tests {
   fn test_merge_ignore_patterns_order_preservation() {
     let global = vec!["first".to_string(), "second".to_string()];
     let project = vec!["third".to_string(), "fourth".to_string()];
-    
+
     let result = merge_ignore_patterns(global, project);
-    
+
     assert_eq!(result.len(), 4);
     let first_two: Vec<&String> = result.iter().take(2).collect();
     assert!(first_two.contains(&&"first".to_string()));
@@ -750,9 +734,9 @@ mod tests {
       "pattern5".to_string(),
       "pattern4".to_string(),
     ];
-    
+
     let result = merge_ignore_patterns(global, project);
-    
+
     assert_eq!(result.len(), 5);
     assert!(result.contains(&"pattern1".to_string()));
     assert!(result.contains(&"pattern2".to_string()));
@@ -768,25 +752,22 @@ mod tests {
     thresholds.insert(".py".to_string(), 7.0);
     thresholds.insert(".js".to_string(), 6.0);
     thresholds.insert(".java".to_string(), 9.0);
-    
-    let config = VioletConfig { 
+
+    let config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 5.0,
-          extensions: thresholds,
-        },
+        thresholds: ThresholdConfig { default: 5.0, extensions: thresholds },
       },
       ..Default::default()
     };
-    
+
     assert_eq!(get_threshold(&config, "main.rs"), 8.0);
     assert_eq!(get_threshold(&config, "script.py"), 7.0);
     assert_eq!(get_threshold(&config, "app.js"), 6.0);
     assert_eq!(get_threshold(&config, "App.java"), 9.0);
-    
+
     assert_eq!(get_threshold(&config, "config.toml"), 5.0);
     assert_eq!(get_threshold(&config, "README.md"), 5.0);
-    
+
     assert_eq!(get_threshold(&config, "src/main.rs"), 8.0);
     assert_eq!(get_threshold(&config, "./scripts/build.py"), 7.0);
     assert_eq!(get_threshold(&config, "/usr/local/bin/tool.unknown"), 5.0);
@@ -796,10 +777,7 @@ mod tests {
   fn test_should_ignore_file_complex_scenarios() {
     let config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 6.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
       },
       ignore_files: vec![
         "exact_file.txt".to_string(),
@@ -811,26 +789,26 @@ mod tests {
       ],
       ..Default::default()
     };
-    
+
     assert!(should_ignore_file(&config, "exact_file.txt"));
     assert!(!should_ignore_file(&config, "exact_file.rs"));
-    
+
     assert!(should_ignore_file(&config, "prefix_anything"));
     assert!(should_ignore_file(&config, "prefix_test.rs"));
     assert!(!should_ignore_file(&config, "test_prefix"));
-    
+
     assert!(should_ignore_file(&config, "test_suffix.rs"));
     assert!(should_ignore_file(&config, "my_suffix.rs"));
     assert!(!should_ignore_file(&config, "suffix_test.rs"));
-    
+
     assert!(should_ignore_file(&config, "dir/file.txt"));
     assert!(should_ignore_file(&config, "dir/subdir/file.txt"));
     assert!(!should_ignore_file(&config, "otherdir/file.txt"));
-    
+
     assert!(should_ignore_file(&config, "any/path/file.temp"));
     assert!(should_ignore_file(&config, "file.temp"));
     assert!(should_ignore_file(&config, "very/deep/path/file.temp"));
-    
+
     assert!(should_ignore_file(&config, "nested/anything/deep.json"));
     assert!(should_ignore_file(&config, "nested/very/long/path/deep.json"));
     assert!(should_ignore_file(&config, "nested/deep.json"));
@@ -840,23 +818,17 @@ mod tests {
   fn test_should_ignore_file_path_normalization() {
     let config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 6.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
       },
-      ignore_files: vec![
-        "src/main.rs".to_string(),
-        "tests/integration.rs".to_string(),
-      ],
+      ignore_files: vec!["src/main.rs".to_string(), "tests/integration.rs".to_string()],
       ..Default::default()
     };
-    
+
     assert!(should_ignore_file(&config, "src/main.rs"));
     assert!(should_ignore_file(&config, "./src/main.rs"));
     assert!(should_ignore_file(&config, "tests/integration.rs"));
     assert!(should_ignore_file(&config, "./tests/integration.rs"));
-    
+
     assert!(!should_ignore_file(&config, "src/lib.rs"));
     assert!(!should_ignore_file(&config, "tests/unit.rs"));
     assert!(!should_ignore_file(&config, "other/main.rs"));
@@ -867,15 +839,15 @@ mod tests {
     assert!(matches_glob("anything/file.txt", "**/file.txt"));
     assert!(matches_glob("deep/nested/file.txt", "**/file.txt"));
     assert!(matches_glob("file.txt", "**/file.txt"));
-    
+
     assert!(matches_glob("src/anything", "src/**"));
     assert!(matches_glob("src/deep/nested", "src/**"));
     assert!(matches_glob("src/", "src/**"));
-    
+
     assert!(matches_glob("start/anything/end", "start/**/end"));
     assert!(matches_glob("start/deep/nested/end", "start/**/end"));
     assert!(matches_glob("start/end", "start/**/end"));
-    
+
     assert!(matches_glob("a/anything/b/anything/c", "a/**/b/**/c"));
     assert!(matches_glob("a/x/b/y/c", "a/**/b/**/c"));
   }
@@ -886,7 +858,7 @@ mod tests {
     assert_eq!(minimal.complexity.thresholds.default, 6.0);
     assert!(minimal.complexity.thresholds.extensions.is_empty());
     assert!(minimal.ignore_files.is_empty());
-    
+
     let threshold_config = ThresholdConfig::default();
     assert_eq!(threshold_config.default, 6.0);
     assert!(threshold_config.extensions.is_empty());
@@ -896,39 +868,31 @@ mod tests {
   fn test_violet_config_creation_edge_cases() {
     let empty_config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 10.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: ThresholdConfig { default: 10.0, extensions: HashMap::new() },
       },
       ignore_files: vec![],
       ..Default::default()
     };
-    
+
     assert_eq!(empty_config.complexity.thresholds.default, 10.0);
     assert!(empty_config.complexity.thresholds.extensions.is_empty());
     assert!(empty_config.ignore_files.is_empty());
-    
+
     let mut many_thresholds = HashMap::new();
     for i in 1..20 {
-      many_thresholds.insert(format!(".ext{}", i), i as f64);
+      many_thresholds.insert(format!(".ext{i}"), i as f64);
     }
-    
+
     let large_config = VioletConfig {
       complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
-          default: 15.0,
-          extensions: many_thresholds.clone(),
-        },
+        thresholds: ThresholdConfig { default: 15.0, extensions: many_thresholds.clone() },
       },
       ignore_files: vec!["pattern".to_string(); 100],
       ..Default::default()
     };
-    
+
     assert_eq!(large_config.complexity.thresholds.extensions.len(), 19);
     assert_eq!(large_config.ignore_files.len(), 100);
     assert_eq!(large_config.complexity.thresholds.default, 15.0);
   }
-
-
 }

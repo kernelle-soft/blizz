@@ -110,7 +110,7 @@ process_files() {
     local total_files=${#files[@]}
     local issues=0
     
-    echo "Found $total_files files to check..."
+    echo "Found $total_files files to check..." >&2
     
     for file in "${files[@]}"; do
         if ! check_and_fix_file "$file" "$fix_mode"; then

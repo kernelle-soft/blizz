@@ -1,5 +1,5 @@
 //! Scoring and complexity analysis
-//! 
+//!
 //! Provides functions for calculating complexity scores and analyzing code chunks.
 
 use regex::Regex;
@@ -37,7 +37,11 @@ pub fn get_indents_with_tab_size(line: &str, tab_size: usize) -> usize {
   for &ch in &chars {
     match ch {
       ' ' => space_count += 1,
-      '\t' => indent_levels += space_count / tab_size,
+      '\t' => {
+        indent_levels += space_count / tab_size;
+        space_count = 0;
+        indent_levels += 1;
+      }
       _ => break,
     }
   }
@@ -50,7 +54,7 @@ pub fn get_indents_with_tab_size(line: &str, tab_size: usize) -> usize {
 pub fn verbosity(line: &str) -> f64 {
   let special_chars = syntactics(line);
   let non_special_chars = (line.trim().len() as f64) - special_chars;
-  non_special_chars as f64
+  non_special_chars
 }
 
 pub fn syntactics(line: &str) -> f64 {
@@ -67,7 +71,12 @@ pub fn punish(score: f64, penalty: f64) -> f64 {
 }
 
 /// Calculate complexity with component breakdown
-pub fn complexity(chunk: &str, depth_penalty: f64, verbosity_penalty: f64, syntactic_penalty: f64) -> f64 {
+pub fn complexity(
+  chunk: &str,
+  depth_penalty: f64,
+  verbosity_penalty: f64,
+  syntactic_penalty: f64,
+) -> f64 {
   let lines: Vec<&str> = chunk.lines().collect();
   let mut depth_total = 0.0;
   let mut verbosity_total = 0.0;
@@ -80,26 +89,33 @@ pub fn complexity(chunk: &str, depth_penalty: f64, verbosity_penalty: f64, synta
   }
 
   let sum = depth_total + verbosity_total + syntactic_total;
-  
-  // Natural log for information-theoretic scaling
-  let score = if sum > 0.0 { sum.ln() } else { 0.0 };
 
-  score
+  // Natural log for information-theoretic scaling
+  if sum > 0.0 {
+    sum.ln()
+  } else {
+    0.0
+  }
 }
 
-pub fn chunk_breakdown(chunk: &str, depth_penalty: f64, verbosity_penalty: f64, syntactic_penalty: f64) -> ComplexityBreakdown {
+pub fn chunk_breakdown(
+  chunk: &str,
+  _depth_penalty: f64,
+  _verbosity_penalty: f64,
+  _syntactic_penalty: f64,
+) -> ComplexityBreakdown {
   let lines: Vec<&str> = chunk.lines().collect();
-  
+
   let mut total_depth = 0.0;
   let mut total_verbosity = 0.0;
   let mut total_syntactic = 0.0;
-  
+
   for line in lines {
     total_depth += depth(line);
     total_verbosity += verbosity(line);
     total_syntactic += syntactics(line);
   }
-  
+
   breakdown(total_depth, total_verbosity, total_syntactic)
 }
 
@@ -131,9 +147,8 @@ pub fn breakdown(
   }
 }
 
-
 #[cfg(test)]
-mod tests { 
+mod tests {
   use super::*;
 
   #[test]
@@ -147,7 +162,6 @@ mod tests {
     assert_eq!(get_indents("  \tcombo"), 2);
     assert_eq!(get_indents("\t  partial"), 2);
   }
-
 
   #[test]
   fn test_create_breakdown() {
@@ -165,5 +179,4 @@ mod tests {
     assert_eq!(zero_breakdown.verbosity_percent, 0.0);
     assert_eq!(zero_breakdown.syntactic_percent, 0.0);
   }
-
 }

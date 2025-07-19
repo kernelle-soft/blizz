@@ -350,7 +350,7 @@ mod command_tests {
     // Test with various combinations - some may fail which is expected
     let _ = add_insight("topic1", "name1", "", "details");
     let _ = add_insight("topic2", "name2", "overview", "");
-    
+
     // These should work fine
     add_insight("topic3", "name3", "overview", "details")?;
 

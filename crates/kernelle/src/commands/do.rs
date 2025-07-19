@@ -186,7 +186,7 @@ mod tests {
   async fn test_list_tasks_with_nonexistent_file() {
     // Test list_tasks with a file that doesn't exist
     let result = list_tasks(Some("nonexistent.tasks".to_string())).await;
-    
+
     // Should return an error since the file doesn't exist
     assert!(result.is_err());
   }
@@ -195,7 +195,7 @@ mod tests {
   async fn test_get_tasks_file_with_nonexistent_file() {
     // Test get_tasks_file with a file that doesn't exist
     let result = get_tasks_file(Some("nonexistent.tasks".to_string())).await;
-    
+
     // Should return an error since the file doesn't exist
     assert!(result.is_err());
   }
@@ -204,7 +204,7 @@ mod tests {
   fn test_task_runner_options_default() {
     // Test that TaskRunnerOptions has sensible defaults
     let options = TaskRunnerOptions::default();
-    
+
     assert!(!options.silent);
     assert!(options.tasks_file_path.is_none());
   }
@@ -212,19 +212,13 @@ mod tests {
   #[test]
   fn test_task_result_fields() {
     // Test TaskResult struct fields
-    let result = TaskResult {
-      success: true,
-      exit_code: Some(0),
-    };
-    
+    let result = TaskResult { success: true, exit_code: Some(0) };
+
     assert!(result.success);
     assert_eq!(result.exit_code, Some(0));
-    
-    let failed_result = TaskResult {
-      success: false,
-      exit_code: Some(1),
-    };
-    
+
+    let failed_result = TaskResult { success: false, exit_code: Some(1) };
+
     assert!(!failed_result.success);
     assert_eq!(failed_result.exit_code, Some(1));
   }
@@ -232,13 +226,11 @@ mod tests {
   #[tokio::test]
   async fn test_run_task_with_nonexistent_task() {
     // Test running a task that doesn't exist
-    let options = TaskRunnerOptions {
-      silent: true,
-      tasks_file_path: Some("nonexistent.tasks".to_string()),
-    };
-    
+    let options =
+      TaskRunnerOptions { silent: true, tasks_file_path: Some("nonexistent.tasks".to_string()) };
+
     let result = run_task("nonexistent_task", &[], options).await;
-    
+
     // Should return an error since the file doesn't exist
     assert!(result.is_err());
   }

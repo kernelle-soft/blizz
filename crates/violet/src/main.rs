@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use std::process;
 use std::sync::OnceLock;
 use violet::config;
-use violet::simplicity;
 use violet::scoring;
+use violet::simplicity;
 
 const TOTAL_WIDTH: usize = 80;
 const PADDING: usize = 2;
@@ -40,7 +40,7 @@ fn display_threshold_config(config: &config::VioletConfig) {
 }
 
 fn display_simple_threshold(threshold: f64) {
-  println!("threshold: {:.2}", threshold);
+  println!("threshold: {threshold:.2}");
 }
 
 fn display_threshold_table(config: &config::VioletConfig) {
@@ -62,10 +62,10 @@ fn print_default_threshold(threshold: f64) {
 fn print_language_thresholds(thresholds: &std::collections::HashMap<String, f64>) {
   let mut sorted_thresholds: Vec<_> = thresholds.iter().collect();
   sorted_thresholds.sort_by_key(|(ext, _)| ext.as_str());
-  
+
   for (extension, threshold) in sorted_thresholds {
     let language = extension_to_language(extension);
-    println!("{:<23} {:>6.2}", language, threshold);
+    println!("{language:<23} {threshold:>6.2}");
   }
 }
 
@@ -124,7 +124,7 @@ fn process_directory(
   total_files: &mut i32,
   violation_output: &mut Vec<String>,
 ) -> usize {
-  let files = collect_files_recursively(path, &config);
+  let files = collect_files_recursively(path, config);
   let mut violations = 0;
 
   for file_path in files {
@@ -136,7 +136,7 @@ fn process_directory(
 
 fn print_results(violation_output: Vec<String>, config: &config::VioletConfig) {
   print_header(config);
-  
+
   if !violation_output.is_empty() {
     print_violations_table(&violation_output);
   } else {
@@ -368,7 +368,7 @@ fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
   static LANGUAGE_MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
   LANGUAGE_MAP.get_or_init(|| {
     let mut map = HashMap::new();
-    
+
     // JavaScript family
     map.insert(".js", "javascript");
     map.insert(".mjs", "modules javascript");
@@ -376,12 +376,12 @@ fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
     map.insert(".jsx", "react javascript");
     map.insert(".ts", "typescript");
     map.insert(".tsx", "react typescript");
-    
+
     // Python family
     map.insert(".py", "python");
     map.insert(".pyw", "windows python");
     map.insert(".pyc", "compiled python");
-    
+
     // Systems languages
     map.insert(".rs", "rust");
     map.insert(".go", "go");
@@ -393,7 +393,7 @@ fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
     map.insert(".c++", "C++");
     map.insert(".hpp", "C++ headers");
     map.insert(".hxx", "C++ headers");
-    
+
     // JVM languages
     map.insert(".java", "java");
     map.insert(".kt", "kotlin");
@@ -403,7 +403,7 @@ fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
     map.insert(".gvy", "groovy");
     map.insert(".gy", "groovy");
     map.insert(".gsh", "groovy shell");
-    
+
     // Other languages
     map.insert(".cs", "C#");
     map.insert(".php", "php");
@@ -423,14 +423,14 @@ fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
     map.insert(".gd", "gdscript");
     map.insert(".asm", "assembly");
     map.insert(".s", "assembly");
-    
+
     // Shell scripts
     map.insert(".sh", "shell scripts");
     map.insert(".bash", "bash");
     map.insert(".zsh", "zsh");
     map.insert(".fish", "fish");
     map.insert(".ps1", "powershell");
-    
+
     // Web technologies
     map.insert(".html", "html");
     map.insert(".htm", "html (alt)");
@@ -439,7 +439,7 @@ fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
     map.insert(".sass", "sass");
     map.insert(".less", "less");
     map.insert(".vue", "vue");
-    
+
     // Data formats
     map.insert(".json", "json");
     map.insert(".xml", "xml");
@@ -448,12 +448,12 @@ fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
     map.insert(".toml", "toml");
     map.insert(".sql", "sql");
     map.insert(".md", "markdown");
-    
+
     // Infrastructure
     map.insert(".dockerfile", "dockerfile");
     map.insert(".tf", "terraform");
     map.insert(".hcl", "hcl");
-    
+
     map
   })
 }
@@ -525,10 +525,7 @@ mod tests {
     let temp_dir = TempDir::new().unwrap();
     let config = config::VioletConfig {
       complexity: config::ComplexityConfig {
-        thresholds: config::ThresholdConfig {
-          default: 6.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: config::ThresholdConfig { default: 6.0, extensions: HashMap::new() },
       },
       ..Default::default()
     };
@@ -553,10 +550,7 @@ mod tests {
     let temp_dir = TempDir::new().unwrap();
     let config = config::VioletConfig {
       complexity: config::ComplexityConfig {
-        thresholds: config::ThresholdConfig {
-          default: 6.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: config::ThresholdConfig { default: 6.0, extensions: HashMap::new() },
       },
       ignore_files: vec!["*.ignored".to_string(), "temp*".to_string()],
       ..Default::default()
@@ -595,7 +589,7 @@ mod tests {
     };
 
     let preview = format_chunk_preview(&chunk_score);
-    
+
     assert!(preview.contains("fn simple() {"));
     assert!(preview.contains("return 42;"));
     assert!(preview.contains("}"));
@@ -623,14 +617,14 @@ mod tests {
     };
 
     let preview = format_chunk_preview(&chunk_score);
-    
+
     assert!(preview.contains("..."));
     assert!(preview.len() < 100);
   }
 
   #[test]
   fn test_format_chunk_preview_many_lines() {
-    let many_lines = (1..10).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
+    let many_lines = (1..10).map(|i| format!("line {i}")).collect::<Vec<_>>().join("\n");
     let chunk_score = ComplexityRegion {
       score: 5.0,
       start_line: 1,
@@ -647,7 +641,7 @@ mod tests {
     };
 
     let preview = format_chunk_preview(&chunk_score);
-    
+
     assert!(preview.contains("line 1"));
     assert!(preview.contains("line 5"));
     assert!(preview.contains("line 9"));
@@ -659,11 +653,11 @@ mod tests {
     assert_eq!(scale_component_score(0.0), (1.0_f64).ln());
     assert_eq!(scale_component_score(1.0), (2.0_f64).ln());
     assert_eq!(scale_component_score(10.0), (11.0_f64).ln());
-    
+
     let small = scale_component_score(1.0);
     let medium = scale_component_score(10.0);
     let large = scale_component_score(100.0);
-    
+
     assert!(small < medium);
     assert!(medium < large);
     assert!(large.is_finite());
@@ -672,19 +666,19 @@ mod tests {
   #[test]
   fn test_report_subscore() {
     let result = report_subscore("Depth", 5.5, 33.3);
-    
+
     assert!(result.contains("Depth"));
     assert!(result.contains("5.5"));
     assert!(result.contains("33%"));
     assert!(result.contains("("));
-    assert!(result.contains(")")); 
+    assert!(result.contains(")"));
   }
 
   #[test]
   fn test_format_file_header_line_ending() {
     let file_path = "src/main.rs";
     let header = format_file_header(file_path);
-    
+
     assert!(header.contains("src/main.rs"));
     assert!(header.ends_with('\n'));
   }
@@ -693,7 +687,7 @@ mod tests {
   fn test_format_file_header_long_path() {
     let long_path = "very/long/path/to/some/deeply/nested/file/that/might/exceed/normal/width.rs";
     let header = format_file_header(long_path);
-    
+
     assert!(header.contains("file"));
     assert!(header.contains(".rs"));
     assert!(header.ends_with('\n'));
@@ -717,13 +711,13 @@ mod tests {
     };
 
     let formatted = format_violating_chunk(&chunk_score);
-    
+
     assert!(formatted.contains("8.5"));
-    
+
     assert!(formatted.contains("10") || formatted.contains("15"));
-    
+
     assert!(formatted.contains("fn complex()"));
-    
+
     assert!(formatted.contains("Depth") || formatted.contains("depth"));
   }
 
@@ -732,10 +726,10 @@ mod tests {
     let normal_path = "src/main.rs";
     let formatted_normal = format_file_path(normal_path, 50);
     assert_eq!(formatted_normal, normal_path);
-    
+
     let long_path = "very/long/path/to/some/deeply/nested/file.rs";
     let formatted_long = format_file_path(long_path, 20);
-    
+
     assert!(formatted_long.len() <= 20);
     assert!(formatted_long.contains("...") || formatted_long.contains("file.rs"));
   }
@@ -745,10 +739,7 @@ mod tests {
     let temp_dir = TempDir::new().unwrap();
     let config = config::VioletConfig {
       complexity: config::ComplexityConfig {
-        thresholds: config::ThresholdConfig {
-          default: 6.0,
-          extensions: HashMap::new(),
-        },
+        thresholds: config::ThresholdConfig { default: 6.0, extensions: HashMap::new() },
       },
       ..Default::default()
     };
@@ -768,7 +759,8 @@ mod tests {
     let files = collect_files_recursively(&temp_dir.path().to_path_buf(), &config);
 
     assert_eq!(files.len(), 4);
-    let file_names: Vec<_> = files.iter().map(|f| f.file_name().unwrap().to_str().unwrap()).collect();
+    let file_names: Vec<_> =
+      files.iter().map(|f| f.file_name().unwrap().to_str().unwrap()).collect();
     assert!(file_names.contains(&"root.rs"));
     assert!(file_names.contains(&"level1.rs"));
     assert!(file_names.contains(&"level2.rs"));
@@ -783,34 +775,34 @@ mod tests {
     assert_eq!(extension_to_language(".py"), "python");
     assert_eq!(extension_to_language(".go"), "go");
     assert_eq!(extension_to_language(".java"), "java");
-    
+
     assert_eq!(extension_to_language(".cpp"), "C++");
     assert_eq!(extension_to_language(".cc"), "C++");
     assert_eq!(extension_to_language(".cxx"), "C++");
-    
+
     assert_eq!(extension_to_language(".sh"), "shell scripts");
     assert_eq!(extension_to_language(".bash"), "bash");
     assert_eq!(extension_to_language(".zsh"), "zsh");
-    
+
     assert_eq!(extension_to_language(".unknown"), ".unknown");
     assert_eq!(extension_to_language(".xyz"), ".xyz");
-    
+
     assert_eq!(extension_to_language(".R"), "R (alt)");
     assert_eq!(extension_to_language(".r"), "R");
-    
+
     assert_eq!(extension_to_language(".js"), "javascript");
     assert_eq!(extension_to_language(".jsx"), "react javascript");
     assert_eq!(extension_to_language(".ts"), "typescript");
     assert_eq!(extension_to_language(".tsx"), "react typescript");
-    
+
     assert_eq!(extension_to_language(".c"), "C");
     assert_eq!(extension_to_language(".h"), "C headers");
     assert_eq!(extension_to_language(".cpp"), "C++");
     assert_eq!(extension_to_language(".hpp"), "C++ headers");
-    
+
     assert_eq!(extension_to_language(".mjs"), "modules javascript");
     assert_eq!(extension_to_language(".cjs"), "commonjs javascript");
-    
+
     assert_eq!(extension_to_language(".py"), "python");
     assert_eq!(extension_to_language(".pyw"), "windows python");
     assert_eq!(extension_to_language(".pyc"), "compiled python");
