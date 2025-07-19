@@ -3,7 +3,7 @@
 use regex::Regex;
 use std::fs;
 use std::path::Path;
-use crate::config::{VioletConfig, get_threshold_for_file};
+use crate::config;
 use crate::directives;
 
 
@@ -229,7 +229,7 @@ fn get_num_specials(line: &str) -> f64 {
 /// Analyze file and identify complexity hotspots
 pub fn analyze_file<P: AsRef<Path>>(
   file_path: P,
-  config: &VioletConfig,
+  config: &config::VioletConfig,
 ) -> Result<FileAnalysis, Box<dyn std::error::Error>> {
   let path = file_path.as_ref();
   let content = fs::read_to_string(path)?;
@@ -263,13 +263,13 @@ fn create_empty_file_analysis(path: &Path) -> FileAnalysis {
   }
 }
 
-fn find_complexity_violations(content: &str, config: &VioletConfig, path: &Path) -> Vec<ComplexityRegion> {
-  let threshold = get_threshold_for_file(config, path);
+fn find_complexity_violations(content: &str, config: &config::VioletConfig, path: &Path) -> Vec<ComplexityRegion> {
+  let threshold = config::get_threshold_for_file(config, path);
   let lines: Vec<&str> = content.lines().collect();
   let line_lengths: Vec<f64> = lines.iter().map(|line| line.len() as f64).collect();
   let regions = analyze_file_iterative_fusion(&lines, &line_lengths);
   
-  process_regions_for_violations(regions, &lines, threshold, config.get_ignore_patterns())
+  process_regions_for_violations(regions, &lines, threshold, &config.ignore_patterns)
 }
 
 fn process_regions_for_violations(regions: Vec<(usize, usize, f64)>, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Vec<ComplexityRegion> {

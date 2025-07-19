@@ -29,8 +29,9 @@ fn extension_to_language(ext: &str) -> &str {
 }
 
 fn display_threshold_config(config: &VioletConfig) {
-  if config.get_thresholds().is_empty() {
-    display_simple_threshold(config.get_default_threshold());
+  let thresholds = &config.complexity.thresholds.extensions;
+  if thresholds.is_empty() {
+    display_simple_threshold(config.complexity.thresholds.default);
   } else {
     display_threshold_table(config);
   }
@@ -43,8 +44,8 @@ fn display_simple_threshold(threshold: f64) {
 
 fn display_threshold_table(config: &VioletConfig) {
   print_table_header();
-  print_default_threshold(config.get_default_threshold());
-  print_language_thresholds(config.get_thresholds());
+  print_default_threshold(config.complexity.thresholds.default);
+  print_language_thresholds(&config.complexity.thresholds.extensions);
 }
 
 fn print_table_header() {

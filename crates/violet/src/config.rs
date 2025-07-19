@@ -15,28 +15,6 @@ pub struct VioletConfig {
   pub ignore_patterns: Vec<String>,
 }
 
-impl VioletConfig {
-  /// Get the default threshold value
-  pub fn get_default_threshold(&self) -> f64 {
-    self.complexity.thresholds.default
-  }
-  
-  /// Get the flattened threshold map with extensions
-  pub fn get_thresholds(&self) -> &HashMap<String, f64> {
-    &self.complexity.thresholds.extensions
-  }
-  
-  /// Get all ignore file patterns
-  pub fn get_ignore_files(&self) -> &Vec<String> {
-    &self.ignore_files
-  }
-  
-  /// Get all ignore content patterns
-  pub fn get_ignore_patterns(&self) -> &Vec<String> {
-    &self.ignore_patterns
-  }
-}
-
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 pub struct ComplexityConfig {
   #[serde(default)]
@@ -84,12 +62,12 @@ pub fn get_threshold_for_file<P: AsRef<Path>>(config: &VioletConfig, file_path: 
 
   if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
     let ext_key = format!(".{extension}");
-    if let Some(&threshold) = config.get_thresholds().get(&ext_key) {
+    if let Some(&threshold) = config.complexity.thresholds.extensions.get(&ext_key) {
       return threshold;
     }
   }
 
-  config.get_default_threshold()
+  config.complexity.thresholds.default
 }
 
 pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -> bool {
@@ -99,7 +77,7 @@ pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -
   let normalized_path =
     if let Some(stripped) = path_str.strip_prefix("./") { stripped } else { &path_str };
 
-  for pattern in config.get_ignore_files() {
+  for pattern in config.ignore_files.iter() {
     if matches_glob(&path_str, pattern) || matches_glob(normalized_path, pattern) {
       return true;
     }
