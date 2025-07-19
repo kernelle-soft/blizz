@@ -136,7 +136,7 @@ impl EncryptionManager {
     // Encrypt with AES-GCM
     let key = Key::<Aes256Gcm>::from_slice(&encryption_key);
     let cipher = Aes256Gcm::new(key);
-    
+
     // Use AeadOsRng for nonce generation to avoid trait conflicts
     let nonce = Aes256Gcm::generate_nonce(&mut AeadOsRng);
 
