@@ -63,18 +63,25 @@ pub fn merge_chunks(chunks: Vec<(usize, usize)>, line_lengths: &[f64], lines: &[
   let (first, rest) = chunks.split_first().unwrap();
   let (mut result, last_chunk) = rest.iter().fold(
     (Vec::new(), *first),
-    |(mut acc, current), &next| {
-      if should_merge(current, next, line_lengths, lines) {
-        (acc, (current.0, next.1))
-      } else {
-        acc.push(current);
-        (acc, next)
-      }
-    }
+    |acc, &next| process_chunk_pair(acc, next, line_lengths, lines)
   );
   
   result.push(last_chunk);
   result
+}
+
+fn process_chunk_pair(
+  (mut acc, current): (Vec<(usize, usize)>, (usize, usize)),
+  next: (usize, usize),
+  line_lengths: &[f64],
+  lines: &[&str]
+) -> (Vec<(usize, usize)>, (usize, usize)) {
+  if should_merge(current, next, line_lengths, lines) {
+    (acc, (current.0, next.1))
+  } else {
+    acc.push(current);
+    (acc, next)
+  }
 }
 
 /// Decide whether to fuse chunks based on indentation patterns and line length transitions

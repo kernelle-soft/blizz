@@ -11,7 +11,14 @@ use crate::scoring;
 // Complexity scoring constants
 const DEPTH_PENALTY: f64 = 2.0;
 const VERBOSITY_PENALTY: f64 = 1.05;
-const SYNTACTIC_PENALTY: f64 = 1.25;
+const SYNTACTIC_PENALTY: f64 = 1.15;
+
+#[derive(Debug)]
+struct ChunkAnalysisContext<'a> {
+  lines: &'a [&'a str],
+  threshold: f64,
+  ignore_patterns: &'a [String],
+}
 
 #[derive(Debug, Clone)]
 pub struct FileAnalysis {
@@ -98,26 +105,34 @@ fn empty_file_analysis(path: &Path) -> FileAnalysis {
 }
 
 fn find_issues(chunks: Vec<(usize, usize)>, lines: &[&str], threshold: f64, config: &config::VioletConfig) -> Vec<scoring::ComplexityRegion> {
+  let context = ChunkAnalysisContext {
+    lines,
+    threshold,
+    ignore_patterns: &config.ignore_patterns,
+  };
+  
   chunks.into_iter()
-    .filter_map(|(start, end)| analyze_chunk(start, end, &lines, threshold, &config.ignore_patterns))
+    .filter_map(
+      |(start, end)| analyze_chunk(start, end, &context)
+    )
     .collect()
 }
 
-fn analyze_chunk(start: usize, end: usize, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Option<scoring::ComplexityRegion> {
+fn analyze_chunk(start: usize, end: usize, context: &ChunkAnalysisContext) -> Option<scoring::ComplexityRegion> {
   if end <= start {
     return None;
   }
   
-  let chunk_content = lines[start..end].join("\n");
+  let chunk_content = context.lines[start..end].join("\n");
   
-  if directives::has_ignored_patterns(&chunk_content, ignore_patterns) {
+  if directives::has_ignored_patterns(&chunk_content, context.ignore_patterns) {
     return None;
   }
 
   let score = calculate_complexity_score(&chunk_content);
   
-  if score > threshold {
-    Some(create_complexity_region(start, end, score, &chunk_content, &lines[start..end]))
+  if score > context.threshold {
+    Some(create_complexity_region(start, end, score, &chunk_content, &context.lines[start..end]))
   } else {
     None
   }

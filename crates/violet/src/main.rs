@@ -135,32 +135,38 @@ fn process_directory(
 }
 
 fn print_results(violation_output: Vec<String>, config: &config::VioletConfig) {
+  print_header(config);
+  
   if !violation_output.is_empty() {
-    println!(
-      "{}",
-      "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold()
-    );
-    println!();
-    
-    display_threshold_config(config);
-
-    let score_width = "score".len();
-    let chunk_width = TOTAL_WIDTH - score_width - PADDING;
-
-    println!("{:<width$} score", "chunk", width = chunk_width);
-    println!("{}", "=".repeat(TOTAL_WIDTH));
-
-    for output in violation_output {
-      print!("{output}");
-    }
+    print_violations_table(&violation_output);
   } else {
-    println!("{}", "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold());
-    println!();
-    
-    display_threshold_config(config);
-    
-    println!("{} No issues found. What beautiful code you have!", "✅".green());
+    print_success_message();
   }
+}
+
+fn print_header(config: &config::VioletConfig) {
+  println!(
+    "{}",
+    "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold()
+  );
+  println!();
+  display_threshold_config(config);
+}
+
+fn print_violations_table(violation_output: &[String]) {
+  let score_width = "score".len();
+  let chunk_width = TOTAL_WIDTH - score_width - PADDING;
+
+  println!("{:<width$} score", "chunk", width = chunk_width);
+  println!("{}", "=".repeat(TOTAL_WIDTH));
+
+  for output in violation_output {
+    print!("{output}");
+  }
+}
+
+fn print_success_message() {
+  println!("{} No issues found. What beautiful code you have!", "✅".green());
 }
 
 fn main() {
