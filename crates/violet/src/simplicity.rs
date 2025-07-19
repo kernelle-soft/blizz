@@ -6,55 +6,28 @@ use std::path::Path;
 use crate::chunking;
 use crate::config;
 use crate::directives;
+use crate::scoring;
 
 #[derive(Debug, Clone)]
 pub struct FileAnalysis {
   pub file_path: std::path::PathBuf,
-  pub total_score: f64,
-  pub complexity_regions: Vec<ComplexityRegion>,
+  pub average_score: f64,
+  pub issues: Vec<scoring::ComplexityRegion>,
   pub ignored: bool,
 }
 
-/// Breakdown showing which factors contribute to complexity
-#[derive(Debug, Clone)]
-pub struct ComplexityBreakdown {
-  pub depth_score: f64,
-  pub depth_percent: f64,
-  pub verbosity_score: f64,
-  pub verbosity_percent: f64,
-  pub syntactic_score: f64,
-  pub syntactic_percent: f64,
-}
-
-/// A region of code that exceeds complexity thresholds
-#[derive(Debug, Clone)]
-pub struct ComplexityRegion {
-  pub score: f64,
-  pub start_line: usize,
-  pub end_line: usize,
-  pub preview: String,
-  pub breakdown: ComplexityBreakdown,
-  pub region_type: RegionType,
-}
-
-#[derive(Debug, Clone)]
-pub enum RegionType {
-  NaturalChunk,
-  DetectedHotspot,
-}
-
-fn create_ignored_file_analysis(path: &Path) -> FileAnalysis {
+fn ignored_file_analysis(path: &Path) -> FileAnalysis {
   FileAnalysis {
     file_path: path.to_path_buf(),
-    total_score: 0.0,
-    complexity_regions: vec![],
+    average_score: 0.0,
+    issues: vec![],
     ignored: true,
   }
 }
 
 /// Calculate complexity components: depth (indentation), verbosity (length), syntax (special chars)
-pub fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
-  let indents = get_indents(line).saturating_sub(1); // First level is free
+pub fn line_complexity(line: &str) -> (f64, f64, f64) {
+  let indents = scoring::get_indents(line).saturating_sub(1); // First level is free
   let special_chars = get_num_specials(line);
   let non_special_chars = (line.trim().len() as f64) - special_chars;
 
@@ -65,104 +38,18 @@ pub fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
   (depth_component, verbosity_component, syntactic_component)
 }
 
-pub fn create_breakdown(
-  depth_total: f64,
-  verbosity_total: f64,
-  syntactic_total: f64,
-) -> ComplexityBreakdown {
-  let total_raw = depth_total + verbosity_total + syntactic_total;
-
-  if total_raw > 0.0 {
-    ComplexityBreakdown {
-      depth_score: depth_total,
-      depth_percent: (depth_total / total_raw) * 100.0,
-      verbosity_score: verbosity_total,
-      verbosity_percent: (verbosity_total / total_raw) * 100.0,
-      syntactic_score: syntactic_total,
-      syntactic_percent: (syntactic_total / total_raw) * 100.0,
-    }
-  } else {
-    ComplexityBreakdown {
-      depth_score: 0.0,
-      depth_percent: 0.0,
-      verbosity_score: 0.0,
-      verbosity_percent: 0.0,
-      syntactic_score: 0.0,
-      syntactic_percent: 0.0,
-    }
-  }
-}
-
-/// Calculate complexity with component breakdown
-pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown) {
-  let lines: Vec<&str> = chunk.lines().collect();
-  let mut depth_total = 0.0;
-  let mut verbosity_total = 0.0;
-  let mut syntactic_total = 0.0;
-
-  for line in lines {
-    let (depth_component, verbosity_component, syntactic_component) =
-      calculate_line_complexity(line);
-    depth_total += depth_component;
-    verbosity_total += verbosity_component;
-    syntactic_total += syntactic_component;
-  }
-
-  let sum = depth_total + verbosity_total + syntactic_total;
-  
-  // Natural log for information-theoretic scaling
-  let score = if sum > 0.0 { sum.ln() } else { 0.0 };
-
-  let breakdown = create_breakdown(depth_total, verbosity_total, syntactic_total);
-
-  (score, breakdown)
-}
-
-/// Simple complexity score (legacy interface)
-pub fn chunk_complexity(chunk: &str) -> f64 {
-  let (score, _) = chunk_complexity_with_breakdown(chunk);
-
-  (score * 100.0).round() / 100.0
-}
 
 /// Average complexity across all chunks in file
-pub fn file_complexity(file_content: &str) -> f64 {
-  let chunks = chunking::get_chunks(file_content);
+pub fn average_chunk_complexity(file_content: &str) -> f64 {
+  let chunks = chunking::find_chunks(file_content);
   if chunks.is_empty() {
     return 0.0;
   }
 
-      let chunk_scores: Vec<f64> = chunks.iter().map(|chunk| chunk_complexity(chunk)).collect();
+  let chunk_scores: Vec<f64> = chunks.iter().map(|chunk| scoring::complexity(&file_content[chunk.0..chunk.1], 2.0, 1.05, 1.25)).collect();
   let average_complexity = chunk_scores.iter().sum::<f64>() / chunks.len() as f64;
 
   average_complexity
-}
-
-fn get_indents(line: &str) -> usize {
-  get_indents_with_tab_size(line, 2) // 2 spaces = 1 indent level
-}
-
-fn get_indents_with_tab_size(line: &str, spaces_per_indent: usize) -> usize {
-  let mut indent_levels = 0;
-  let mut space_count = 0;
-  let chars: Vec<char> = line.chars().collect();
-
-  for &ch in &chars {
-    match ch {
-      ' ' => space_count += 1,
-      '\t' => {
-        // Convert accumulated spaces to indents, then add tab
-        indent_levels += space_count / spaces_per_indent;
-        space_count = 0;
-        indent_levels += 1;
-      },
-      _ => break, // Stop at first non-whitespace
-    }
-  }
-
-  indent_levels += space_count / spaces_per_indent;
-  
-  indent_levels
 }
 
 /// Count special characters using regex (non-word, non-whitespace chars)
@@ -181,79 +68,73 @@ pub fn analyze_file<P: AsRef<Path>>(
   
   let preprocessed = match directives::preprocess_file(&content) {
     Some(processed) => processed,
-    None => return Ok(create_ignored_file_analysis(path)),
+    None => return Ok(ignored_file_analysis(path)),
   };
 
   if preprocessed.trim().is_empty() {
-    return Ok(create_empty_file_analysis(path));
+    return Ok(empty_file_analysis(path));
   }
 
-  let complexity_regions = find_complexity_violations(&preprocessed, config, path);
-  let total_score = file_complexity(&preprocessed);
+  let threshold = config::get_threshold(config, path);
+  let chunks = chunking::find_chunks(&preprocessed);
+  let lines: Vec<&str> = preprocessed.lines().collect();
+
+  let issues = find_issues(chunks, &lines, threshold, config);
+  let file_average_score = average_chunk_complexity(&preprocessed);
 
   Ok(FileAnalysis { 
     file_path: path.to_path_buf(), 
-    total_score, 
-    complexity_regions, 
+    average_score: file_average_score, 
+    issues, 
     ignored: false 
   })
 }
 
-fn create_empty_file_analysis(path: &Path) -> FileAnalysis {
+fn empty_file_analysis(path: &Path) -> FileAnalysis {
   FileAnalysis {
     file_path: path.to_path_buf(),
-    total_score: 0.0,
-    complexity_regions: vec![],
+    average_score: 0.0,
+    issues: vec![],
     ignored: false,
   }
 }
 
-fn find_complexity_violations(content: &str, config: &config::VioletConfig, path: &Path) -> Vec<ComplexityRegion> {
-  let threshold = config::get_threshold_for_file(config, path);
-  let lines: Vec<&str> = content.lines().collect();
-  let line_lengths: Vec<f64> = lines.iter().map(|line| line.len() as f64).collect();
-  let regions = analyze_file_iterative_fusion(&lines, &line_lengths);
-  
-  process_regions_for_violations(regions, &lines, threshold, &config.ignore_patterns)
-}
+fn find_issues(chunks: Vec<(usize, usize)>, lines: &[&str], threshold: f64, config: &config::VioletConfig) -> Vec<scoring::ComplexityRegion> {
 
-fn process_regions_for_violations(regions: Vec<(usize, usize, f64)>, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Vec<ComplexityRegion> {
-  let mut complexity_regions = Vec::new();
+  let mut issues = Vec::new();
   
-  for (start, end, _) in regions {
-    if let Some(region) = analyze_region_if_complex(start, end, lines, threshold, ignore_patterns) {
-      complexity_regions.push(region);
+  for (start, end) in chunks {
+    if let Some(region) = analyze_chunk(start, end, &lines, threshold, &config.ignore_patterns) {
+      issues.push(region);
     }
   }
   
-  complexity_regions
+  issues
 }
 
-fn analyze_region_if_complex(start: usize, end: usize, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Option<ComplexityRegion> {
+fn analyze_chunk(start: usize, end: usize, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Option<scoring::ComplexityRegion> {
   if end <= start {
     return None;
   }
   
-  let chunk_lines = &lines[start..=end.min(lines.len().saturating_sub(1))];
-  let chunk_content = chunk_lines.join("\n");
+  let chunk_content = lines[start..end].join("\n");
   
   if directives::has_ignored_patterns(&chunk_content, ignore_patterns) {
     return None;
   }
 
-  let score = chunk_complexity(&chunk_content);
+  let score = scoring::complexity(&chunk_content, 2.0, 1.05, 1.25);
   
   if score > threshold {
-    let breakdown = calculate_chunk_breakdown(&chunk_content);
-    let preview = create_chunk_preview(chunk_lines);
+    let breakdown = scoring::chunk_breakdown(&chunk_content, 2.0, 1.05, 1.25);
+    let preview = create_chunk_preview(&lines[start..end]);
     
-    Some(ComplexityRegion {
+    Some(scoring::ComplexityRegion {
       start_line: start + 1,
       end_line: end + 1,
       score,
       breakdown,
       preview,
-      region_type: RegionType::DetectedHotspot,
     })
   } else {
     None
@@ -283,165 +164,9 @@ fn create_chunk_preview(lines: &[&str]) -> String {
   preview_lines.join("\n")
 }
 
-/// Iterative fusion algorithm to discover natural code boundaries
-fn analyze_file_iterative_fusion(lines: &[&str], line_lengths: &[f64]) -> Vec<(usize, usize, f64)> {
-  if lines.is_empty() {
-    return vec![];
-  }
-  
-  // Start with blank-line boundaries
-  let mut chunks = split_into_text_chunks(lines);
-  
-  // Iteratively merge compatible chunks until stable
-  loop {
-    let initial_count = chunks.len();
-    chunks = fuse_compatible_chunks(chunks, line_lengths, lines);
-    
-    if chunks.len() == initial_count {
-      break;
-    }
-  }
-  
-  chunks.into_iter()
-    .map(|(start, end)| (start, end, 0.0))
-    .collect()
-}
-
-/// Initial chunking based on blank lines
-fn split_into_text_chunks(lines: &[&str]) -> Vec<(usize, usize)> {
-  let mut chunks = Vec::new();
-  let mut current_start = 0;
-  let mut in_text_block = false;
-  
-  for (i, line) in lines.iter().enumerate() {
-    let has_text = !line.trim().is_empty();
-    
-    if has_text && !in_text_block {
-      current_start = i;
-      in_text_block = true;
-    } else if !has_text && in_text_block {
-      chunks.push((current_start, i));
-      in_text_block = false;
-    }
-  }
-  
-  if in_text_block {
-    chunks.push((current_start, lines.len()));
-  }
-  
-  chunks
-}
-
-/// Merge adjacent chunks that likely belong together
-fn fuse_compatible_chunks(chunks: Vec<(usize, usize)>, line_lengths: &[f64], lines: &[&str]) -> Vec<(usize, usize)> {
-  if chunks.len() <= 1 {
-    return chunks;
-  }
-  
-  let mut fused_chunks = Vec::new();
-  let mut current_chunk = chunks[0];
-  
-  for i in 1..chunks.len() {
-    let next_chunk = chunks[i];
-    
-    if should_fuse_chunks(current_chunk, next_chunk, line_lengths, lines) {
-      current_chunk = (current_chunk.0, next_chunk.1);
-    } else {
-      fused_chunks.push(current_chunk);
-      current_chunk = next_chunk;
-    }
-  }
-  
-  fused_chunks.push(current_chunk);
-  
-  fused_chunks
-}
-
-/// Decide whether to fuse chunks based on indentation patterns and line length transitions
-fn should_fuse_chunks(chunk1: (usize, usize), chunk2: (usize, usize), line_lengths: &[f64], lines: &[&str]) -> bool {
-  if !are_chunks_valid(chunk1, chunk2, lines) {
-    return false;
-  }
-  
-  if has_block_entry_exit_pattern(chunk1, chunk2, lines) {
-    return true;
-  }
-  
-  has_gradual_length_transition(chunk1, chunk2, line_lengths)
-}
-
-fn are_chunks_valid(chunk1: (usize, usize), chunk2: (usize, usize), lines: &[&str]) -> bool {
-  chunk1.0 < lines.len() && chunk1.1 > chunk1.0 && 
-  chunk2.0 < lines.len() && chunk2.1 > chunk2.0
-}
-
-fn has_block_entry_exit_pattern(chunk1: (usize, usize), chunk2: (usize, usize), lines: &[&str]) -> bool {
-  let prev_start_indent = get_indents(lines[chunk1.0]) as f64;
-  let prev_end_indent = get_indents(lines[chunk1.1.saturating_sub(1)]) as f64;
-  
-  if prev_end_indent <= prev_start_indent {
-    return false;
-  }
-  
-  let next_start_indent = get_indents(lines[chunk2.0]) as f64;
-  let next_end_indent = get_indents(lines[chunk2.1.saturating_sub(1)]) as f64;
-  
-  next_start_indent >= next_end_indent
-}
-
-fn has_gradual_length_transition(chunk1: (usize, usize), chunk2: (usize, usize), line_lengths: &[f64]) -> bool {
-  let last_line_idx = chunk1.1.saturating_sub(1);
-  let first_line_idx = chunk2.0;
-  
-  let last_line_length = line_lengths[last_line_idx];
-  let first_line_length = line_lengths[first_line_idx];
-  
-  let length_ratio = calculate_length_ratio(last_line_length, first_line_length);
-  
-  length_ratio <= 2.0
-}
-
-fn calculate_length_ratio(last_length: f64, first_length: f64) -> f64 {
-  if last_length == 0.0 {
-    f64::INFINITY
-  } else {
-    first_length / last_length
-  }
-}
-
-fn calculate_chunk_breakdown(chunk_content: &str) -> ComplexityBreakdown {
-  let lines: Vec<&str> = chunk_content.lines().collect();
-  
-  let mut total_depth = 0.0;
-  let mut total_verbosity = 0.0;
-  let mut total_syntactic = 0.0;
-  
-  for line in lines {
-    let (depth, verbosity, syntactic) = calculate_line_complexity(line);
-    total_depth += depth;
-    total_verbosity += verbosity;
-    total_syntactic += syntactic;
-  }
-  
-  create_breakdown(total_depth, total_verbosity, total_syntactic)
-}
-
-// violet ignore chunk
 #[cfg(test)]
 mod tests {
   use super::*;
-
-  #[test]
-  fn test_get_indents() {
-    assert_eq!(get_indents("  hello"), 1);
-    assert_eq!(get_indents("    world"), 2);
-    assert_eq!(get_indents("no_indent"), 0);
-    assert_eq!(get_indents("\tindented"), 1);
-    assert_eq!(get_indents("\t\tindented"), 2);
-    assert_eq!(get_indents("      deep"), 3);
-    assert_eq!(get_indents("  \tcombo"), 2);
-    assert_eq!(get_indents("\t  partial"), 2);
-  }
 
   #[test]
   fn test_get_num_specials() {
@@ -454,7 +179,7 @@ mod tests {
   #[test]
   fn test_file_complexity() {
     let content = "fn one() {\n    return 1;\n}\n\nfn two() {\n    return 2;\n}";
-    let score = file_complexity(content);
+    let score = average_chunk_complexity(content);
 
     assert!(score > 0.0);
   }
@@ -469,10 +194,10 @@ mod tests {
     assert!(preprocessed.contains("fn another_simple()"));
     assert!(!preprocessed.contains("fn complex()"));
 
-    let chunks = chunking::get_chunks(&preprocessed);
+    let chunks = chunking::find_chunks(&preprocessed);
     assert_eq!(chunks.len(), 2);
 
-    let total_score = file_complexity(&preprocessed);
+    let total_score = average_chunk_complexity(&preprocessed);
     assert!(total_score > 0.0);
     assert!(total_score < 1000.0);
   }
@@ -482,8 +207,8 @@ mod tests {
     let simple_content = "fn simple() {\n    return 42;\n}";
     let complex_content = "fn complex() {\n    if condition1 {\n        if condition2 {\n            if condition3 {\n                return nested_result();\n            }\n        }\n    }\n}";
 
-    let simple_score = chunk_complexity(simple_content);
-    let complex_score = chunk_complexity(complex_content);
+    let simple_score = scoring::complexity(simple_content, 2.0, 1.05, 1.25);
+    let complex_score = scoring::complexity(complex_content, 2.0, 1.05, 1.25);
 
     assert!(complex_score > simple_score * 1.5);
   }
@@ -494,9 +219,9 @@ mod tests {
     let short = "fn f() { return 1; }";
     let medium = "fn medium() {\n    if condition {\n        return process(value);\n    }\n    return default;\n}";
 
-    let minimal_score = chunk_complexity(minimal);
-    let short_score = chunk_complexity(short);
-    let medium_score = chunk_complexity(medium);
+    let minimal_score = scoring::complexity(minimal, 2.0, 1.05, 1.25);
+    let short_score = scoring::complexity(short, 2.0, 1.05, 1.25);
+    let medium_score = scoring::complexity(medium, 2.0, 1.05, 1.25);
 
     assert!(minimal_score < short_score);
     assert!(short_score < medium_score);
@@ -506,43 +231,26 @@ mod tests {
 
   #[test]
   fn test_calculate_line_complexity() {
-    let (depth, verbosity, syntactic) = calculate_line_complexity("hello world");
+    let (depth, verbosity, syntactic) = line_complexity("hello world");
     assert_eq!(depth, 1.0);
     assert!(verbosity > 1.0);
     assert_eq!(syntactic, 1.0);
 
-    let (depth, verbosity, syntactic) = calculate_line_complexity("    if (condition) {");
+    let (depth, verbosity, syntactic) = line_complexity("    if (condition) {");
     assert!(depth > 1.0);
     assert!(verbosity > 1.0);
     assert!(syntactic > 1.0);
 
-    let (depth, verbosity, syntactic) = calculate_line_complexity("");
+    let (depth, verbosity, syntactic) = line_complexity("");
     assert_eq!(depth, 1.0);
     assert_eq!(verbosity, 1.0);
     assert_eq!(syntactic, 1.0);
   }
 
   #[test]
-  fn test_create_breakdown() {
-    let breakdown = create_breakdown(10.0, 20.0, 30.0);
-    assert_eq!(breakdown.depth_score, 10.0);
-    assert_eq!(breakdown.verbosity_score, 20.0);
-    assert_eq!(breakdown.syntactic_score, 30.0);
-    assert!((breakdown.depth_percent - 16.67).abs() < 0.1);
-    assert!((breakdown.verbosity_percent - 33.33).abs() < 0.1);
-    assert!((breakdown.syntactic_percent - 50.0).abs() < 0.1);
-
-    let zero_breakdown = create_breakdown(0.0, 0.0, 0.0);
-    assert_eq!(zero_breakdown.depth_score, 0.0);
-    assert_eq!(zero_breakdown.depth_percent, 0.0);
-    assert_eq!(zero_breakdown.verbosity_percent, 0.0);
-    assert_eq!(zero_breakdown.syntactic_percent, 0.0);
-  }
-
-  #[test]
   fn test_chunk_complexity_simple() {
     let chunk = "fn simple() {\n    println!(\"hello\");\n}";
-    let score = chunk_complexity(chunk);
+    let score = scoring::complexity(chunk, 2.0, 1.05, 1.25);
 
     assert!(score > 0.0);
     assert!(score < 10000.0);
@@ -553,8 +261,8 @@ mod tests {
     let simple_chunk = "fn simple() {\n    return 42;\n}";
     let nested_chunk = "fn nested() {\n    if condition {\n        if nested {\n            return 42;\n        }\n    }\n}";
 
-    let simple_score = chunk_complexity(simple_chunk);
-    let nested_score = chunk_complexity(nested_chunk);
+    let simple_score = scoring::complexity(simple_chunk, 2.0, 1.05, 1.25);
+    let nested_score = scoring::complexity(nested_chunk, 2.0, 1.05, 1.25);
 
     assert!(nested_score > simple_score);
   }

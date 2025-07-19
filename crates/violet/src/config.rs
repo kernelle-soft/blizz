@@ -57,7 +57,8 @@ pub fn load_config() -> Result<VioletConfig> {
   Ok(merge(global_config, project_config))
 }
 
-pub fn get_threshold_for_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -> f64 {
+/// Get the threshold for a file based on its extension
+pub fn get_threshold<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -> f64 {
   let path = file_path.as_ref();
 
   if let Some(extension) = path.extension().and_then(|ext| ext.to_str()) {
@@ -285,10 +286,10 @@ mod tests {
       ..Default::default()
     };
 
-    assert_eq!(get_threshold_for_file(&config, "main.rs"), 8.0);
-    assert_eq!(get_threshold_for_file(&config, "script.js"), 6.0);
-    assert_eq!(get_threshold_for_file(&config, "config.json"), 7.0);
-    assert_eq!(get_threshold_for_file(&config, "README.md"), 7.0);
+    assert_eq!(get_threshold(&config, "main.rs"), 8.0);
+    assert_eq!(get_threshold(&config, "script.js"), 6.0);
+    assert_eq!(get_threshold(&config, "config.json"), 7.0);
+    assert_eq!(get_threshold(&config, "README.md"), 7.0);
   }
 
   #[test]
@@ -535,12 +536,12 @@ mod tests {
       ..Default::default()
     };
 
-    assert_eq!(get_threshold_for_file(&config, "README"), 6.0);
-    assert_eq!(get_threshold_for_file(&config, "Makefile"), 6.0);
+    assert_eq!(get_threshold(&config, "README"), 6.0);
+    assert_eq!(get_threshold(&config, "Makefile"), 6.0);
 
-    assert_eq!(get_threshold_for_file(&config, "file.tar.gz"), 6.0);
+    assert_eq!(get_threshold(&config, "file.tar.gz"), 6.0);
 
-    assert_eq!(get_threshold_for_file(&config, ""), 6.0);
+    assert_eq!(get_threshold(&config, ""), 6.0);
   }
 
   #[test]
@@ -759,17 +760,17 @@ mod tests {
       ..Default::default()
     };
     
-    assert_eq!(get_threshold_for_file(&config, "main.rs"), 8.0);
-    assert_eq!(get_threshold_for_file(&config, "script.py"), 7.0);
-    assert_eq!(get_threshold_for_file(&config, "app.js"), 6.0);
-    assert_eq!(get_threshold_for_file(&config, "App.java"), 9.0);
+    assert_eq!(get_threshold(&config, "main.rs"), 8.0);
+    assert_eq!(get_threshold(&config, "script.py"), 7.0);
+    assert_eq!(get_threshold(&config, "app.js"), 6.0);
+    assert_eq!(get_threshold(&config, "App.java"), 9.0);
     
-    assert_eq!(get_threshold_for_file(&config, "config.toml"), 5.0);
-    assert_eq!(get_threshold_for_file(&config, "README.md"), 5.0);
+    assert_eq!(get_threshold(&config, "config.toml"), 5.0);
+    assert_eq!(get_threshold(&config, "README.md"), 5.0);
     
-    assert_eq!(get_threshold_for_file(&config, "src/main.rs"), 8.0);
-    assert_eq!(get_threshold_for_file(&config, "./scripts/build.py"), 7.0);
-    assert_eq!(get_threshold_for_file(&config, "/usr/local/bin/tool.unknown"), 5.0);
+    assert_eq!(get_threshold(&config, "src/main.rs"), 8.0);
+    assert_eq!(get_threshold(&config, "./scripts/build.py"), 7.0);
+    assert_eq!(get_threshold(&config, "/usr/local/bin/tool.unknown"), 5.0);
   }
 
   #[test]

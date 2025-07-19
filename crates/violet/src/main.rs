@@ -6,6 +6,7 @@ use std::process;
 use std::sync::OnceLock;
 use violet::config;
 use violet::simplicity;
+use violet::scoring;
 
 const TOTAL_WIDTH: usize = 80;
 const PADDING: usize = 2;
@@ -98,10 +99,10 @@ fn process_single_file(
   match simplicity::analyze_file(path, config) {
     Ok(analysis) => {
       *total_files += 1;
-      let threshold = config::get_threshold_for_file(config, path);
+      let threshold = config::get_threshold(config, path);
       if let Some(output) = process_file_analysis(&analysis, config, cli, threshold) {
         let chunk_violations =
-          analysis.complexity_regions.iter().filter(|region| region.score > threshold).count();
+          analysis.issues.iter().filter(|region| region.score > threshold).count();
         violation_output.push(output);
         chunk_violations
       } else {
@@ -216,7 +217,7 @@ fn collect_files_recursively(dir: &PathBuf, config: &config::VioletConfig) -> Ve
   files
 }
 
-fn format_chunk_preview(chunk: &simplicity::ComplexityRegion) -> String {
+fn format_chunk_preview(chunk: &scoring::ComplexityRegion) -> String {
   let mut output = String::new();
   let preview_lines: Vec<&str> = chunk.preview.lines().collect();
 
@@ -241,7 +242,7 @@ fn report_subscore(name: &str, scaled_score: f64, percent: f64) -> String {
   format!("    {name}: {scaled_score:.2} ({percent:.0}%)\n")
 }
 
-fn format_complexity_breakdown(breakdown: &simplicity::ComplexityBreakdown) -> String {
+fn format_complexity_breakdown(breakdown: &scoring::ComplexityBreakdown) -> String {
   let mut output = String::new();
 
   let depth_scaled = scale_component_score(breakdown.depth_score);
@@ -255,7 +256,7 @@ fn format_complexity_breakdown(breakdown: &simplicity::ComplexityBreakdown) -> S
   output
 }
 
-fn format_violating_chunk(chunk: &simplicity::ComplexityRegion) -> String {
+fn format_violating_chunk(chunk: &scoring::ComplexityRegion) -> String {
   let mut output = String::new();
 
   let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
@@ -293,18 +294,17 @@ fn process_file_analysis(
     return handle_ignored_file(analysis, cli);
   }
 
-  let violating_chunks: Vec<&simplicity::ComplexityRegion> =
-    analysis.complexity_regions.iter().filter(|region| region.score > threshold).collect();
+  let complex_chunks: Vec<&scoring::ComplexityRegion> =
+    analysis.issues.iter().filter(|chunk| chunk.score > threshold).collect();
 
-  if violating_chunks.is_empty() {
+  if complex_chunks.is_empty() {
     return None;
   }
 
   let mut output = String::new();
-
   output.push_str(&format_file_header(&analysis.file_path.display().to_string()));
 
-  for chunk in violating_chunks {
+  for chunk in complex_chunks {
     output.push_str(&format_violating_chunk(chunk));
   }
 
@@ -457,7 +457,7 @@ mod tests {
   use std::collections::HashMap;
   use std::fs;
   use tempfile::TempDir;
-  use violet::simplicity::{ComplexityBreakdown, ComplexityRegion, RegionType};
+  use violet::scoring::{ComplexityBreakdown, ComplexityRegion};
 
   #[test]
   fn test_format_file_path_no_truncation() {
@@ -585,7 +585,6 @@ mod tests {
         syntactic_score: 1.0,
         syntactic_percent: 20.0,
       },
-      region_type: RegionType::NaturalChunk,
     };
 
     let preview = format_chunk_preview(&chunk_score);
@@ -614,7 +613,6 @@ mod tests {
         syntactic_score: 0.0,
         syntactic_percent: 0.0,
       },
-      region_type: RegionType::NaturalChunk,
     };
 
     let preview = format_chunk_preview(&chunk_score);
@@ -639,7 +637,6 @@ mod tests {
         syntactic_score: 0.0,
         syntactic_percent: 0.0,
       },
-      region_type: RegionType::NaturalChunk,
     };
 
     let preview = format_chunk_preview(&chunk_score);
@@ -710,7 +707,6 @@ mod tests {
         syntactic_score: 2.0,
         syntactic_percent: 25.0,
       },
-      region_type: RegionType::DetectedHotspot,
     };
 
     let formatted = format_violating_chunk(&chunk_score);
