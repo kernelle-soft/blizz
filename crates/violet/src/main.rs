@@ -135,21 +135,22 @@ fn process_directory(
 }
 
 fn print_results(violation_output: Vec<String>, config: &config::VioletConfig) {
+  print_tool_announcement();
+
   if !violation_output.is_empty() {
-    print_header(config);
+    display_threshold_config(config);
     print_violations_table(&violation_output);
   } else {
     print_success_message();
   }
 }
 
-fn print_header(config: &config::VioletConfig) {
+fn print_tool_announcement() {
   println!(
     "{}",
     "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold()
   );
   println!();
-  display_threshold_config(config);
 }
 
 fn print_violations_table(violation_output: &[String]) {
