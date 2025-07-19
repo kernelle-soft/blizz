@@ -3,13 +3,10 @@
 use regex::Regex;
 use std::fs;
 use std::path::Path;
-use crate::config::{
-  VioletConfig, 
-  get_threshold_for_file, 
-  should_ignore_chunk_with_patterns
-};
+use crate::config::{VioletConfig, get_threshold_for_file};
+use crate::directives;
 
-const IGNORE_DIRECTIVE_PATTERN: &str = r"violet\s+ignore\s+(file|chunk|start|end|line)";
+
 
 #[derive(Debug, Clone)]
 pub struct FileAnalysis {
@@ -56,69 +53,13 @@ fn create_ignored_file_analysis(path: &Path) -> FileAnalysis {
   }
 }
 
-fn has_file_ignore_directive(lines: &[&str]) -> bool {
-  let ignore_regex = Regex::new(IGNORE_DIRECTIVE_PATTERN).unwrap();
-  lines.iter().any(|line| {
-    ignore_regex.captures(line).is_some_and(|caps| caps.get(1).unwrap().as_str() == "file")
-  })
-}
 
-fn process_directive<'a>(
-  directive: &str,
-  ignore_depth: &mut usize,
-  skip_next_line: &mut bool,
-  result_lines: &mut Vec<&'a str>,
-  line: &'a str,
-) {
-  match directive {
-    "start" => {
-      *ignore_depth += 1;
-    }
-    "end" => {
-      if *ignore_depth > 0 {
-        *ignore_depth -= 1;
-      }
-    }
-    "line" => {
-      *skip_next_line = true;
-    }
-    "chunk" => {
-      // Keep directive lines for chunk removal during analysis
-      if *ignore_depth == 0 {
-        result_lines.push(line);
-      }
-    }
-    _ => {}
-  }
-}
-
-fn process_line<'a>(
-  line: &'a str,
-  ignore_depth: &mut usize,
-  skip_next_line: &mut bool,
-  result_lines: &mut Vec<&'a str>,
-) -> bool {
-  let ignore_regex = Regex::new(IGNORE_DIRECTIVE_PATTERN).unwrap();
-
-  if *skip_next_line {
-    *skip_next_line = false;
-    return true;
-  }
-
-  if let Some(captures) = ignore_regex.captures(line) {
-    let directive = captures.get(1).unwrap().as_str();
-    process_directive(directive, ignore_depth, skip_next_line, result_lines, line);
-    return true;
-  }
-
-  false
-}
 
 /// Strip out violet ignore directives, returning None if entire file should be ignored
 pub fn preprocess_file(content: &str) -> Option<String> {
   let lines: Vec<&str> = content.lines().collect();
 
-  if has_file_ignore_directive(&lines) {
+  if directives::is_ignored_file(&lines) {
     return None;
   }
 
@@ -127,7 +68,7 @@ pub fn preprocess_file(content: &str) -> Option<String> {
   let mut skip_next_line = false;
 
   for line in lines.iter() {
-    if process_line(line, &mut ignore_depth, &mut skip_next_line, &mut result_lines) {
+    if directives::process_line(line, &mut ignore_depth, &mut skip_next_line, &mut result_lines) {
       continue;
     }
 
@@ -351,7 +292,7 @@ fn analyze_region_if_complex(start: usize, end: usize, lines: &[&str], threshold
   let chunk_lines = &lines[start..=end.min(lines.len().saturating_sub(1))];
   let chunk_content = chunk_lines.join("\n");
   
-  if should_ignore_chunk_with_patterns(&chunk_content, ignore_patterns) {
+  if directives::has_ignored_patterns(&chunk_content, ignore_patterns) {
     return None;
   }
 

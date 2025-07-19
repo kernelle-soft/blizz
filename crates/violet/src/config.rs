@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use glob::Pattern;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -108,26 +107,7 @@ pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -
   false
 }
 
-fn should_ignore_chunk(chunk_content: &str) -> bool {
-  let ignore_regex = Regex::new(r"violet\s+ignore\s+chunk").unwrap();
-  chunk_content.lines().any(|line| ignore_regex.is_match(line))
-}
 
-pub fn should_ignore_chunk_with_patterns(chunk_content: &str, ignore_patterns: &[String]) -> bool {
-  if should_ignore_chunk(chunk_content) {
-    return true;
-  }
-  
-  for pattern in ignore_patterns {
-    if let Ok(regex) = Regex::new(pattern) {
-      if regex.is_match(chunk_content) {
-        return true;
-      }
-    }
-  }
-  
-  false
-}
 
 fn load_project_config() -> Result<Option<VioletConfig>> {
   let current_dir = std::env::current_dir().context("Failed to get current working directory")?;
@@ -952,21 +932,5 @@ mod tests {
     assert_eq!(large_config.complexity.thresholds.default, 15.0);
   }
 
-  #[test]
-  fn test_should_ignore_chunk() {
-    let normal_chunk = "fn normal() {\n    return 42;\n}";
-    assert!(!should_ignore_chunk(normal_chunk));
 
-    let ignored_chunk = "// violet ignore chunk\nfn complex() {\n    if deeply {\n        if nested {\n            return 42;\n        }\n    }\n}";
-    assert!(should_ignore_chunk(ignored_chunk));
-
-    let ignored_chunk2 = "# violet ignore chunk\nfn another() { return 1; }";
-    assert!(should_ignore_chunk(ignored_chunk2));
-
-    let ignored_chunk3 = "/* violet ignore chunk */\nfn yet_another() { return 2; }";
-    assert!(should_ignore_chunk(ignored_chunk3));
-
-    let ignored_chunk4 = "//   violet   ignore   chunk   \nfn spaced() { return 3; }";
-    assert!(should_ignore_chunk(ignored_chunk4));
-  }
 }
