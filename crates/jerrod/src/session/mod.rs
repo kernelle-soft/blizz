@@ -96,35 +96,49 @@ impl SessionManager {
   pub fn new() -> Result<Self> {
     let base_dir = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
       std::path::PathBuf::from(kernelle_dir)
+    } else if let Some(home_dir) = dirs::home_dir() {
+      home_dir.join(".cursor").join("rules").join("kernelle")
     } else {
-      dirs::home_dir()
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?
-        .join(".kernelle")
+      return Err(anyhow::anyhow!("Unable to determine home directory"));
     };
+
+    // Ensure base directory exists
+    if !base_dir.exists() {
+      std::fs::create_dir_all(&base_dir)?;
+    }
 
     Ok(Self { base_dir, current_session_path: None })
   }
 
-  pub fn with_session_context(
-    &mut self,
-    platform: &str,
-    repository_path: &str,
-    mr_number: u64,
-  ) -> Result<()> {
-    let platform_dir = match platform {
-      "github" => "github",
-      "gitlab" => "gitlab",
-      _ => return Err(anyhow::anyhow!("Unsupported platform: {}", platform)),
-    };
+  pub fn with_session_context(&mut self, platform: &str, repo: &str, mr: u64) -> Result<()> {
+    // Sanitize repository path to prevent directory traversal
+    let sanitized_repo_path = repo.replace("..", "").replace('\\', "/");
 
+    // Build the session directory path
     let session_dir = self
       .base_dir
       .join("code-reviews")
-      .join(platform_dir)
-      .join(repository_path)
-      .join(mr_number.to_string());
+      .join(platform)
+      .join(&sanitized_repo_path)
+      .join(mr.to_string());
+
+    // Create directory structure step by step
+    let code_reviews_dir = self.base_dir.join("code-reviews");
+    std::fs::create_dir_all(&code_reviews_dir)?;
+
+    let platform_dir_path = code_reviews_dir.join(platform);
+    std::fs::create_dir_all(&platform_dir_path)?;
+
+    let repo_dir = platform_dir_path.join(&sanitized_repo_path);
+    std::fs::create_dir_all(&repo_dir)?;
 
     std::fs::create_dir_all(&session_dir)?;
+
+    // Verify directory was created
+    if !session_dir.exists() {
+      return Err(anyhow::anyhow!("Failed to create session directory: {}", session_dir.display()));
+    }
+
     self.current_session_path = Some(session_dir);
     Ok(())
   }
@@ -150,7 +164,21 @@ impl SessionManager {
   }
 
   pub fn save_session(&self, session: &ReviewSession) -> Result<()> {
-    let session_file = self.get_session_path()?.join("session.json");
+    let session_path = self.get_session_path()?;
+    let session_file = session_path.join("session.json");
+
+    // Ensure the session directory exists with robust cross-platform directory creation
+    if !session_path.exists() {
+      std::fs::create_dir_all(session_path)?;
+    }
+
+    // Ensure parent directory exists for the session file
+    if let Some(parent) = session_file.parent() {
+      if !parent.exists() {
+        std::fs::create_dir_all(parent)?;
+      }
+    }
+
     let json = serde_json::to_string_pretty(session)?;
     std::fs::write(session_file, json)?;
     Ok(())
@@ -294,13 +322,12 @@ impl SessionDiscovery {
 
               let repo_name = repo_entry.file_name().to_string_lossy().to_string();
               let org_name = org_entry.file_name().to_string_lossy().to_string();
-              let repository_path = format!("{}/{}", org_name, repo_name);
+              let repository_path = format!("{org_name}/{repo_name}");
 
               manager.with_session_context(&platform_name, &repository_path, mr_number)?;
 
               bentley::info(&format!(
-                "Found session: {} #{} ({})",
-                repository_path, mr_number, platform_name
+                "Found session: {repository_path} #{mr_number} ({platform_name})"
               ));
 
               return Ok(Some(manager));

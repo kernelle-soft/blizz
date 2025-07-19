@@ -9,22 +9,14 @@ use tokio::process::Command;
 
 pub type TasksFile = HashMap<String, String>;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TaskRunnerOptions {
   pub silent: bool,
   pub tasks_file_path: Option<String>,
 }
 
-impl Default for TaskRunnerOptions {
-  fn default() -> Self {
-    Self { silent: false, tasks_file_path: None }
-  }
-}
-
 #[derive(Debug)]
 pub struct TaskResult {
-  pub stdout: String,
-  pub stderr: String,
   pub success: bool,
   pub exit_code: Option<i32>,
 }
@@ -79,28 +71,28 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
 fn load_merged_tasks_file() -> Result<TasksFile> {
   let cursor_path = "./.cursor/kernelle.tasks";
   let root_path = "./kernelle.tasks";
-  
+
   let cursor_exists = Path::new(cursor_path).exists();
   let root_exists = Path::new(root_path).exists();
-  
+
   match (cursor_exists, root_exists) {
     (true, true) => {
       // Both exist - merge them with cursor taking precedence
       let mut root_tasks = load_tasks_file(root_path)?;
       let cursor_tasks = load_tasks_file(cursor_path)?;
-      
+
       // Start with root tasks, then overlay cursor tasks (cursor wins conflicts)
       root_tasks.extend(cursor_tasks);
       Ok(root_tasks)
-    },
+    }
     (true, false) => {
       // Only cursor exists
       load_tasks_file(cursor_path)
-    },
+    }
     (false, true) => {
       // Only root exists
       load_tasks_file(root_path)
-    },
+    }
     (false, false) => {
       Err(anyhow!("No tasks file found. Looked for:\n  - {}\n  - {}", cursor_path, root_path))
     }
@@ -155,14 +147,14 @@ async fn execute_with_streaming(cmd: &mut Command) -> Result<TaskResult> {
   let stdout_handle = tokio::spawn(async move {
     let mut lines = stdout_reader.lines();
     while let Ok(Some(line)) = lines.next_line().await {
-      println!("{}", line);
+      println!("{line}");
     }
   });
 
   let stderr_handle = tokio::spawn(async move {
     let mut lines = stderr_reader.lines();
     while let Ok(Some(line)) = lines.next_line().await {
-      eprintln!("{}", line);
+      eprintln!("{line}");
     }
   });
 
@@ -171,12 +163,7 @@ async fn execute_with_streaming(cmd: &mut Command) -> Result<TaskResult> {
   // Wait for output streaming to complete
   let _ = tokio::join!(stdout_handle, stderr_handle);
 
-  Ok(TaskResult {
-    stdout: "[streamed to console]".to_string(),
-    stderr: "[streamed to console]".to_string(),
-    success: status.success(),
-    exit_code: status.code(),
-  })
+  Ok(TaskResult { success: status.success(), exit_code: status.code() })
 }
 
 async fn execute_with_capture(cmd: &mut Command) -> Result<TaskResult> {
@@ -184,14 +171,75 @@ async fn execute_with_capture(cmd: &mut Command) -> Result<TaskResult> {
 
   let output = cmd.output().await?;
 
-  Ok(TaskResult {
-    stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-    stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-    success: output.status.success(),
-    exit_code: output.status.code(),
-  })
+  Ok(TaskResult { success: output.status.success(), exit_code: output.status.code() })
 }
 
 fn is_ci_environment() -> bool {
   env::var("CI").is_ok() || env::var("NO_COLOR").is_ok()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[tokio::test]
+  async fn test_list_tasks_with_nonexistent_file() {
+    // Test list_tasks with a file that doesn't exist
+    let result = list_tasks(Some("nonexistent.tasks".to_string())).await;
+
+    // Should return an error since the file doesn't exist
+    assert!(result.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_get_tasks_file_with_nonexistent_file() {
+    // Test get_tasks_file with a file that doesn't exist
+    let result = get_tasks_file(Some("nonexistent.tasks".to_string())).await;
+
+    // Should return an error since the file doesn't exist
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn test_task_runner_options_default() {
+    // Test that TaskRunnerOptions has sensible defaults
+    let options = TaskRunnerOptions::default();
+
+    assert!(!options.silent);
+    assert!(options.tasks_file_path.is_none());
+  }
+
+  #[test]
+  fn test_task_result_fields() {
+    // Test TaskResult struct fields
+    let result = TaskResult { success: true, exit_code: Some(0) };
+
+    assert!(result.success);
+    assert_eq!(result.exit_code, Some(0));
+
+    let failed_result = TaskResult { success: false, exit_code: Some(1) };
+
+    assert!(!failed_result.success);
+    assert_eq!(failed_result.exit_code, Some(1));
+  }
+
+  #[tokio::test]
+  async fn test_run_task_with_nonexistent_task() {
+    // Test running a task that doesn't exist
+    let options =
+      TaskRunnerOptions { silent: true, tasks_file_path: Some("nonexistent.tasks".to_string()) };
+
+    let result = run_task("nonexistent_task", &[], options).await;
+
+    // Should return an error since the file doesn't exist
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn test_is_ci_environment() {
+    // Test the CI environment detection function
+    // This will depend on the actual environment, so we just ensure it doesn't panic
+    let _is_ci = is_ci_environment();
+    // Function should not panic and should return a boolean
+  }
 }

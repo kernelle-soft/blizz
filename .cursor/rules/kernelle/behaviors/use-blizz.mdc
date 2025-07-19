@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 ## Read Also
 - [blizz-crud-operations](mdc:.cursor/rules/kernelle/definitions/blizz-crud-operations.mdc)

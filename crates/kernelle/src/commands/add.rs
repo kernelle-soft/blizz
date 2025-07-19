@@ -2,6 +2,49 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Creates a cross-platform symlink/junction
+fn create_cross_platform_symlink(src: &Path, dst: &Path) -> std::io::Result<()> {
+  #[cfg(unix)]
+  {
+    std::os::unix::fs::symlink(src, dst)
+  }
+
+  #[cfg(windows)]
+  {
+    // On Windows, try symlink_dir first, fall back to copying if it fails
+    // (symlinks require admin privileges on Windows)
+    match std::os::windows::fs::symlink_dir(src, dst) {
+      Ok(()) => Ok(()),
+      Err(_) => {
+        // Fall back to creating a junction using the junction crate if available,
+        // or just copy the directory structure
+        if src.is_dir() {
+          copy_dir_recursive(src, dst)
+        } else {
+          std::fs::copy(src, dst).map(|_| ())
+        }
+      }
+    }
+  }
+}
+
+#[cfg(windows)]
+fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+  std::fs::create_dir_all(dst)?;
+  for entry in std::fs::read_dir(src)? {
+    let entry = entry?;
+    let src_path = entry.path();
+    let dst_path = dst.join(entry.file_name());
+
+    if src_path.is_dir() {
+      copy_dir_recursive(&src_path, &dst_path)?;
+    } else {
+      std::fs::copy(&src_path, &dst_path)?;
+    }
+  }
+  Ok(())
+}
+
 pub async fn execute(target_dir: &str) -> Result<()> {
   let target_path = Path::new(target_dir);
   let kernelle_home = get_kernelle_home()?;
@@ -41,8 +84,8 @@ pub async fn execute(target_dir: &str) -> Result<()> {
     }
   }
 
-  // Create the symlink
-  std::os::unix::fs::symlink(&cursor_source, &kernelle_link).with_context(|| {
+  // Create the symlink (cross-platform)
+  create_cross_platform_symlink(&cursor_source, &kernelle_link).with_context(|| {
     format!("Failed to create symlink: {} -> {}", cursor_source.display(), kernelle_link.display())
   })?;
 

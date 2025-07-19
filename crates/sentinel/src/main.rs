@@ -156,8 +156,7 @@ async fn handle_setup(
     "notion" => services::notion(),
     _ => {
       bentley::error(&format!(
-        "Unsupported service: {}. Supported services: github, gitlab, jira, notion",
-        service_name
+        "Unsupported service: {service_name}. Supported services: github, gitlab, jira, notion"
       ));
       bentley::info("Use 'sentinel store' for arbitrary credential storage");
       return Ok(());
@@ -186,7 +185,7 @@ async fn handle_setup(
       bentley::info(&format!("\n📝 Setting up: {}", cred_spec.description));
 
       if let Some(example) = &cred_spec.example {
-        bentley::info(&format!("   Example format: {}", example));
+        bentley::info(&format!("   Example format: {example}"));
       }
 
       let prompt = format!("Enter {}: ", cred_spec.key);
@@ -218,7 +217,7 @@ async fn handle_store(
 ) -> Result<()> {
   // Check if credential already exists
   if !force && sentinel.get_credential_raw(service, key).is_ok() {
-    bentley::warn(&format!("Credential {}/{} already exists", service, key));
+    bentley::warn(&format!("Credential {service}/{key} already exists"));
     bentley::info("Use --force to overwrite existing credential");
     return Ok(());
   }
@@ -226,7 +225,7 @@ async fn handle_store(
   let credential_value = if let Some(val) = value {
     val
   } else {
-    let prompt = format!("Enter value for {}/{}: ", service, key);
+    let prompt = format!("Enter value for {service}/{key}: ");
     rpassword::prompt_password(prompt)?
   };
 
@@ -236,7 +235,7 @@ async fn handle_store(
   }
 
   sentinel.store_credential_raw(service, key, credential_value.trim())?;
-  bentley::success(&format!("Stored credential: {}/{}", service, key));
+  bentley::success(&format!("Stored credential: {service}/{key}"));
   Ok(())
 }
 
@@ -244,14 +243,14 @@ async fn handle_get(sentinel: &Sentinel, service: &str, key: &str, show: bool) -
   match sentinel.get_credential_raw(service, key) {
     Ok(value) => {
       if show {
-        bentley::info(&format!("Credential {}/{}:", service, key));
-        println!("{}", value);
+        bentley::info(&format!("Credential {service}/{key}:"));
+        println!("{value}");
       } else {
-        bentley::success(&format!("✅ Credential {}/{} exists", service, key));
+        bentley::success(&format!("✅ Credential {service}/{key} exists"));
       }
     }
     Err(_) => {
-      bentley::error(&format!("❌ Credential not found: {}/{}", service, key));
+      bentley::error(&format!("❌ Credential not found: {service}/{key}"));
       std::process::exit(1);
     }
   }
@@ -267,19 +266,19 @@ async fn handle_update(
 ) -> Result<()> {
   // Check if credential exists
   if sentinel.get_credential_raw(service, key).is_err() {
-    bentley::warn(&format!("Credential not found: {}/{}", service, key));
+    bentley::warn(&format!("Credential not found: {service}/{key}"));
     return Ok(());
   }
 
   let new_value = if let Some(val) = value {
     val
   } else {
-    bentley::info(&format!("Enter new value for {}/{}:", service, key));
+    bentley::info(&format!("Enter new value for {service}/{key}:"));
     rpassword::prompt_password("New value: ")?
   };
 
   if !force {
-    bentley::info(&format!("Update credential {}/{}?", service, key));
+    bentley::info(&format!("Update credential {service}/{key}?"));
     let input = rpassword::prompt_password("Type 'yes' to confirm: ")?;
     if input.trim().to_lowercase() != "yes" {
       bentley::info("Update cancelled");
@@ -288,7 +287,7 @@ async fn handle_update(
   }
 
   sentinel.store_credential_raw(service, key, &new_value)?;
-  bentley::success(&format!("Updated credential: {}/{}", service, key));
+  bentley::success(&format!("Updated credential: {service}/{key}"));
   Ok(())
 }
 
@@ -301,12 +300,12 @@ async fn handle_delete(
   if let Some(key) = key {
     // Delete specific credential
     if sentinel.get_credential_raw(service, &key).is_err() {
-      bentley::error(&format!("Credential not found: {}/{}", service, key));
+      bentley::error(&format!("Credential not found: {service}/{key}"));
       return Ok(());
     }
 
     if !force {
-      bentley::warn(&format!("This will delete the credential: {}/{}", service, key));
+      bentley::warn(&format!("This will delete the credential: {service}/{key}"));
       let confirm = rpassword::prompt_password("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
         bentley::info("Cancelled");
@@ -315,11 +314,11 @@ async fn handle_delete(
     }
 
     sentinel.delete_credential(service, &key)?;
-    bentley::success(&format!("Deleted credential: {}/{}", service, key));
+    bentley::success(&format!("Deleted credential: {service}/{key}"));
   } else {
     // Delete all credentials for service
     if !force {
-      bentley::warn(&format!("This will delete ALL credentials for service: {}", service));
+      bentley::warn(&format!("This will delete ALL credentials for service: {service}"));
       let confirm = rpassword::prompt_password("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
         bentley::info("Cancelled");
@@ -329,7 +328,7 @@ async fn handle_delete(
 
     // For arbitrary services, we can't enumerate keys easily with the current keyring API
     // So we'll try to delete common keys and let the user know
-    bentley::info(&format!("Attempting to delete all credentials for service: {}", service));
+    bentley::info(&format!("Attempting to delete all credentials for service: {service}"));
 
     // Try common credential keys
     let common_keys = ["token", "api_key", "password", "secret", "key", "pat", "access_token"];
@@ -340,14 +339,14 @@ async fn handle_delete(
         && sentinel.delete_credential(service, key).is_ok()
       {
         deleted_count += 1;
-        bentley::info(&format!("Deleted: {}/{}", service, key));
+        bentley::info(&format!("Deleted: {service}/{key}"));
       }
     }
 
     if deleted_count > 0 {
-      bentley::success(&format!("Deleted {} credentials for service: {}", deleted_count, service));
+      bentley::success(&format!("Deleted {deleted_count} credentials for service: {service}"));
     } else {
-      bentley::info(&format!("No credentials found for service: {}", service));
+      bentley::info(&format!("No credentials found for service: {service}"));
     }
   }
 
@@ -366,7 +365,7 @@ async fn handle_list(
 
   if let Some(service) = service_filter {
     // List credentials for specific service
-    bentley::info(&format!("Service: {}", service));
+    bentley::info(&format!("Service: {service}"));
 
     if show_keys {
       // Try common credential keys to see what exists
@@ -383,7 +382,7 @@ async fn handle_list(
         bentley::info("  No credentials found");
       } else {
         for key in found_keys {
-          bentley::success(&format!("  ✅ {}", key));
+          bentley::success(&format!("  ✅ {key}"));
         }
       }
     } else {
@@ -474,7 +473,7 @@ async fn handle_clear(sentinel: &Sentinel, force: bool, quiet: bool) -> Result<(
   // Note: We can't easily enumerate all arbitrary credentials with the keyring API
   // So we inform the user about this limitation
   if cleared_count > 0 {
-    bentley::success(&format!("Cleared {} predefined service credentials", cleared_count));
+    bentley::success(&format!("Cleared {cleared_count} predefined service credentials"));
   }
 
   bentley::info(
@@ -497,7 +496,7 @@ async fn handle_verify(sentinel: &Sentinel, service_name: &str) -> Result<()> {
     "jira" => services::jira(),
     "notion" => services::notion(),
     _ => {
-      bentley::error(&format!("Unsupported service: {}", service_name));
+      bentley::error(&format!("Unsupported service: {service_name}"));
       bentley::info("Use 'sentinel get <service> <key>' to check arbitrary credentials");
       return Ok(());
     }
@@ -518,10 +517,7 @@ async fn handle_verify(sentinel: &Sentinel, service_name: &str) -> Result<()> {
       service_config.name,
       missing.join(", ")
     ));
-    bentley::info(&format!(
-      "Run 'sentinel setup {}' to configure missing credentials",
-      service_name
-    ));
+    bentley::info(&format!("Run 'sentinel setup {service_name}' to configure missing credentials"));
   }
 
   Ok(())

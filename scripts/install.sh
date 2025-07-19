@@ -4,29 +4,53 @@ set -euo pipefail
 # Kernelle Installation Script - Phase 1
 # This script installs Kernelle and sets up the basic lifecycle infrastructure
 
-# Parse arguments
-NON_INTERACTIVE=false
-while [[ $# -gt 0 ]]; do
+# Show usage information
+show_install_usage() {
+    echo "Usage: $0 [--non-interactive]"
+    echo ""
+    echo "Options:"
+    echo "  --non-interactive    Skip interactive prompts (for CI/automation)"
+    echo "  --help, -h          Show this help message"
+}
+
+# Handle help and unknown options
+handle_install_help_and_errors() {
+    local option="$1"
+    
+    if [[ "$option" == "--help" || "$option" == "-h" ]]; then
+        show_install_usage
+        exit 0
+    else
+        echo "Unknown option: $option"
+        show_install_usage
+        exit 1
+    fi
+}
+
+# Process a single command line option
+process_install_option() {
     case $1 in
         --non-interactive)
             NON_INTERACTIVE=true
-            shift
             ;;
-        --help|-h)
-            echo "Usage: $0 [--non-interactive]"
-            echo ""
-            echo "Options:"
-            echo "  --non-interactive    Skip interactive prompts (for CI/automation)"
-            echo "  --help, -h          Show this help message"
-            exit 0
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Usage: $0 [--non-interactive]"
-            exit 1
+        --help|-h|*)
+            handle_install_help_and_errors "$1"
             ;;
     esac
-done
+}
+
+# Parse command line arguments  
+parse_install_arguments() {
+    NON_INTERACTIVE=false
+    
+    while [[ $# -gt 0 ]]; do
+        process_install_option "$1"
+        shift
+    done
+}
+
+# Parse arguments
+parse_install_arguments "$@"
 
 echo "🚀 Installing Kernelle..."
 

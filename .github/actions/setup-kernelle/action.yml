@@ -45,12 +45,12 @@ runs:
       uses: actions/cache@v4
       with:
         path: |
-          ~/.local/bin/kernelle
-          ~/.local/bin/jerrod
-          ~/.local/bin/blizz
-          ~/.local/bin/violet
-          ~/.local/bin/adam
-          ~/.local/bin/sentinel
+          ~/.cargo/bin/kernelle
+          ~/.cargo/bin/jerrod
+          ~/.cargo/bin/blizz
+          ~/.cargo/bin/violet
+          ~/.cargo/bin/adam
+          ~/.cargo/bin/sentinel
           ~/.kernelle
         key: ${{ runner.os }}-kernelle-bootstrap-${{ hashFiles('crates/**/Cargo.toml', 'Cargo.lock') }}
         restore-keys: |
@@ -71,12 +71,12 @@ runs:
 
     - name: Add kernelle to PATH (Unix)
       if: runner.os != 'Windows'
-      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       shell: bash
 
     - name: Add kernelle to PATH (Windows)
       if: runner.os == 'Windows'
-      run: echo "$env:USERPROFILE\.local\bin" >> $env:GITHUB_PATH
+      run: echo "$env:USERPROFILE\.cargo\bin" >> $env:GITHUB_PATH
       shell: pwsh
 
     - name: Verify kernelle installation

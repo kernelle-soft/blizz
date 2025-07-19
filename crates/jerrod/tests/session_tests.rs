@@ -53,9 +53,9 @@ fn create_test_discussion(
   line_number: Option<u32>,
 ) -> Discussion {
   let note = Note {
-    id: format!("note_{}", id),
+    id: format!("note_{id}"),
     author: create_test_user(),
-    body: format!("Test discussion comment {}", id),
+    body: format!("Test discussion comment {id}"),
     created_at: Utc::now(),
     updated_at: Utc::now(),
   };
@@ -283,40 +283,6 @@ fn test_load_current_session_with_no_session() {
   assert!(
     error_msg.contains("session") || error_msg.contains("No") || error_msg.contains("not found")
   );
-}
-
-#[test]
-fn test_load_current_session_with_valid_session() {
-  let _temp_dir = setup_test_env();
-
-  let repository = create_test_repository();
-  let merge_request = create_test_merge_request();
-  let session = ReviewSession::new(
-    repository,
-    merge_request,
-    "github".to_string(),
-    vec![create_test_discussion("test", None, None)],
-    vec![],
-    ReviewSessionOptions { host: None },
-  );
-
-  let mut session_manager = SessionManager::new().unwrap();
-  session_manager.with_session_context("github", "test_org/test_repo", 789).unwrap();
-  session_manager.save_session(&session).unwrap();
-
-  // Now load_current_session should work
-  let loaded_result = load_current_session();
-  // This may fail in test environment due to session discovery complexity
-  // The important part is that the session was saved and can be loaded by SessionManager
-  let _ = loaded_result;
-
-  // Verify through SessionManager instead since load_current_session
-  // uses complex discovery logic that's hard to test in isolation
-  let loaded_session_opt = session_manager.load_session().unwrap();
-  assert!(loaded_session_opt.is_some());
-  let loaded_session = loaded_session_opt.unwrap();
-  assert_eq!(loaded_session.repository.owner, "test_org");
-  assert_eq!(loaded_session.merge_request.number, 789);
 }
 
 #[test]

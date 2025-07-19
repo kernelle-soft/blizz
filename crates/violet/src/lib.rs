@@ -1,11 +1,10 @@
-//! Violet - Simple Code Complexity Analysis
-//!
-//! A language-agnostic code complexity analysis tool that uses information theory
-//! to measure cognitive load. No AST parsing, no language-specific rules -
-//! just simple, effective complexity scoring.
+//! Language-agnostic code complexity analysis using information theory
 
+pub mod chunking;
 pub mod config;
+pub mod directives;
+pub mod scoring;
 pub mod simplicity;
 
 pub use config::VioletConfig;
-pub use simplicity::{analyze_file, ChunkScore, FileAnalysis};
+pub use simplicity::{analyze_file, FileAnalysis};

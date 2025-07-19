@@ -132,8 +132,7 @@ async fn test_handle_new_comment() -> Result<()> {
     // or success if somehow the API call doesn't happen
     assert!(
       error_msg.contains("Bad credentials") || error_msg.contains("GitHub"),
-      "Unexpected error: {}",
-      error_msg
+      "Unexpected error: {error_msg}"
     );
   }
 
@@ -169,8 +168,7 @@ async fn test_handle_reply_to_review_comment() -> Result<()> {
         || error_msg.contains("GitHub")
         || error_msg.contains("401 Unauthorized")
         || error_msg.contains("HTTP 401"),
-      "Unexpected error: {}",
-      error_msg
+      "Unexpected error: {error_msg}"
     );
   }
 
@@ -213,8 +211,7 @@ async fn test_handle_reply_to_issue_comment() -> Result<()> {
         || error_msg.contains("GitHub")
         || error_msg.contains("401 Unauthorized")
         || error_msg.contains("HTTP 401"),
-      "Unexpected error: {}",
-      error_msg
+      "Unexpected error: {error_msg}"
     );
   }
 
@@ -326,8 +323,7 @@ async fn test_handle_missing_thread_fallback() -> Result<()> {
         || error_msg.contains("GitHub")
         || error_msg.contains("401 Unauthorized")
         || error_msg.contains("HTTP 401"),
-      "Unexpected error: {}",
-      error_msg
+      "Unexpected error: {error_msg}"
     );
   }
 

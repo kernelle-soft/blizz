@@ -46,7 +46,7 @@ impl Insight {
   /// Load an insight from disk
   pub fn load(topic: &str, name: &str) -> Result<Self> {
     let insights_root = get_insights_root()?;
-    let file_path = insights_root.join(topic).join(format!("{}.insight.md", name));
+    let file_path = insights_root.join(topic).join(format!("{name}.insight.md"));
 
     if !file_path.exists() {
       return Err(anyhow!("Insight {}/{} not found", topic, name));

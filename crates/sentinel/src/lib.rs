@@ -572,7 +572,7 @@ mod tests {
     credentials_path.push("credentials.json");
 
     Sentinel {
-      service_name: format!("test_kernelle_{}", unique_id),
+      service_name: format!("test_kernelle_{unique_id}"),
       crypto,
       credentials_path_override: Some(credentials_path),
     }

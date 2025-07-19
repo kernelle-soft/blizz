@@ -15,13 +15,13 @@ pub fn display_thread_header(note: &Note, thread_id: &str) {
   let header = format!("🧵 {} | {} | ID: {}", note.author.display_name, formatted_time, thread_id);
 
   // Use bentley's banner functionality instead of manual banner creation
-  bentley::as_banner(|msg| eprintln!("{}", msg), &header, Some(80), Some('-'));
+  bentley::as_banner(|msg| eprintln!("{msg}"), &header, Some(80), Some('-'));
 
   // Display content with proper word wrapping
   let width = 80;
   for content_line in note.body.lines() {
     if content_line.len() <= width {
-      println!("{}", content_line);
+      println!("{content_line}");
     } else {
       // Word wrap long lines
       let words: Vec<&str> = content_line.split_whitespace().collect();
@@ -34,15 +34,15 @@ pub fn display_thread_header(note: &Note, thread_id: &str) {
           }
           current_line.push_str(word);
         } else if !current_line.is_empty() {
-          println!("{}", current_line);
+          println!("{current_line}");
           current_line = word.to_string();
         } else {
-          println!("{}", word);
+          println!("{word}");
         }
       }
 
       if !current_line.is_empty() {
-        println!("{}", current_line);
+        println!("{current_line}");
       }
     }
   }
@@ -53,10 +53,10 @@ pub fn display_thread_header(note: &Note, thread_id: &str) {
 
 pub fn display_file_context(file_path: &str, line_number: Option<u32>) {
   println!();
-  bentley::info(&format!("File: {}", file_path));
+  bentley::info(&format!("File: {file_path}"));
 
   if let Some(line) = line_number {
-    bentley::info(&format!("Line: {} (new)", line));
+    bentley::info(&format!("Line: {line} (new)"));
   }
 }
 
@@ -75,7 +75,7 @@ pub fn display_replies(discussion: &Discussion) {
 
       // Display reply content with indentation
       for line in reply.body.lines() {
-        println!("    {}", line);
+        println!("    {line}");
       }
       println!();
     }
@@ -101,7 +101,7 @@ pub fn display_file_diff(diff: &FileDiff) {
   let header = format!("📄 File: {}", diff.new_path);
   let full_header = if let Some(old_path) = &diff.old_path {
     if old_path != &diff.new_path {
-      format!("{}\n   (renamed from {})", header, old_path)
+      format!("{header}\n   (renamed from {old_path})")
     } else {
       header
     }
@@ -109,22 +109,22 @@ pub fn display_file_diff(diff: &FileDiff) {
     header
   };
 
-  bentley::as_banner(|msg| println!("{}", msg), &full_header, Some(80), Some('═'));
+  bentley::as_banner(|msg| println!("{msg}"), &full_header, Some(80), Some('═'));
 
   // Display diff content with color coding
   for line in diff.diff.lines() {
     if line.starts_with("@@") {
       // Hunk headers
-      println!("🔵 {}", line);
+      println!("🔵 {line}");
     } else if line.starts_with('+') {
       // Added lines
-      println!("🟢 {}", line);
+      println!("🟢 {line}");
     } else if line.starts_with('-') {
       // Removed lines
-      println!("🔴 {}", line);
+      println!("🔴 {line}");
     } else {
       // Context lines
-      println!("   {}", line);
+      println!("   {line}");
     }
   }
 

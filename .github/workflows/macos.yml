@@ -2,9 +2,9 @@ name: macOS
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
   pull_request:
-    branches: [main]
+    branches: [dev]
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,7 +12,7 @@ env:
 jobs:
   test-macos:
     name: Test (macOS)
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
       - name: Checkout code

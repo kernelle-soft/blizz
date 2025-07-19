@@ -30,15 +30,15 @@ pub async fn handle(
   }
 
   let mut session_manager = SessionManager::new()?;
-  let platform_name = format!("{:?}", platform_type).to_lowercase();
+  let platform_name = format!("{platform_type:?}").to_lowercase();
   let repository_path = format!("{}/{}", repo_info.owner, repo_info.repo);
   session_manager.with_session_context(&platform_name, &repository_path, mr_number)?;
 
-  bentley::info(&format!("Detected platform: {:?}", platform_type));
+  bentley::info(&format!("Detected platform: {platform_type:?}"));
   bentley::info(&format!("Repository: {}/{}", repo_info.owner, repo_info.repo));
-  bentley::info(&format!("MR/PR number: {}", mr_number));
+  bentley::info(&format!("MR/PR number: {mr_number}"));
 
-  let platform_name = format!("{:?}", platform_type).to_lowercase();
+  let platform_name = format!("{platform_type:?}").to_lowercase();
   let host = repo_info.host.as_deref();
   let platform = create_platform_with_host(&platform_name, host).await?;
 
