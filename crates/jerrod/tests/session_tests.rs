@@ -285,8 +285,6 @@ fn test_load_current_session_with_no_session() {
   );
 }
 
-
-
 #[test]
 fn test_session_discovery() {
   let _temp_dir = setup_test_env();

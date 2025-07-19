@@ -97,8 +97,7 @@ impl SessionManager {
     let base_dir = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
       std::path::PathBuf::from(kernelle_dir)
     } else if let Some(home_dir) = dirs::home_dir() {
-      let base = home_dir.join(".cursor").join("rules").join("kernelle");
-      base
+      home_dir.join(".cursor").join("rules").join("kernelle")
     } else {
       return Err(anyhow::anyhow!("Unable to determine home directory"));
     };
@@ -108,18 +107,10 @@ impl SessionManager {
       std::fs::create_dir_all(&base_dir)?;
     }
 
-    Ok(Self {
-      base_dir,
-      current_session_path: None,
-    })
+    Ok(Self { base_dir, current_session_path: None })
   }
 
-  pub fn with_session_context(
-    &mut self,
-    platform: &str,
-    repo: &str,
-    mr: u64,
-  ) -> Result<()> {
+  pub fn with_session_context(&mut self, platform: &str, repo: &str, mr: u64) -> Result<()> {
     // Sanitize repository path to prevent directory traversal
     let sanitized_repo_path = repo.replace("..", "").replace('\\', "/");
 
@@ -145,10 +136,7 @@ impl SessionManager {
 
     // Verify directory was created
     if !session_dir.exists() {
-      return Err(anyhow::anyhow!(
-        "Failed to create session directory: {}",
-        session_dir.display()
-      ));
+      return Err(anyhow::anyhow!("Failed to create session directory: {}", session_dir.display()));
     }
 
     self.current_session_path = Some(session_dir);

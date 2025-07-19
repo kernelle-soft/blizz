@@ -243,8 +243,6 @@ fn test_cli_resolve_command() {
   assert!(!stderr.contains("error: unrecognized subcommand"));
 }
 
-
-
 #[test]
 #[serial]
 fn test_cli_refresh_command() {
