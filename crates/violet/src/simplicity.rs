@@ -1,17 +1,8 @@
-//! Simplicity-based complexity scoring
-//!
-//! Implements a language-agnostic complexity algorithm that measures
-//! cognitive load based on indentation, special characters, and line length.
-//! Scoring is based on an information-theoretic approach, which means that
-//! the score is based on the amount of information that is needed to understand
-//! the code.
-
 use regex::Regex;
 use std::fs;
 use std::path::Path;
 use crate::config::{VioletConfig, get_threshold_for_file};
 
-/// Result of analyzing a single file
 #[derive(Debug, Clone)]
 pub struct FileAnalysis {
   pub file_path: std::path::PathBuf,
@@ -20,7 +11,6 @@ pub struct FileAnalysis {
   pub ignored: bool,
 }
 
-/// Breakdown of complexity score by component
 #[derive(Debug, Clone)]
 pub struct ComplexityBreakdown {
   pub depth_score: f64,
@@ -31,7 +21,6 @@ pub struct ComplexityBreakdown {
   pub syntactic_percent: f64,
 }
 
-/// A complexity region that can be either a natural chunk or a detected hotspot
 #[derive(Debug, Clone)]
 pub struct ComplexityRegion {
   pub score: f64,
@@ -42,14 +31,12 @@ pub struct ComplexityRegion {
   pub region_type: RegionType,
 }
 
-/// Type of complexity region
 #[derive(Debug, Clone)]
 pub enum RegionType {
   NaturalChunk,
   DetectedHotspot,
 }
 
-/// Create a FileAnalysis for an ignored file
 fn create_ignored_file_analysis(path: &Path) -> FileAnalysis {
   FileAnalysis {
     file_path: path.to_path_buf(),
@@ -59,7 +46,6 @@ fn create_ignored_file_analysis(path: &Path) -> FileAnalysis {
   }
 }
 
-/// Check if file should be completely ignored based on file-level directives
 fn has_file_ignore_directive(lines: &[&str]) -> bool {
   let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
   lines.iter().any(|line| {
@@ -67,7 +53,6 @@ fn has_file_ignore_directive(lines: &[&str]) -> bool {
   })
 }
 
-/// Process a single directive and update state
 fn process_directive<'a>(
   directive: &str,
   ignore_depth: &mut usize,
@@ -88,17 +73,14 @@ fn process_directive<'a>(
       *skip_next_line = true;
     }
     "chunk" => {
-      // Keep the directive line so we can identify chunks to remove later
-      // But only if we're not in an ignored section
       if *ignore_depth == 0 {
         result_lines.push(line);
       }
     }
-    _ => {} // file is handled elsewhere
+    _ => {}
   }
 }
 
-/// Process a single line during preprocessing
 fn process_line<'a>(
   line: &'a str,
   ignore_depth: &mut usize,
@@ -107,28 +89,25 @@ fn process_line<'a>(
 ) -> bool {
   let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
 
-  // Handle line-level ignore from previous line
   if *skip_next_line {
     *skip_next_line = false;
-    return true; // Skip this line
+    return true;
   }
 
-  // Check for ignore directives in current line
   if let Some(captures) = ignore_regex.captures(line) {
     let directive = captures.get(1).unwrap().as_str();
     process_directive(directive, ignore_depth, skip_next_line, result_lines, line);
-    return true; // Skip adding this line to normal processing
+    return true;
   }
 
-  false // Don't skip, process normally
+  false
 }
 
 pub fn preprocess_file(content: &str) -> Option<String> {
   let lines: Vec<&str> = content.lines().collect();
 
-  // Check for file-level ignore
   if has_file_ignore_directive(&lines) {
-    return None; // Entire file should be ignored
+    return None;
   }
 
   let mut result_lines = Vec::new();
@@ -140,7 +119,6 @@ pub fn preprocess_file(content: &str) -> Option<String> {
       continue;
     }
 
-    // Only include line if we're not in an ignored section
     if ignore_depth == 0 {
       result_lines.push(*line);
     }
@@ -149,9 +127,8 @@ pub fn preprocess_file(content: &str) -> Option<String> {
   Some(result_lines.join("\n"))
 }
 
-/// Calculate complexity components for a single line
 fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
-  let indents = get_indents(line).saturating_sub(1); // Don't penalize first indentation level
+  let indents = get_indents(line).saturating_sub(1);
   let special_chars = get_num_specials(line);
   let non_special_chars = (line.trim().len() as f64) - special_chars;
 
@@ -162,7 +139,6 @@ fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
   (depth_component, verbosity_component, syntactic_component)
 }
 
-/// Create a ComplexityBreakdown from component totals
 fn create_breakdown(
   depth_total: f64,
   verbosity_total: f64,
@@ -191,7 +167,6 @@ fn create_breakdown(
   }
 }
 
-/// Calculate complexity score for a single chunk of code with breakdown
 pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown) {
   let lines: Vec<&str> = chunk.lines().collect();
   let mut depth_total = 0.0;
@@ -208,7 +183,6 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
 
   let sum = depth_total + verbosity_total + syntactic_total;
   
-  // Handle edge case of empty input - return 0.0 instead of ln(0) = -inf
   let score = if sum > 0.0 { sum.ln() } else { 0.0 };
 
   let breakdown = create_breakdown(depth_total, verbosity_total, syntactic_total);
@@ -216,15 +190,12 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
   (score, breakdown)
 }
 
-/// Calculate complexity score for a single chunk of code (legacy interface)
 pub fn chunk_complexity(chunk: &str) -> f64 {
   let (score, _) = chunk_complexity_with_breakdown(chunk);
 
-  // round to 2 decimal places
   (score * 100.0).round() / 100.0
 }
 
-/// Calculate complexity score for an entire file (average complexity per chunk)
 pub fn file_complexity(file_content: &str) -> f64 {
   let chunks = get_chunks(file_content);
   if chunks.is_empty() {
@@ -237,7 +208,6 @@ pub fn file_complexity(file_content: &str) -> f64 {
   average_complexity
 }
 
-/// Split content on blank lines into temporary chunks
 fn split_on_blank_lines(content: &str) -> Vec<String> {
   let mut temp_chunks = Vec::new();
   let mut current_chunk = Vec::new();
@@ -260,17 +230,14 @@ fn split_on_blank_lines(content: &str) -> Vec<String> {
   temp_chunks
 }
 
-/// Extract chunks from file content (separated by blank lines)
 pub fn get_chunks(content: &str) -> Vec<String> {
   split_on_blank_lines(content)
 }
 
-/// Count indentation levels in a line
 fn get_indents(line: &str) -> usize {
-  get_indents_with_tab_size(line, 2) // Default to 2 spaces per indent level
+  get_indents_with_tab_size(line, 2)
 }
 
-/// Count indentation levels in a line with configurable tab size
 fn get_indents_with_tab_size(line: &str, spaces_per_indent: usize) -> usize {
   let mut indent_levels = 0;
   let mut space_count = 0;
@@ -280,37 +247,30 @@ fn get_indents_with_tab_size(line: &str, spaces_per_indent: usize) -> usize {
     match ch {
       ' ' => space_count += 1,
       '\t' => {
-        // Convert any accumulated spaces to indent levels first
         indent_levels += space_count / spaces_per_indent;
         space_count = 0;
-        // Tab counts as 1 indent level
         indent_levels += 1;
       },
-      _ => break, // Stop at first non-whitespace character
+      _ => break,
     }
   }
 
-  // Convert any remaining spaces to indent levels
   indent_levels += space_count / spaces_per_indent;
   
   indent_levels
 }
 
-/// violet ignore line - Special characters used for complexity calculation
 const SPECIAL_CHARS: &str = "()[]{}+*?^$|.\\<>=!&|:;,";
 
-/// Count special characters in a line
 fn get_num_specials(line: &str) -> f64 {
   line.trim().chars().filter(|ch| SPECIAL_CHARS.contains(*ch)).count() as f64
 }
 
-/// Check if a chunk should be ignored based on violet ignore chunk directive
 fn should_ignore_chunk(chunk_content: &str) -> bool {
   let ignore_regex = Regex::new(r"violet\s+ignore\s+chunk").unwrap();
   chunk_content.lines().any(|line| ignore_regex.is_match(line))
 }
 
-/// Analyze a single file and return detailed results
 pub fn analyze_file<P: AsRef<Path>>(
   file_path: P,
   config: &VioletConfig,
@@ -318,7 +278,6 @@ pub fn analyze_file<P: AsRef<Path>>(
   let path = file_path.as_ref();
   let content = fs::read_to_string(path)?;
 
-  // Preprocess to handle ignore comments
   let preprocessed = match preprocess_file(&content) {
     Some(processed) => processed,
     None => return Ok(create_ignored_file_analysis(path)),
@@ -336,28 +295,22 @@ pub fn analyze_file<P: AsRef<Path>>(
   let threshold = get_threshold_for_file(config, path);
   let lines: Vec<&str> = preprocessed.lines().collect();
   
-  // Use iterative blank-line splitting + fusion for structural chunk discovery
   let line_lengths: Vec<f64> = lines.iter()
     .map(|line| line.len() as f64)
     .collect();
   
-  // Apply iterative fusion algorithm
   let regions = analyze_file_iterative_fusion(&lines, &line_lengths);
   
-  // Convert to final ComplexityRegion objects
   let mut complexity_regions = Vec::new();
   for (start, end, _) in regions {
     if end > start {
-      // Extract chunk content for complexity scoring
       let chunk_lines = &lines[start..=end.min(lines.len().saturating_sub(1))];
       let chunk_content = chunk_lines.join("\n");
       
-      // Check if the chunk should be ignored
       if should_ignore_chunk(&chunk_content) {
         continue;
       }
 
-      // NOW apply complexity scoring to the discovered chunk
       let score = chunk_complexity(&chunk_content);
       
       if score > threshold {
@@ -386,7 +339,6 @@ pub fn analyze_file<P: AsRef<Path>>(
   })
 }
 
-/// Create a simple preview string from chunk lines
 fn create_chunk_preview(lines: &[&str]) -> String {
   const MAX_PREVIEW_LINES: usize = 20;
   const MAX_LINE_LENGTH: usize = 80;
@@ -410,33 +362,27 @@ fn create_chunk_preview(lines: &[&str]) -> String {
   preview_lines.join("\n")
 }
 
-/// Iterative fusion algorithm for structural chunk discovery
 fn analyze_file_iterative_fusion(lines: &[&str], line_lengths: &[f64]) -> Vec<(usize, usize, f64)> {
   if lines.is_empty() {
     return vec![];
   }
   
-  // Step 1: Split into base chunks by blank lines
   let mut chunks = split_into_text_chunks(lines);
   
-  // Step 2: Iteratively fuse chunks until stable
   loop {
     let initial_count = chunks.len();
     chunks = fuse_compatible_chunks(chunks, line_lengths, lines);
     
-    // Stop when no more fusions happened
     if chunks.len() == initial_count {
       break;
     }
   }
   
-  // Convert to required format
   chunks.into_iter()
-    .map(|(start, end)| (start, end, 0.0)) // Placeholder score
+    .map(|(start, end)| (start, end, 0.0))
     .collect()
 }
 
-/// Split text into initial chunks based on blank lines
 fn split_into_text_chunks(lines: &[&str]) -> Vec<(usize, usize)> {
   let mut chunks = Vec::new();
   let mut current_start = 0;
@@ -446,17 +392,14 @@ fn split_into_text_chunks(lines: &[&str]) -> Vec<(usize, usize)> {
     let has_text = !line.trim().is_empty();
     
     if has_text && !in_text_block {
-      // Starting a new text block
       current_start = i;
       in_text_block = true;
     } else if !has_text && in_text_block {
-      // Ending a text block
       chunks.push((current_start, i));
       in_text_block = false;
     }
   }
   
-  // Handle final text block if file doesn't end with blank line
   if in_text_block {
     chunks.push((current_start, lines.len()));
   }
@@ -464,7 +407,6 @@ fn split_into_text_chunks(lines: &[&str]) -> Vec<(usize, usize)> {
   chunks
 }
 
-/// Fuse adjacent chunks if their line length transition suggests they belong together
 fn fuse_compatible_chunks(chunks: Vec<(usize, usize)>, line_lengths: &[f64], lines: &[&str]) -> Vec<(usize, usize)> {
   if chunks.len() <= 1 {
     return chunks;
@@ -477,66 +419,52 @@ fn fuse_compatible_chunks(chunks: Vec<(usize, usize)>, line_lengths: &[f64], lin
     let next_chunk = chunks[i];
     
     if should_fuse_chunks(current_chunk, next_chunk, line_lengths, lines) {
-      // Fuse: extend current chunk to include next chunk
       current_chunk = (current_chunk.0, next_chunk.1);
     } else {
-      // Keep separate: save current chunk and start new one
       fused_chunks.push(current_chunk);
       current_chunk = next_chunk;
     }
   }
   
-  // Don't forget the last chunk
   fused_chunks.push(current_chunk);
   
   fused_chunks
 }
 
-/// Decide whether two adjacent chunks should be fused based on line length transition
 fn should_fuse_chunks(chunk1: (usize, usize), chunk2: (usize, usize), line_lengths: &[f64], lines: &[&str]) -> bool {
   if chunk1.0 >= lines.len() || chunk1.1 <= chunk1.0 || 
      chunk2.0 >= lines.len() || chunk2.1 <= chunk2.0 {
     return false;
   }
   
-  // Step 1: Compare beginning vs end of prev chunk
   let prev_chunk_start_indent = get_indents(lines[chunk1.0]) as f64;
   let prev_chunk_end_indent = get_indents(lines[chunk1.1.saturating_sub(1)]) as f64;
   
-  // Step 2: If end is higher than beginning (going INTO a block)
   if prev_chunk_end_indent > prev_chunk_start_indent {
     
-    // Step 3: Compare beginning vs end of next chunk  
     let next_chunk_start_indent = get_indents(lines[chunk2.0]) as f64;
     let next_chunk_end_indent = get_indents(lines[chunk2.1.saturating_sub(1)]) as f64;
     
-    // Step 4: If beginning is higher than end (coming OUT OF a block) → FUSE
     if next_chunk_start_indent >= next_chunk_end_indent {
       return true;
     }
   }
   
-  // Step 5: Otherwise, fall back to line length transition logic
   let last_line_idx = chunk1.1.saturating_sub(1);
   let first_line_idx = chunk2.0;
   
   let last_line_length = line_lengths[last_line_idx];
   let first_line_length = line_lengths[first_line_idx];
   
-  // If the last line of prior chunk is significantly shorter than 
-  // the first line of next chunk, keep separate
   let length_ratio = if last_line_length == 0.0 {
     f64::INFINITY
   } else {
     first_line_length / last_line_length
   };
   
-  // Fuse if the transition is gradual (not a big jump)
-  // A ratio > 2.0 suggests a significant structural boundary
   length_ratio <= 2.0
 }
 
-/// Calculate complexity breakdown for a chunk of code
 fn calculate_chunk_breakdown(chunk_content: &str) -> ComplexityBreakdown {
   let lines: Vec<&str> = chunk_content.lines().collect();
   
@@ -554,29 +482,28 @@ fn calculate_chunk_breakdown(chunk_content: &str) -> ComplexityBreakdown {
   create_breakdown(total_depth, total_verbosity, total_syntactic)
 }
 
-// violet ignore chunk
 #[cfg(test)]
 mod tests {
   use super::*;
 
   #[test]
   fn test_get_indents() {
-    assert_eq!(get_indents("  hello"), 1); // 2 spaces = 1 indent level
-    assert_eq!(get_indents("    world"), 2); // 4 spaces = 2 indent levels  
+    assert_eq!(get_indents("  hello"), 1);
+    assert_eq!(get_indents("    world"), 2);
     assert_eq!(get_indents("no_indent"), 0);
-    assert_eq!(get_indents("\tindented"), 1); // 1 tab = 1 indent level
-    assert_eq!(get_indents("\t\tindented"), 2); // 2 tabs = 2 indent levels
-    assert_eq!(get_indents("      deep"), 3); // 6 spaces = 3 indent levels
-    assert_eq!(get_indents("  \tcombo"), 2); // 2 spaces + tab = 1 + 1 = 2 indent levels
-    assert_eq!(get_indents("\t  partial"), 2); // tab + 2 spaces = 1 + 1 = 2 indent levels
+    assert_eq!(get_indents("\tindented"), 1);
+    assert_eq!(get_indents("\t\tindented"), 2);
+    assert_eq!(get_indents("      deep"), 3);
+    assert_eq!(get_indents("  \tcombo"), 2);
+    assert_eq!(get_indents("\t  partial"), 2);
   }
 
   #[test]
   fn test_get_num_specials() {
     assert_eq!(get_num_specials("hello world"), 0.0);
-    assert_eq!(get_num_specials("if (condition) { }"), 4.0); // ( ) { }
-    assert_eq!(get_num_specials("array[index] = value;"), 4.0); // [ ] = ;
-    assert_eq!(get_num_specials("  special: &str  "), 2.0); // : &
+    assert_eq!(get_num_specials("if (condition) { }"), 4.0);
+    assert_eq!(get_num_specials("array[index] = value;"), 4.0);
+    assert_eq!(get_num_specials("  special: &str  "), 2.0);
   }
 
   #[test]
@@ -604,7 +531,7 @@ mod tests {
     let score = chunk_complexity(chunk);
 
     assert!(score > 0.0);
-    assert!(score < 10000.0); // Much more reasonable with (1+sum)^1.5 scaling
+    assert!(score < 10000.0);
   }
 
   #[test]
@@ -615,7 +542,6 @@ mod tests {
     let simple_score = chunk_complexity(simple_chunk);
     let nested_score = chunk_complexity(nested_chunk);
 
-    // Nested should have higher complexity
     assert!(nested_score > simple_score);
   }
 
@@ -637,7 +563,6 @@ mod tests {
 
   #[test]
   fn test_preprocess_file_ignore_entire_file() {
-    // Test with different comment styles
     let content1 =
       format!("# violet ignore {}\nfn main() {{\n    println!(\"hello\");\n}}", "file");
     let content2 =
@@ -688,22 +613,18 @@ mod tests {
   fn test_complete_pipeline_with_ignores() {
     let content = format!("fn simple() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn complex() {{\n    if deeply {{\n        if nested {{\n            if very {{\n                return 2;\n            }}\n        }}\n    }}\n}}\n# violet ignore {}\n\nfn another_simple() {{\n    return 3;\n}}", "start", "end");
 
-    // First preprocess to remove ignored sections
     let preprocessed = preprocess_file(&content).unwrap();
 
-    // Should only have the simple functions
     assert!(preprocessed.contains("fn simple()"));
     assert!(preprocessed.contains("fn another_simple()"));
     assert!(!preprocessed.contains("fn complex()"));
 
-    // Get chunks from preprocessed content
     let chunks = get_chunks(&preprocessed);
-    assert_eq!(chunks.len(), 2); // Two simple functions
+    assert_eq!(chunks.len(), 2);
 
-    // Score should be reasonable since we removed the complex function
     let total_score = file_complexity(&preprocessed);
     assert!(total_score > 0.0);
-    assert!(total_score < 1000.0); // Should be much lower without the complex function
+    assert!(total_score < 1000.0);
   }
 
   #[test]
@@ -711,7 +632,7 @@ mod tests {
     let content = format!("# violet ignore {}\nfn extremely_complex() {{\n    if deeply {{\n        if nested {{\n            if very {{\n                if much {{\n                    return 42;\n                }}\n            }}\n        }}\n    }}\n}}", "file");
 
     let preprocessed = preprocess_file(&content);
-    assert_eq!(preprocessed, None); // Entire file should be ignored
+    assert_eq!(preprocessed, None);
   }
 
   #[test]
@@ -722,12 +643,11 @@ mod tests {
     let simple_score = chunk_complexity(simple_content);
     let complex_score = chunk_complexity(complex_content);
 
-    assert!(complex_score > simple_score * 1.5); // Lower threshold - maybe 2x was too aggressive
+    assert!(complex_score > simple_score * 1.5);
   }
 
   #[test]
   fn test_information_theoretic_scaling() {
-    // Test that our information-theoretic approach gives reasonable scaling
     let minimal = "x";
     let short = "fn f() { return 1; }";
     let medium = "fn medium() {\n    if condition {\n        return process(value);\n    }\n    return default;\n}";
@@ -736,11 +656,10 @@ mod tests {
     let short_score = chunk_complexity(short);
     let medium_score = chunk_complexity(medium);
 
-    // Scores should increase but not exponentially explode
     assert!(minimal_score < short_score);
     assert!(short_score < medium_score);
-    assert!(medium_score < 100.0); // Still reasonable
-    assert!(minimal_score > 0.0); // But not zero
+    assert!(medium_score < 100.0);
+    assert!(minimal_score > 0.0);
   }
 
   #[test]
@@ -767,28 +686,24 @@ mod tests {
 
   #[test]
   fn test_calculate_line_complexity() {
-    // Test simple line
     let (depth, verbosity, syntactic) = calculate_line_complexity("hello world");
-    assert_eq!(depth, 1.0); // No indentation = 1.0
-    assert!(verbosity > 1.0); // Has some content
-    assert_eq!(syntactic, 1.0); // No special chars = 1.0
+    assert_eq!(depth, 1.0);
+    assert!(verbosity > 1.0);
+    assert_eq!(syntactic, 1.0);
 
-    // Test indented line with special chars
     let (depth, verbosity, syntactic) = calculate_line_complexity("    if (condition) {");
-    assert!(depth > 1.0); // Has indentation
-    assert!(verbosity > 1.0); // Has content
-    assert!(syntactic > 1.0); // Has special chars: ( ) {
+    assert!(depth > 1.0);
+    assert!(verbosity > 1.0);
+    assert!(syntactic > 1.0);
 
-    // Test empty line
     let (depth, verbosity, syntactic) = calculate_line_complexity("");
-    assert_eq!(depth, 1.0); // No indentation
-    assert_eq!(verbosity, 1.0); // No content
-    assert_eq!(syntactic, 1.0); // No special chars
+    assert_eq!(depth, 1.0);
+    assert_eq!(verbosity, 1.0);
+    assert_eq!(syntactic, 1.0);
   }
 
   #[test]
   fn test_create_breakdown() {
-    // Test normal breakdown
     let breakdown = create_breakdown(10.0, 20.0, 30.0);
     assert_eq!(breakdown.depth_score, 10.0);
     assert_eq!(breakdown.verbosity_score, 20.0);
@@ -797,7 +712,6 @@ mod tests {
     assert!((breakdown.verbosity_percent - 33.33).abs() < 0.1);
     assert!((breakdown.syntactic_percent - 50.0).abs() < 0.1);
 
-    // Test zero breakdown
     let zero_breakdown = create_breakdown(0.0, 0.0, 0.0);
     assert_eq!(zero_breakdown.depth_score, 0.0);
     assert_eq!(zero_breakdown.depth_percent, 0.0);
@@ -807,7 +721,6 @@ mod tests {
 
   #[test]
   fn test_split_on_blank_lines() {
-    // Test normal case
     let content = "line 1\nline 2\n\nline 3\nline 4\n\n\nline 5";
     let chunks = split_on_blank_lines(content);
     assert_eq!(chunks.len(), 3);
@@ -815,15 +728,12 @@ mod tests {
     assert_eq!(chunks[1], "line 3\nline 4");
     assert_eq!(chunks[2], "line 5");
 
-    // Test empty content
     let empty_chunks = split_on_blank_lines("");
     assert!(empty_chunks.is_empty());
 
-    // Test only blank lines
     let blank_only = split_on_blank_lines("\n\n\n");
     assert!(blank_only.is_empty());
 
-    // Test no blank lines
     let no_blanks = split_on_blank_lines("line1\nline2\nline3");
     assert_eq!(no_blanks.len(), 1);
     assert_eq!(no_blanks[0], "line1\nline2\nline3");
@@ -831,41 +741,33 @@ mod tests {
 
   #[test]
   fn test_get_chunks_with_indentation() {
-    // Test that indented content stays with its parent
     let content = "function main() {\n    return 42;\n}\n\nclass Test {\n    method() {}\n}";
     let chunks = get_chunks(content);
     
     assert_eq!(chunks.len(), 2);
-    // First chunk should include the function and its indented content
     assert!(chunks[0].contains("function main()"));
     assert!(chunks[0].contains("return 42;"));
     assert!(chunks[0].contains("}"));
     
-    // Second chunk should include the class and its indented content  
     assert!(chunks[1].contains("class Test"));
     assert!(chunks[1].contains("method()"));
   }
 
   #[test]
   fn test_should_ignore_chunk() {
-    // Test chunk without ignore directive
     let normal_chunk = "fn normal() {\n    return 42;\n}";
     assert!(!should_ignore_chunk(normal_chunk));
 
-    // Test chunk with ignore directive
     let ignored_chunk = "// violet ignore chunk\nfn complex() {\n    if deeply {\n        if nested {\n            return 42;\n        }\n    }\n}";
     assert!(should_ignore_chunk(ignored_chunk));
 
-    // Test with different comment styles
     let ignored_chunk2 = "# violet ignore chunk\nfn another() { return 1; }";
     assert!(should_ignore_chunk(ignored_chunk2));
 
     let ignored_chunk3 = "/* violet ignore chunk */\nfn yet_another() { return 2; }";
     assert!(should_ignore_chunk(ignored_chunk3));
 
-    // Test with extra whitespace
     let ignored_chunk4 = "//   violet   ignore   chunk   \nfn spaced() { return 3; }";
     assert!(should_ignore_chunk(ignored_chunk4));
   }
 }
-

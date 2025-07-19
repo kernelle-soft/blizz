@@ -8,22 +8,22 @@ use violet::simplicity::{analyze_file, ComplexityRegion, ComplexityBreakdown, Fi
 const TOTAL_WIDTH: usize = 80;
 const PADDING: usize = 2;
 
-/// Violet - Simple Code Complexity Analysis
+
 #[derive(Parser)]
 #[command(name = "violet")]
 #[command(about = "Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool")]
 #[command(version)]
 struct Cli {
-  /// Files or directories to analyze
+
   #[arg(value_name = "PATH")]
   paths: Vec<PathBuf>,
 
-  /// Only show files that exceed the threshold
+
   #[arg(short, long)]
   quiet: bool,
 }
 
-/// Map file extensions to language names (one-to-one mapping)
+
 fn extension_to_language(ext: &str) -> &str {
   match ext {
     ".js" => "javascript",
@@ -93,19 +93,19 @@ fn extension_to_language(ext: &str) -> &str {
     ".dockerfile" => "dockerfile",
     ".tf" => "terraform",
     ".hcl" => "hcl",
-    _ => ext, // fallback to extension if no mapping
+    _ => ext,
   }
 }
 
-/// Display the threshold configuration being used
+
 fn display_threshold_config(config: &VioletConfig) {
   println!("LANG                    THRESHOLD");
   println!("=================================");
   
-  // Display default threshold
+
   println!("{:<23} {:>6.2}", "default", config.default_threshold);
   
-  // Display file-specific thresholds if any exist
+
   if !config.thresholds.is_empty() {
     let mut sorted_thresholds: Vec<_> = config.thresholds.iter().collect();
     sorted_thresholds.sort_by_key(|(ext, _)| ext.as_str());
@@ -119,14 +119,14 @@ fn display_threshold_config(config: &VioletConfig) {
   println!();
 }
 
-/// Load configuration and exit on error
+
 fn load_config_or_exit() -> VioletConfig {
   match load_config() {
     Ok(config) => config,
     Err(e) => {
       eprintln!("Error loading configuration: {e}");
 
-      // Print the full error chain for more detailed diagnostics
+
       let mut source = e.source();
       while let Some(err) = source {
         eprintln!("  Caused by: {err}");
@@ -138,7 +138,7 @@ fn load_config_or_exit() -> VioletConfig {
   }
 }
 
-/// Process a single file and return chunk violations count and output
+
 fn process_single_file(
   path: &PathBuf,
   config: &VioletConfig,
@@ -170,7 +170,7 @@ fn process_single_file(
   }
 }
 
-/// Process a directory recursively and return total chunk violations
+
 fn process_directory(
   path: &PathBuf,
   config: &VioletConfig,
@@ -188,7 +188,7 @@ fn process_directory(
   violations
 }
 
-/// Print output header and violations
+
 fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
   if !violation_output.is_empty() {
     println!(
@@ -200,7 +200,7 @@ fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
     // Display threshold configuration after title
     display_threshold_config(config);
 
-    // Print table header for chunk violations
+
     let score_width = "SCORE".len();
     let chunk_width = TOTAL_WIDTH - score_width - PADDING;
 
@@ -210,12 +210,10 @@ fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
     for output in violation_output {
       print!("{output}");
     }
-  } else {
-    // All files are clean - print success message
+      } else {
     println!("{}", "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold());
     println!();
     
-    // Display threshold configuration after title
     display_threshold_config(config);
     
     println!("{} No issues found. What beautiful code you have!", "✅".green());
@@ -254,7 +252,7 @@ fn main() {
   }
 }
 
-/// Recursively collect all files in a directory that should be analyzed
+
 fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBuf> {
   let mut files = Vec::new();
 
@@ -262,7 +260,7 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
     for entry in entries.flatten() {
       let path = entry.path();
 
-      // Skip if the path should be ignored
+
       if should_ignore_file(config, &path) {
         continue;
       }
@@ -270,7 +268,7 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
       if path.is_file() {
         files.push(path);
       } else if path.is_dir() {
-        // Recursively collect files from subdirectory
+
         files.extend(collect_files_recursively(&path, config));
       }
     }
@@ -279,10 +277,10 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
   files
 }
 
-/// Format preview lines with truncation
+
 fn format_chunk_preview(chunk: &ComplexityRegion) -> String {
   let mut output = String::new();
-  let preview_lines: Vec<&str> = chunk.preview.lines().collect(); // Show all lines, not just 5
+  let preview_lines: Vec<&str> = chunk.preview.lines().collect();
 
   for line in preview_lines.iter() {
     if line.len() > 70 {
@@ -293,21 +291,21 @@ fn format_chunk_preview(chunk: &ComplexityRegion) -> String {
     }
   }
 
-  // No more "..." truncation indicator since we show the full window
+
   output
 }
 
-/// Apply logarithmic scaling to a component score
+
 fn scale_component_score(score: f64) -> f64 {
   (1.0_f64 + score).ln()
 }
 
-/// Format a single subscore component (depth, verbosity, or syntactic)
+
 fn report_subscore(name: &str, scaled_score: f64, percent: f64) -> String {
   format!("    {name}: {scaled_score:.2} ({percent:.0}%)\n")
 }
 
-/// Format complexity breakdown with percentage scaling
+
 fn format_complexity_breakdown(breakdown: &ComplexityBreakdown) -> String {
   let mut output = String::new();
 
@@ -322,7 +320,7 @@ fn format_complexity_breakdown(breakdown: &ComplexityBreakdown) -> String {
   output
 }
 
-/// Format a single violating chunk
+
 fn format_violating_chunk(chunk: &ComplexityRegion) -> String {
   let mut output = String::new();
 
@@ -336,7 +334,7 @@ fn format_violating_chunk(chunk: &ComplexityRegion) -> String {
   output
 }
 
-/// Handle ignored file formatting
+
 fn handle_ignored_file(analysis: &FileAnalysis, cli: &Cli) -> Option<String> {
   if !cli.quiet {
     let mut output = String::new();
@@ -362,21 +360,21 @@ fn process_file_analysis(
     return handle_ignored_file(analysis, cli);
   }
 
-  // Check if file has any chunks exceeding threshold
+
   let violating_chunks: Vec<&ComplexityRegion> =
     analysis.complexity_regions.iter().filter(|region| region.score > threshold).collect();
 
-  // Only show files that have violating chunks
+
   if violating_chunks.is_empty() {
     return None;
   }
 
   let mut output = String::new();
 
-  // Show file name without score (since we only care about chunks)
+
   output.push_str(&format_file_header(&analysis.file_path.display().to_string()));
 
-  // Show violating chunks as nested entries
+
   for chunk in violating_chunks {
     output.push_str(&format_violating_chunk(chunk));
   }
@@ -385,7 +383,7 @@ fn process_file_analysis(
 }
 
 fn format_file_header(file_path: &str) -> String {
-  // Format file name without score, using available width
+
   let formatted_file = format_file_path(file_path, TOTAL_WIDTH - 2);
   format!("{}\n", formatted_file.bold())
 }
@@ -396,14 +394,14 @@ fn format_aligned_row(
   is_error: bool,
   is_file: bool,
 ) -> String {
-  // Calculate available width for the file/chunk column
+
   let avg_column_width = score_text.len();
   let file_column_width = TOTAL_WIDTH - avg_column_width - PADDING;
 
-  // Format the file/chunk text to fit exactly in the available space
+
   let formatted_file = format_file_path(file_or_chunk, file_column_width);
 
-  // Apply color to score if needed
+
   let colored_score = if is_error {
     score_text.red().to_string()
   } else if score_text == "(ignored)" {
@@ -412,14 +410,14 @@ fn format_aligned_row(
     score_text.green().to_string()
   };
 
-  // Format with exact calculated widths using appropriate padding
+
   if is_file {
-    // For files, pad with dashes
+    
     let padding_needed = file_column_width - formatted_file.len();
     let dashes = "-".repeat(padding_needed);
     format!("{formatted_file}{dashes} {colored_score}\n")
   } else {
-    // For chunks, pad with dots
+    
     let padding_needed = file_column_width - formatted_file.len();
     let dots = ".".repeat(padding_needed);
     format!("{formatted_file}{dots} {colored_score}\n")
@@ -430,12 +428,12 @@ fn format_file_path(path: &str, max_width: usize) -> String {
   if path.len() <= max_width {
     path.to_string()
   } else {
-    let truncated_len = max_width - 3; // Reserve 3 chars for "..."
+    let truncated_len = max_width - 3;
     format!("...{}", &path[path.len() - truncated_len..])
   }
 }
 
-// violet ignore chunk
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -455,8 +453,8 @@ mod tests {
   fn test_format_file_path_with_truncation() {
     let path = "very/long/path/to/some/file.rs";
     let result = format_file_path(path, 15);
-    assert_eq!(result, "...some/file.rs"); // Corrected expectation
-    assert_eq!(result.len(), 15); // Should be exactly max_width
+    assert_eq!(result, "...some/file.rs");
+    assert_eq!(result.len(), 15);
   }
 
   #[test]
@@ -504,7 +502,6 @@ mod tests {
     let config =
       VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
 
-    // Create test files
     let file1_path = temp_dir.path().join("test1.rs");
     fs::write(&file1_path, "fn main() {}").unwrap();
 
@@ -529,7 +526,6 @@ mod tests {
       default_threshold: 6.0,
     };
 
-    // Create test files
     let included_file = temp_dir.path().join("included.rs");
     fs::write(&included_file, "fn main() {}").unwrap();
 
@@ -595,9 +591,9 @@ mod tests {
 
     let preview = format_chunk_preview(&chunk_score);
     
-    // Should truncate long lines and add "..."
+
     assert!(preview.contains("..."));
-    assert!(preview.len() < 100); // Should be shorter than original
+    assert!(preview.len() < 100);
   }
 
   #[test]
@@ -621,21 +617,21 @@ mod tests {
 
     let preview = format_chunk_preview(&chunk_score);
     
-    // Should now show all lines, not just 5
+
     assert!(preview.contains("line 1"));
     assert!(preview.contains("line 5"));
-    assert!(preview.contains("line 9")); // Should now show beyond 5 lines
-    assert!(!preview.contains("...")); // Should not indicate truncation
+    assert!(preview.contains("line 9"));
+    assert!(!preview.contains("..."));
   }
 
   #[test]
   fn test_scale_component_score() {
-    // Test that scaling is logarithmic
+
     assert_eq!(scale_component_score(0.0), (1.0_f64).ln());
     assert_eq!(scale_component_score(1.0), (2.0_f64).ln());
     assert_eq!(scale_component_score(10.0), (11.0_f64).ln());
     
-    // Test that larger inputs give larger outputs
+
     let small = scale_component_score(1.0);
     let medium = scale_component_score(10.0);
     let large = scale_component_score(100.0);
@@ -651,8 +647,8 @@ mod tests {
     
     assert!(result.contains("Depth"));
     assert!(result.contains("5.5"));
-    assert!(result.contains("33%")); // Should round to nearest percent
-    assert!(result.contains("(")); // Should have parentheses around percentage
+    assert!(result.contains("33%"));
+    assert!(result.contains("("));
     assert!(result.contains(")")); 
   }
 
@@ -662,7 +658,7 @@ mod tests {
     let header = format_file_header(file_path);
     
     assert!(header.contains("src/main.rs"));
-    assert!(header.ends_with('\n')); // Should end with newline
+    assert!(header.ends_with('\n'));
   }
 
   #[test]
@@ -759,7 +755,7 @@ mod tests {
   }
   #[test]
   fn test_extension_to_language() {
-    // Test common mappings
+
     assert_eq!(extension_to_language(".rs"), "rust");
     assert_eq!(extension_to_language(".js"), "javascript");
     assert_eq!(extension_to_language(".ts"), "typescript");
@@ -767,7 +763,7 @@ mod tests {
     assert_eq!(extension_to_language(".go"), "go");
     assert_eq!(extension_to_language(".java"), "java");
     
-    // Test multiple extensions for same language
+
     assert_eq!(extension_to_language(".cpp"), "C++");
     assert_eq!(extension_to_language(".cc"), "C++");
     assert_eq!(extension_to_language(".cxx"), "C++");
