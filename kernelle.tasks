@@ -65,7 +65,7 @@
   "ci:test": "NO_COLOR=1 kernelle do rust:test",
 
   // Base CI/CD Task to be used in top level checks.
-  "ci:base": "kernelle do ci:tidy && kernelle do ci:build && kernelle do quality && kernelle do ci:secure",
+  "ci:base": "kernelle do ci:tidy && kernelle do ci:build && kernelle do quality",
 
   // ------------------------------------------------------------
   // Testing

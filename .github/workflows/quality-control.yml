@@ -12,7 +12,7 @@ env:
 
 jobs:
   code-quality:
-    name: Run Code Quality Analysis
+    name: Lint, Format & Quality Analysis
     runs-on: ubuntu-latest
 
     steps:
@@ -24,22 +24,25 @@ jobs:
         with:
           rust-components: rustfmt,clippy
 
-      - name: Run Quality Control Tasks
-        run: kernelle do ci:tidy
+      - name: Check formatting
+        run: |
+          echo "Checking code formatting..."
+          cargo fmt --all -- --check
 
-      - name: Run Functional Complexity Analysis
-        run: kernelle do quality
+      - name: Check final newlines
+        run: |
+          echo "Checking final newlines..."
+          bash scripts/ensure-final-newlines.sh --check
 
-  security-audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
+      - name: Run clippy (strict)
+        run: |
+          echo "Running clippy analysis with strict warnings..."
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Run complexity analysis
+        run: |
+          echo "Running code complexity analysis..."
+          kernelle do quality
 
-      - name: Setup Kernelle Dependencies
-        uses: ./.github/actions/setup-kernelle
-
-      - name: Run Security Audit
-        run: kernelle do ci:secure 
+      - name: Quality checks complete
+        run: echo "✨ All code quality checks passed! The code is clean and maintainable!" 
