@@ -127,7 +127,14 @@ impl SessionManager {
       .join(repository_path)
       .join(mr_number.to_string());
 
+    // Robust directory creation for cross-platform compatibility
     std::fs::create_dir_all(&session_dir)?;
+    
+    // Verify the directory was actually created and is accessible
+    if !session_dir.exists() {
+      return Err(anyhow::anyhow!("Failed to create session directory: {:?}", session_dir));
+    }
+
     self.current_session_path = Some(session_dir);
     Ok(())
   }
@@ -156,8 +163,17 @@ impl SessionManager {
     let session_path = self.get_session_path()?;
     let session_file = session_path.join("session.json");
 
-    // Ensure the session directory exists before writing (defensive programming for cross-platform compatibility)
-    std::fs::create_dir_all(session_path)?;
+    // Ensure the session directory exists with robust cross-platform directory creation
+    if !session_path.exists() {
+      std::fs::create_dir_all(session_path)?;
+    }
+    
+    // Ensure parent directory exists for the session file
+    if let Some(parent) = session_file.parent() {
+      if !parent.exists() {
+        std::fs::create_dir_all(parent)?;
+      }
+    }
 
     let json = serde_json::to_string_pretty(session)?;
     std::fs::write(session_file, json)?;
