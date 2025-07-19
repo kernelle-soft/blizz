@@ -74,10 +74,10 @@ fn default_global_config() -> VioletConfig {
 
 /// Load and merge global + project configurations
 pub fn load_config() -> Result<VioletConfig> {
-  let global_config = load_global_config()?;
+  let global_config = default_global_config();
   let project_config = load_project_config()?;
   
-  Ok(merge_configs(global_config, project_config))
+  Ok(merge(global_config, project_config))
 }
 
 pub fn get_threshold_for_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -> f64 {
@@ -101,7 +101,7 @@ pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -
     if let Some(stripped) = path_str.strip_prefix("./") { stripped } else { &path_str };
 
   for pattern in config.get_ignore_files() {
-    if matches_pattern(&path_str, pattern) || matches_pattern(normalized_path, pattern) {
+    if matches_glob(&path_str, pattern) || matches_glob(normalized_path, pattern) {
       return true;
     }
   }
@@ -127,10 +127,6 @@ pub fn should_ignore_chunk_with_patterns(chunk_content: &str, ignore_patterns: &
   }
   
   false
-}
-
-fn load_global_config() -> Result<VioletConfig> {
-  Ok(default_global_config())
 }
 
 fn load_project_config() -> Result<Option<VioletConfig>> {
@@ -173,7 +169,7 @@ fn merge_ignore_patterns(
   result
 }
 
-fn merge_configs(global: VioletConfig, project: Option<VioletConfig>) -> VioletConfig {
+fn merge(global: VioletConfig, project: Option<VioletConfig>) -> VioletConfig {
   let project = project.unwrap_or_default();
 
   // Only use project default if it was explicitly changed
@@ -205,7 +201,7 @@ fn merge_configs(global: VioletConfig, project: Option<VioletConfig>) -> VioletC
 }
 
 /// Enhanced glob matching with filename fallback
-fn matches_pattern(path: &str, pattern: &str) -> bool {
+fn matches_glob(path: &str, pattern: &str) -> bool {
   let glob_pattern = match Pattern::new(pattern) {
     Ok(p) => p,
     Err(_) => return false,
@@ -283,36 +279,36 @@ mod tests {
 
   #[test]
   fn test_matches_pattern_exact() {
-    assert!(matches_pattern(".DS_Store", ".DS_Store"));
-    assert!(matches_pattern("path/to/.DS_Store", ".DS_Store"));
-    assert!(!matches_pattern("other.file", ".DS_Store"));
+    assert!(matches_glob(".DS_Store", ".DS_Store"));
+    assert!(matches_glob("path/to/.DS_Store", ".DS_Store"));
+    assert!(!matches_glob("other.file", ".DS_Store"));
   }
 
   #[test]
   fn test_matches_pattern_directory_glob() {
-    assert!(matches_pattern("target/", "target/**"));
-    assert!(matches_pattern("target/debug", "target/**"));
-    assert!(matches_pattern("target/debug/deps/violet", "target/**"));
-    assert!(!matches_pattern("src/target", "target/**"));
-    assert!(!matches_pattern("other/", "target/**"));
+    assert!(matches_glob("target/", "target/**"));
+    assert!(matches_glob("target/debug", "target/**"));
+    assert!(matches_glob("target/debug/deps/violet", "target/**"));
+    assert!(!matches_glob("src/target", "target/**"));
+    assert!(!matches_glob("other/", "target/**"));
   }
 
   #[test]
   fn test_matches_pattern_file_extension() {
-    assert!(matches_pattern("config.json", "*.json"));
-    assert!(matches_pattern("path/to/config.json", "*.json"));
-    assert!(matches_pattern("package.json5", "*.json5"));
-    assert!(!matches_pattern("config.yaml", "*.json"));
-    assert!(!matches_pattern("jsonfile", "*.json"));
+    assert!(matches_glob("config.json", "*.json"));
+    assert!(matches_glob("path/to/config.json", "*.json"));
+    assert!(matches_glob("package.json5", "*.json5"));
+    assert!(!matches_glob("config.yaml", "*.json"));
+    assert!(!matches_glob("jsonfile", "*.json"));
   }
 
   #[test]
   fn test_matches_pattern_wildcard() {
-    assert!(matches_pattern("testfile", "test*"));
-    assert!(matches_pattern("test123file", "test*file"));
-    assert!(matches_pattern("prefix_middle_suffix", "prefix*suffix"));
-    assert!(!matches_pattern("wrongprefix_suffix", "prefix*suffix"));
-    assert!(!matches_pattern("prefix_wrong", "prefix*suffix"));
+    assert!(matches_glob("testfile", "test*"));
+    assert!(matches_glob("test123file", "test*file"));
+    assert!(matches_glob("prefix_middle_suffix", "prefix*suffix"));
+    assert!(!matches_glob("wrongprefix_suffix", "prefix*suffix"));
+    assert!(!matches_glob("prefix_wrong", "prefix*suffix"));
   }
 
   #[test]
@@ -399,7 +395,7 @@ mod tests {
       ..Default::default()
     };
 
-    let result = merge_configs(global, None);
+    let result = merge(global, None);
 
     assert_eq!(result.complexity.thresholds.default, 8.0);
     assert_eq!(result.ignore_files, vec!["global_pattern"]);
@@ -434,7 +430,7 @@ mod tests {
       ..Default::default()
     };
 
-    let result = merge_configs(global, Some(project));
+    let result = merge(global, Some(project));
 
     assert_eq!(result.complexity.thresholds.default, 6.5);
 
@@ -467,7 +463,7 @@ mod tests {
       ..Default::default()
     };
 
-    let result = merge_configs(global, Some(project));
+    let result = merge(global, Some(project));
 
     assert_eq!(result.complexity.thresholds.default, 8.0);
   }
@@ -531,42 +527,42 @@ mod tests {
 
   #[test]
   fn test_matches_pattern_edge_cases() {
-    assert!(!matches_pattern("file.rs", ""));
-    assert!(!matches_pattern("", "pattern"));
-    assert!(matches_pattern("", ""));
+    assert!(!matches_glob("file.rs", ""));
+    assert!(!matches_glob("", "pattern"));
+    assert!(matches_glob("", ""));
 
-    assert!(matches_pattern("test123file", "test*file"));
-    assert!(matches_pattern("prefix_middle_suffix", "prefix*suffix"));
-    assert!(!matches_pattern("wrong_middle_suffix", "prefix*different"));
+    assert!(matches_glob("test123file", "test*file"));
+    assert!(matches_glob("prefix_middle_suffix", "prefix*suffix"));
+    assert!(!matches_glob("wrong_middle_suffix", "prefix*different"));
 
-    assert!(matches_pattern("file with spaces.txt", "*.txt"));
-    assert!(matches_pattern("file-with-dashes.rs", "*.rs"));
-    assert!(matches_pattern("file.with.dots.json", "*.json"));
+    assert!(matches_glob("file with spaces.txt", "*.txt"));
+    assert!(matches_glob("file-with-dashes.rs", "*.rs"));
+    assert!(matches_glob("file.with.dots.json", "*.json"));
 
-    assert!(matches_pattern("anything", "*"));
-    assert!(matches_pattern("prefix123", "prefix*"));
-    assert!(matches_pattern("123suffix", "*suffix"));
+    assert!(matches_glob("anything", "*"));
+    assert!(matches_glob("prefix123", "prefix*"));
+    assert!(matches_glob("123suffix", "*suffix"));
   }
 
   #[test]
   fn test_matches_pattern_multiple_wildcards() {
-    assert!(matches_pattern("test123file456", "test*file*"));
-    assert!(matches_pattern("prefix_middle_end_suffix", "prefix*end*suffix"));
-    assert!(!matches_pattern("wrong_middle_suffix", "prefix*end*suffix"));
+    assert!(matches_glob("test123file456", "test*file*"));
+    assert!(matches_glob("prefix_middle_end_suffix", "prefix*end*suffix"));
+    assert!(!matches_glob("wrong_middle_suffix", "prefix*end*suffix"));
 
-    assert!(matches_pattern("mydebugfile", "*debug*"));
-    assert!(matches_pattern("app_debug_info.txt", "*debug*"));
-    assert!(matches_pattern("debug.log", "*debug*"));
-    assert!(!matches_pattern("release.log", "*debug*"));
+    assert!(matches_glob("mydebugfile", "*debug*"));
+    assert!(matches_glob("app_debug_info.txt", "*debug*"));
+    assert!(matches_glob("debug.log", "*debug*"));
+    assert!(!matches_glob("release.log", "*debug*"));
 
-    assert!(matches_pattern("test_spec_helper.rb", "test*spec*"));
-    assert!(matches_pattern("test123spec456", "test*spec*"));
-    assert!(!matches_pattern("testfile", "test*spec*"));
+    assert!(matches_glob("test_spec_helper.rb", "test*spec*"));
+    assert!(matches_glob("test123spec456", "test*spec*"));
+    assert!(!matches_glob("testfile", "test*spec*"));
 
-    assert!(matches_pattern("anything", "**"));
-    assert!(matches_pattern("anything", "*anything*"));
-    assert!(matches_pattern("", "*"));
-    assert!(matches_pattern("", "**"));
+    assert!(matches_glob("anything", "**"));
+    assert!(matches_glob("anything", "*anything*"));
+    assert!(matches_glob("", "*"));
+    assert!(matches_glob("", "**"));
   }
 
   #[test]
@@ -890,20 +886,20 @@ mod tests {
 
   #[test]
   fn test_matches_pattern_globstar_edge_cases() {
-    assert!(matches_pattern("anything/file.txt", "**/file.txt"));
-    assert!(matches_pattern("deep/nested/file.txt", "**/file.txt"));
-    assert!(matches_pattern("file.txt", "**/file.txt"));
+    assert!(matches_glob("anything/file.txt", "**/file.txt"));
+    assert!(matches_glob("deep/nested/file.txt", "**/file.txt"));
+    assert!(matches_glob("file.txt", "**/file.txt"));
     
-    assert!(matches_pattern("src/anything", "src/**"));
-    assert!(matches_pattern("src/deep/nested", "src/**"));
-    assert!(matches_pattern("src/", "src/**"));
+    assert!(matches_glob("src/anything", "src/**"));
+    assert!(matches_glob("src/deep/nested", "src/**"));
+    assert!(matches_glob("src/", "src/**"));
     
-    assert!(matches_pattern("start/anything/end", "start/**/end"));
-    assert!(matches_pattern("start/deep/nested/end", "start/**/end"));
-    assert!(matches_pattern("start/end", "start/**/end"));
+    assert!(matches_glob("start/anything/end", "start/**/end"));
+    assert!(matches_glob("start/deep/nested/end", "start/**/end"));
+    assert!(matches_glob("start/end", "start/**/end"));
     
-    assert!(matches_pattern("a/anything/b/anything/c", "a/**/b/**/c"));
-    assert!(matches_pattern("a/x/b/y/c", "a/**/b/**/c"));
+    assert!(matches_glob("a/anything/b/anything/c", "a/**/b/**/c"));
+    assert!(matches_glob("a/x/b/y/c", "a/**/b/**/c"));
   }
 
   #[test]
