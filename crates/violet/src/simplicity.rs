@@ -291,59 +291,17 @@ pub fn analyze_file<P: AsRef<Path>>(
 ) -> Result<FileAnalysis, Box<dyn std::error::Error>> {
   let path = file_path.as_ref();
   let content = fs::read_to_string(path)?;
-
+  
   let preprocessed = match preprocess_file(&content) {
     Some(processed) => processed,
     None => return Ok(create_ignored_file_analysis(path)),
   };
 
   if preprocessed.trim().is_empty() {
-    return Ok(FileAnalysis {
-      file_path: path.to_path_buf(),
-      total_score: 0.0,
-      complexity_regions: vec![],
-      ignored: false,
-    });
+    return Ok(create_empty_file_analysis(path));
   }
 
-  let threshold = get_threshold_for_file(config, path);
-  let lines: Vec<&str> = preprocessed.lines().collect();
-  
-  // Use line lengths to guide chunk fusion algorithm
-  let line_lengths: Vec<f64> = lines.iter()
-    .map(|line| line.len() as f64)
-    .collect();
-  
-  let regions = analyze_file_iterative_fusion(&lines, &line_lengths);
-  
-  let mut complexity_regions = Vec::new();
-  for (start, end, _) in regions {
-    if end > start {
-      let chunk_lines = &lines[start..=end.min(lines.len().saturating_sub(1))];
-      let chunk_content = chunk_lines.join("\n");
-      
-      if should_ignore_chunk(&chunk_content) {
-        continue;
-      }
-
-      let score = chunk_complexity(&chunk_content);
-      
-      if score > threshold {
-        let breakdown = calculate_chunk_breakdown(&chunk_content);
-        let preview = create_chunk_preview(chunk_lines);
-        
-        complexity_regions.push(ComplexityRegion {
-          start_line: start + 1,
-          end_line: end + 1,
-          score,
-          breakdown,
-          preview,
-          region_type: RegionType::DetectedHotspot,
-        });
-      }
-    }
-  }
-
+  let complexity_regions = find_complexity_violations(&preprocessed, config, path);
   let total_score = file_complexity(&preprocessed);
 
   Ok(FileAnalysis { 
@@ -352,6 +310,67 @@ pub fn analyze_file<P: AsRef<Path>>(
     complexity_regions, 
     ignored: false 
   })
+}
+
+fn create_empty_file_analysis(path: &Path) -> FileAnalysis {
+  FileAnalysis {
+    file_path: path.to_path_buf(),
+    total_score: 0.0,
+    complexity_regions: vec![],
+    ignored: false,
+  }
+}
+
+fn find_complexity_violations(content: &str, config: &VioletConfig, path: &Path) -> Vec<ComplexityRegion> {
+  let threshold = get_threshold_for_file(config, path);
+  let lines: Vec<&str> = content.lines().collect();
+  let line_lengths: Vec<f64> = lines.iter().map(|line| line.len() as f64).collect();
+  let regions = analyze_file_iterative_fusion(&lines, &line_lengths);
+  
+  process_regions_for_violations(regions, &lines, threshold)
+}
+
+fn process_regions_for_violations(regions: Vec<(usize, usize, f64)>, lines: &[&str], threshold: f64) -> Vec<ComplexityRegion> {
+  let mut complexity_regions = Vec::new();
+  
+  for (start, end, _) in regions {
+    if let Some(region) = analyze_region_if_complex(start, end, lines, threshold) {
+      complexity_regions.push(region);
+    }
+  }
+  
+  complexity_regions
+}
+
+fn analyze_region_if_complex(start: usize, end: usize, lines: &[&str], threshold: f64) -> Option<ComplexityRegion> {
+  if end <= start {
+    return None;
+  }
+  
+  let chunk_lines = &lines[start..=end.min(lines.len().saturating_sub(1))];
+  let chunk_content = chunk_lines.join("\n");
+  
+  if should_ignore_chunk(&chunk_content) {
+    return None;
+  }
+
+  let score = chunk_complexity(&chunk_content);
+  
+  if score > threshold {
+    let breakdown = calculate_chunk_breakdown(&chunk_content);
+    let preview = create_chunk_preview(chunk_lines);
+    
+    Some(ComplexityRegion {
+      start_line: start + 1,
+      end_line: end + 1,
+      score,
+      breakdown,
+      preview,
+      region_type: RegionType::DetectedHotspot,
+    })
+  } else {
+    None
+  }
 }
 
 fn create_chunk_preview(lines: &[&str]) -> String {
@@ -453,40 +472,54 @@ fn fuse_compatible_chunks(chunks: Vec<(usize, usize)>, line_lengths: &[f64], lin
 
 /// Decide whether to fuse chunks based on indentation patterns and line length transitions
 fn should_fuse_chunks(chunk1: (usize, usize), chunk2: (usize, usize), line_lengths: &[f64], lines: &[&str]) -> bool {
-  if chunk1.0 >= lines.len() || chunk1.1 <= chunk1.0 || 
-     chunk2.0 >= lines.len() || chunk2.1 <= chunk2.0 {
+  if !are_chunks_valid(chunk1, chunk2, lines) {
     return false;
   }
   
-  // Check for block entry/exit pattern (indentation increases then decreases)
-  let prev_chunk_start_indent = get_indents(lines[chunk1.0]) as f64;
-  let prev_chunk_end_indent = get_indents(lines[chunk1.1.saturating_sub(1)]) as f64;
-  
-  if prev_chunk_end_indent > prev_chunk_start_indent {
-    let next_chunk_start_indent = get_indents(lines[chunk2.0]) as f64;
-    let next_chunk_end_indent = get_indents(lines[chunk2.1.saturating_sub(1)]) as f64;
-    
-    // If we entered a block and are now exiting, these chunks likely belong together
-    if next_chunk_start_indent >= next_chunk_end_indent {
-      return true;
-    }
+  if has_block_entry_exit_pattern(chunk1, chunk2, lines) {
+    return true;
   }
   
-  // Fallback: check line length transition smoothness
+  has_gradual_length_transition(chunk1, chunk2, line_lengths)
+}
+
+fn are_chunks_valid(chunk1: (usize, usize), chunk2: (usize, usize), lines: &[&str]) -> bool {
+  chunk1.0 < lines.len() && chunk1.1 > chunk1.0 && 
+  chunk2.0 < lines.len() && chunk2.1 > chunk2.0
+}
+
+fn has_block_entry_exit_pattern(chunk1: (usize, usize), chunk2: (usize, usize), lines: &[&str]) -> bool {
+  let prev_start_indent = get_indents(lines[chunk1.0]) as f64;
+  let prev_end_indent = get_indents(lines[chunk1.1.saturating_sub(1)]) as f64;
+  
+  if prev_end_indent <= prev_start_indent {
+    return false;
+  }
+  
+  let next_start_indent = get_indents(lines[chunk2.0]) as f64;
+  let next_end_indent = get_indents(lines[chunk2.1.saturating_sub(1)]) as f64;
+  
+  next_start_indent >= next_end_indent
+}
+
+fn has_gradual_length_transition(chunk1: (usize, usize), chunk2: (usize, usize), line_lengths: &[f64]) -> bool {
   let last_line_idx = chunk1.1.saturating_sub(1);
   let first_line_idx = chunk2.0;
   
   let last_line_length = line_lengths[last_line_idx];
   let first_line_length = line_lengths[first_line_idx];
   
-  let length_ratio = if last_line_length == 0.0 {
+  let length_ratio = calculate_length_ratio(last_line_length, first_line_length);
+  
+  length_ratio <= 2.0
+}
+
+fn calculate_length_ratio(last_length: f64, first_length: f64) -> f64 {
+  if last_length == 0.0 {
     f64::INFINITY
   } else {
-    first_line_length / last_line_length
-  };
-  
-  // Fuse if transition is gradual (ratio > 2.0 suggests structural boundary)
-  length_ratio <= 2.0
+    first_length / last_length
+  }
 }
 
 fn calculate_chunk_breakdown(chunk_content: &str) -> ComplexityBreakdown {
@@ -506,6 +539,7 @@ fn calculate_chunk_breakdown(chunk_content: &str) -> ComplexityBreakdown {
   create_breakdown(total_depth, total_verbosity, total_syntactic)
 }
 
+// violet ignore chunk
 #[cfg(test)]
 mod tests {
   use super::*;

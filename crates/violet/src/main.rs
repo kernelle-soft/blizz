@@ -1,7 +1,9 @@
 use clap::Parser;
 use colored::*;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process;
+use std::sync::OnceLock;
 use violet::config::{get_threshold_for_file, load_config, should_ignore_file, VioletConfig};
 use violet::simplicity::{analyze_file, ComplexityRegion, ComplexityBreakdown, FileAnalysis};
 
@@ -21,101 +23,142 @@ struct Cli {
   quiet: bool,
 }
 
+/// Get the static language mapping table
+fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
+  static LANGUAGE_MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+  LANGUAGE_MAP.get_or_init(|| {
+    let mut map = HashMap::new();
+    
+    // JavaScript family
+    map.insert(".js", "javascript");
+    map.insert(".mjs", "modules javascript");
+    map.insert(".cjs", "commonjs javascript");
+    map.insert(".jsx", "react javascript");
+    map.insert(".ts", "typescript");
+    map.insert(".tsx", "react typescript");
+    
+    // Python family
+    map.insert(".py", "python");
+    map.insert(".pyw", "windows python");
+    map.insert(".pyc", "compiled python");
+    
+    // Systems languages
+    map.insert(".rs", "rust");
+    map.insert(".go", "go");
+    map.insert(".c", "C");
+    map.insert(".h", "C headers");
+    map.insert(".cpp", "C++");
+    map.insert(".cc", "C++");
+    map.insert(".cxx", "C++");
+    map.insert(".c++", "C++");
+    map.insert(".hpp", "C++ headers");
+    map.insert(".hxx", "C++ headers");
+    
+    // JVM languages
+    map.insert(".java", "java");
+    map.insert(".kt", "kotlin");
+    map.insert(".kts", "kotlin script");
+    map.insert(".scala", "scala");
+    map.insert(".groovy", "groovy");
+    map.insert(".gvy", "groovy");
+    map.insert(".gy", "groovy");
+    map.insert(".gsh", "groovy shell");
+    
+    // Other languages
+    map.insert(".cs", "C#");
+    map.insert(".php", "php");
+    map.insert(".rb", "ruby");
+    map.insert(".swift", "swift");
+    map.insert(".hs", "haskell");
+    map.insert(".ex", "elixir");
+    map.insert(".exs", "elixir (script)");
+    map.insert(".pl", "perl");
+    map.insert(".pm", "perl (module)");
+    map.insert(".lua", "lua");
+    map.insert(".dart", "dart");
+    map.insert(".r", "R");
+    map.insert(".R", "R (alt)");
+    map.insert(".m", "matlab");
+    map.insert(".vb", "visual basic");
+    map.insert(".gd", "gdscript");
+    map.insert(".asm", "assembly");
+    map.insert(".s", "assembly");
+    
+    // Shell scripts
+    map.insert(".sh", "shell scripts");
+    map.insert(".bash", "bash");
+    map.insert(".zsh", "zsh");
+    map.insert(".fish", "fish");
+    map.insert(".ps1", "powershell");
+    
+    // Web technologies
+    map.insert(".html", "html");
+    map.insert(".htm", "html (alt)");
+    map.insert(".css", "css");
+    map.insert(".scss", "sass (scss)");
+    map.insert(".sass", "sass");
+    map.insert(".less", "less");
+    map.insert(".vue", "vue");
+    
+    // Data formats
+    map.insert(".json", "json");
+    map.insert(".xml", "xml");
+    map.insert(".yaml", "yaml");
+    map.insert(".yml", "yml");
+    map.insert(".toml", "toml");
+    map.insert(".sql", "sql");
+    map.insert(".md", "markdown");
+    
+    // Infrastructure
+    map.insert(".dockerfile", "dockerfile");
+    map.insert(".tf", "terraform");
+    map.insert(".hcl", "hcl");
+    
+    map
+  })
+}
+
 /// Map file extensions to human-readable language names
 fn extension_to_language(ext: &str) -> &str {
-  match ext {
-    ".js" => "javascript",
-    ".mjs" => "modules javascript",
-    ".cjs" => "commonjs javascript",
-    ".jsx" => "react javascript",
-    ".ts" => "typescript",
-    ".tsx" => "react typescript",
-    ".py" => "python",
-    ".pyw" => "windows python",
-    ".pyc" => "compiled python",
-    ".rs" => "rust",
-    ".go" => "go",
-    ".java" => "java",
-    ".kt" => "kotlin",
-    ".kts" => "kotlin script",
-    ".cs" => "C#",
-    ".cpp" => "C++",
-    ".cc" => "C++",
-    ".cxx" => "C++",
-    ".c++" => "C++",
-    ".c" => "C",
-    ".h" => "C headers",
-    ".hpp" => "C++ headers",
-    ".hxx" => "C++ headers",
-    ".php" => "php",
-    ".rb" => "ruby",
-    ".swift" => "swift",
-    ".scala" => "scala",
-    ".hs" => "haskell",
-    ".ex" => "elixir",
-    ".exs" => "elixir (script)",
-    ".pl" => "perl",
-    ".pm" => "perl (module)",
-    ".lua" => "lua",
-    ".dart" => "dart",
-    ".r" => "R",
-    ".R" => "R (alt)",
-    ".m" => "matlab",
-    ".sh" => "shell scripts",
-    ".bash" => "bash",
-    ".zsh" => "zsh",
-    ".fish" => "fish",
-    ".ps1" => "powershell",
-    ".sql" => "sql",
-    ".html" => "html",
-    ".htm" => "html (alt)",
-    ".css" => "css",
-    ".scss" => "sass (scss)",
-    ".sass" => "sass",
-    ".less" => "less",
-    ".vue" => "vue",
-    ".gd" => "gdscript",
-    ".vb" => "visual basic",
-    ".groovy" => "groovy",
-    ".gvy" => "groovy",
-    ".gy" => "groovy",
-    ".gsh" => "groovy shell",
-    ".asm" => "assembly",
-    ".s" => "assembly",
-    ".json" => "json",
-    ".xml" => "xml",
-    ".yaml" => "yaml",
-    ".yml" => "yml",
-    ".toml" => "toml",
-    ".md" => "markdown",
-    ".dockerfile" => "dockerfile",
-    ".tf" => "terraform",
-    ".hcl" => "hcl",
-    _ => ext,
-  }
+  get_language_map().get(ext).unwrap_or(&ext)
 }
 
 fn display_threshold_config(config: &VioletConfig) {
   if config.thresholds.is_empty() {
-    // Simple format when no language-specific overrides
-    println!("threshold: {:.2}", config.default_threshold);
+    display_simple_threshold(config.default_threshold);
   } else {
-    // Full table when there are language-specific thresholds
-    println!("language                threshold");
-    println!("=================================");
-    
-    println!("{:<23} {:>6.2}", "default", config.default_threshold);
-    
-    let mut sorted_thresholds: Vec<_> = config.thresholds.iter().collect();
-    sorted_thresholds.sort_by_key(|(ext, _)| ext.as_str());
-    
-    for (extension, threshold) in sorted_thresholds {
-      let language = extension_to_language(extension);
-      println!("{:<23} {:>6.2}", language, threshold);
-    }
+    display_threshold_table(config);
   }
-  
   println!();
+}
+
+fn display_simple_threshold(threshold: f64) {
+  println!("threshold: {:.2}", threshold);
+}
+
+fn display_threshold_table(config: &VioletConfig) {
+  print_table_header();
+  print_default_threshold(config.default_threshold);
+  print_language_thresholds(&config.thresholds);
+}
+
+fn print_table_header() {
+  println!("language                threshold");
+  println!("=================================");
+}
+
+fn print_default_threshold(threshold: f64) {
+  println!("{:<23} {:>6.2}", "default", threshold);
+}
+
+fn print_language_thresholds(thresholds: &std::collections::HashMap<String, f64>) {
+  let mut sorted_thresholds: Vec<_> = thresholds.iter().collect();
+  sorted_thresholds.sort_by_key(|(ext, _)| ext.as_str());
+  
+  for (extension, threshold) in sorted_thresholds {
+    let language = extension_to_language(extension);
+    println!("{:<23} {:>6.2}", language, threshold);
+  }
 }
 
 fn load_config_or_exit() -> VioletConfig {
