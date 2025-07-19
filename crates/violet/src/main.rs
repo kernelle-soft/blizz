@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process;
 use std::sync::OnceLock;
-use violet::config::{get_threshold_for_file, load_config, should_ignore_file, VioletConfig, ComplexityConfig, ThresholdConfig};
-use violet::simplicity::{analyze_file, ComplexityRegion, ComplexityBreakdown, FileAnalysis};
+use violet::config;
+use violet::simplicity;
 
 const TOTAL_WIDTH: usize = 80;
 const PADDING: usize = 2;
@@ -28,7 +28,7 @@ fn extension_to_language(ext: &str) -> &str {
   get_language_map().get(ext).unwrap_or(&ext)
 }
 
-fn display_threshold_config(config: &VioletConfig) {
+fn display_threshold_config(config: &config::VioletConfig) {
   let thresholds = &config.complexity.thresholds.extensions;
   if thresholds.is_empty() {
     display_simple_threshold(config.complexity.thresholds.default);
@@ -42,7 +42,7 @@ fn display_simple_threshold(threshold: f64) {
   println!("threshold: {:.2}", threshold);
 }
 
-fn display_threshold_table(config: &VioletConfig) {
+fn display_threshold_table(config: &config::VioletConfig) {
   print_table_header();
   print_default_threshold(config.complexity.thresholds.default);
   print_language_thresholds(&config.complexity.thresholds.extensions);
@@ -67,8 +67,8 @@ fn print_language_thresholds(thresholds: &std::collections::HashMap<String, f64>
   }
 }
 
-fn load_config_or_exit() -> VioletConfig {
-  match load_config() {
+fn load_config_or_exit() -> config::VioletConfig {
+  match config::load_config() {
     Ok(config) => config,
     Err(e) => {
       eprintln!("Error loading configuration: {e}");
@@ -86,19 +86,19 @@ fn load_config_or_exit() -> VioletConfig {
 
 fn process_single_file(
   path: &PathBuf,
-  config: &VioletConfig,
+  config: &config::VioletConfig,
   cli: &Cli,
   total_files: &mut i32,
   violation_output: &mut Vec<String>,
 ) -> usize {
-  if should_ignore_file(config, path) {
+  if config::should_ignore_file(config, path) {
     return 0;
   }
 
-  match analyze_file(path, config) {
+  match simplicity::analyze_file(path, config) {
     Ok(analysis) => {
       *total_files += 1;
-      let threshold = get_threshold_for_file(config, path);
+      let threshold = config::get_threshold_for_file(config, path);
       if let Some(output) = process_file_analysis(&analysis, config, cli, threshold) {
         let chunk_violations =
           analysis.complexity_regions.iter().filter(|region| region.score > threshold).count();
@@ -117,12 +117,12 @@ fn process_single_file(
 
 fn process_directory(
   path: &PathBuf,
-  config: &VioletConfig,
+  config: &config::VioletConfig,
   cli: &Cli,
   total_files: &mut i32,
   violation_output: &mut Vec<String>,
 ) -> usize {
-  let files = collect_files_recursively(path, config);
+  let files = collect_files_recursively(path, &config);
   let mut violations = 0;
 
   for file_path in files {
@@ -132,7 +132,7 @@ fn process_directory(
   violations
 }
 
-fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
+fn print_results(violation_output: Vec<String>, config: &config::VioletConfig) {
   if !violation_output.is_empty() {
     println!(
       "{}",
@@ -194,14 +194,14 @@ fn main() {
 }
 
 /// Recursively collect files, respecting ignore patterns
-fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBuf> {
+fn collect_files_recursively(dir: &PathBuf, config: &config::VioletConfig) -> Vec<PathBuf> {
   let mut files = Vec::new();
 
   if let Ok(entries) = std::fs::read_dir(dir) {
     for entry in entries.flatten() {
       let path = entry.path();
 
-      if should_ignore_file(config, &path) {
+      if config::should_ignore_file(config, &path) {
         continue;
       }
 
@@ -216,7 +216,7 @@ fn collect_files_recursively(dir: &PathBuf, config: &VioletConfig) -> Vec<PathBu
   files
 }
 
-fn format_chunk_preview(chunk: &ComplexityRegion) -> String {
+fn format_chunk_preview(chunk: &simplicity::ComplexityRegion) -> String {
   let mut output = String::new();
   let preview_lines: Vec<&str> = chunk.preview.lines().collect();
 
@@ -241,7 +241,7 @@ fn report_subscore(name: &str, scaled_score: f64, percent: f64) -> String {
   format!("    {name}: {scaled_score:.2} ({percent:.0}%)\n")
 }
 
-fn format_complexity_breakdown(breakdown: &ComplexityBreakdown) -> String {
+fn format_complexity_breakdown(breakdown: &simplicity::ComplexityBreakdown) -> String {
   let mut output = String::new();
 
   let depth_scaled = scale_component_score(breakdown.depth_score);
@@ -255,7 +255,7 @@ fn format_complexity_breakdown(breakdown: &ComplexityBreakdown) -> String {
   output
 }
 
-fn format_violating_chunk(chunk: &ComplexityRegion) -> String {
+fn format_violating_chunk(chunk: &simplicity::ComplexityRegion) -> String {
   let mut output = String::new();
 
   let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
@@ -268,7 +268,7 @@ fn format_violating_chunk(chunk: &ComplexityRegion) -> String {
   output
 }
 
-fn handle_ignored_file(analysis: &FileAnalysis, cli: &Cli) -> Option<String> {
+fn handle_ignored_file(analysis: &simplicity::FileAnalysis, cli: &Cli) -> Option<String> {
   if !cli.quiet {
     let mut output = String::new();
     output.push_str(&format_aligned_row(
@@ -284,8 +284,8 @@ fn handle_ignored_file(analysis: &FileAnalysis, cli: &Cli) -> Option<String> {
 }
 
 fn process_file_analysis(
-  analysis: &FileAnalysis,
-  _config: &VioletConfig,
+  analysis: &simplicity::FileAnalysis,
+  _config: &config::VioletConfig,
   cli: &Cli,
   threshold: f64,
 ) -> Option<String> {
@@ -293,7 +293,7 @@ fn process_file_analysis(
     return handle_ignored_file(analysis, cli);
   }
 
-  let violating_chunks: Vec<&ComplexityRegion> =
+  let violating_chunks: Vec<&simplicity::ComplexityRegion> =
     analysis.complexity_regions.iter().filter(|region| region.score > threshold).collect();
 
   if violating_chunks.is_empty() {
@@ -516,9 +516,9 @@ mod tests {
   #[test]
   fn test_collect_files_recursively_empty_config() {
     let temp_dir = TempDir::new().unwrap();
-    let config = VioletConfig {
-      complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
+    let config = config::VioletConfig {
+      complexity: config::ComplexityConfig {
+        thresholds: config::ThresholdConfig {
           default: 6.0,
           extensions: HashMap::new(),
         },
@@ -544,9 +544,9 @@ mod tests {
   #[test]
   fn test_collect_files_recursively_with_ignore_patterns() {
     let temp_dir = TempDir::new().unwrap();
-    let config = VioletConfig {
-      complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
+    let config = config::VioletConfig {
+      complexity: config::ComplexityConfig {
+        thresholds: config::ThresholdConfig {
           default: 6.0,
           extensions: HashMap::new(),
         },
@@ -740,9 +740,9 @@ mod tests {
   #[test]
   fn test_collect_files_recursively_depth() {
     let temp_dir = TempDir::new().unwrap();
-    let config = VioletConfig {
-      complexity: ComplexityConfig {
-        thresholds: ThresholdConfig {
+    let config = config::VioletConfig {
+      complexity: config::ComplexityConfig {
+        thresholds: config::ThresholdConfig {
           default: 6.0,
           extensions: HashMap::new(),
         },
