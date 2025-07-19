@@ -273,11 +273,10 @@ fn get_indents_with_tab_size(line: &str, spaces_per_indent: usize) -> usize {
   indent_levels
 }
 
-/// Characters that increase syntactic complexity
-const SPECIAL_CHARS: &str = "()[]{}+*?^$|.\\<>=!&|:;,";
-
+/// Count special characters using regex (non-word, non-whitespace chars)
 fn get_num_specials(line: &str) -> f64 {
-  line.trim().chars().filter(|ch| SPECIAL_CHARS.contains(*ch)).count() as f64
+  let special_regex = Regex::new(r"[^\w\s]").unwrap();
+  special_regex.find_iter(line.trim()).count() as f64
 }
 
 fn should_ignore_chunk(chunk_content: &str) -> bool {
