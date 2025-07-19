@@ -8,6 +8,11 @@ use crate::config;
 use crate::directives;
 use crate::scoring;
 
+// Complexity scoring constants
+const DEPTH_PENALTY: f64 = 2.0;
+const VERBOSITY_PENALTY: f64 = 1.05;
+const SYNTACTIC_PENALTY: f64 = 1.25;
+
 #[derive(Debug, Clone)]
 pub struct FileAnalysis {
   pub file_path: std::path::PathBuf,
@@ -25,20 +30,6 @@ fn ignored_file_analysis(path: &Path) -> FileAnalysis {
   }
 }
 
-/// Calculate complexity components: depth (indentation), verbosity (length), syntax (special chars)
-pub fn line_complexity(line: &str) -> (f64, f64, f64) {
-  let indents = scoring::get_indents(line).saturating_sub(1); // First level is free
-  let special_chars = get_num_specials(line);
-  let non_special_chars = (line.trim().len() as f64) - special_chars;
-
-  let verbosity_component = 1.05_f64.powf(non_special_chars);
-  let syntactic_component = 1.25_f64.powf(special_chars);
-  let depth_component = 2.0_f64.powf(indents as f64);
-
-  (depth_component, verbosity_component, syntactic_component)
-}
-
-
 /// Average complexity across all chunks in file
 pub fn average_chunk_complexity(file_content: &str) -> f64 {
   let chunks = chunking::find_chunks(file_content);
@@ -46,10 +37,17 @@ pub fn average_chunk_complexity(file_content: &str) -> f64 {
     return 0.0;
   }
 
-  let chunk_scores: Vec<f64> = chunks.iter().map(|chunk| scoring::complexity(&file_content[chunk.0..chunk.1], 2.0, 1.05, 1.25)).collect();
-  let average_complexity = chunk_scores.iter().sum::<f64>() / chunks.len() as f64;
+  let chunk_scores = calculate_chunk_scores(file_content, &chunks);
+  chunk_scores.iter().sum::<f64>() / chunks.len() as f64
+}
 
-  average_complexity
+fn calculate_chunk_scores(file_content: &str, chunks: &[(usize, usize)]) -> Vec<f64> {
+  chunks.iter()
+    .map(|chunk| {
+      let chunk_content = &file_content[chunk.0..chunk.1];
+      scoring::complexity(chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY)
+    })
+    .collect()
 }
 
 /// Count special characters using regex (non-word, non-whitespace chars)
@@ -100,16 +98,9 @@ fn empty_file_analysis(path: &Path) -> FileAnalysis {
 }
 
 fn find_issues(chunks: Vec<(usize, usize)>, lines: &[&str], threshold: f64, config: &config::VioletConfig) -> Vec<scoring::ComplexityRegion> {
-
-  let mut issues = Vec::new();
-  
-  for (start, end) in chunks {
-    if let Some(region) = analyze_chunk(start, end, &lines, threshold, &config.ignore_patterns) {
-      issues.push(region);
-    }
-  }
-  
-  issues
+  chunks.into_iter()
+    .filter_map(|(start, end)| analyze_chunk(start, end, &lines, threshold, &config.ignore_patterns))
+    .collect()
 }
 
 fn analyze_chunk(start: usize, end: usize, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Option<scoring::ComplexityRegion> {
@@ -123,21 +114,29 @@ fn analyze_chunk(start: usize, end: usize, lines: &[&str], threshold: f64, ignor
     return None;
   }
 
-  let score = scoring::complexity(&chunk_content, 2.0, 1.05, 1.25);
+  let score = calculate_complexity_score(&chunk_content);
   
   if score > threshold {
-    let breakdown = scoring::chunk_breakdown(&chunk_content, 2.0, 1.05, 1.25);
-    let preview = create_chunk_preview(&lines[start..end]);
-    
-    Some(scoring::ComplexityRegion {
-      start_line: start + 1,
-      end_line: end + 1,
-      score,
-      breakdown,
-      preview,
-    })
+    Some(create_complexity_region(start, end, score, &chunk_content, &lines[start..end]))
   } else {
     None
+  }
+}
+
+fn calculate_complexity_score(chunk_content: &str) -> f64 {
+  scoring::complexity(chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY)
+}
+
+fn create_complexity_region(start: usize, end: usize, score: f64, chunk_content: &str, lines: &[&str]) -> scoring::ComplexityRegion {
+  let breakdown = scoring::chunk_breakdown(chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
+  let preview = create_chunk_preview(lines);
+  
+  scoring::ComplexityRegion {
+    start_line: start + 1,
+    end_line: end + 1,
+    score,
+    breakdown,
+    preview,
   }
 }
 
@@ -207,8 +206,8 @@ mod tests {
     let simple_content = "fn simple() {\n    return 42;\n}";
     let complex_content = "fn complex() {\n    if condition1 {\n        if condition2 {\n            if condition3 {\n                return nested_result();\n            }\n        }\n    }\n}";
 
-    let simple_score = scoring::complexity(simple_content, 2.0, 1.05, 1.25);
-    let complex_score = scoring::complexity(complex_content, 2.0, 1.05, 1.25);
+    let simple_score = scoring::complexity(simple_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
+    let complex_score = scoring::complexity(complex_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
 
     assert!(complex_score > simple_score * 1.5);
   }
@@ -219,9 +218,9 @@ mod tests {
     let short = "fn f() { return 1; }";
     let medium = "fn medium() {\n    if condition {\n        return process(value);\n    }\n    return default;\n}";
 
-    let minimal_score = scoring::complexity(minimal, 2.0, 1.05, 1.25);
-    let short_score = scoring::complexity(short, 2.0, 1.05, 1.25);
-    let medium_score = scoring::complexity(medium, 2.0, 1.05, 1.25);
+    let minimal_score = scoring::complexity(minimal, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
+    let short_score = scoring::complexity(short, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
+    let medium_score = scoring::complexity(medium, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
 
     assert!(minimal_score < short_score);
     assert!(short_score < medium_score);
@@ -230,27 +229,9 @@ mod tests {
   }
 
   #[test]
-  fn test_calculate_line_complexity() {
-    let (depth, verbosity, syntactic) = line_complexity("hello world");
-    assert_eq!(depth, 1.0);
-    assert!(verbosity > 1.0);
-    assert_eq!(syntactic, 1.0);
-
-    let (depth, verbosity, syntactic) = line_complexity("    if (condition) {");
-    assert!(depth > 1.0);
-    assert!(verbosity > 1.0);
-    assert!(syntactic > 1.0);
-
-    let (depth, verbosity, syntactic) = line_complexity("");
-    assert_eq!(depth, 1.0);
-    assert_eq!(verbosity, 1.0);
-    assert_eq!(syntactic, 1.0);
-  }
-
-  #[test]
   fn test_chunk_complexity_simple() {
     let chunk = "fn simple() {\n    println!(\"hello\");\n}";
-    let score = scoring::complexity(chunk, 2.0, 1.05, 1.25);
+    let score = scoring::complexity(chunk, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
 
     assert!(score > 0.0);
     assert!(score < 10000.0);
@@ -261,8 +242,8 @@ mod tests {
     let simple_chunk = "fn simple() {\n    return 42;\n}";
     let nested_chunk = "fn nested() {\n    if condition {\n        if nested {\n            return 42;\n        }\n    }\n}";
 
-    let simple_score = scoring::complexity(simple_chunk, 2.0, 1.05, 1.25);
-    let nested_score = scoring::complexity(nested_chunk, 2.0, 1.05, 1.25);
+    let simple_score = scoring::complexity(simple_chunk, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
+    let nested_score = scoring::complexity(nested_chunk, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
 
     assert!(nested_score > simple_score);
   }

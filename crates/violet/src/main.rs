@@ -49,6 +49,7 @@ fn display_threshold_table(config: &config::VioletConfig) {
   print_language_thresholds(&config.complexity.thresholds.extensions);
 }
 
+// violet ignore chunk - The equal sign is a formatting character that creates artificial complexity
 fn print_table_header() {
   println!("language                threshold");
   println!("=================================");
