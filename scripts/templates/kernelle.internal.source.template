@@ -2,3 +2,11 @@
 
 # Check if Kernelle home exists
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
+
+# Ensure ~/.cargo/bin is in PATH for Kernelle binaries
+if [ -d "$HOME/.cargo/bin" ]; then
+    case ":$PATH:" in
+        *":$HOME/.cargo/bin:"*) ;;
+        *) export PATH="$HOME/.cargo/bin:$PATH" ;;
+    esac
+fi

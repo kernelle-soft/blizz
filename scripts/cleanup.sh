@@ -67,7 +67,7 @@ echo "🧹 Kernelle Cleanup..."
 
 # Configuration
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo/bin}"
 
 # Get the appropriate prompt for yes/no questions
 get_yes_no_prompt() {
