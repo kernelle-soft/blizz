@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process;
 use std::sync::OnceLock;
-use violet::config::{get_threshold_for_file, load_config, should_ignore_file, VioletConfig};
+use violet::config::{get_threshold_for_file, load_config, should_ignore_file, VioletConfig, ComplexityConfig, ThresholdConfig};
 use violet::simplicity::{analyze_file, ComplexityRegion, ComplexityBreakdown, FileAnalysis};
 
 const TOTAL_WIDTH: usize = 80;
@@ -124,8 +124,8 @@ fn extension_to_language(ext: &str) -> &str {
 }
 
 fn display_threshold_config(config: &VioletConfig) {
-  if config.thresholds.is_empty() {
-    display_simple_threshold(config.default_threshold);
+  if config.get_thresholds().is_empty() {
+    display_simple_threshold(config.get_default_threshold());
   } else {
     display_threshold_table(config);
   }
@@ -138,8 +138,8 @@ fn display_simple_threshold(threshold: f64) {
 
 fn display_threshold_table(config: &VioletConfig) {
   print_table_header();
-  print_default_threshold(config.default_threshold);
-  print_language_thresholds(&config.thresholds);
+  print_default_threshold(config.get_default_threshold());
+  print_language_thresholds(config.get_thresholds());
 }
 
 fn print_table_header() {
@@ -514,8 +514,15 @@ mod tests {
   #[test]
   fn test_collect_files_recursively_empty_config() {
     let temp_dir = TempDir::new().unwrap();
-    let config =
-      VioletConfig { thresholds: HashMap::new(), default_threshold: 6.0, ..Default::default() };
+    let config = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig {
+          default: 6.0,
+          extensions: HashMap::new(),
+        },
+      },
+      ..Default::default()
+    };
 
     let file1_path = temp_dir.path().join("test1.rs");
     fs::write(&file1_path, "fn main() {}").unwrap();
@@ -536,9 +543,13 @@ mod tests {
   fn test_collect_files_recursively_with_ignore_patterns() {
     let temp_dir = TempDir::new().unwrap();
     let config = VioletConfig {
-      thresholds: HashMap::new(),
-      ignore_patterns: vec!["*.ignored".to_string(), "temp*".to_string()],
-      default_threshold: 6.0,
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig {
+          default: 6.0,
+          extensions: HashMap::new(),
+        },
+      },
+      ignore_files: vec!["*.ignored".to_string(), "temp*".to_string()],
       ..Default::default()
     };
 
@@ -728,8 +739,12 @@ mod tests {
   fn test_collect_files_recursively_depth() {
     let temp_dir = TempDir::new().unwrap();
     let config = VioletConfig {
-      thresholds: HashMap::new(),
-      default_threshold: 6.0,
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig {
+          default: 6.0,
+          extensions: HashMap::new(),
+        },
+      },
       ..Default::default()
     };
 

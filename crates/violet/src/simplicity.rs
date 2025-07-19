@@ -343,7 +343,7 @@ fn find_complexity_violations(content: &str, config: &VioletConfig, path: &Path)
   let line_lengths: Vec<f64> = lines.iter().map(|line| line.len() as f64).collect();
   let regions = analyze_file_iterative_fusion(&lines, &line_lengths);
   
-  process_regions_for_violations(regions, &lines, threshold, &config.ignore_content_patterns)
+  process_regions_for_violations(regions, &lines, threshold, config.get_ignore_patterns())
 }
 
 fn process_regions_for_violations(regions: Vec<(usize, usize, f64)>, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Vec<ComplexityRegion> {
