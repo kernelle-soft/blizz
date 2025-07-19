@@ -44,10 +44,10 @@ blizz link team-knowledge sarah-frontend debugging sarah-debugging-help
 blizz search -h
 Search through all insights for matching content
 
-Usage: blizz search [OPTIONS] <QUERY>
+Usage: blizz search [OPTIONS] <TERMS>...
 
 Arguments:
-  <QUERY>  Search query text
+  <TERMS>...  Search terms (space-separated)
 
 Options:
   -t, --topic <TOPIC>   Optional topic to restrict search to
