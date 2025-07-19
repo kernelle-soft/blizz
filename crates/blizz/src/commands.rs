@@ -1,8 +1,30 @@
 use anyhow::{anyhow, Result};
 use colored::*;
 use std::fs;
+use std::path::Path;
 
 use crate::insight::*;
+
+/// Creates a cross-platform symlink/junction
+fn xplat_symlink(src: &Path, dst: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(src, dst).map_err(Into::into)
+    }
+    
+    #[cfg(windows)]
+    {
+        // On Windows, try symlink_file first, fall back to copying if it fails
+        // (symlinks require admin privileges on Windows)
+        match std::os::windows::fs::symlink_file(src, dst) {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                // Fall back to copying the file
+                std::fs::copy(src, dst).map(|_| ()).map_err(Into::into)
+            }
+        }
+    }
+}
 
 /// Add a new insight to the knowledge base
 pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
@@ -185,8 +207,8 @@ pub fn link_insight(
   // Create target directory if it doesn't exist
   fs::create_dir_all(&target_dir)?;
 
-  // Create the symbolic link
-  std::os::unix::fs::symlink(&src_path, &target_path)?;
+  // Create the symbolic link (cross-platform)
+  xplat_symlink(&src_path, &target_path)?;
 
   println!(
     "{} Created link: {}/{} -> {}/{}",
