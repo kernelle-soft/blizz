@@ -155,10 +155,10 @@ impl SessionManager {
   pub fn save_session(&self, session: &ReviewSession) -> Result<()> {
     let session_path = self.get_session_path()?;
     let session_file = session_path.join("session.json");
-    
+
     // Ensure the session directory exists before writing (defensive programming for cross-platform compatibility)
     std::fs::create_dir_all(session_path)?;
-    
+
     let json = serde_json::to_string_pretty(session)?;
     std::fs::write(session_file, json)?;
     Ok(())
