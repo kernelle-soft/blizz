@@ -95,20 +95,20 @@ pub struct SessionManager {
 impl SessionManager {
   pub fn new() -> Result<Self> {
     eprintln!("[DEBUG] SessionManager::new: starting");
-    
+
     let base_dir = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-      eprintln!("[DEBUG] SessionManager::new: using KERNELLE_DIR = {}", kernelle_dir);
+      eprintln!("[DEBUG] SessionManager::new: using KERNELLE_DIR = {kernelle_dir}");
       std::path::PathBuf::from(kernelle_dir)
     } else {
-      let home_dir = dirs::home_dir()
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-      eprintln!("[DEBUG] SessionManager::new: using home_dir = {:?}", home_dir);
+      let home_dir =
+        dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+      eprintln!("[DEBUG] SessionManager::new: using home_dir = {home_dir:?}");
       let base = home_dir.join(".kernelle");
-      eprintln!("[DEBUG] SessionManager::new: computed base_dir = {:?}", base);
+      eprintln!("[DEBUG] SessionManager::new: computed base_dir = {base:?}");
       base
     };
 
-    eprintln!("[DEBUG] SessionManager::new: final base_dir = {:?}", base_dir);
+    eprintln!("[DEBUG] SessionManager::new: final base_dir = {base_dir:?}");
 
     // Ensure the base directory exists
     eprintln!("[DEBUG] SessionManager::new: creating base directory");
@@ -125,9 +125,11 @@ impl SessionManager {
     repository_path: &str,
     mr_number: u64,
   ) -> Result<()> {
-    eprintln!("[DEBUG] with_session_context: platform={}, repo={}, mr={}", platform, repository_path, mr_number);
+    eprintln!(
+      "[DEBUG] with_session_context: platform={platform}, repo={repository_path}, mr={mr_number}"
+    );
     eprintln!("[DEBUG] base_dir: {:?}", self.base_dir);
-    
+
     let platform_dir = match platform {
       "github" => "github",
       "gitlab" => "gitlab",
@@ -141,7 +143,7 @@ impl SessionManager {
       .trim_matches('/')
       .to_string();
 
-    eprintln!("[DEBUG] sanitized_repo_path: '{}'", sanitized_repo_path);
+    eprintln!("[DEBUG] sanitized_repo_path: '{sanitized_repo_path}'");
 
     if sanitized_repo_path.is_empty() {
       return Err(anyhow::anyhow!("Invalid repository path: '{}'", repository_path));
@@ -154,33 +156,40 @@ impl SessionManager {
       .join(&sanitized_repo_path)
       .join(mr_number.to_string());
 
-    eprintln!("[DEBUG] target session_dir: {:?}", session_dir);
+    eprintln!("[DEBUG] target session_dir: {session_dir:?}");
 
     // Create intermediate directories step by step for better error reporting
     let code_reviews_dir = self.base_dir.join("code-reviews");
-    eprintln!("[DEBUG] creating code_reviews_dir: {:?}", code_reviews_dir);
-    std::fs::create_dir_all(&code_reviews_dir)
-      .map_err(|e| anyhow::anyhow!("Failed to create code-reviews directory {:?}: {}", code_reviews_dir, e))?;
+    eprintln!("[DEBUG] creating code_reviews_dir: {code_reviews_dir:?}");
+    std::fs::create_dir_all(&code_reviews_dir).map_err(|e| {
+      anyhow::anyhow!("Failed to create code-reviews directory {:?}: {}", code_reviews_dir, e)
+    })?;
 
     let platform_dir_path = code_reviews_dir.join(platform_dir);
-    eprintln!("[DEBUG] creating platform_dir_path: {:?}", platform_dir_path);
-    std::fs::create_dir_all(&platform_dir_path)
-      .map_err(|e| anyhow::anyhow!("Failed to create platform directory {:?}: {}", platform_dir_path, e))?;
+    eprintln!("[DEBUG] creating platform_dir_path: {platform_dir_path:?}");
+    std::fs::create_dir_all(&platform_dir_path).map_err(|e| {
+      anyhow::anyhow!("Failed to create platform directory {:?}: {}", platform_dir_path, e)
+    })?;
 
     let repo_dir = platform_dir_path.join(&sanitized_repo_path);
-    eprintln!("[DEBUG] creating repo_dir: {:?}", repo_dir);
-    std::fs::create_dir_all(&repo_dir)
-      .map_err(|e| anyhow::anyhow!("Failed to create repository directory {:?}: {}", repo_dir, e))?;
+    eprintln!("[DEBUG] creating repo_dir: {repo_dir:?}");
+    std::fs::create_dir_all(&repo_dir).map_err(|e| {
+      anyhow::anyhow!("Failed to create repository directory {:?}: {}", repo_dir, e)
+    })?;
 
     // Final session directory creation
-    eprintln!("[DEBUG] creating final session_dir: {:?}", session_dir);
-    std::fs::create_dir_all(&session_dir)
-      .map_err(|e| anyhow::anyhow!("Failed to create session directory {:?}: {}", session_dir, e))?;
-    
+    eprintln!("[DEBUG] creating final session_dir: {session_dir:?}");
+    std::fs::create_dir_all(&session_dir).map_err(|e| {
+      anyhow::anyhow!("Failed to create session directory {:?}: {}", session_dir, e)
+    })?;
+
     // Verify the directory was actually created and is accessible
-    eprintln!("[DEBUG] verifying session_dir exists: {:?}", session_dir);
+    eprintln!("[DEBUG] verifying session_dir exists: {session_dir:?}");
     if !session_dir.exists() {
-      return Err(anyhow::anyhow!("Session directory was not created successfully: {:?}", session_dir));
+      return Err(anyhow::anyhow!(
+        "Session directory was not created successfully: {:?}",
+        session_dir
+      ));
     }
 
     eprintln!("[DEBUG] session_dir verified, setting current_session_path");
@@ -211,12 +220,12 @@ impl SessionManager {
 
   pub fn save_session(&self, session: &ReviewSession) -> Result<()> {
     eprintln!("[DEBUG] save_session: starting");
-    
+
     let session_path = self.get_session_path()?;
-    eprintln!("[DEBUG] save_session: session_path = {:?}", session_path);
-    
+    eprintln!("[DEBUG] save_session: session_path = {session_path:?}");
+
     let session_file = session_path.join("session.json");
-    eprintln!("[DEBUG] save_session: session_file = {:?}", session_file);
+    eprintln!("[DEBUG] save_session: session_file = {session_file:?}");
 
     // Ensure the session directory exists with robust cross-platform directory creation
     eprintln!("[DEBUG] save_session: checking if session_path exists");
@@ -227,10 +236,10 @@ impl SessionManager {
     } else {
       eprintln!("[DEBUG] save_session: session_path already exists");
     }
-    
+
     // Ensure parent directory exists for the session file
     if let Some(parent) = session_file.parent() {
-      eprintln!("[DEBUG] save_session: checking parent directory: {:?}", parent);
+      eprintln!("[DEBUG] save_session: checking parent directory: {parent:?}");
       if !parent.exists() {
         eprintln!("[DEBUG] save_session: parent directory doesn't exist, creating it");
         std::fs::create_dir_all(parent)?;
@@ -242,7 +251,7 @@ impl SessionManager {
 
     eprintln!("[DEBUG] save_session: serializing session data");
     let json = serde_json::to_string_pretty(session)?;
-    eprintln!("[DEBUG] save_session: writing to file: {:?}", session_file);
+    eprintln!("[DEBUG] save_session: writing to file: {session_file:?}");
     std::fs::write(session_file, json)?;
     eprintln!("[DEBUG] save_session: file written successfully");
     Ok(())
