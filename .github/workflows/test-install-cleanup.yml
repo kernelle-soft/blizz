@@ -67,16 +67,16 @@ jobs:
         ~/.cargo/bin/kernelle add .
 
         # Verify symlink was created
-        test -L .cursor/kernelle
+        test -L .cursor/rules/kernelle
 
         # Verify it points to the right place
-        readlink .cursor/kernelle | grep -q "/.kernelle/.cursor"
+        readlink .cursor/rules/kernelle | grep -q "/.kernelle/.cursor"
 
         # Test remove
         ~/.cargo/bin/kernelle remove .
         
         # Verify symlink was removed
-        test ! -L .cursor/kernelle
+        test ! -L .cursor/rules/kernelle
         
     - name: Test cleanup script
       run: |
@@ -122,21 +122,21 @@ jobs:
         # Should still work
         test -f ~/.cargo/bin/kernelle
         
-    - name: Test kernelle add when .cursor/kernelle already exists
+    - name: Test kernelle add when .cursor/rules/kernelle already exists
       run: |
         ./scripts/install.sh --non-interactive
         
-        mkdir -p /tmp/test-project/.cursor
+        mkdir -p /tmp/test-project/.cursor/rules
         cd /tmp/test-project
         
         # Create existing symlink
-        ln -s /some/other/path .cursor/kernelle
+        ln -s /some/other/path .cursor/rules/kernelle
         
         # kernelle add should replace it
         ~/.cargo/bin/kernelle add .
         
         # Should now point to kernelle
-        readlink .cursor/kernelle | grep -q "/.kernelle/.cursor"
+        readlink .cursor/rules/kernelle | grep -q "/.kernelle/.cursor"
         
     - name: Test cleanup when no kernelle symlinks exist
       run: |
