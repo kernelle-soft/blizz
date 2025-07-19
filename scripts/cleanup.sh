@@ -185,9 +185,11 @@ handle_insights_preservation
 echo ""
 echo "Soft deleting kernelle shell source files..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Ensure KERNELLE_HOME exists before copying template
-mkdir -p "$KERNELLE_HOME" || true
-cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source" || true
+# Replace internal source with gone template, keep directory structure
+if [ -d "$KERNELLE_HOME" ]; then
+    # Copy gone template to internal source location
+    cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source" || true
+fi
 
 if [ "$keep_insights" = true ]; then
     echo "💾 Preserving insights..."
@@ -229,8 +231,11 @@ if [ -d "$KERNELLE_HOME/.cursor/tweaks" ]; then
     fi
 fi
 
-echo "🗂️  Removing ~/.kernelle directory..."
-rm -rf "$KERNELLE_HOME"
+echo "🗂️  Cleaning ~/.kernelle directory (keeping warning file)..."
+# Remove everything except the kernelle.internal.source warning file
+if [ -d "$KERNELLE_HOME" ]; then
+    find "$KERNELLE_HOME" -mindepth 1 ! -name "kernelle.internal.source" -exec rm -rf {} + 2>/dev/null || true
+fi
 
 echo "🗑️  Removing binaries from $INSTALL_DIR..."
 for tool in kernelle jerrod blizz violet adam sentinel; do
