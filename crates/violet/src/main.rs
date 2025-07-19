@@ -96,12 +96,16 @@ fn extension_to_language(ext: &str) -> &str {
 }
 
 fn display_threshold_config(config: &VioletConfig) {
-  println!("LANG                    THRESHOLD");
-  println!("=================================");
-  
-  println!("{:<23} {:>6.2}", "default", config.default_threshold);
-  
-  if !config.thresholds.is_empty() {
+  if config.thresholds.is_empty() {
+    // Simple format when no language-specific overrides
+    println!("threshold: {:.2}", config.default_threshold);
+  } else {
+    // Full table when there are language-specific thresholds
+    println!("language                threshold");
+    println!("=================================");
+    
+    println!("{:<23} {:>6.2}", "default", config.default_threshold);
+    
     let mut sorted_thresholds: Vec<_> = config.thresholds.iter().collect();
     sorted_thresholds.sort_by_key(|(ext, _)| ext.as_str());
     
@@ -189,10 +193,10 @@ fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
     
     display_threshold_config(config);
 
-    let score_width = "SCORE".len();
+    let score_width = "score".len();
     let chunk_width = TOTAL_WIDTH - score_width - PADDING;
 
-    println!("{:<width$} SCORE", "CHUNKS", width = chunk_width);
+    println!("{:<width$} score", "chunk", width = chunk_width);
     println!("{}", "=".repeat(TOTAL_WIDTH));
 
     for output in violation_output {
