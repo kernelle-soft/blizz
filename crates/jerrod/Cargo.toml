@@ -47,5 +47,5 @@ rpassword = "7.3"
 tempfile.workspace = true
 tokio-test.workspace = true
 assert_cmd = "2.0"
-serial_test = "2.0"
+serial_test = "3.2"
 wiremock = "0.6" 
