@@ -15,6 +15,10 @@ path = "src/lib.rs"
 name = "blizz"
 path = "src/main.rs"
 
+[features]
+default = ["semantic"]
+semantic = [] # Working algorithmic semantic search
+
 [dependencies]
 clap.workspace = true
 
@@ -33,6 +37,8 @@ tracing-subscriber.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true
+
+# Future: Neural embeddings when ecosystem stabilizes
 
 [dev-dependencies]
 assert_cmd = "2.0"

@@ -41,6 +41,10 @@ enum Commands {
     /// Search only in overview sections
     #[arg(short, long)]
     overview_only: bool,
+    /// Use exact term matching instead of semantic similarity
+    #[cfg(feature = "semantic")]
+    #[arg(long)]
+    exact: bool,
     /// Search terms (space-separated)
     #[arg(required = true)]
     terms: Vec<String>,
@@ -108,8 +112,15 @@ fn main() -> Result<()> {
     Commands::Add { topic, name, overview, details } => {
       add_insight(&topic, &name, &overview, &details)?;
     }
-    Commands::Search { topic, case_sensitive, overview_only, terms } => {
-      search_insights(&terms, topic.as_deref(), case_sensitive, overview_only)?;
+    Commands::Search { topic, case_sensitive, overview_only, terms, #[cfg(feature = "semantic")] exact } => {
+      #[cfg(feature = "semantic")]
+      {
+        search_insights(&terms, topic.as_deref(), case_sensitive, overview_only, !exact)?;
+      }
+      #[cfg(not(feature = "semantic"))]
+      {
+        search_insights(&terms, topic.as_deref(), case_sensitive, overview_only)?;
+      }
     }
     Commands::Get { topic, name, overview } => {
       get_insight(&topic, &name, overview)?;
