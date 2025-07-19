@@ -54,7 +54,7 @@ fn process_single_file(
     return 0;
   }
 
-  match analyze_file(path) {
+  match analyze_file(path, config) {
     Ok(analysis) => {
       *total_files += 1;
       let threshold = get_threshold_for_file(config, path);

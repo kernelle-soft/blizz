@@ -1,8 +1,8 @@
 {
   complexity: {
     thresholds: {
-      default: 0,
-    },
+      ".sh": 6.0
+    }
   },
   ignore: [
     // [tsl-voxel] - Future cleanup project

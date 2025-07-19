@@ -9,6 +9,7 @@
 use regex::Regex;
 use std::fs;
 use std::path::Path;
+use crate::config::{VioletConfig, get_threshold_for_file};
 
 /// Result of analyzing a single file
 #[derive(Debug, Clone)]
@@ -304,6 +305,7 @@ fn get_num_specials(line: &str) -> f64 {
 /// Analyze a single file and return detailed results
 pub fn analyze_file<P: AsRef<Path>>(
   file_path: P,
+  config: &VioletConfig,
 ) -> Result<FileAnalysis, Box<dyn std::error::Error>> {
   let path = file_path.as_ref();
   let content = fs::read_to_string(path)?;
@@ -323,7 +325,7 @@ pub fn analyze_file<P: AsRef<Path>>(
     });
   }
 
-  let threshold = 6.0;
+  let threshold = get_threshold_for_file(config, path);
   let lines: Vec<&str> = preprocessed.lines().collect();
   
   // Use iterative blank-line splitting + fusion for structural chunk discovery
