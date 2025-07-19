@@ -3,10 +3,9 @@
 use regex::Regex;
 use std::fs;
 use std::path::Path;
+use crate::chunking;
 use crate::config;
 use crate::directives;
-
-
 
 #[derive(Debug, Clone)]
 pub struct FileAnalysis {
@@ -53,35 +52,8 @@ fn create_ignored_file_analysis(path: &Path) -> FileAnalysis {
   }
 }
 
-
-
-/// Strip out violet ignore directives, returning None if entire file should be ignored
-pub fn preprocess_file(content: &str) -> Option<String> {
-  let lines: Vec<&str> = content.lines().collect();
-
-  if directives::is_ignored_file(&lines) {
-    return None;
-  }
-
-  let mut result_lines = Vec::new();
-  let mut ignore_depth = 0;
-  let mut skip_next_line = false;
-
-  for line in lines.iter() {
-    if directives::process_line(line, &mut ignore_depth, &mut skip_next_line, &mut result_lines) {
-      continue;
-    }
-
-    if ignore_depth == 0 {
-      result_lines.push(*line);
-    }
-  }
-
-  Some(result_lines.join("\n"))
-}
-
 /// Calculate complexity components: depth (indentation), verbosity (length), syntax (special chars)
-fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
+pub fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
   let indents = get_indents(line).saturating_sub(1); // First level is free
   let special_chars = get_num_specials(line);
   let non_special_chars = (line.trim().len() as f64) - special_chars;
@@ -93,7 +65,7 @@ fn calculate_line_complexity(line: &str) -> (f64, f64, f64) {
   (depth_component, verbosity_component, syntactic_component)
 }
 
-fn create_breakdown(
+pub fn create_breakdown(
   depth_total: f64,
   verbosity_total: f64,
   syntactic_total: f64,
@@ -155,42 +127,15 @@ pub fn chunk_complexity(chunk: &str) -> f64 {
 
 /// Average complexity across all chunks in file
 pub fn file_complexity(file_content: &str) -> f64 {
-  let chunks = get_chunks(file_content);
+  let chunks = chunking::get_chunks(file_content);
   if chunks.is_empty() {
     return 0.0;
   }
 
-  let chunk_scores: Vec<f64> = chunks.iter().map(|chunk| chunk_complexity(chunk)).collect();
+      let chunk_scores: Vec<f64> = chunks.iter().map(|chunk| chunk_complexity(chunk)).collect();
   let average_complexity = chunk_scores.iter().sum::<f64>() / chunks.len() as f64;
 
   average_complexity
-}
-
-fn split_on_blank_lines(content: &str) -> Vec<String> {
-  let mut temp_chunks = Vec::new();
-  let mut current_chunk = Vec::new();
-
-  for line in content.lines() {
-    if line.trim().is_empty() {
-      if !current_chunk.is_empty() {
-        temp_chunks.push(current_chunk.join("\n"));
-        current_chunk.clear();
-      }
-    } else {
-      current_chunk.push(line);
-    }
-  }
-
-  if !current_chunk.is_empty() {
-    temp_chunks.push(current_chunk.join("\n"));
-  }
-
-  temp_chunks
-}
-
-/// Split content into natural chunks separated by blank lines
-pub fn get_chunks(content: &str) -> Vec<String> {
-  split_on_blank_lines(content)
 }
 
 fn get_indents(line: &str) -> usize {
@@ -234,7 +179,7 @@ pub fn analyze_file<P: AsRef<Path>>(
   let path = file_path.as_ref();
   let content = fs::read_to_string(path)?;
   
-  let preprocessed = match preprocess_file(&content) {
+  let preprocessed = match directives::preprocess_file(&content) {
     Some(processed) => processed,
     None => return Ok(create_ignored_file_analysis(path)),
   };
@@ -507,45 +452,6 @@ mod tests {
   }
 
   #[test]
-  fn test_get_chunks() {
-    let content = "function one() {\n  return 1;\n}\n\nfunction two() {\n  return 2;\n}";
-    let chunks = get_chunks(content);
-
-    assert_eq!(chunks.len(), 2);
-    assert_eq!(chunks[0], "function one() {\n  return 1;\n}");
-    assert_eq!(chunks[1], "function two() {\n  return 2;\n}");
-  }
-
-  #[test]
-  fn test_get_chunks_no_trailing_newline() {
-    let content = "fn main() {\n    println!(\"hello\");\n}";
-    let chunks = get_chunks(content);
-
-    assert_eq!(chunks.len(), 1);
-    assert_eq!(chunks[0], "fn main() {\n    println!(\"hello\");\n}");
-  }
-
-  #[test]
-  fn test_chunk_complexity_simple() {
-    let chunk = "fn simple() {\n    println!(\"hello\");\n}";
-    let score = chunk_complexity(chunk);
-
-    assert!(score > 0.0);
-    assert!(score < 10000.0);
-  }
-
-  #[test]
-  fn test_chunk_complexity_nested() {
-    let simple_chunk = "fn simple() {\n    return 42;\n}";
-    let nested_chunk = "fn nested() {\n    if condition {\n        if nested {\n            return 42;\n        }\n    }\n}";
-
-    let simple_score = chunk_complexity(simple_chunk);
-    let nested_score = chunk_complexity(nested_chunk);
-
-    assert!(nested_score > simple_score);
-  }
-
-  #[test]
   fn test_file_complexity() {
     let content = "fn one() {\n    return 1;\n}\n\nfn two() {\n    return 2;\n}";
     let score = file_complexity(content);
@@ -554,85 +460,21 @@ mod tests {
   }
 
   #[test]
-  fn test_preprocess_file_no_ignores() {
-    let content = "fn main() {\n    println!(\"hello\");\n}";
-    let result = preprocess_file(content);
-
-    assert_eq!(result, Some(content.to_string()));
-  }
-
-  #[test]
-  fn test_preprocess_file_ignore_entire_file() {
-    let content1 =
-      format!("# violet ignore {}\nfn main() {{\n    println!(\"hello\");\n}}", "file");
-    let content2 =
-      format!("// violet ignore {}\nfn main() {{\n    println!(\"hello\");\n}}", "file");
-    let content3 =
-      format!("/* violet ignore {} */\nfn main() {{\n    println!(\"hello\");\n}}", "file");
-
-    assert_eq!(preprocess_file(&content1), None);
-    assert_eq!(preprocess_file(&content2), None);
-    assert_eq!(preprocess_file(&content3), None);
-  }
-
-  #[test]
-  fn test_preprocess_file_ignore_block() {
-    let content = format!("fn good() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn bad() {{\n    if nested {{\n        return 2;\n    }}\n}}\n# violet ignore {}\n\nfn also_good() {{\n    return 3;\n}}", "start", "end");
-    let result = preprocess_file(&content).unwrap();
-
-    assert!(result.contains("fn good()"));
-    assert!(result.contains("fn also_good()"));
-    assert!(!result.contains("fn bad()"));
-    assert!(!result.contains("if nested"));
-  }
-
-  #[test]
-  fn test_preprocess_file_nested_ignore_blocks() {
-    let content = format!("fn good() {{\n    return 1;\n}}\n\n/* violet ignore {} */\nfn outer_bad() {{\n    # violet ignore {}\n    fn inner_bad() {{\n        return 2;\n    }}\n    # violet ignore {}\n    return 3;\n}}\n/* violet ignore {} */\n\nfn also_good() {{\n    return 4;\n}}", "start", "start", "end", "end");
-    let result = preprocess_file(&content).unwrap();
-
-    assert!(result.contains("fn good()"));
-    assert!(result.contains("fn also_good()"));
-    assert!(!result.contains("fn outer_bad()"));
-    assert!(!result.contains("fn inner_bad()"));
-  }
-
-  #[test]
-  fn test_preprocess_file_unmatched_ignore_end() {
-    let content = format!(
-      "fn good() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn still_good() {{\n    return 2;\n}}", 
-      "end"
-    );
-    let result = preprocess_file(&content).unwrap();
-
-    assert!(result.contains("fn good()"));
-    assert!(result.contains("fn still_good()"));
-  }
-
-  #[test]
   fn test_complete_pipeline_with_ignores() {
     let content = format!("fn simple() {{\n    return 1;\n}}\n\n# violet ignore {}\nfn complex() {{\n    if deeply {{\n        if nested {{\n            if very {{\n                return 2;\n            }}\n        }}\n    }}\n}}\n# violet ignore {}\n\nfn another_simple() {{\n    return 3;\n}}", "start", "end");
 
-    let preprocessed = preprocess_file(&content).unwrap();
+    let preprocessed = directives::preprocess_file(&content).unwrap();
 
     assert!(preprocessed.contains("fn simple()"));
     assert!(preprocessed.contains("fn another_simple()"));
     assert!(!preprocessed.contains("fn complex()"));
 
-    let chunks = get_chunks(&preprocessed);
+    let chunks = chunking::get_chunks(&preprocessed);
     assert_eq!(chunks.len(), 2);
 
     let total_score = file_complexity(&preprocessed);
     assert!(total_score > 0.0);
     assert!(total_score < 1000.0);
-  }
-
-  #[test]
-  fn test_complete_pipeline_file_ignore() {
-    let content = format!("# violet ignore {}\nfn extremely_complex() {{\n    if deeply {{\n        if nested {{\n            if very {{\n                if much {{\n                    return 42;\n                }}\n            }}\n        }}\n    }}\n}}", "file");
-
-    let preprocessed = preprocess_file(&content);
-    assert_eq!(preprocessed, None);
   }
 
   #[test]
@@ -660,28 +502,6 @@ mod tests {
     assert!(short_score < medium_score);
     assert!(medium_score < 100.0);
     assert!(minimal_score > 0.0);
-  }
-
-  #[test]
-  fn test_preprocess_file_ignore_line() {
-    let content = format!("fn good() {{\n    return 1;\n}}\n\n// violet ignore {}\nlet bad_line = very_complex_calculation();\n\nfn also_good() {{\n    return 2;\n}}", "line");
-    let result = preprocess_file(&content).unwrap();
-
-    assert!(result.contains("fn good()"));
-    assert!(result.contains("fn also_good()"));
-    assert!(!result.contains("let bad_line"));
-    assert!(!result.contains("very_complex_calculation"));
-  }
-
-  #[test]
-  fn test_preprocess_file_mixed_comment_styles() {
-    let content = format!("fn good() {{\n    return 1;\n}}\n\n// violet ignore {}\nlet bad1 = complex();\n\n# violet ignore {}\nfn bad_block() {{\n    return 2;\n}}\n/* violet ignore {} */\n\nfn also_good() {{\n    return 3;\n}}", "line", "start", "end");
-    let result = preprocess_file(&content).unwrap();
-
-    assert!(result.contains("fn good()"));
-    assert!(result.contains("fn also_good()"));
-    assert!(!result.contains("let bad1"));
-    assert!(!result.contains("fn bad_block()"));
   }
 
   #[test]
@@ -720,36 +540,22 @@ mod tests {
   }
 
   #[test]
-  fn test_split_on_blank_lines() {
-    let content = "line 1\nline 2\n\nline 3\nline 4\n\n\nline 5";
-    let chunks = split_on_blank_lines(content);
-    assert_eq!(chunks.len(), 3);
-    assert_eq!(chunks[0], "line 1\nline 2");
-    assert_eq!(chunks[1], "line 3\nline 4");
-    assert_eq!(chunks[2], "line 5");
+  fn test_chunk_complexity_simple() {
+    let chunk = "fn simple() {\n    println!(\"hello\");\n}";
+    let score = chunk_complexity(chunk);
 
-    let empty_chunks = split_on_blank_lines("");
-    assert!(empty_chunks.is_empty());
-
-    let blank_only = split_on_blank_lines("\n\n\n");
-    assert!(blank_only.is_empty());
-
-    let no_blanks = split_on_blank_lines("line1\nline2\nline3");
-    assert_eq!(no_blanks.len(), 1);
-    assert_eq!(no_blanks[0], "line1\nline2\nline3");
+    assert!(score > 0.0);
+    assert!(score < 10000.0);
   }
 
   #[test]
-  fn test_get_chunks_with_indentation() {
-    let content = "function main() {\n    return 42;\n}\n\nclass Test {\n    method() {}\n}";
-    let chunks = get_chunks(content);
-    
-    assert_eq!(chunks.len(), 2);
-    assert!(chunks[0].contains("function main()"));
-    assert!(chunks[0].contains("return 42;"));
-    assert!(chunks[0].contains("}"));
-    
-    assert!(chunks[1].contains("class Test"));
-    assert!(chunks[1].contains("method()"));
+  fn test_chunk_complexity_nested() {
+    let simple_chunk = "fn simple() {\n    return 42;\n}";
+    let nested_chunk = "fn nested() {\n    if condition {\n        if nested {\n            return 42;\n        }\n    }\n}";
+
+    let simple_score = chunk_complexity(simple_chunk);
+    let nested_score = chunk_complexity(nested_chunk);
+
+    assert!(nested_score > simple_score);
   }
 }

@@ -771,6 +771,7 @@ mod tests {
     assert!(file_names.contains(&"level2.rs"));
     assert!(file_names.contains(&"level3.rs"));
   }
+
   #[test]
   fn test_extension_to_language() {
     assert_eq!(extension_to_language(".rs"), "rust");

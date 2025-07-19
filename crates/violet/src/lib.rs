@@ -1,5 +1,6 @@
 //! Language-agnostic code complexity analysis using information theory
 
+pub mod chunking;
 pub mod config;
 pub mod directives;
 pub mod simplicity;
