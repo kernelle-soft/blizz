@@ -129,17 +129,13 @@ fn analyze_chunk(start: usize, end: usize, context: &ChunkAnalysisContext) -> Op
     return None;
   }
 
-  let score = calculate_complexity_score(&chunk_content);
+  let score = scoring::complexity(&chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY)
   
   if score > context.threshold {
     Some(create_complexity_region(start, end, score, &chunk_content, &context.lines[start..end]))
   } else {
     None
   }
-}
-
-fn calculate_complexity_score(chunk_content: &str) -> f64 {
-  scoring::complexity(chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY)
 }
 
 fn create_complexity_region(start: usize, end: usize, score: f64, chunk_content: &str, lines: &[&str]) -> scoring::ComplexityRegion {
