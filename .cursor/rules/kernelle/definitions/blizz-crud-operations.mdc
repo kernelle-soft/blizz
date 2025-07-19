@@ -41,7 +41,19 @@ blizz link team-knowledge sarah-frontend debugging sarah-debugging-help
 
 ### Searching for Insights
 ```bash
-blizz search <term> [--case-sensitive] [--overview-only]
+blizz search -h
+Search through all insights for matching content
+
+Usage: blizz search [OPTIONS] <QUERY>
+
+Arguments:
+  <QUERY>  Search query text
+
+Options:
+  -t, --topic <TOPIC>   Optional topic to restrict search to
+      --case-sensitive  Case-sensitive search
+  -o, --overview-only   Search only in overview sections
+  -h, --help            Print help
 ```
 
 **Use Cases:**

@@ -41,7 +41,7 @@ enum Commands {
     #[arg(long)]
     case_sensitive: bool,
     /// Search only in overview sections
-    #[arg(long)]
+    #[arg(short, long)]
     overview_only: bool,
   },
   /// Get content of a specific insight
@@ -51,7 +51,7 @@ enum Commands {
     /// Name of the insight
     name: String,
     /// Show only the overview section
-    #[arg(long)]
+    #[arg(short, long)]
     overview: bool,
   },
   /// List insights in a topic or all topics
@@ -69,10 +69,10 @@ enum Commands {
     /// Name of the insight
     name: String,
     /// New overview content
-    #[arg(long)]
+    #[arg(short, long)]
     overview: Option<String>,
     /// New details content
-    #[arg(long)]
+    #[arg(short, long)]
     details: Option<String>,
   },
   /// Create a link from one insight to another topic
@@ -93,7 +93,7 @@ enum Commands {
     /// Name of the insight
     name: String,
     /// Skip confirmation prompt
-    #[arg(long)]
+    #[arg(short, long)]
     force: bool,
   },
   /// List all available topics
