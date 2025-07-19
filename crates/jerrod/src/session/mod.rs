@@ -129,7 +129,7 @@ impl SessionManager {
 
     // Robust directory creation for cross-platform compatibility
     std::fs::create_dir_all(&session_dir)?;
-    
+
     // Verify the directory was actually created and is accessible
     if !session_dir.exists() {
       return Err(anyhow::anyhow!("Failed to create session directory: {:?}", session_dir));
@@ -167,7 +167,7 @@ impl SessionManager {
     if !session_path.exists() {
       std::fs::create_dir_all(session_path)?;
     }
-    
+
     // Ensure parent directory exists for the session file
     if let Some(parent) = session_file.parent() {
       if !parent.exists() {

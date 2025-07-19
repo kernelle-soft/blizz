@@ -207,9 +207,9 @@ find . -type l -lname "$KERNELLE_HOME/.cursor" 2>/dev/null | while read -r link;
     # Remove empty .cursor directory if it only contained our symlink
     cursor_dir="$(dirname "$link")"
     if [ -d "$cursor_dir" ] && [ -z "$(ls -A "$cursor_dir" 2>/dev/null)" ]; then
-        rmdir "$cursor_dir" 2>/dev/null && echo "  Removed empty: $cursor_dir"
+        rmdir "$cursor_dir" 2>/dev/null && echo "  Removed empty: $cursor_dir" || true
     fi
-done
+done || true
 
 # Ask about preserving tweaks
 if [ -d "$KERNELLE_HOME/.cursor/tweaks" ]; then
@@ -249,4 +249,7 @@ if [ "$keep_insights" = true ]; then
     echo "💾 Your insights are safely backed up in ~/.kernelle-insights-backup"
 fi
 echo ""
-echo "👋 Goodbye from Kernelle!" 
+echo "👋 Goodbye from Kernelle!"
+
+# Ensure successful exit
+exit 0 
