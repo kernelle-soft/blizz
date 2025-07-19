@@ -7,23 +7,23 @@ use crate::insight::*;
 
 /// Creates a cross-platform symlink/junction
 fn xplat_symlink(src: &Path, dst: &Path) -> Result<()> {
-    #[cfg(unix)]
-    {
-        std::os::unix::fs::symlink(src, dst).map_err(Into::into)
+  #[cfg(unix)]
+  {
+    std::os::unix::fs::symlink(src, dst).map_err(Into::into)
+  }
+
+  #[cfg(windows)]
+  {
+    // On Windows, try symlink_file first, fall back to copying if it fails
+    // (symlinks require admin privileges on Windows)
+    match std::os::windows::fs::symlink_file(src, dst) {
+      Ok(()) => Ok(()),
+      Err(_) => {
+        // Fall back to copying the file
+        std::fs::copy(src, dst).map(|_| ()).map_err(Into::into)
+      }
     }
-    
-    #[cfg(windows)]
-    {
-        // On Windows, try symlink_file first, fall back to copying if it fails
-        // (symlinks require admin privileges on Windows)
-        match std::os::windows::fs::symlink_file(src, dst) {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                // Fall back to copying the file
-                std::fs::copy(src, dst).map(|_| ()).map_err(Into::into)
-            }
-        }
-    }
+  }
 }
 
 /// Add a new insight to the knowledge base
