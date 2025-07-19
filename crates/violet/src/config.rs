@@ -130,30 +130,48 @@ fn merge_ignore_patterns(
 
 fn merge(global: VioletConfig, project: Option<VioletConfig>) -> VioletConfig {
   let project = project.unwrap_or_default();
+  
+  let merged_thresholds = merge_threshold_configs(&global, &project);
+  let merged_ignores = merge_ignore_configs(&global, &project);
+  
+  build_merged_config(merged_thresholds, merged_ignores)
+}
 
-  // Only use project default if it was explicitly changed
-  let default_threshold = if project.complexity.thresholds.default != default_threshold() {
+fn merge_threshold_configs(global: &VioletConfig, project: &VioletConfig) -> ThresholdConfig {
+  let default_threshold = determine_default_threshold(global, project);
+  let extensions = merge_extension_thresholds(global, project);
+  
+  ThresholdConfig {
+    default: default_threshold,
+    extensions,
+  }
+}
+
+fn determine_default_threshold(global: &VioletConfig, project: &VioletConfig) -> f64 {
+  if project.complexity.thresholds.default != default_threshold() {
     project.complexity.thresholds.default
   } else {
     global.complexity.thresholds.default
-  };
-
-  // Project overrides global for specific extensions
-  let mut thresholds = global.complexity.thresholds.extensions.clone();
-  for (ext, threshold) in project.complexity.thresholds.extensions {
-    thresholds.insert(ext, threshold);
   }
+}
 
-  let ignore_files = merge_ignore_patterns(global.ignore_files, project.ignore_files);
-  let ignore_patterns = merge_ignore_patterns(global.ignore_patterns, project.ignore_patterns);
+fn merge_extension_thresholds(global: &VioletConfig, project: &VioletConfig) -> HashMap<String, f64> {
+  let mut thresholds = global.complexity.thresholds.extensions.clone();
+  for (ext, threshold) in &project.complexity.thresholds.extensions {
+    thresholds.insert(ext.clone(), *threshold);
+  }
+  thresholds
+}
 
+fn merge_ignore_configs(global: &VioletConfig, project: &VioletConfig) -> (Vec<String>, Vec<String>) {
+  let ignore_files = merge_ignore_patterns(global.ignore_files.clone(), project.ignore_files.clone());
+  let ignore_patterns = merge_ignore_patterns(global.ignore_patterns.clone(), project.ignore_patterns.clone());
+  (ignore_files, ignore_patterns)
+}
+
+fn build_merged_config(thresholds: ThresholdConfig, (ignore_files, ignore_patterns): (Vec<String>, Vec<String>)) -> VioletConfig {
   VioletConfig {
-    complexity: ComplexityConfig {
-      thresholds: ThresholdConfig {
-        default: default_threshold,
-        extensions: thresholds,
-      },
-    },
+    complexity: ComplexityConfig { thresholds },
     ignore_files,
     ignore_patterns,
   }

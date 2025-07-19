@@ -143,9 +143,23 @@ fn calculate_complexity_score(chunk_content: &str) -> f64 {
 }
 
 fn create_complexity_region(start: usize, end: usize, score: f64, chunk_content: &str, lines: &[&str]) -> scoring::ComplexityRegion {
-  let breakdown = scoring::chunk_breakdown(chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
+  let breakdown = calculate_chunk_breakdown(chunk_content);
   let preview = create_chunk_preview(lines);
   
+  build_complexity_region(start, end, score, breakdown, preview)
+}
+
+fn calculate_chunk_breakdown(chunk_content: &str) -> scoring::ComplexityBreakdown {
+  scoring::chunk_breakdown(chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY)
+}
+
+fn build_complexity_region(
+  start: usize, 
+  end: usize, 
+  score: f64, 
+  breakdown: scoring::ComplexityBreakdown, 
+  preview: String
+) -> scoring::ComplexityRegion {
   scoring::ComplexityRegion {
     start_line: start + 1,
     end_line: end + 1,
