@@ -1,9 +1,12 @@
 {
-  ignore: [
+  ignore_files: [
     // [tsl-voxel] - Future cleanup project
     "crates/jerrod/**",
     "crates/sentinel/**",
     "crates/kernelle/**",
     "crates/blizz/**"
+  ],
+  ignore_patterns: [
+    "#\\[cfg\\(test\\)\\]" // ignore rust inline test code
   ]
 }

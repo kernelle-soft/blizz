@@ -284,6 +284,22 @@ fn should_ignore_chunk(chunk_content: &str) -> bool {
   chunk_content.lines().any(|line| ignore_regex.is_match(line))
 }
 
+fn should_ignore_chunk_with_patterns(chunk_content: &str, ignore_patterns: &[String]) -> bool {
+  if should_ignore_chunk(chunk_content) {
+    return true;
+  }
+  
+  for pattern in ignore_patterns {
+          if let Ok(regex) = Regex::new(pattern) {
+        if regex.is_match(chunk_content) {
+          return true;
+        }
+      }
+  }
+  
+  false
+}
+
 /// Analyze file and identify complexity hotspots
 pub fn analyze_file<P: AsRef<Path>>(
   file_path: P,
@@ -327,14 +343,14 @@ fn find_complexity_violations(content: &str, config: &VioletConfig, path: &Path)
   let line_lengths: Vec<f64> = lines.iter().map(|line| line.len() as f64).collect();
   let regions = analyze_file_iterative_fusion(&lines, &line_lengths);
   
-  process_regions_for_violations(regions, &lines, threshold)
+  process_regions_for_violations(regions, &lines, threshold, &config.ignore_content_patterns)
 }
 
-fn process_regions_for_violations(regions: Vec<(usize, usize, f64)>, lines: &[&str], threshold: f64) -> Vec<ComplexityRegion> {
+fn process_regions_for_violations(regions: Vec<(usize, usize, f64)>, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Vec<ComplexityRegion> {
   let mut complexity_regions = Vec::new();
   
   for (start, end, _) in regions {
-    if let Some(region) = analyze_region_if_complex(start, end, lines, threshold) {
+    if let Some(region) = analyze_region_if_complex(start, end, lines, threshold, ignore_patterns) {
       complexity_regions.push(region);
     }
   }
@@ -342,7 +358,7 @@ fn process_regions_for_violations(regions: Vec<(usize, usize, f64)>, lines: &[&s
   complexity_regions
 }
 
-fn analyze_region_if_complex(start: usize, end: usize, lines: &[&str], threshold: f64) -> Option<ComplexityRegion> {
+fn analyze_region_if_complex(start: usize, end: usize, lines: &[&str], threshold: f64, ignore_patterns: &[String]) -> Option<ComplexityRegion> {
   if end <= start {
     return None;
   }
@@ -350,7 +366,7 @@ fn analyze_region_if_complex(start: usize, end: usize, lines: &[&str], threshold
   let chunk_lines = &lines[start..=end.min(lines.len().saturating_sub(1))];
   let chunk_content = chunk_lines.join("\n");
   
-  if should_ignore_chunk(&chunk_content) {
+  if should_ignore_chunk_with_patterns(&chunk_content, ignore_patterns) {
     return None;
   }
 

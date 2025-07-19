@@ -515,7 +515,7 @@ mod tests {
   fn test_collect_files_recursively_empty_config() {
     let temp_dir = TempDir::new().unwrap();
     let config =
-      VioletConfig { thresholds: HashMap::new(), ignore_patterns: vec![], default_threshold: 6.0 };
+      VioletConfig { thresholds: HashMap::new(), default_threshold: 6.0, ..Default::default() };
 
     let file1_path = temp_dir.path().join("test1.rs");
     fs::write(&file1_path, "fn main() {}").unwrap();
@@ -539,6 +539,7 @@ mod tests {
       thresholds: HashMap::new(),
       ignore_patterns: vec!["*.ignored".to_string(), "temp*".to_string()],
       default_threshold: 6.0,
+      ..Default::default()
     };
 
     let included_file = temp_dir.path().join("included.rs");
@@ -728,8 +729,8 @@ mod tests {
     let temp_dir = TempDir::new().unwrap();
     let config = VioletConfig {
       thresholds: HashMap::new(),
-      ignore_patterns: vec![],
       default_threshold: 6.0,
+      ..Default::default()
     };
 
     let level1 = temp_dir.path().join("level1");
