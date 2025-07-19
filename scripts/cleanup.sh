@@ -185,12 +185,14 @@ handle_insights_preservation
 echo ""
 echo "Soft deleting kernelle shell source files..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source"
+# Ensure KERNELLE_HOME exists before copying template
+mkdir -p "$KERNELLE_HOME" || true
+cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source" || true
 
 if [ "$keep_insights" = true ]; then
     echo "💾 Preserving insights..."
     if [ -d "$KERNELLE_HOME/insights" ]; then
-        mv "$KERNELLE_HOME/insights" "$HOME/.kernelle-insights-backup"
+        mv "$KERNELLE_HOME/insights" "$HOME/.kernelle-insights-backup" || true
         echo "✓ Insights backed up to ~/.kernelle-insights-backup"
     fi
 fi
