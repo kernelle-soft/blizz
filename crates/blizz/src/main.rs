@@ -32,8 +32,6 @@ enum Commands {
   },
   /// Search through all insights for matching content
   Search {
-    /// Search query text
-    query: String,
     /// Optional topic to restrict search to
     #[arg(short, long)]
     topic: Option<String>,
@@ -43,6 +41,9 @@ enum Commands {
     /// Search only in overview sections
     #[arg(short, long)]
     overview_only: bool,
+    /// Search terms (space-separated)
+    #[arg(required = true)]
+    terms: Vec<String>,
   },
   /// Get content of a specific insight
   Get {
@@ -107,8 +108,8 @@ fn main() -> Result<()> {
     Commands::Add { topic, name, overview, details } => {
       add_insight(&topic, &name, &overview, &details)?;
     }
-    Commands::Search { query, topic, case_sensitive, overview_only } => {
-      search_insights(&query, topic.as_deref(), case_sensitive, overview_only)?;
+    Commands::Search { topic, case_sensitive, overview_only, terms } => {
+      search_insights(&terms, topic.as_deref(), case_sensitive, overview_only)?;
     }
     Commands::Get { topic, name, overview } => {
       get_insight(&topic, &name, overview)?;

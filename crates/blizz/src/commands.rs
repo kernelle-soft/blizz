@@ -5,6 +5,14 @@ use std::path::Path;
 
 use crate::insight::*;
 
+#[derive(Debug)]
+struct SearchResult {
+  topic: String,
+  name: String,
+  matching_lines: Vec<String>,
+  score: usize, // number of matching terms
+}
+
 /// Creates a cross-platform symlink/junction
 fn xplat_symlink(src: &Path, dst: &Path) -> Result<()> {
   #[cfg(unix)]
@@ -39,7 +47,7 @@ pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Re
 
 /// Search through all insights for matching content
 pub fn search_insights(
-  query: &str,
+  terms: &[String],
   topic_filter: Option<&str>,
   case_sensitive: bool,
   overview_only: bool,
@@ -57,7 +65,7 @@ pub fn search_insights(
     get_topics()?.into_iter().map(|topic| insights_root.join(topic)).collect()
   };
 
-  let mut found_any = false;
+  let mut results = Vec::new();
 
   for topic_path in search_paths {
     if !topic_path.exists() {
@@ -88,30 +96,50 @@ pub fn search_insights(
                 content
               };
 
-              // Perform the search
-              let matches = if case_sensitive {
-                search_content.contains(query)
-              } else {
-                search_content.to_lowercase().contains(&query.to_lowercase())
-              };
-
-              if matches {
-                found_any = true;
-                println!("=== {}/{} ===", topic_name.cyan(), insight_name.yellow());
-
-                // Show matching lines
+              // Count matches for each term
+              let mut score = 0;
+              let mut matching_lines = Vec::new();
+              
+              for term in terms {
+                let term_matches = if case_sensitive {
+                  search_content.contains(term)
+                } else {
+                  search_content.to_lowercase().contains(&term.to_lowercase())
+                };
+                
+                if term_matches {
+                  score += 1;
+                }
+              }
+              
+              // If any terms matched, collect matching lines
+              if score > 0 {
                 for line in search_content.lines() {
-                  let line_matches = if case_sensitive {
-                    line.contains(query)
-                  } else {
-                    line.to_lowercase().contains(&query.to_lowercase())
-                  };
-
-                  if line_matches {
-                    println!("{line}");
+                  let mut line_has_match = false;
+                  for term in terms {
+                    let line_matches = if case_sensitive {
+                      line.contains(term)
+                    } else {
+                      line.to_lowercase().contains(&term.to_lowercase())
+                    };
+                    
+                    if line_matches {
+                      line_has_match = true;
+                      break;
+                    }
+                  }
+                  
+                  if line_has_match {
+                    matching_lines.push(line.to_string());
                   }
                 }
-                println!();
+                
+                results.push(SearchResult {
+                  topic: topic_name.to_string(),
+                  name: insight_name.to_string(),
+                  matching_lines,
+                  score,
+                });
               }
             }
           }
@@ -120,8 +148,28 @@ pub fn search_insights(
     }
   }
 
-  if !found_any {
-    println!("No matches found for: {}", query.yellow());
+  // Sort by relevance score (descending), then by topic/name for consistency
+  results.sort_by(|a, b| {
+    b.score.cmp(&a.score).then_with(|| {
+      a.topic.cmp(&b.topic).then_with(|| a.name.cmp(&b.name))
+    })
+  });
+
+  if results.is_empty() {
+    let terms_str = terms.join(" ");
+    println!("No matches found for: {}", terms_str.yellow());
+  } else {
+    for result in results {
+      println!("=== {}/{} ({} terms) ===", 
+               result.topic.cyan(), 
+               result.name.yellow(),
+               result.score.to_string().green());
+      
+      for line in result.matching_lines {
+        println!("{line}");
+      }
+      println!();
+    }
   }
 
   Ok(())

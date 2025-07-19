@@ -62,10 +62,10 @@ mod edge_case_tests {
     add_insight("test_topic", "insight2", "overview with keyword", "details")?;
 
     // Case sensitive search
-    search_insights("Keyword", None, true, false)?;
+    search_insights(&[String::from("Keyword")], None, true, false)?;
 
     // Case insensitive search (default)
-    search_insights("keyword", None, false, false)?;
+    search_insights(&[String::from("keyword")], None, false, false)?;
 
     Ok(())
   }
@@ -78,10 +78,10 @@ mod edge_case_tests {
     add_insight("test_topic", "insight1", "Overview content", "Details content")?;
 
     // Search overview only
-    search_insights("Overview", None, false, true)?;
+    search_insights(&[String::from("Overview")], None, false, true)?;
 
     // This should not match since we're only searching overview
-    search_insights("Details", None, false, true)?;
+    search_insights(&[String::from("Details")], None, false, true)?;
 
     Ok(())
   }
@@ -165,7 +165,7 @@ mod edge_case_tests {
     add_insight("topic", "name", "content", "details")?;
 
     // Search for something that doesn't exist
-    search_insights("nonexistent_term_xyz", None, false, false)?;
+    search_insights(&[String::from("nonexistent_term_xyz")], None, false, false)?;
 
     Ok(())
   }
