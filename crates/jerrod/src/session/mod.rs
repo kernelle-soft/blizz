@@ -251,9 +251,40 @@ impl SessionManager {
 
     eprintln!("[DEBUG] save_session: serializing session data");
     let json = serde_json::to_string_pretty(session)?;
-    eprintln!("[DEBUG] save_session: writing to file: {session_file:?}");
-    std::fs::write(session_file, json)?;
-    eprintln!("[DEBUG] save_session: file written successfully");
+    eprintln!("[DEBUG] save_session: writing to file: {:?}", session_file);
+    
+    // Check if we can write to the directory
+    eprintln!("[DEBUG] save_session: checking write permissions on directory");
+    let test_file = session_path.join("test_write.tmp");
+    match std::fs::write(&test_file, "test") {
+      Ok(_) => {
+        eprintln!("[DEBUG] save_session: directory is writable");
+        std::fs::remove_file(&test_file).ok(); // Clean up test file
+      }
+      Err(e) => {
+        eprintln!("[DEBUG] save_session: directory write test failed: {}", e);
+        return Err(anyhow::anyhow!("Cannot write to session directory {:?}: {}", session_path, e));
+      }
+    }
+    
+    // Try to write the actual file with more detailed error handling
+    match std::fs::write(&session_file, &json) {
+      Ok(_) => {
+        eprintln!("[DEBUG] save_session: file written successfully");
+      }
+      Err(e) => {
+        eprintln!("[DEBUG] save_session: file write failed with error: {}", e);
+        eprintln!("[DEBUG] save_session: error kind: {:?}", e.kind());
+        eprintln!("[DEBUG] save_session: attempting to check file parent again");
+        if let Some(parent) = session_file.parent() {
+          eprintln!("[DEBUG] save_session: parent exists: {}", parent.exists());
+          eprintln!("[DEBUG] save_session: parent is dir: {}", parent.is_dir());
+        }
+        return Err(anyhow::anyhow!("Failed to write session file {:?}: {}", session_file, e));
+      }
+    }
+    
+    eprintln!("[DEBUG] save_session: completed successfully");
     Ok(())
   }
 
