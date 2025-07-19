@@ -23,101 +23,6 @@ struct Cli {
   quiet: bool,
 }
 
-/// Get the static language mapping table
-fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
-  static LANGUAGE_MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
-  LANGUAGE_MAP.get_or_init(|| {
-    let mut map = HashMap::new();
-    
-    // JavaScript family
-    map.insert(".js", "javascript");
-    map.insert(".mjs", "modules javascript");
-    map.insert(".cjs", "commonjs javascript");
-    map.insert(".jsx", "react javascript");
-    map.insert(".ts", "typescript");
-    map.insert(".tsx", "react typescript");
-    
-    // Python family
-    map.insert(".py", "python");
-    map.insert(".pyw", "windows python");
-    map.insert(".pyc", "compiled python");
-    
-    // Systems languages
-    map.insert(".rs", "rust");
-    map.insert(".go", "go");
-    map.insert(".c", "C");
-    map.insert(".h", "C headers");
-    map.insert(".cpp", "C++");
-    map.insert(".cc", "C++");
-    map.insert(".cxx", "C++");
-    map.insert(".c++", "C++");
-    map.insert(".hpp", "C++ headers");
-    map.insert(".hxx", "C++ headers");
-    
-    // JVM languages
-    map.insert(".java", "java");
-    map.insert(".kt", "kotlin");
-    map.insert(".kts", "kotlin script");
-    map.insert(".scala", "scala");
-    map.insert(".groovy", "groovy");
-    map.insert(".gvy", "groovy");
-    map.insert(".gy", "groovy");
-    map.insert(".gsh", "groovy shell");
-    
-    // Other languages
-    map.insert(".cs", "C#");
-    map.insert(".php", "php");
-    map.insert(".rb", "ruby");
-    map.insert(".swift", "swift");
-    map.insert(".hs", "haskell");
-    map.insert(".ex", "elixir");
-    map.insert(".exs", "elixir (script)");
-    map.insert(".pl", "perl");
-    map.insert(".pm", "perl (module)");
-    map.insert(".lua", "lua");
-    map.insert(".dart", "dart");
-    map.insert(".r", "R");
-    map.insert(".R", "R (alt)");
-    map.insert(".m", "matlab");
-    map.insert(".vb", "visual basic");
-    map.insert(".gd", "gdscript");
-    map.insert(".asm", "assembly");
-    map.insert(".s", "assembly");
-    
-    // Shell scripts
-    map.insert(".sh", "shell scripts");
-    map.insert(".bash", "bash");
-    map.insert(".zsh", "zsh");
-    map.insert(".fish", "fish");
-    map.insert(".ps1", "powershell");
-    
-    // Web technologies
-    map.insert(".html", "html");
-    map.insert(".htm", "html (alt)");
-    map.insert(".css", "css");
-    map.insert(".scss", "sass (scss)");
-    map.insert(".sass", "sass");
-    map.insert(".less", "less");
-    map.insert(".vue", "vue");
-    
-    // Data formats
-    map.insert(".json", "json");
-    map.insert(".xml", "xml");
-    map.insert(".yaml", "yaml");
-    map.insert(".yml", "yml");
-    map.insert(".toml", "toml");
-    map.insert(".sql", "sql");
-    map.insert(".md", "markdown");
-    
-    // Infrastructure
-    map.insert(".dockerfile", "dockerfile");
-    map.insert(".tf", "terraform");
-    map.insert(".hcl", "hcl");
-    
-    map
-  })
-}
-
 /// Map file extensions to human-readable language names
 fn extension_to_language(ext: &str) -> &str {
   get_language_map().get(ext).unwrap_or(&ext)
@@ -447,6 +352,102 @@ fn format_file_path(path: &str, max_width: usize) -> String {
     let truncated_len = max_width - 3;
     format!("...{}", &path[path.len() - truncated_len..])
   }
+}
+
+// violet ignore chunk
+/// Get the static language mapping table
+fn get_language_map() -> &'static HashMap<&'static str, &'static str> {
+  static LANGUAGE_MAP: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+  LANGUAGE_MAP.get_or_init(|| {
+    let mut map = HashMap::new();
+    
+    // JavaScript family
+    map.insert(".js", "javascript");
+    map.insert(".mjs", "modules javascript");
+    map.insert(".cjs", "commonjs javascript");
+    map.insert(".jsx", "react javascript");
+    map.insert(".ts", "typescript");
+    map.insert(".tsx", "react typescript");
+    
+    // Python family
+    map.insert(".py", "python");
+    map.insert(".pyw", "windows python");
+    map.insert(".pyc", "compiled python");
+    
+    // Systems languages
+    map.insert(".rs", "rust");
+    map.insert(".go", "go");
+    map.insert(".c", "C");
+    map.insert(".h", "C headers");
+    map.insert(".cpp", "C++");
+    map.insert(".cc", "C++");
+    map.insert(".cxx", "C++");
+    map.insert(".c++", "C++");
+    map.insert(".hpp", "C++ headers");
+    map.insert(".hxx", "C++ headers");
+    
+    // JVM languages
+    map.insert(".java", "java");
+    map.insert(".kt", "kotlin");
+    map.insert(".kts", "kotlin script");
+    map.insert(".scala", "scala");
+    map.insert(".groovy", "groovy");
+    map.insert(".gvy", "groovy");
+    map.insert(".gy", "groovy");
+    map.insert(".gsh", "groovy shell");
+    
+    // Other languages
+    map.insert(".cs", "C#");
+    map.insert(".php", "php");
+    map.insert(".rb", "ruby");
+    map.insert(".swift", "swift");
+    map.insert(".hs", "haskell");
+    map.insert(".ex", "elixir");
+    map.insert(".exs", "elixir (script)");
+    map.insert(".pl", "perl");
+    map.insert(".pm", "perl (module)");
+    map.insert(".lua", "lua");
+    map.insert(".dart", "dart");
+    map.insert(".r", "R");
+    map.insert(".R", "R (alt)");
+    map.insert(".m", "matlab");
+    map.insert(".vb", "visual basic");
+    map.insert(".gd", "gdscript");
+    map.insert(".asm", "assembly");
+    map.insert(".s", "assembly");
+    
+    // Shell scripts
+    map.insert(".sh", "shell scripts");
+    map.insert(".bash", "bash");
+    map.insert(".zsh", "zsh");
+    map.insert(".fish", "fish");
+    map.insert(".ps1", "powershell");
+    
+    // Web technologies
+    map.insert(".html", "html");
+    map.insert(".htm", "html (alt)");
+    map.insert(".css", "css");
+    map.insert(".scss", "sass (scss)");
+    map.insert(".sass", "sass");
+    map.insert(".less", "less");
+    map.insert(".vue", "vue");
+    
+    // Data formats
+    map.insert(".json", "json");
+    map.insert(".xml", "xml");
+    map.insert(".yaml", "yaml");
+    map.insert(".yml", "yml");
+    map.insert(".toml", "toml");
+    map.insert(".sql", "sql");
+    map.insert(".md", "markdown");
+    
+    // Infrastructure
+    map.insert(".dockerfile", "dockerfile");
+    map.insert(".tf", "terraform");
+    map.insert(".hcl", "hcl");
+    
+    map
+  })
 }
 
 #[cfg(test)]

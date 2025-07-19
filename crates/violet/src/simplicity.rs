@@ -3,7 +3,13 @@
 use regex::Regex;
 use std::fs;
 use std::path::Path;
-use crate::config::{VioletConfig, get_threshold_for_file};
+use crate::config::{
+  VioletConfig, 
+  get_threshold_for_file, 
+  should_ignore_chunk_with_patterns
+};
+
+const IGNORE_DIRECTIVE_PATTERN: &str = r"violet\s+ignore\s+(file|chunk|start|end|line)";
 
 #[derive(Debug, Clone)]
 pub struct FileAnalysis {
@@ -51,7 +57,7 @@ fn create_ignored_file_analysis(path: &Path) -> FileAnalysis {
 }
 
 fn has_file_ignore_directive(lines: &[&str]) -> bool {
-  let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
+  let ignore_regex = Regex::new(IGNORE_DIRECTIVE_PATTERN).unwrap();
   lines.iter().any(|line| {
     ignore_regex.captures(line).is_some_and(|caps| caps.get(1).unwrap().as_str() == "file")
   })
@@ -92,7 +98,7 @@ fn process_line<'a>(
   skip_next_line: &mut bool,
   result_lines: &mut Vec<&'a str>,
 ) -> bool {
-  let ignore_regex = Regex::new(r"violet\s+ignore\s+(file|chunk|start|end|line)").unwrap();
+  let ignore_regex = Regex::new(IGNORE_DIRECTIVE_PATTERN).unwrap();
 
   if *skip_next_line {
     *skip_next_line = false;
@@ -277,27 +283,6 @@ fn get_indents_with_tab_size(line: &str, spaces_per_indent: usize) -> usize {
 fn get_num_specials(line: &str) -> f64 {
   let special_regex = Regex::new(r"[^\w\s]").unwrap();
   special_regex.find_iter(line.trim()).count() as f64
-}
-
-fn should_ignore_chunk(chunk_content: &str) -> bool {
-  let ignore_regex = Regex::new(r"violet\s+ignore\s+chunk").unwrap();
-  chunk_content.lines().any(|line| ignore_regex.is_match(line))
-}
-
-fn should_ignore_chunk_with_patterns(chunk_content: &str, ignore_patterns: &[String]) -> bool {
-  if should_ignore_chunk(chunk_content) {
-    return true;
-  }
-  
-  for pattern in ignore_patterns {
-          if let Ok(regex) = Regex::new(pattern) {
-        if regex.is_match(chunk_content) {
-          return true;
-        }
-      }
-  }
-  
-  false
 }
 
 /// Analyze file and identify complexity hotspots
@@ -825,23 +810,5 @@ mod tests {
     
     assert!(chunks[1].contains("class Test"));
     assert!(chunks[1].contains("method()"));
-  }
-
-  #[test]
-  fn test_should_ignore_chunk() {
-    let normal_chunk = "fn normal() {\n    return 42;\n}";
-    assert!(!should_ignore_chunk(normal_chunk));
-
-    let ignored_chunk = "// violet ignore chunk\nfn complex() {\n    if deeply {\n        if nested {\n            return 42;\n        }\n    }\n}";
-    assert!(should_ignore_chunk(ignored_chunk));
-
-    let ignored_chunk2 = "# violet ignore chunk\nfn another() { return 1; }";
-    assert!(should_ignore_chunk(ignored_chunk2));
-
-    let ignored_chunk3 = "/* violet ignore chunk */\nfn yet_another() { return 2; }";
-    assert!(should_ignore_chunk(ignored_chunk3));
-
-    let ignored_chunk4 = "//   violet   ignore   chunk   \nfn spaced() { return 3; }";
-    assert!(should_ignore_chunk(ignored_chunk4));
   }
 }
