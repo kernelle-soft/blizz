@@ -219,7 +219,9 @@ pub fn chunk_complexity_with_breakdown(chunk: &str) -> (f64, ComplexityBreakdown
 /// Calculate complexity score for a single chunk of code (legacy interface)
 pub fn chunk_complexity(chunk: &str) -> f64 {
   let (score, _) = chunk_complexity_with_breakdown(chunk);
-  score
+
+  // round to 2 decimal places
+  (score * 100.0).round() / 100.0
 }
 
 /// Calculate complexity score for an entire file (average complexity per chunk)
@@ -302,6 +304,12 @@ fn get_num_specials(line: &str) -> f64 {
   line.trim().chars().filter(|ch| SPECIAL_CHARS.contains(*ch)).count() as f64
 }
 
+/// Check if a chunk should be ignored based on violet ignore chunk directive
+fn should_ignore_chunk(chunk_content: &str) -> bool {
+  let ignore_regex = Regex::new(r"violet\s+ignore\s+chunk").unwrap();
+  chunk_content.lines().any(|line| ignore_regex.is_match(line))
+}
+
 /// Analyze a single file and return detailed results
 pub fn analyze_file<P: AsRef<Path>>(
   file_path: P,
@@ -344,10 +352,15 @@ pub fn analyze_file<P: AsRef<Path>>(
       let chunk_lines = &lines[start..=end.min(lines.len().saturating_sub(1))];
       let chunk_content = chunk_lines.join("\n");
       
+      // Check if the chunk should be ignored
+      if should_ignore_chunk(&chunk_content) {
+        continue;
+      }
+
       // NOW apply complexity scoring to the discovered chunk
       let score = chunk_complexity(&chunk_content);
       
-      if score >= threshold {
+      if score > threshold {
         let breakdown = calculate_chunk_breakdown(&chunk_content);
         let preview = create_chunk_preview(chunk_lines);
         
@@ -540,8 +553,6 @@ fn calculate_chunk_breakdown(chunk_content: &str) -> ComplexityBreakdown {
   
   create_breakdown(total_depth, total_verbosity, total_syntactic)
 }
-
-/// Create a simple preview string from chunk lines
 
 // violet ignore chunk
 #[cfg(test)]
@@ -833,6 +844,28 @@ mod tests {
     // Second chunk should include the class and its indented content  
     assert!(chunks[1].contains("class Test"));
     assert!(chunks[1].contains("method()"));
+  }
+
+  #[test]
+  fn test_should_ignore_chunk() {
+    // Test chunk without ignore directive
+    let normal_chunk = "fn normal() {\n    return 42;\n}";
+    assert!(!should_ignore_chunk(normal_chunk));
+
+    // Test chunk with ignore directive
+    let ignored_chunk = "// violet ignore chunk\nfn complex() {\n    if deeply {\n        if nested {\n            return 42;\n        }\n    }\n}";
+    assert!(should_ignore_chunk(ignored_chunk));
+
+    // Test with different comment styles
+    let ignored_chunk2 = "# violet ignore chunk\nfn another() { return 1; }";
+    assert!(should_ignore_chunk(ignored_chunk2));
+
+    let ignored_chunk3 = "/* violet ignore chunk */\nfn yet_another() { return 2; }";
+    assert!(should_ignore_chunk(ignored_chunk3));
+
+    // Test with extra whitespace
+    let ignored_chunk4 = "//   violet   ignore   chunk   \nfn spaced() { return 3; }";
+    assert!(should_ignore_chunk(ignored_chunk4));
   }
 }
 

@@ -23,6 +23,102 @@ struct Cli {
   quiet: bool,
 }
 
+/// Map file extensions to language names (one-to-one mapping)
+fn extension_to_language(ext: &str) -> &str {
+  match ext {
+    ".js" => "javascript",
+    ".mjs" => "modules javascript",
+    ".cjs" => "commonjs javascript",
+    ".jsx" => "react javascript",
+    ".ts" => "typescript",
+    ".tsx" => "react typescript",
+    ".py" => "python",
+    ".pyw" => "windows python",
+    ".pyc" => "compiled python",
+    ".rs" => "rust",
+    ".go" => "go",
+    ".java" => "java",
+    ".kt" => "kotlin",
+    ".kts" => "kotlin script",
+    ".cs" => "C#",
+    ".cpp" => "C++",
+    ".cc" => "C++",
+    ".cxx" => "C++",
+    ".c++" => "C++",
+    ".c" => "C",
+    ".h" => "C headers",
+    ".hpp" => "C++ headers",
+    ".hxx" => "C++ headers",
+    ".php" => "php",
+    ".rb" => "ruby",
+    ".swift" => "swift",
+    ".scala" => "scala",
+    ".hs" => "haskell",
+    ".ex" => "elixir",
+    ".exs" => "elixir (script)",
+    ".pl" => "perl",
+    ".pm" => "perl (module)",
+    ".lua" => "lua",
+    ".dart" => "dart",
+    ".r" => "R",
+    ".R" => "R (alt)",
+    ".m" => "matlab",
+    ".sh" => "shell scripts",
+    ".bash" => "bash",
+    ".zsh" => "zsh",
+    ".fish" => "fish",
+    ".ps1" => "powershell",
+    ".sql" => "sql",
+    ".html" => "html",
+    ".htm" => "html (alt)",
+    ".css" => "css",
+    ".scss" => "sass (scss)",
+    ".sass" => "sass",
+    ".less" => "less",
+    ".vue" => "vue",
+    ".gd" => "gdscript",
+    ".vb" => "visual basic",
+    ".groovy" => "groovy",
+    ".gvy" => "groovy",
+    ".gy" => "groovy",
+    ".gsh" => "groovy shell",
+    ".asm" => "assembly",
+    ".s" => "assembly",
+    ".json" => "json",
+    ".xml" => "xml",
+    ".yaml" => "yaml",
+    ".yml" => "yml",
+    ".toml" => "toml",
+    ".md" => "markdown",
+    ".dockerfile" => "dockerfile",
+    ".tf" => "terraform",
+    ".hcl" => "hcl",
+    _ => ext, // fallback to extension if no mapping
+  }
+}
+
+/// Display the threshold configuration being used
+fn display_threshold_config(config: &VioletConfig) {
+  println!("LANG                    THRESHOLD");
+  println!("=================================");
+  
+  // Display default threshold
+  println!("{:<23} {:>6.2}", "default", config.default_threshold);
+  
+  // Display file-specific thresholds if any exist
+  if !config.thresholds.is_empty() {
+    let mut sorted_thresholds: Vec<_> = config.thresholds.iter().collect();
+    sorted_thresholds.sort_by_key(|(ext, _)| ext.as_str());
+    
+    for (extension, threshold) in sorted_thresholds {
+      let language = extension_to_language(extension);
+      println!("{:<23} {:>6.2}", language, threshold);
+    }
+  }
+  
+  println!();
+}
+
 /// Load configuration and exit on error
 fn load_config_or_exit() -> VioletConfig {
   match load_config() {
@@ -93,13 +189,16 @@ fn process_directory(
 }
 
 /// Print output header and violations
-fn print_results(violation_output: Vec<String>) {
+fn print_results(violation_output: Vec<String>, config: &VioletConfig) {
   if !violation_output.is_empty() {
     println!(
       "{}",
       "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold()
     );
     println!();
+    
+    // Display threshold configuration after title
+    display_threshold_config(config);
 
     // Print table header for chunk violations
     let score_width = "SCORE".len();
@@ -113,6 +212,12 @@ fn print_results(violation_output: Vec<String>) {
     }
   } else {
     // All files are clean - print success message
+    println!("{}", "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold());
+    println!();
+    
+    // Display threshold configuration after title
+    display_threshold_config(config);
+    
     println!("{} No issues found. What beautiful code you have!", "✅".green());
   }
 }
@@ -142,7 +247,7 @@ fn main() {
     }
   }
 
-  print_results(violation_output);
+  print_results(violation_output, &config);
 
   if violating_chunks > 0 {
     process::exit(1);
@@ -199,7 +304,7 @@ fn scale_component_score(score: f64) -> f64 {
 
 /// Format a single subscore component (depth, verbosity, or syntactic)
 fn report_subscore(name: &str, scaled_score: f64, percent: f64) -> String {
-  format!("    {name}: {scaled_score:.1} ({percent:.0}%)\n")
+  format!("    {name}: {scaled_score:.2} ({percent:.0}%)\n")
 }
 
 /// Format complexity breakdown with percentage scaling
@@ -222,7 +327,7 @@ fn format_violating_chunk(chunk: &ComplexityRegion) -> String {
   let mut output = String::new();
 
   let chunk_display = format!("- lines {}-{}", chunk.start_line, chunk.end_line);
-  let score_str = format!("{:.1}", chunk.score);
+  let score_str = format!("{:.2}", chunk.score);
   output.push_str(&format_aligned_row(&chunk_display, &score_str, true, false));
 
   output.push_str(&format_chunk_preview(chunk));
@@ -651,5 +756,53 @@ mod tests {
     assert!(file_names.contains(&"level1.rs"));
     assert!(file_names.contains(&"level2.rs"));
     assert!(file_names.contains(&"level3.rs"));
+  }
+  #[test]
+  fn test_extension_to_language() {
+    // Test common mappings
+    assert_eq!(extension_to_language(".rs"), "rust");
+    assert_eq!(extension_to_language(".js"), "javascript");
+    assert_eq!(extension_to_language(".ts"), "typescript");
+    assert_eq!(extension_to_language(".py"), "python");
+    assert_eq!(extension_to_language(".go"), "go");
+    assert_eq!(extension_to_language(".java"), "java");
+    
+    // Test multiple extensions for same language
+    assert_eq!(extension_to_language(".cpp"), "C++");
+    assert_eq!(extension_to_language(".cc"), "C++");
+    assert_eq!(extension_to_language(".cxx"), "C++");
+    
+    assert_eq!(extension_to_language(".sh"), "bash");
+    assert_eq!(extension_to_language(".bash"), "bash");
+    assert_eq!(extension_to_language(".zsh"), "zsh");
+    
+    // Test fallback for unknown extensions
+    assert_eq!(extension_to_language(".unknown"), ".unknown");
+    assert_eq!(extension_to_language(".xyz"), ".xyz");
+    
+    // Test case sensitivity
+    assert_eq!(extension_to_language(".R"), "R");
+    assert_eq!(extension_to_language(".r"), "R");
+    
+    // Test React vs JavaScript distinction
+    assert_eq!(extension_to_language(".js"), "javascript");
+    assert_eq!(extension_to_language(".jsx"), "react javascript");
+    assert_eq!(extension_to_language(".ts"), "typescript");
+    assert_eq!(extension_to_language(".tsx"), "react typescript");
+    
+    // Test C vs C headers distinction
+    assert_eq!(extension_to_language(".c"), "C");
+    assert_eq!(extension_to_language(".h"), "C headers");
+    assert_eq!(extension_to_language(".cpp"), "C++");
+    assert_eq!(extension_to_language(".hpp"), "C++ headers");
+    
+    // Test JavaScript variants
+    assert_eq!(extension_to_language(".mjs"), "modules javascript");
+    assert_eq!(extension_to_language(".cjs"), "commonjs javascript");
+    
+    // Test Python variants
+    assert_eq!(extension_to_language(".py"), "python");
+    assert_eq!(extension_to_language(".pyw"), "windows python");
+    assert_eq!(extension_to_language(".pyc"), "compiled python");
   }
 }
