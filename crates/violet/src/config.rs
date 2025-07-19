@@ -689,4 +689,302 @@ mod tests {
     assert!(patterns.iter().any(|p| p.contains("*.json")));
     assert!(patterns.iter().any(|p| p.contains("*.toml")));
   }
+
+  // New tests for config loading functions
+
+  #[test]
+  fn test_default_global_config_comprehensive() {
+    let config = default_global_config();
+    
+    // Verify structure
+    assert_eq!(config.complexity.thresholds.default, 6.0);
+    assert!(config.complexity.thresholds.extensions.is_empty());
+    assert!(!config.ignore.is_empty());
+    
+    // Verify it contains expected categories of patterns
+    let has_directories = config.ignore.iter().any(|p| p.contains("node_modules") || p.contains("target"));
+    let has_binaries = config.ignore.iter().any(|p| p.contains("*.png") || p.contains("*.pdf"));
+    let has_configs = config.ignore.iter().any(|p| p.contains("*.json") || p.contains("*.toml"));
+    
+    assert!(has_directories);
+    assert!(has_binaries);
+    assert!(has_configs);
+  }
+
+  #[test]
+  fn test_load_config_file_json5_parsing() {
+    use tempfile::NamedTempFile;
+    use std::io::Write;
+    
+    // Test valid JSON5 content
+    let mut temp_file = NamedTempFile::new().unwrap();
+    let valid_json5 = r#"{
+      complexity: {
+        thresholds: {
+          default: 8.0,
+          ".rs": 10.0,
+          ".js": 6.0
+        }
+      },
+      ignore: [
+        "*.test",
+        "temp/**"
+      ]
+    }"#;
+    
+    temp_file.write_all(valid_json5.as_bytes()).unwrap();
+    let result = load_config_file(temp_file.path());
+    
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.complexity.thresholds.default, 8.0);
+    assert_eq!(config.complexity.thresholds.extensions.get(".rs"), Some(&10.0));
+    assert_eq!(config.complexity.thresholds.extensions.get(".js"), Some(&6.0));
+    assert_eq!(config.ignore.len(), 2);
+    assert!(config.ignore.contains(&"*.test".to_string()));
+    assert!(config.ignore.contains(&"temp/**".to_string()));
+  }
+
+  #[test]
+  fn test_load_config_file_invalid_json5() {
+    use tempfile::NamedTempFile;
+    use std::io::Write;
+    
+    // Test invalid JSON5 content
+    let mut temp_file = NamedTempFile::new().unwrap();
+    let invalid_json5 = r#"{
+      complexity: {
+        thresholds: {
+          default: "not_a_number",
+        }
+      },
+      ignore: [
+        "*.test"
+        // missing comma
+        "temp/**"
+      ]
+    }"#;
+    
+    temp_file.write_all(invalid_json5.as_bytes()).unwrap();
+    let result = load_config_file(temp_file.path());
+    
+    assert!(result.is_err());
+    let error_msg = result.unwrap_err().to_string();
+    assert!(error_msg.contains("Failed to parse JSON5"));
+  }
+
+  #[test]
+  fn test_load_config_file_nonexistent() {
+    use std::path::Path;
+    
+    let nonexistent_path = Path::new("/this/path/does/not/exist.json5");
+    let result = load_config_file(nonexistent_path);
+    
+    assert!(result.is_err());
+    let error_msg = result.unwrap_err().to_string();
+    assert!(error_msg.contains("Failed to read config file"));
+  }
+
+  #[test]
+  fn test_merge_ignore_patterns_order_preservation() {
+    let global = vec!["first".to_string(), "second".to_string()];
+    let project = vec!["third".to_string(), "fourth".to_string()];
+    
+    let result = merge_ignore_patterns(global, project);
+    
+    // Should preserve order: global patterns first, then project patterns
+    assert_eq!(result.len(), 4);
+    let first_two: Vec<&String> = result.iter().take(2).collect();
+    assert!(first_two.contains(&&"first".to_string()));
+    assert!(first_two.contains(&&"second".to_string()));
+  }
+
+  #[test]
+  fn test_merge_ignore_patterns_complex_deduplication() {
+    let global = vec![
+      "pattern1".to_string(),
+      "pattern2".to_string(),
+      "pattern3".to_string(),
+      "pattern1".to_string(), // duplicate in global
+    ];
+    let project = vec![
+      "pattern2".to_string(), // duplicate from global
+      "pattern4".to_string(),
+      "pattern5".to_string(),
+      "pattern4".to_string(), // duplicate in project
+    ];
+    
+    let result = merge_ignore_patterns(global, project);
+    
+    assert_eq!(result.len(), 5); // Should deduplicate to unique patterns
+    assert!(result.contains(&"pattern1".to_string()));
+    assert!(result.contains(&"pattern2".to_string()));
+    assert!(result.contains(&"pattern3".to_string()));
+    assert!(result.contains(&"pattern4".to_string()));
+    assert!(result.contains(&"pattern5".to_string()));
+  }
+
+  #[test]
+  fn test_get_threshold_for_file_various_extensions() {
+    let mut thresholds = HashMap::new();
+    thresholds.insert(".rs".to_string(), 8.0);
+    thresholds.insert(".py".to_string(), 7.0);
+    thresholds.insert(".js".to_string(), 6.0);
+    thresholds.insert(".java".to_string(), 9.0);
+    
+    let config = VioletConfig { 
+      thresholds, 
+      ignore_patterns: vec![], 
+      default_threshold: 5.0 
+    };
+    
+    // Test various file extensions
+    assert_eq!(get_threshold_for_file(&config, "main.rs"), 8.0);
+    assert_eq!(get_threshold_for_file(&config, "script.py"), 7.0);
+    assert_eq!(get_threshold_for_file(&config, "app.js"), 6.0);
+    assert_eq!(get_threshold_for_file(&config, "App.java"), 9.0);
+    
+    // Test unknown extension falls back to default
+    assert_eq!(get_threshold_for_file(&config, "config.toml"), 5.0);
+    assert_eq!(get_threshold_for_file(&config, "README.md"), 5.0);
+    
+    // Test complex file paths
+    assert_eq!(get_threshold_for_file(&config, "src/main.rs"), 8.0);
+    assert_eq!(get_threshold_for_file(&config, "./scripts/build.py"), 7.0);
+    assert_eq!(get_threshold_for_file(&config, "/usr/local/bin/tool.unknown"), 5.0);
+  }
+
+  #[test]
+  fn test_should_ignore_file_complex_scenarios() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![
+        "exact_file.txt".to_string(),
+        "prefix_*".to_string(),
+        "*_suffix.rs".to_string(),
+        "dir/**".to_string(),
+        "**/*.temp".to_string(),
+        "nested/**/deep.json".to_string(),
+      ],
+      default_threshold: 6.0,
+    };
+    
+    // Test exact matches
+    assert!(should_ignore_file(&config, "exact_file.txt"));
+    assert!(!should_ignore_file(&config, "exact_file.rs"));
+    
+    // Test prefix patterns
+    assert!(should_ignore_file(&config, "prefix_anything"));
+    assert!(should_ignore_file(&config, "prefix_test.rs"));
+    assert!(!should_ignore_file(&config, "test_prefix"));
+    
+    // Test suffix patterns
+    assert!(should_ignore_file(&config, "test_suffix.rs"));
+    assert!(should_ignore_file(&config, "my_suffix.rs"));
+    assert!(!should_ignore_file(&config, "suffix_test.rs"));
+    
+    // Test directory patterns
+    assert!(should_ignore_file(&config, "dir/file.txt"));
+    assert!(should_ignore_file(&config, "dir/subdir/file.txt"));
+    assert!(!should_ignore_file(&config, "otherdir/file.txt"));
+    
+    // Test globstar patterns
+    assert!(should_ignore_file(&config, "any/path/file.temp"));
+    assert!(should_ignore_file(&config, "file.temp"));
+    assert!(should_ignore_file(&config, "very/deep/path/file.temp"));
+    
+    // Test complex nested patterns
+    assert!(should_ignore_file(&config, "nested/anything/deep.json"));
+    assert!(should_ignore_file(&config, "nested/very/long/path/deep.json"));
+    assert!(should_ignore_file(&config, "nested/deep.json")); // ** matches zero segments too!
+  }
+
+  #[test]
+  fn test_should_ignore_file_path_normalization() {
+    let config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![
+        "src/main.rs".to_string(),
+        "tests/integration.rs".to_string(),
+      ],
+      default_threshold: 6.0,
+    };
+    
+    // Test various path formats
+    assert!(should_ignore_file(&config, "src/main.rs"));
+    assert!(should_ignore_file(&config, "./src/main.rs"));
+    assert!(should_ignore_file(&config, "tests/integration.rs"));
+    assert!(should_ignore_file(&config, "./tests/integration.rs"));
+    
+    // Test non-matching paths
+    assert!(!should_ignore_file(&config, "src/lib.rs"));
+    assert!(!should_ignore_file(&config, "tests/unit.rs"));
+    assert!(!should_ignore_file(&config, "other/main.rs"));
+  }
+
+  #[test]
+  fn test_matches_pattern_globstar_edge_cases() {
+    // Test globstar at start
+    assert!(matches_pattern("anything/file.txt", "**/file.txt"));
+    assert!(matches_pattern("deep/nested/file.txt", "**/file.txt"));
+    assert!(matches_pattern("file.txt", "**/file.txt"));
+    
+    // Test globstar at end
+    assert!(matches_pattern("src/anything", "src/**"));
+    assert!(matches_pattern("src/deep/nested", "src/**"));
+    assert!(matches_pattern("src/", "src/**"));
+    
+    // Test globstar in middle
+    assert!(matches_pattern("start/anything/end", "start/**/end"));
+    assert!(matches_pattern("start/deep/nested/end", "start/**/end"));
+    assert!(matches_pattern("start/end", "start/**/end")); // ** matches zero segments too!
+    
+    // Test multiple globstars
+    assert!(matches_pattern("a/anything/b/anything/c", "a/**/b/**/c"));
+    assert!(matches_pattern("a/x/b/y/c", "a/**/b/**/c"));
+  }
+
+  #[test]
+  fn test_config_file_serde_edge_cases() {
+    // Test minimal config
+    let minimal = ConfigFile::default();
+    assert_eq!(minimal.complexity.thresholds.default, 6.0);
+    assert!(minimal.complexity.thresholds.extensions.is_empty());
+    assert!(minimal.ignore.is_empty());
+    
+    // Test threshold config edge cases
+    let threshold_config = ThresholdConfig::default();
+    assert_eq!(threshold_config.default, 6.0);
+    assert!(threshold_config.extensions.is_empty());
+  }
+
+  #[test]
+  fn test_violet_config_creation_edge_cases() {
+    // Test config with empty thresholds
+    let empty_config = VioletConfig {
+      thresholds: HashMap::new(),
+      ignore_patterns: vec![],
+      default_threshold: 10.0,
+    };
+    
+    assert_eq!(empty_config.default_threshold, 10.0);
+    assert!(empty_config.thresholds.is_empty());
+    assert!(empty_config.ignore_patterns.is_empty());
+    
+    // Test config with many thresholds
+    let mut many_thresholds = HashMap::new();
+    for i in 1..20 {
+      many_thresholds.insert(format!(".ext{}", i), i as f64);
+    }
+    
+    let large_config = VioletConfig {
+      thresholds: many_thresholds.clone(),
+      ignore_patterns: vec!["pattern".to_string(); 100],
+      default_threshold: 15.0,
+    };
+    
+    assert_eq!(large_config.thresholds.len(), 19);
+    assert_eq!(large_config.ignore_patterns.len(), 100);
+    assert_eq!(large_config.default_threshold, 15.0);
+  }
 }

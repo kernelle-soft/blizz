@@ -1,7 +1,7 @@
 {
   complexity: {
     thresholds: {
-        ".sh": 8.0,
+      default: 0,
     },
   },
   ignore: [
