@@ -264,8 +264,8 @@ pub fn search_insights_semantic(
       // Calculate semantic similarity
       let similarity = calculate_semantic_similarity(&query_words, &search_text);
       
-      // Only include results with meaningful similarity (> 0.1)
-      if similarity > 0.1 {
+      // Only include results with meaningful similarity (> 0.2)
+      if similarity > 0.2 {
         results.push(SemanticSearchResult {
           topic: topic_name.to_string(),
           name: insight_name.to_string(),
@@ -550,7 +550,7 @@ pub fn search_insights_neural(
       eprintln!("DEBUG: {}/{} = {:.3}", insight.topic, insight.name, similarity);
     }
     
-    if similarity > 0.1 { // Similarity threshold (lowered to include more relevant results)
+    if similarity > 0.2 { // Similarity threshold (raised to 20% for higher quality results)
       results.push((insight, similarity));
     }
   }
@@ -819,7 +819,7 @@ fn collect_semantic_results(
       
       let similarity = calculate_semantic_similarity(&query_words, &search_text);
       
-      if similarity > 0.1 {
+      if similarity > 0.2 {
         results.push(SemanticSearchResult {
           topic: topic_name.to_string(),
           name: insight_name.to_string(),
@@ -976,7 +976,7 @@ fn collect_neural_results(
     
     let similarity = cosine_similarity(&query_embedding, &content_embedding);
     
-    if similarity > 0.1 {
+    if similarity > 0.2 {
       results.push(SemanticSearchResult {
         topic: insight.topic,
         name: insight.name,
@@ -1022,17 +1022,9 @@ fn display_combined_results(
     println!("No matches found for: {}", terms.join(" "));
   } else {
     for result in final_results {
-      let search_indicator = match result.search_type.as_str() {
-        "neural" => "🧠",
-        "semantic" => "🔗", 
-        "exact" => "🎯",
-        _ => "📝",
-      };
-      
-      println!("=== {}/{} ({} {:.1}%) ===", 
+      println!("=== {}/{} ({:.1}%) ===", 
         result.topic.cyan(), 
         result.name.yellow(),
-        search_indicator,
         result.score * 100.0
       );
       
