@@ -137,7 +137,7 @@ mod cli_enhancement_tests {
     add_insight("test_topic", "insight3", "Database queries", "SQL operations")?;
 
     // Test all search methods combined (would include neural if available)
-    search_insights_combined_all(
+    search_insights_combined_semantic(
       &["neural".to_string(), "learning".to_string()],
       None,
       false,
@@ -145,8 +145,8 @@ mod cli_enhancement_tests {
     )?;
 
     // Test with filters
-    search_insights_combined_all(&["AI".to_string()], Some("test_topic"), false, false)?;
-    search_insights_combined_all(&["database".to_string()], None, false, true)?;
+    search_insights_combined_semantic(&["AI".to_string()], Some("test_topic"), false, false)?;
+    search_insights_combined_semantic(&["database".to_string()], None, false, true)?;
 
     Ok(())
   }
@@ -257,7 +257,7 @@ mod cli_enhancement_tests {
 
     // Test that combined search modes properly deduplicate results
     // (The same insight shouldn't appear multiple times if found by different methods)
-    search_insights_combined_all(&["machine".to_string()], None, false, false)?;
+    search_insights_combined_semantic(&["machine".to_string()], None, false, false)?;
 
     Ok(())
   }

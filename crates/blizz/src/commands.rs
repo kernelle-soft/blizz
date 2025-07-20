@@ -1608,7 +1608,6 @@ fn validate_topics_for_indexing() -> Result<Vec<String>> {
   let topics = get_topics()?;
   if topics.is_empty() {
     println!("No insights found to index.");
-    return Err(anyhow!("No topics found"));
   }
   Ok(topics)
 }
@@ -1641,6 +1640,11 @@ fn process_topic_indexing(
 #[cfg(feature = "neural")]
 pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
   let topics = validate_topics_for_indexing()?;
+  
+  if topics.is_empty() {
+    return Ok(());
+  }
+  
   let mut stats = IndexingStats::default();
 
   for topic in &topics {

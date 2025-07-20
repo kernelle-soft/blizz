@@ -18,15 +18,13 @@ mod neural_feature_tests {
   #[test]
   #[serial]
   fn test_insight_new_with_embedding() {
-    let insight = Insight::new_with_embedding(
+    let mut insight = Insight::new(
       "test_topic".to_string(),
       "test_name".to_string(),
       "Test overview".to_string(),
       "Test details".to_string(),
-      "v1.0".to_string(),
-      vec![0.1, 0.2, 0.3],
-      "embedded text".to_string(),
     );
+    insight.set_embedding("v1.0".to_string(), vec![0.1, 0.2, 0.3], "embedded text".to_string());
 
     assert_eq!(insight.topic, "test_topic");
     assert_eq!(insight.name, "test_name");
@@ -79,15 +77,13 @@ mod neural_feature_tests {
   fn test_save_and_load_insight_with_embeddings() -> Result<()> {
     let _temp = setup_temp_insights_root("save_load_embeddings");
 
-    let original = Insight::new_with_embedding(
+    let mut original = Insight::new(
       "test_topic".to_string(),
       "test_name".to_string(),
       "Test overview".to_string(),
       "Test details".to_string(),
-      "v1.5".to_string(),
-      vec![0.7, 0.8, 0.9],
-      "test embedding text".to_string(),
     );
+    original.set_embedding("v1.5".to_string(), vec![0.7, 0.8, 0.9], "test embedding text".to_string());
 
     original.save()?;
 
@@ -138,15 +134,13 @@ mod neural_feature_tests {
   fn test_update_insight_clears_embeddings() -> Result<()> {
     let _temp = setup_temp_insights_root("update_clears_embeddings");
 
-    let mut insight = Insight::new_with_embedding(
+    let mut insight = Insight::new(
       "test_topic".to_string(),
       "test_name".to_string(),
       "Original overview".to_string(),
       "Original details".to_string(),
-      "v1.0".to_string(),
-      vec![0.1, 0.2, 0.3],
-      "original text".to_string(),
     );
+    insight.set_embedding("v1.0".to_string(), vec![0.1, 0.2, 0.3], "original text".to_string());
 
     insight.save()?;
     assert!(insight.has_embedding());

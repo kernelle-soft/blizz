@@ -73,15 +73,13 @@ mod index_command_tests {
     let _temp = setup_temp_insights_root("index_force");
 
     // Create an insight with existing embedding
-    let insight = Insight::new_with_embedding(
+    let mut insight = Insight::new(
       "topic1".to_string(),
       "insight1".to_string(),
       "Overview".to_string(),
       "Details".to_string(),
-      "v1.0".to_string(),
-      vec![0.1, 0.2, 0.3],
-      "embedded text".to_string(),
     );
+    insight.set_embedding("v1.0".to_string(), vec![0.1, 0.2, 0.3], "embedded text".to_string());
     insight.save()?;
 
     // Index with force = true should recompute even existing embeddings
@@ -102,15 +100,13 @@ mod index_command_tests {
     let _temp = setup_temp_insights_root("index_missing_only");
 
     // Create insights with mixed embedding status
-    let insight_with_embedding = Insight::new_with_embedding(
+    let mut insight_with_embedding = Insight::new(
       "topic1".to_string(),
       "with_embedding".to_string(),
       "Has embedding".to_string(),
       "Details".to_string(),
-      "v1.0".to_string(),
-      vec![0.1, 0.2, 0.3],
-      "embedded".to_string(),
     );
+    insight_with_embedding.set_embedding("v1.0".to_string(), vec![0.1, 0.2, 0.3], "embedded".to_string());
     insight_with_embedding.save()?;
 
     let insight_without_embedding = Insight::new(
