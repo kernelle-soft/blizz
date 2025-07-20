@@ -83,7 +83,11 @@ mod neural_feature_tests {
       "Test overview".to_string(),
       "Test details".to_string(),
     );
-    original.set_embedding("v1.5".to_string(), vec![0.7, 0.8, 0.9], "test embedding text".to_string());
+    original.set_embedding(
+      "v1.5".to_string(),
+      vec![0.7, 0.8, 0.9],
+      "test embedding text".to_string(),
+    );
 
     original.save()?;
 

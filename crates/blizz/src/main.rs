@@ -145,27 +145,24 @@ fn handle_insight_command(id: &InsightId, command_type: InsightCommandType) -> R
     InsightCommandType::Add { overview, details } => {
       add_insight(&id.topic, &id.name, &overview, &details)
     }
-    InsightCommandType::Get { overview } => {
-      get_insight(&id.topic, &id.name, overview)
-    }
+    InsightCommandType::Get { overview } => get_insight(&id.topic, &id.name, overview),
     InsightCommandType::Update { overview, details } => {
       update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())
     }
-    InsightCommandType::Delete { force } => {
-      delete_insight(&id.topic, &id.name, force)
-    }
+    InsightCommandType::Delete { force } => delete_insight(&id.topic, &id.name, force),
   }
 }
 
 /// Handle search command with all its complex options
 fn handle_search_command(options: SearchOptions, terms: Vec<String>) -> Result<()> {
   execute_search(
-    &terms, 
-    options.topic.as_deref(), 
-    options.case_sensitive, 
-    options.overview_only, 
+    &terms,
+    options.topic.as_deref(),
+    options.case_sensitive,
+    options.overview_only,
     options.exact,
-    #[cfg(feature = "semantic")] options.semantic
+    #[cfg(feature = "semantic")]
+    options.semantic,
   )
 }
 

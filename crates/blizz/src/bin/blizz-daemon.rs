@@ -55,7 +55,7 @@ async fn wait_for_connection_with_timeout(
   timeout_duration: Duration,
 ) -> Result<(tokio::net::UnixStream, tokio::net::unix::SocketAddr), String> {
   match timeout(timeout_duration, listener.accept()).await {
-    Ok(connection_result) => connection_result.map_err(|e| format!("Connection error: {}", e)),
+    Ok(connection_result) => connection_result.map_err(|e| format!("Connection error: {e}")),
     Err(_) => Err("Timeout".to_string()),
   }
 }
@@ -79,14 +79,14 @@ async fn handle_single_connection<M: blizz::model::EmbeddingModel>(
   }
 }
 
-async fn run_server_loop<M: blizz::model::EmbeddingModel>(listener: UnixListener, mut service: EmbeddingService<M>) -> Result<()> {
+async fn run_server_loop<M: blizz::model::EmbeddingModel>(
+  listener: UnixListener,
+  mut service: EmbeddingService<M>,
+) -> Result<()> {
   let timeout = Duration::from_secs(INACTIVITY_TIMEOUT_SECS);
 
-  loop {
-    match handle_single_connection(&listener, &mut service, timeout).await {
-      Ok(true) => continue,
-      _ => break,
-    }
+  while let Ok(true) = handle_single_connection(&listener, &mut service, timeout).await {
+    // Continue processing connections
   }
 
   Ok(())
@@ -95,12 +95,12 @@ async fn run_server_loop<M: blizz::model::EmbeddingModel>(listener: UnixListener
 #[tokio::main]
 async fn main() -> Result<()> {
   cleanup_existing_socket();
-  
+
   let service = create_embedding_service().await?;
   let listener = setup_listener().await?;
-  
+
   run_server_loop(listener, service).await?;
-  
+
   cleanup_existing_socket();
   Ok(())
 }

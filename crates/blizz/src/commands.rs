@@ -38,7 +38,7 @@ struct CombinedSearchResult {
 #[cfg(feature = "neural")]
 async fn compute_insight_embedding(insight: &Insight) -> Result<(String, Vec<f32>, String)> {
   let embedding_text = insight.get_embedding_text();
-      let embedding = get_embedding_from_daemon(&embedding_text).await?;
+  let embedding = get_embedding_from_daemon(&embedding_text).await?;
   let version = "all-MiniLM-L6-v2".to_string();
 
   Ok((version, embedding, embedding_text))
@@ -177,7 +177,7 @@ pub fn search_insights_exact(
   overview_only: bool,
 ) -> Result<()> {
   let results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
-  
+
   // Sort by relevance score (descending), then by topic/name for consistency
   let mut sorted_results = results;
   sorted_results.sort_by(|a, b| {
@@ -195,9 +195,7 @@ const SEMANTIC_SIMILARITY_THRESHOLD: f32 = 0.2;
 /// Extract insight name from file path safely
 #[cfg(feature = "semantic")]
 fn extract_insight_name_from_path(insight_path: &Path) -> &str {
-  insight_path.file_stem()
-    .and_then(|name| name.to_str())
-    .unwrap_or("unknown")
+  insight_path.file_stem().and_then(|name| name.to_str()).unwrap_or("unknown")
 }
 
 /// Build search text including topic and insight names for better matching
@@ -230,10 +228,10 @@ fn create_semantic_result_if_meaningful(
     Some(SemanticSearchResult {
       topic: topic_name.to_string(),
       name: insight_name.to_string(),
-      content: if overview_only { 
-        overview.to_string() 
-      } else { 
-        format!("{overview}\n\n{details}") 
+      content: if overview_only {
+        overview.to_string()
+      } else {
+        format!("{overview}\n\n{details}")
       },
       similarity,
     })
@@ -258,7 +256,12 @@ fn calculate_single_insight_semantic(
   let similarity = calculate_semantic_similarity(query_words, &search_text);
 
   Ok(create_semantic_result_if_meaningful(
-    topic_name, insight_name, &overview, &details, similarity, overview_only
+    topic_name,
+    insight_name,
+    &overview,
+    &details,
+    similarity,
+    overview_only,
   ))
 }
 
@@ -279,7 +282,9 @@ fn process_topic_semantic(
       continue;
     }
 
-    if let Ok(Some(result)) = calculate_single_insight_semantic(name, &path, query_words, overview_only) {
+    if let Ok(Some(result)) =
+      calculate_single_insight_semantic(name, &path, query_words, overview_only)
+    {
       results.push(result);
     }
   }
@@ -382,21 +387,24 @@ pub fn search_insights_semantic(
   let query = terms.join(" ");
   let query_words = extract_words(&query.to_lowercase());
 
-  let results = process_all_topics_semantic(&insights_dir, &query_words, topic_filter, overview_only)?;
+  let results =
+    process_all_topics_semantic(&insights_dir, &query_words, topic_filter, overview_only)?;
   finalize_semantic_results(results, terms);
 
   Ok(())
 }
 
-
 /// Get the standard set of stop words to filter out
 #[cfg(feature = "semantic")]
 fn get_stop_words() -> HashSet<&'static str> {
   [
-    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", 
-    "of", "with", "by", "is", "are", "was", "were", "be", "been", "have", 
-    "has", "had", "do", "does", "did", "will", "would", "could", "should"
-  ].iter().cloned().collect()
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is",
+    "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would",
+    "could", "should",
+  ]
+  .iter()
+  .cloned()
+  .collect()
 }
 
 /// Clean a single word by removing non-alphanumeric characters
@@ -415,8 +423,9 @@ fn should_keep_word(word: &str, stop_words: &HashSet<&str>) -> bool {
 #[cfg(feature = "semantic")]
 fn extract_words(text: &str) -> HashSet<String> {
   let stop_words = get_stop_words();
-  
-  text.split_whitespace()
+
+  text
+    .split_whitespace()
     .map(clean_word)
     .filter(|word| should_keep_word(word, &stop_words))
     .collect()
@@ -500,14 +509,14 @@ fn has_content_changed(new_overview: Option<&str>, new_details: Option<&str>) ->
 /// Recompute embedding and save insight using existing methods
 fn recompute_and_save_updated_insight(insight: &mut Insight) -> Result<()> {
   compute_and_set_embedding(insight)?;
-  
+
   // For updates, we need to delete first then save since save() checks for existing files
   let file_path = insight.file_path()?;
   if file_path.exists() {
     std::fs::remove_file(&file_path)?;
   }
   insight.save()?;
-  
+
   Ok(())
 }
 
@@ -595,8 +604,9 @@ async fn get_insight_embedding(
     };
 
     // Use daemon for computation
-            get_embedding_from_daemon(&content).await
-      .map_err(|e| anyhow!("Failed to compute embedding for {}/{}: {}", insight.topic, insight.name, e))
+    get_embedding_from_daemon(&content).await.map_err(|e| {
+      anyhow!("Failed to compute embedding for {}/{}: {}", insight.topic, insight.name, e)
+    })
   }
 }
 
@@ -682,13 +692,12 @@ pub fn search_neural(
 
   let rt = tokio::runtime::Runtime::new()?;
   let embedding = rt
-            .block_on(async { get_embedding_from_daemon(&query).await })
+    .block_on(async { get_embedding_from_daemon(&query).await })
     .map_err(|e| anyhow!("Failed to get query embedding: {}", e))?;
 
   let refs = get_insights(topic_filter)?;
-  let (mut results, warnings) = rt.block_on(async {
-    calculate_neural_similarities(refs, &embedding, overview_only).await
-  })?;
+  let (mut results, warnings) =
+    rt.block_on(async { calculate_neural_similarities(refs, &embedding, overview_only).await })?;
 
   results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
@@ -725,25 +734,33 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 }
 
 #[cfg(feature = "semantic")]
-fn transform_semantic_results(semantic_results: Vec<SemanticSearchResult>) -> Vec<CombinedSearchResult> {
-  semantic_results.into_iter().map(|result| CombinedSearchResult {
-    topic: result.topic,
-    name: result.name,
-    content: result.content,
-    score: result.similarity,
-    search_type: "semantic".to_string(),
-  }).collect()
+fn transform_semantic_results(
+  semantic_results: Vec<SemanticSearchResult>,
+) -> Vec<CombinedSearchResult> {
+  semantic_results
+    .into_iter()
+    .map(|result| CombinedSearchResult {
+      topic: result.topic,
+      name: result.name,
+      content: result.content,
+      score: result.similarity,
+      search_type: "semantic".to_string(),
+    })
+    .collect()
 }
 
 #[cfg(feature = "semantic")]
 fn transform_exact_results(exact_results: Vec<SearchResult>) -> Vec<CombinedSearchResult> {
-  exact_results.into_iter().map(|result| CombinedSearchResult {
-    topic: result.topic,
-    name: result.name,
-    content: result.matching_lines.join("\n"),
-    score: result.score as f32 * 0.3,
-    search_type: "exact".to_string(),
-  }).collect()
+  exact_results
+    .into_iter()
+    .map(|result| CombinedSearchResult {
+      topic: result.topic,
+      name: result.name,
+      content: result.matching_lines.join("\n"),
+      score: result.score as f32 * 0.3,
+      search_type: "exact".to_string(),
+    })
+    .collect()
 }
 
 #[cfg(feature = "semantic")]
@@ -755,7 +772,8 @@ fn collect_all_search_results(
 ) -> Result<Vec<CombinedSearchResult>> {
   let mut all_results = Vec::new();
 
-  let semantic_results = collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
+  let semantic_results =
+    collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
   all_results.extend(transform_semantic_results(semantic_results));
 
   let exact_results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
@@ -810,7 +828,8 @@ fn add_semantic_results(
   case_sensitive: bool,
   overview_only: bool,
 ) -> Result<()> {
-  let semantic_results = collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
+  let semantic_results =
+    collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
   for result in semantic_results {
     all_results.push(CombinedSearchResult {
       topic: result.topic,
@@ -915,9 +934,7 @@ fn should_process_topic(topic_name: &str, topic_filter: Option<&str>) -> bool {
 /// Get topic name from directory path
 #[cfg(feature = "semantic")]
 fn get_topic_name(topic_path: &std::path::Path) -> &str {
-  topic_path.file_name()
-    .and_then(|name| name.to_str())
-    .unwrap_or("unknown")
+  topic_path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown")
 }
 
 /// Collect semantic results from a single topic directory
@@ -929,14 +946,16 @@ fn collect_topic_semantic_results(
   overview_only: bool,
 ) -> Result<Vec<SemanticSearchResult>> {
   let mut results = Vec::new();
-  
+
   for insight_entry in fs::read_dir(topic_path)? {
     let insight_path = insight_entry?.path();
-    if let Ok(Some(result)) = process_insight_for_semantic_search(&insight_path, topic_name, query_words, overview_only) {
+    if let Ok(Some(result)) =
+      process_insight_for_semantic_search(&insight_path, topic_name, query_words, overview_only)
+    {
       results.push(result);
     }
   }
-  
+
   Ok(results)
 }
 
@@ -966,7 +985,8 @@ fn collect_semantic_results(
       continue;
     }
 
-    let topic_results = collect_topic_semantic_results(&topic_path, topic_name, &query_words, overview_only)?;
+    let topic_results =
+      collect_topic_semantic_results(&topic_path, topic_name, &query_words, overview_only)?;
     results.extend(topic_results);
   }
 
@@ -1021,7 +1041,7 @@ fn process_insight_files_in_topic(
   overview_only: bool,
 ) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
-  
+
   if !topic_path.exists() {
     return Ok(results);
   }
@@ -1034,7 +1054,12 @@ fn process_insight_files_in_topic(
 
     if let Some(insight_name) = is_insight_file(&path) {
       if let Ok(Some(result)) = process_single_insight_file(
-        &path, insight_name, topic_name, terms, case_sensitive, overview_only
+        &path,
+        insight_name,
+        topic_name,
+        terms,
+        case_sensitive,
+        overview_only,
       ) {
         results.push(result);
       }
@@ -1061,7 +1086,8 @@ fn collect_exact_results(
   let search_paths = build_search_paths(&insights_root, topic_filter)?;
 
   for topic_path in search_paths {
-    let topic_results = process_insight_files_in_topic(&topic_path, terms, case_sensitive, overview_only)?;
+    let topic_results =
+      process_insight_files_in_topic(&topic_path, terms, case_sensitive, overview_only)?;
     results.extend(topic_results);
   }
 
@@ -1071,9 +1097,9 @@ fn collect_exact_results(
 #[cfg(feature = "neural")]
 fn init_neural_session() -> Result<ort::session::Session> {
   use ort::session::{builder::GraphOptimizationLevel, Session};
-  
+
   ort::init().with_name("blizz").commit()?;
-  
+
   Session::builder()?
     .with_optimization_level(GraphOptimizationLevel::Level1)?
     .with_intra_threads(1)?
@@ -1128,14 +1154,18 @@ fn collect_neural_results(
   let query_embedding = create_embedding(&mut session, &terms.join(" "))?;
   let insight_refs = get_insights(topic_filter)?;
 
-  Ok(insight_refs
-    .into_iter()
-    .filter_map(|(topic, name)| {
-      Insight::load(&topic, &name)
-        .ok()
-        .and_then(|insight| process_insight_for_neural_search(&insight, &mut session, &query_embedding, overview_only).ok().flatten())
-    })
-    .collect())
+  Ok(
+    insight_refs
+      .into_iter()
+      .filter_map(|(topic, name)| {
+        Insight::load(&topic, &name).ok().and_then(|insight| {
+          process_insight_for_neural_search(&insight, &mut session, &query_embedding, overview_only)
+            .ok()
+            .flatten()
+        })
+      })
+      .collect(),
+  )
 }
 
 /// Get search type priority (lower = higher priority)
@@ -1150,7 +1180,7 @@ fn search_type_priority(search_type: &str) -> u8 {
 
 /// Group results by insight, collecting all search methods that found each one
 fn group_results_by_insight(
-  results: Vec<CombinedSearchResult>
+  results: Vec<CombinedSearchResult>,
 ) -> HashMap<(String, String), Vec<CombinedSearchResult>> {
   let mut insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>> = HashMap::new();
 
@@ -1166,7 +1196,7 @@ fn group_results_by_insight(
 }
 
 /// Sort a group of results by priority and score to find the best representative
-fn sort_group_by_priority(group: &mut Vec<CombinedSearchResult>) {
+fn sort_group_by_priority(group: &mut [CombinedSearchResult]) {
   group.sort_by(|a, b| {
     let a_priority = search_type_priority(&a.search_type);
     let b_priority = search_type_priority(&b.search_type);
@@ -1206,7 +1236,7 @@ fn compare_final_results(
 
 /// Extract the best result from each insight group
 fn extract_best_from_groups(
-  insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>>
+  insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>>,
 ) -> Vec<(CombinedSearchResult, usize)> {
   let mut final_results = Vec::new();
 
@@ -1225,7 +1255,7 @@ fn extract_best_from_groups(
 
 /// Select best result from each group and prepare final sorted list
 fn select_best_results(
-  insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>>
+  insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>>,
 ) -> Vec<CombinedSearchResult> {
   let mut final_results = extract_best_from_groups(insight_groups);
 
@@ -1298,16 +1328,12 @@ const STARTUP_DELAY_MS: u64 = 500;
 
 #[cfg(feature = "neural")]
 fn create_embedding_request(text: &str) -> EmbeddingRequest {
-  EmbeddingRequest { 
-    texts: vec![text.to_string()], 
-    id: uuid::Uuid::new_v4().to_string() 
-  }
+  EmbeddingRequest { texts: vec![text.to_string()], id: uuid::Uuid::new_v4().to_string() }
 }
 
 #[cfg(feature = "neural")]
 async fn connect_to_daemon() -> Result<UnixStream> {
-  UnixStream::connect(SOCKET_PATH).await
-    .map_err(|_| anyhow!("Daemon not running"))
+  UnixStream::connect(SOCKET_PATH).await.map_err(|_| anyhow!("Daemon not running"))
 }
 
 #[cfg(feature = "neural")]
@@ -1323,9 +1349,8 @@ async fn read_response_from_stream(stream: &mut UnixStream) -> Result<EmbeddingR
   let mut reader = BufReader::new(stream);
   let mut line = String::new();
   reader.read_line(&mut line).await?;
-  
-  serde_json::from_str(line.trim())
-    .map_err(|e| anyhow!("Invalid response: {}", e))
+
+  serde_json::from_str(line.trim()).map_err(|e| anyhow!("Invalid response: {}", e))
 }
 
 #[cfg(feature = "neural")]
@@ -1353,16 +1378,15 @@ async fn request_embedding_from_daemon(text: &str) -> Result<Vec<f32>> {
 #[cfg(feature = "neural")]
 fn get_daemon_executable_path() -> Result<std::path::PathBuf> {
   let current_exe = std::env::current_exe()?;
-  let exe_dir = current_exe
-    .parent()
-    .ok_or_else(|| anyhow!("Could not find executable directory"))?;
+  let exe_dir =
+    current_exe.parent().ok_or_else(|| anyhow!("Could not find executable directory"))?;
   Ok(exe_dir.join("blizz-daemon"))
 }
 
 #[cfg(feature = "neural")]
 async fn start_daemon() -> Result<()> {
   let daemon_path = get_daemon_executable_path()?;
-  
+
   Command::new(daemon_path)
     .stdout(Stdio::null())
     .stderr(Stdio::null())
@@ -1385,7 +1409,7 @@ async fn get_embedding_from_daemon(text: &str) -> Result<Vec<f32>> {
   if let Ok(embedding) = request_embedding_from_daemon(text).await {
     return Ok(embedding);
   }
-  
+
   request_embedding_with_retry(text).await
 }
 
@@ -1424,7 +1448,7 @@ fn init_onnx_model() -> Result<ort::session::Session> {
 #[cfg(feature = "neural")]
 fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
   use std::path::Path;
-  
+
   let tokenizer_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("tokenizer.json");
   tokenizers::Tokenizer::from_file(&tokenizer_path)
     .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))
@@ -1432,20 +1456,29 @@ fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
 
 /// Tokenize text and prepare input sequences
 #[cfg(feature = "neural")]
-fn prepare_input_sequences(text: &str, tokenizer: &tokenizers::Tokenizer) -> Result<(Vec<i64>, Vec<i64>)> {
+fn prepare_input_sequences(
+  text: &str,
+  tokenizer: &tokenizers::Tokenizer,
+) -> Result<(Vec<i64>, Vec<i64>)> {
   // Encode the text using the real tokenizer
-  let encoding = tokenizer.encode(text, false).map_err(|e| anyhow!("Failed to encode text: {}", e))?;
+  let encoding =
+    tokenizer.encode(text, false).map_err(|e| anyhow!("Failed to encode text: {}", e))?;
 
   // Get token IDs and attention mask
   let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
-  let attention_mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&mask| mask as i64).collect();
+  let attention_mask: Vec<i64> =
+    encoding.get_attention_mask().iter().map(|&mask| mask as i64).collect();
 
   Ok((token_ids, attention_mask))
 }
 
 /// Pad or truncate sequences to correct length for model
 #[cfg(feature = "neural")]
-fn pad_sequences(token_ids: Vec<i64>, attention_mask: Vec<i64>, max_length: usize) -> (Vec<i64>, Vec<i64>) {
+fn pad_sequences(
+  token_ids: Vec<i64>,
+  attention_mask: Vec<i64>,
+  max_length: usize,
+) -> (Vec<i64>, Vec<i64>) {
   let mut padded_ids = token_ids;
   let mut padded_mask = attention_mask;
 
@@ -1484,7 +1517,8 @@ fn run_inference_and_extract(
 
   let outputs = session.run(ort::inputs![ids_tensor, mask_tensor])?;
   let embedding_output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
-  let embeddings = embedding_output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
+  let embeddings =
+    embedding_output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
 
   let embedding_vec = extract_sentence_embedding(embeddings);
   Ok(embedding_vec)
@@ -1496,10 +1530,10 @@ fn create_embedding_direct(text: &str) -> Result<Vec<f32>> {
   let mut session = init_onnx_model()?;
   let tokenizer = load_tokenizer()?;
   let (token_ids, attention_mask) = prepare_input_sequences(text, &tokenizer)?;
-  
+
   const MAX_LENGTH: usize = 512;
   let (padded_ids, padded_mask) = pad_sequences(token_ids, attention_mask, MAX_LENGTH);
-  
+
   run_inference_and_extract(&mut session, padded_ids, padded_mask, MAX_LENGTH)
 }
 
@@ -1536,7 +1570,8 @@ fn process_single_insight_index(
   insight_name: &str,
   force: bool,
   missing_only: bool,
-) -> Result<(bool, bool)> { // (processed, skipped)
+) -> Result<(bool, bool)> {
+  // (processed, skipped)
   use crate::insight::Insight;
 
   let mut insight = Insight::load(topic, insight_name)?;
@@ -1553,7 +1588,7 @@ fn process_single_insight_index(
   // Compute embedding
   compute_and_set_embedding(&mut insight)?;
   save_insight_with_embedding(&insight)?;
-  
+
   println!("done");
   Ok((true, false))
 }
@@ -1590,8 +1625,12 @@ impl IndexingStats {
   fn add_result(&mut self, result: Result<(bool, bool)>) {
     match result {
       Ok((was_processed, was_skipped)) => {
-        if was_processed { self.processed += 1; }
-        if was_skipped { self.skipped += 1; }
+        if was_processed {
+          self.processed += 1;
+        }
+        if was_skipped {
+          self.skipped += 1;
+        }
       }
       Err(_) => {
         self.errors += 1;
@@ -1604,7 +1643,7 @@ impl IndexingStats {
 #[cfg(feature = "neural")]
 fn validate_topics_for_indexing() -> Result<Vec<String>> {
   use crate::insight::get_topics;
-  
+
   let topics = get_topics()?;
   if topics.is_empty() {
     println!("No insights found to index.");
@@ -1615,13 +1654,13 @@ fn validate_topics_for_indexing() -> Result<Vec<String>> {
 /// Process indexing for all insights in a single topic
 #[cfg(feature = "neural")]
 fn process_topic_indexing(
-  topic: &str, 
-  force: bool, 
-  missing_only: bool, 
-  stats: &mut IndexingStats
+  topic: &str,
+  force: bool,
+  missing_only: bool,
+  stats: &mut IndexingStats,
 ) -> Result<()> {
   use crate::insight::get_insights;
-  
+
   let insights = get_insights(Some(topic))?;
   println!("{} {}:", "◈".blue(), topic.cyan());
 
@@ -1640,11 +1679,11 @@ fn process_topic_indexing(
 #[cfg(feature = "neural")]
 pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
   let topics = validate_topics_for_indexing()?;
-  
+
   if topics.is_empty() {
     return Ok(());
   }
-  
+
   let mut stats = IndexingStats::default();
 
   for topic in &topics {
@@ -1654,4 +1693,3 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
   print_index_summary(stats.processed, stats.skipped, stats.errors, topics.len());
   Ok(())
 }
-

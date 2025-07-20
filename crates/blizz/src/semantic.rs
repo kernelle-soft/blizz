@@ -3,19 +3,12 @@ use std::collections::HashSet;
 /// Common English stop words to filter out
 const STOP_WORDS: &[&str] = &[
   // Articles and determiners
-  "the", "a", "an",
-  // Conjunctions 
-  "and", "or", "but",
-  // Prepositions
-  "in", "on", "at", "to", "for", "of", "with", "by", "over",
-  // Common verbs
-  "is", "are", "was", "were", "be", "been", 
-  "have", "has", "had", 
-  "do", "does", "did", 
-  "will", "would", "could", "should",
-  // Pronouns
-  "you", "your", "we", "our", "us", 
-  "they", "them", "their", "it", "its",
+  "the", "a", "an", // Conjunctions
+  "and", "or", "but", // Prepositions
+  "in", "on", "at", "to", "for", "of", "with", "by", "over", // Common verbs
+  "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will",
+  "would", "could", "should", // Pronouns
+  "you", "your", "we", "our", "us", "they", "them", "their", "it", "its",
 ];
 
 /// Get the stop words as a HashSet for efficient lookup

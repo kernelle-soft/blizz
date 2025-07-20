@@ -116,7 +116,7 @@ fn analyze_chunk(
 
   let raw_score =
     scoring::complexity(&chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
-  
+
   // Round to 2 decimal places before threshold comparison to match display precision
   let score = (raw_score * 100.0).round() / 100.0;
 

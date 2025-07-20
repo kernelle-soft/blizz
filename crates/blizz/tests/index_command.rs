@@ -106,7 +106,11 @@ mod index_command_tests {
       "Has embedding".to_string(),
       "Details".to_string(),
     );
-    insight_with_embedding.set_embedding("v1.0".to_string(), vec![0.1, 0.2, 0.3], "embedded".to_string());
+    insight_with_embedding.set_embedding(
+      "v1.0".to_string(),
+      vec![0.1, 0.2, 0.3],
+      "embedded".to_string(),
+    );
     insight_with_embedding.save()?;
 
     let insight_without_embedding = Insight::new(

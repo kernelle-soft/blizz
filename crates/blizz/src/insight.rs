@@ -228,7 +228,7 @@ pub fn get_insights_root() -> Result<PathBuf> {
 const FRONTMATTER_START: &str = "---\n";
 const FRONTMATTER_END: &str = "\n---\n";
 const FRONTMATTER_START_LEN: usize = 4; // Length of "---\n"
-const FRONTMATTER_END_LEN: usize = 5;   // Length of "\n---\n"
+const FRONTMATTER_END_LEN: usize = 5; // Length of "\n---\n"
 
 /// Split content into frontmatter and body sections
 fn split_frontmatter_content(content: &str) -> Result<(&str, &str)> {
@@ -268,7 +268,7 @@ fn parse_yaml_format(frontmatter_section: &str, body: &str) -> Result<(FrontMatt
 fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (FrontMatter, String) {
   let overview = frontmatter_section.trim().to_string();
   let details = body.trim().to_string();
-  
+
   let frontmatter = FrontMatter {
     overview,
     embedding_version: None,
@@ -276,7 +276,7 @@ fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (FrontMatter, S
     embedding_text: None,
     embedding_computed: None,
   };
-  
+
   (frontmatter, details)
 }
 
@@ -323,44 +323,38 @@ pub fn get_topics() -> Result<Vec<String>> {
 
 fn get_search_paths(topic_filter: Option<&str>) -> Result<Vec<std::path::PathBuf>> {
   let insights_root = get_insights_root()?;
-  
+
   if let Some(topic) = topic_filter {
     return Ok(vec![insights_root.join(topic)]);
   }
-  
-  let paths = get_topics()?
-    .into_iter()
-    .map(|topic| insights_root.join(topic))
-    .collect();
+
+  let paths = get_topics()?.into_iter().map(|topic| insights_root.join(topic)).collect();
   Ok(paths)
 }
 
 fn extract_topic_name(topic_path: &std::path::Path) -> &str {
-  topic_path
-    .file_name()
-    .and_then(|n| n.to_str())
-    .unwrap_or("unknown")
+  topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown")
 }
 
 fn is_insight_file(path: &std::path::Path) -> bool {
   if path.extension().and_then(|s| s.to_str()) != Some("md") {
     return false;
   }
-  
+
   if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
     return file_stem.ends_with(".insight");
   }
-  
+
   false
 }
 
 fn extract_insight_name(path: &std::path::Path) -> Option<String> {
   let file_stem = path.file_stem()?.to_str()?;
-  
+
   if !file_stem.ends_with(".insight") {
     return None;
   }
-  
+
   Some(file_stem.trim_end_matches(".insight").to_string())
 }
 
@@ -374,11 +368,11 @@ fn collect_insights_from_topic(topic_path: &std::path::Path) -> Result<Vec<(Stri
 
   for entry in fs::read_dir(topic_path)? {
     let path = entry?.path();
-    
+
     if !is_insight_file(&path) {
       continue;
     }
-    
+
     if let Some(insight_name) = extract_insight_name(&path) {
       insights.push((topic_name.to_string(), insight_name));
     }
