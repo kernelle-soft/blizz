@@ -4,7 +4,7 @@
 //! storage and retrieval for development workflows and team collaboration.
 
 pub mod commands;
+pub mod daemon;
 pub mod insight;
 pub mod model;
 pub mod semantic;
-pub mod daemon;

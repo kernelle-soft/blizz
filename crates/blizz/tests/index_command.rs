@@ -16,7 +16,7 @@ use tempfile::TempDir;
 mod index_command_tests {
   use super::*;
 
-  fn setup_temp_insights_root(test_name: &str) -> TempDir {
+  fn setup_temp_insights_root(_test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
     env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
     temp_dir
@@ -47,7 +47,7 @@ mod index_command_tests {
     // Note: This will attempt to compute embeddings but may fail due to missing model
     // The test verifies the command structure and error handling
     let result = index_insights(false, false);
-    
+
     // In test environment, this might fail due to missing neural dependencies
     // That's okay - we're testing the command structure
     match result {
@@ -55,7 +55,7 @@ mod index_command_tests {
         // If successful, verify insights still exist
         let insight1 = Insight::load("topic1", "insight1")?;
         assert_eq!(insight1.overview, "Overview 1");
-      },
+      }
       Err(_) => {
         // Expected in test environment without full neural setup
         // Verify insights still exist and weren't corrupted
@@ -72,21 +72,21 @@ mod index_command_tests {
   fn test_index_insights_force_flag() -> Result<()> {
     let _temp = setup_temp_insights_root("index_force");
 
-         // Create an insight with existing embedding
-     let insight = Insight::new_with_embedding(
-       "topic1".to_string(),
-       "insight1".to_string(),
-       "Overview".to_string(),
-       "Details".to_string(),
-       "v1.0".to_string(),
-       vec![0.1, 0.2, 0.3],
-       "embedded text".to_string(),
-     );
-     insight.save()?;
+    // Create an insight with existing embedding
+    let insight = Insight::new_with_embedding(
+      "topic1".to_string(),
+      "insight1".to_string(),
+      "Overview".to_string(),
+      "Details".to_string(),
+      "v1.0".to_string(),
+      vec![0.1, 0.2, 0.3],
+      "embedded text".to_string(),
+    );
+    insight.save()?;
 
     // Index with force = true should recompute even existing embeddings
     let result = index_insights(true, false);
-    
+
     // Test that command executes without panicking
     match result {
       Ok(_) => println!("Index completed successfully"),
@@ -101,17 +101,17 @@ mod index_command_tests {
   fn test_index_insights_missing_only_flag() -> Result<()> {
     let _temp = setup_temp_insights_root("index_missing_only");
 
-         // Create insights with mixed embedding status
-     let insight_with_embedding = Insight::new_with_embedding(
-       "topic1".to_string(),
-       "with_embedding".to_string(),
-       "Has embedding".to_string(),
-       "Details".to_string(),
-       "v1.0".to_string(),
-       vec![0.1, 0.2, 0.3],
-       "embedded".to_string(),
-     );
-     insight_with_embedding.save()?;
+    // Create insights with mixed embedding status
+    let insight_with_embedding = Insight::new_with_embedding(
+      "topic1".to_string(),
+      "with_embedding".to_string(),
+      "Has embedding".to_string(),
+      "Details".to_string(),
+      "v1.0".to_string(),
+      vec![0.1, 0.2, 0.3],
+      "embedded".to_string(),
+    );
+    insight_with_embedding.save()?;
 
     let insight_without_embedding = Insight::new(
       "topic1".to_string(),
@@ -123,7 +123,7 @@ mod index_command_tests {
 
     // Index with missing_only = true should skip insights with embeddings
     let result = index_insights(false, true);
-    
+
     match result {
       Ok(_) => println!("Index completed"),
       Err(e) => println!("Index failed as expected: {e}"),
@@ -132,7 +132,7 @@ mod index_command_tests {
     // Verify insights still exist
     let loaded_with = Insight::load("topic1", "with_embedding")?;
     let loaded_without = Insight::load("topic1", "without_embedding")?;
-    
+
     assert!(loaded_with.has_embedding());
     assert_eq!(loaded_without.overview, "No embedding");
 
@@ -155,7 +155,7 @@ mod index_command_tests {
 
     // Index should handle corrupted files gracefully
     let result = index_insights(false, false);
-    
+
     // Should continue processing other insights even if some are corrupted
     match result {
       Ok(_) => println!("Index handled corrupted files"),
@@ -209,7 +209,7 @@ mod index_command_tests {
 
     // Index should process all topics
     let result = index_insights(false, false);
-    
+
     match result {
       Ok(_) => println!("Successfully indexed multiple topics"),
       Err(_) => println!("Index failed but tested multi-topic handling"),
@@ -233,23 +233,15 @@ mod index_command_tests {
   #[serial]
   fn test_insight_embedding_interface() {
     // Test the public embedding interface on insights
-    let mut insight = Insight::new(
-      "test".to_string(),
-      "test".to_string(),
-      "test".to_string(),
-      "test".to_string(),
-    );
+    let mut insight =
+      Insight::new("test".to_string(), "test".to_string(), "test".to_string(), "test".to_string());
 
     // Initially should not have embedding
     assert!(!insight.has_embedding());
-    
+
     // Can manually set embedding
-    insight.set_embedding(
-      "test_version".to_string(),
-      vec![0.1, 0.2, 0.3],
-      "test_text".to_string(),
-    );
-    
+    insight.set_embedding("test_version".to_string(), vec![0.1, 0.2, 0.3], "test_text".to_string());
+
     assert!(insight.has_embedding());
     assert_eq!(insight.embedding_version, Some("test_version".to_string()));
   }
@@ -287,7 +279,6 @@ mod index_command_tests {
 // Tests that run regardless of feature flags
 #[cfg(test)]
 mod general_index_tests {
-  
 
   #[test]
   fn test_index_command_conditional_compilation() {
@@ -295,14 +286,14 @@ mod general_index_tests {
     #[cfg(feature = "neural")]
     {
       // Neural features are available, index command should be accessible
-      assert!(true);
+      // TODO: Add actual test for index command accessibility
     }
-    
+
     #[cfg(not(feature = "neural"))]
     {
       // Neural features not available, index command should not be accessible
       // This would be tested through CLI argument parsing
-      assert!(true);
+      // TODO: Add actual test for command unavailability
     }
   }
-} 
+}

@@ -9,7 +9,7 @@ use tempfile::TempDir;
 mod neural_feature_tests {
   use super::*;
 
-  fn setup_temp_insights_root(test_name: &str) -> TempDir {
+  fn setup_temp_insights_root(_test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
     env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
     temp_dir
@@ -51,11 +51,7 @@ mod neural_feature_tests {
 
     assert!(!insight.has_embedding());
 
-    insight.set_embedding(
-      "v2.0".to_string(),
-      vec![0.4, 0.5, 0.6],
-      "new embedded text".to_string(),
-    );
+    insight.set_embedding("v2.0".to_string(), vec![0.4, 0.5, 0.6], "new embedded text".to_string());
 
     assert!(insight.has_embedding());
     assert_eq!(insight.embedding_version, Some("v2.0".to_string()));
@@ -96,7 +92,7 @@ mod neural_feature_tests {
     original.save()?;
 
     let loaded = Insight::load("test_topic", "test_name")?;
-    
+
     assert_eq!(loaded.topic, "test_topic");
     assert_eq!(loaded.name, "test_name");
     assert_eq!(loaded.overview, "Test overview");
@@ -125,7 +121,7 @@ mod neural_feature_tests {
     insight.save()?;
 
     let loaded = Insight::load("test_topic", "test_name")?;
-    
+
     assert_eq!(loaded.overview, "Test overview");
     assert_eq!(loaded.details, "Test details");
     assert_eq!(loaded.embedding_version, None);
@@ -157,7 +153,7 @@ mod neural_feature_tests {
 
     // Update should clear embeddings
     insight.update(Some("Updated overview"), Some("Updated details"))?;
-    
+
     assert_eq!(insight.overview, "Updated overview");
     assert_eq!(insight.details, "Updated details");
     assert!(!insight.has_embedding());
@@ -184,11 +180,14 @@ embedding_computed: "2024-01-01T12:00:00Z"
 Test details content"#;
 
     let (frontmatter, details) = parse_insight_with_metadata(content)?;
-    
+
     assert_eq!(frontmatter.overview, "Test overview content");
     assert_eq!(frontmatter.embedding_version, Some("v1.0".to_string()));
     assert_eq!(frontmatter.embedding, Some(vec![0.1, 0.2, 0.3, 0.4]));
-    assert_eq!(frontmatter.embedding_text, Some("test topic test name Test overview content Test details content".to_string()));
+    assert_eq!(
+      frontmatter.embedding_text,
+      Some("test topic test name Test overview content Test details content".to_string())
+    );
     assert!(frontmatter.embedding_computed.is_some());
     assert_eq!(details, "Test details content");
 
@@ -206,7 +205,7 @@ overview: "Simple overview"
 Simple details"#;
 
     let (frontmatter, details) = parse_insight_with_metadata(content)?;
-    
+
     assert_eq!(frontmatter.overview, "Simple overview");
     assert_eq!(frontmatter.embedding_version, None);
     assert_eq!(frontmatter.embedding, None);
@@ -227,7 +226,7 @@ This is the legacy overview content
 This is the legacy details content"#;
 
     let (frontmatter, details) = parse_insight_with_metadata(legacy_content)?;
-    
+
     assert_eq!(frontmatter.overview, "This is the legacy overview content");
     assert_eq!(frontmatter.embedding_version, None);
     assert_eq!(frontmatter.embedding, None);
@@ -248,7 +247,7 @@ Legacy overview
 Legacy details"#;
 
     let (overview, details) = parse_insight_content(legacy_content)?;
-    
+
     assert_eq!(overview, "Legacy overview");
     assert_eq!(details, "Legacy details");
 
@@ -267,7 +266,7 @@ embedding_version: "v1.0"
 New format details"#;
 
     let (overview, details) = parse_insight_content(new_content)?;
-    
+
     assert_eq!(overview, "New format overview");
     assert_eq!(details, "New format details");
 
@@ -292,7 +291,9 @@ New format details"#;
       embedding_version: Some("v1.0".to_string()),
       embedding: Some(vec![0.1, 0.2, 0.3]),
       embedding_text: Some("embedded text".to_string()),
-      embedding_computed: Some(DateTime::parse_from_rfc3339("2024-01-01T12:00:00Z")?.with_timezone(&Utc)),
+      embedding_computed: Some(
+        DateTime::parse_from_rfc3339("2024-01-01T12:00:00Z")?.with_timezone(&Utc),
+      ),
     };
 
     let yaml = serde_yaml::to_string(&frontmatter)?;
@@ -319,7 +320,7 @@ New format details"#;
     };
 
     let yaml = serde_yaml::to_string(&frontmatter)?;
-    
+
     // Should only contain overview, not the None fields
     assert!(yaml.contains("overview:"));
     assert!(!yaml.contains("embedding_version:"));
@@ -329,4 +330,4 @@ New format details"#;
 
     Ok(())
   }
-} 
+}

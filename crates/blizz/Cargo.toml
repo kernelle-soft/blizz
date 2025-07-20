@@ -17,7 +17,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "blizz-daemon"
-path = "src/daemon.rs"
+path = "src/bin/blizz-daemon.rs"
 
 [features]
 default = ["semantic", "neural"]

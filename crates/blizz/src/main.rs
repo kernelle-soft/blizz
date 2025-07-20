@@ -115,17 +115,25 @@ fn main() -> Result<()> {
     Commands::Add { topic, name, overview, details } => {
       add_insight(&topic, &name, &overview, &details)?;
     }
-    Commands::Search { topic, case_sensitive, overview_only, terms, #[cfg(feature = "semantic")] semantic, exact } => {
+    Commands::Search {
+      topic,
+      case_sensitive,
+      overview_only,
+      terms,
+      #[cfg(feature = "semantic")]
+      semantic,
+      exact,
+    } => {
       // Tiered search approach
       if exact {
         // Tier 3: Exact matching only (fastest)
         search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-              } else if semantic {
-          // Tier 2: Semantic + Exact (drops neural for speed)
-          #[cfg(feature = "semantic")]
-          search_insights_combined_semantic(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-          #[cfg(not(feature = "semantic"))]
-          search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
+      } else if semantic {
+        // Tier 2: Semantic + Exact (drops neural for speed)
+        #[cfg(feature = "semantic")]
+        search_insights_combined_semantic(&terms, topic.as_deref(), case_sensitive, overview_only)?;
+        #[cfg(not(feature = "semantic"))]
+        search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
       } else {
         // Tier 1: All methods combined (best results)
         search_insights_combined_all(&terms, topic.as_deref(), case_sensitive, overview_only)?;

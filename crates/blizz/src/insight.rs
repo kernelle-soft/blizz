@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Result};
+use chrono::{DateTime, Utc};
 use dirs::home_dir;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 
 /// YAML frontmatter structure for insight files
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,20 +25,20 @@ pub struct Insight {
   pub name: String,
   pub overview: String,
   pub details: String,
-  
+
   // Embedding metadata (None if not computed yet)
   pub embedding_version: Option<String>,
   pub embedding: Option<Vec<f32>>,
-  pub embedding_text: Option<String>,  // The exact text that was embedded
+  pub embedding_text: Option<String>, // The exact text that was embedded
   pub embedding_computed: Option<DateTime<Utc>>,
 }
 
 impl Insight {
   pub fn new(topic: String, name: String, overview: String, details: String) -> Self {
-    Self { 
-      topic, 
-      name, 
-      overview, 
+    Self {
+      topic,
+      name,
+      overview,
       details,
       embedding_version: None,
       embedding: None,
@@ -46,12 +46,13 @@ impl Insight {
       embedding_computed: None,
     }
   }
-  
+
   /// Create a new insight with embedding metadata
+  #[allow(dead_code)]
   pub fn new_with_embedding(
-    topic: String, 
-    name: String, 
-    overview: String, 
+    topic: String,
+    name: String,
+    overview: String,
     details: String,
     embedding_version: String,
     embedding: Vec<f32>,
@@ -68,7 +69,7 @@ impl Insight {
       embedding_computed: Some(Utc::now()),
     }
   }
-  
+
   /// Update embedding metadata for this insight
   pub fn set_embedding(&mut self, version: String, embedding: Vec<f32>, text: String) {
     self.embedding_version = Some(version);
@@ -76,12 +77,12 @@ impl Insight {
     self.embedding_text = Some(text);
     self.embedding_computed = Some(Utc::now());
   }
-  
+
   /// Check if this insight has cached embedding
   pub fn has_embedding(&self) -> bool {
     self.embedding.is_some()
   }
-  
+
   /// Get the text that should be embedded for this insight
   pub fn get_embedding_text(&self) -> String {
     format!("{} {} {} {}", self.topic, self.name, self.overview, self.details)
@@ -118,7 +119,7 @@ impl Insight {
 
     // Serialize frontmatter to YAML
     let yaml_content = serde_yaml::to_string(&frontmatter)?;
-    
+
     // Write the insight file with YAML frontmatter + markdown body
     let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, self.details);
     fs::write(&file_path, content)?;
@@ -189,7 +190,7 @@ impl Insight {
 
     // Serialize frontmatter to YAML
     let yaml_content = serde_yaml::to_string(&frontmatter)?;
-    
+
     // Write the updated content
     let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, self.details);
     fs::write(&file_path, content)?;
@@ -241,7 +242,7 @@ pub fn parse_insight_with_metadata(content: &str) -> Result<(FrontMatter, String
   if let Some(end_pos) = content_after_first_dash.find("\n---\n") {
     let frontmatter_section = &content_after_first_dash[..end_pos];
     let body = &content_after_first_dash[end_pos + 5..]; // Skip "\n---\n"
-    
+
     // Try to parse as YAML first (new format)
     if let Ok(frontmatter) = serde_yaml::from_str::<FrontMatter>(frontmatter_section) {
       // New YAML format
@@ -252,13 +253,13 @@ pub fn parse_insight_with_metadata(content: &str) -> Result<(FrontMatter, String
         .join("\n")
         .trim()
         .to_string();
-      
+
       Ok((frontmatter, details))
     } else {
       // Legacy format: frontmatter_section is the overview, body is the details
       let overview = frontmatter_section.trim().to_string();
       let details = body.trim().to_string();
-      
+
       // Create FrontMatter structure for legacy format (no embeddings)
       let frontmatter = FrontMatter {
         overview,
@@ -267,7 +268,7 @@ pub fn parse_insight_with_metadata(content: &str) -> Result<(FrontMatter, String
         embedding_text: None,
         embedding_computed: None,
       };
-      
+
       Ok((frontmatter, details))
     }
   } else {

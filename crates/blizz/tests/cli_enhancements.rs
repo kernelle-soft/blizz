@@ -8,7 +8,7 @@ use tempfile::TempDir;
 mod cli_enhancement_tests {
   use super::*;
 
-  fn setup_temp_insights_root(test_name: &str) -> TempDir {
+  fn setup_temp_insights_root(_test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
     env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
     temp_dir
@@ -106,7 +106,12 @@ mod cli_enhancement_tests {
     add_insight("test_topic", "insight3", "Completely unrelated", "Nothing relevant")?;
 
     // Test combined semantic + exact search
-    search_insights_combined_semantic(&["machine".to_string(), "learning".to_string()], None, false, false)?;
+    search_insights_combined_semantic(
+      &["machine".to_string(), "learning".to_string()],
+      None,
+      false,
+      false,
+    )?;
 
     // Test with topic filter
     search_insights_combined_semantic(&["AI".to_string()], Some("test_topic"), false, false)?;
@@ -122,12 +127,22 @@ mod cli_enhancement_tests {
   fn test_search_insights_combined_all() -> Result<()> {
     let _temp = setup_temp_insights_root("search_combined_all");
 
-    add_insight("test_topic", "insight1", "Neural networks deep learning", "Machine learning models")?;
+    add_insight(
+      "test_topic",
+      "insight1",
+      "Neural networks deep learning",
+      "Machine learning models",
+    )?;
     add_insight("test_topic", "insight2", "Artificial intelligence", "AI systems")?;
     add_insight("test_topic", "insight3", "Database queries", "SQL operations")?;
 
     // Test all search methods combined (would include neural if available)
-    search_insights_combined_all(&["neural".to_string(), "learning".to_string()], None, false, false)?;
+    search_insights_combined_all(
+      &["neural".to_string(), "learning".to_string()],
+      None,
+      false,
+      false,
+    )?;
 
     // Test with filters
     search_insights_combined_all(&["AI".to_string()], Some("test_topic"), false, false)?;
@@ -203,14 +218,13 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_semantic_similarity_calculation() {
     // Test the semantic similarity function directly
-    
-    
+
     // This would test the extract_words and calculate_semantic_similarity functions
     // but those are private in the commands module. We'd need to make them public
     // or move them to a testable location to properly unit test them.
-    
+
     // For now, we test through the public interface
-    assert!(true); // Placeholder
+    // TODO: Add actual assertions when functionality is implemented
   }
 
   #[test]
@@ -274,4 +288,4 @@ mod cli_enhancement_tests {
 
     Ok(())
   }
-} 
+}
