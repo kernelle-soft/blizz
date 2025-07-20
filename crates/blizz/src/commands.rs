@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 
 use crate::insight::*;
 
+
+
 #[derive(Debug)]
 struct SearchResult {
   topic: String,
@@ -394,17 +396,17 @@ pub fn search_insights_semantic(
   Ok(())
 }
 
-/// Get the standard set of stop words to filter out
+// violet ignore chunk
+#[cfg(feature = "semantic")]
+const STOP_WORDS: &[&str] = &[
+  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is",
+  "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would",
+  "could", "should",
+];
+
 #[cfg(feature = "semantic")]
 fn get_stop_words() -> HashSet<&'static str> {
-  [
-    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is",
-    "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would",
-    "could", "should",
-  ]
-  .iter()
-  .cloned()
-  .collect()
+  STOP_WORDS.iter().cloned().collect()
 }
 
 /// Clean a single word by removing non-alphanumeric characters
@@ -1154,18 +1156,36 @@ fn collect_neural_results(
   let query_embedding = create_embedding(&mut session, &terms.join(" "))?;
   let insight_refs = get_insights(topic_filter)?;
 
-  Ok(
-    insight_refs
-      .into_iter()
-      .filter_map(|(topic, name)| {
-        Insight::load(&topic, &name).ok().and_then(|insight| {
-          process_insight_for_neural_search(&insight, &mut session, &query_embedding, overview_only)
-            .ok()
-            .flatten()
-        })
-      })
-      .collect(),
-  )
+  let results = process_insights_for_neural(&insight_refs, &mut session, &query_embedding, overview_only);
+  Ok(results)
+}
+
+#[cfg(feature = "neural")]
+fn process_insights_for_neural(
+  insight_refs: &[(String, String)],
+  session: &mut ort::session::Session,
+  query_embedding: &[f32],
+  overview_only: bool,
+) -> Vec<SemanticSearchResult> {
+  insight_refs
+    .iter()
+    .filter_map(|(topic, name)| process_single_insight_neural(topic, name, session, query_embedding, overview_only))
+    .collect()
+}
+
+#[cfg(feature = "neural")]
+fn process_single_insight_neural(
+  topic: &str,
+  name: &str,
+  session: &mut ort::session::Session,
+  query_embedding: &[f32],
+  overview_only: bool,
+) -> Option<SemanticSearchResult> {
+  let insight = Insight::load(topic, name).ok()?;
+  let search_result = process_insight_for_neural_search(&insight, session, query_embedding, overview_only)
+    .ok()
+    .flatten()?;
+  Some(search_result)
 }
 
 /// Get search type priority (lower = higher priority)

@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+// violet ignore chunk
 /// Common English stop words to filter out
 const STOP_WORDS: &[&str] = &[
   // Articles and determiners
@@ -12,7 +13,7 @@ const STOP_WORDS: &[&str] = &[
 ];
 
 /// Get the stop words as a HashSet for efficient lookup
-fn get_stop_words() -> HashSet<&'static str> {
+pub fn get_stop_words() -> HashSet<&'static str> {
   STOP_WORDS.iter().cloned().collect()
 }
 
