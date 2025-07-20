@@ -248,13 +248,13 @@ mod command_tests {
     add_insight("search_topic", "other", "Different overview", "Different details")?;
 
     // Search for keyword
-    search_insights(&[String::from("keyword")], None, false, false, false)?;
+    search_insights_exact(&[String::from("keyword")], None, false, false)?;
 
     // Search case sensitive
-    search_insights(&[String::from("KEYWORD")], None, true, false, false)?;
+    search_insights_exact(&[String::from("KEYWORD")], None, true, false)?;
 
     // Search overview only
-    search_insights(&[String::from("keyword")], None, false, true, false)?;
+    search_insights_exact(&[String::from("keyword")], None, false, true)?;
 
     Ok(())
   }
@@ -268,7 +268,7 @@ mod command_tests {
     add_insight("other_topic", "insight2", "Searchable content", "Details")?;
 
     // Search with topic filter
-    search_insights(&[String::from("Searchable")], Some("filter_topic"), false, false, false)?;
+    search_insights_exact(&[String::from("Searchable")], Some("filter_topic"), false, false)?;
 
     Ok(())
   }
@@ -280,7 +280,7 @@ mod command_tests {
 
     add_insight("topic", "insight", "No matching content", "Nothing here")?;
 
-    search_insights(&[String::from("nonexistent")], None, false, false, false)?;
+    search_insights_exact(&[String::from("nonexistent")], None, false, false)?;
 
     Ok(())
   }
@@ -290,11 +290,13 @@ mod command_tests {
   fn test_search_insights_empty_database() -> Result<()> {
     let _temp = setup_temp_insights_root("search_empty_database");
 
-    search_insights(&[String::from("anything")], None, false, false, false)?;
+    search_insights_exact(&[String::from("anything")], None, false, false)?;
 
     Ok(())
   }
 
+  // Note: link_insight functionality was removed in the new version
+  /*
   #[test]
   #[serial]
   fn test_link_insight_basic() -> Result<()> {
@@ -312,7 +314,9 @@ mod command_tests {
 
     Ok(())
   }
+  */
 
+  /*
   #[test]
   #[serial]
   fn test_link_insight_same_name() -> Result<()> {
@@ -329,7 +333,9 @@ mod command_tests {
 
     Ok(())
   }
+  */
 
+  /*
   #[test]
   #[serial]
   fn test_link_nonexistent_insight() {
@@ -339,6 +345,7 @@ mod command_tests {
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("not found"));
   }
+  */
 
   // Additional edge case tests to boost coverage
 
@@ -365,12 +372,12 @@ mod command_tests {
     add_insight("case_topic", "insight", "TEST content", "test details")?;
 
     // Case insensitive search should find both
-    search_insights(&[String::from("test")], None, false, false, false)?;
-    search_insights(&[String::from("TEST")], None, false, false, false)?;
+    search_insights_exact(&[String::from("test")], None, false, false)?;
+    search_insights_exact(&[String::from("TEST")], None, false, false)?;
 
     // Case sensitive search
-    search_insights(&[String::from("test")], None, true, false, false)?;
-    search_insights(&[String::from("TEST")], None, true, false, false)?;
+    search_insights_exact(&[String::from("test")], None, true, false)?;
+    search_insights_exact(&[String::from("TEST")], None, true, false)?;
 
     Ok(())
   }
@@ -383,8 +390,8 @@ mod command_tests {
     add_insight("special_topic", "insight", "Overview with @#$%", "Details with &*()+")?;
 
     // Search for special characters
-    search_insights(&[String::from("@#$%")], None, false, false, false)?;
-    search_insights(&[String::from("&*()")], None, false, false, false)?;
+    search_insights_exact(&[String::from("@#$%")], None, false, false)?;
+    search_insights_exact(&[String::from("&*()")], None, false, false)?;
 
     Ok(())
   }
@@ -414,7 +421,7 @@ mod command_tests {
     add_insight("real_topic", "insight", "Real content", "Real details")?;
 
     // Search with nonexistent topic filter
-    search_insights(&[String::from("content")], Some("nonexistent_topic"), false, false, false)?;
+    search_insights_exact(&[String::from("content")], Some("nonexistent_topic"), false, false)?;
 
     Ok(())
   }
