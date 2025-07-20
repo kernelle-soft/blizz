@@ -1,8 +1,7 @@
 use anyhow::{anyhow, Result};
 use colored::*;
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::hash::{Hash, Hasher};
+use std::path::Path;
 #[cfg(feature = "semantic")]
 use std::collections::HashSet;
 
@@ -480,8 +479,7 @@ pub fn search_insights_neural(
   overview_only: bool,
 ) -> Result<()> {
   use ort::{
-    session::{Session, builder::GraphOptimizationLevel},
-    value::TensorRef
+    session::{Session, builder::GraphOptimizationLevel}
   };
   
   // Initialize neural embedding search
@@ -536,6 +534,11 @@ pub fn search_insights_neural(
     // Calculate cosine similarity
     let similarity = cosine_similarity(&query_embedding, &content_embedding);
     
+    // Debug: Print similarity scores for troubleshooting
+    if similarity > 0.05 {
+      eprintln!("DEBUG: {}/{} = {:.3}", insight.topic, insight.name, similarity);
+    }
+    
     if similarity > 0.2 { // Similarity threshold
       results.push((insight, similarity));
     }
@@ -571,52 +574,60 @@ pub fn search_insights_neural(
   Ok(())
 }
 
-/// Create embedding for text using ONNX model
+/// Create embedding for text using ONNX model with proper BERT tokenization
 #[cfg(feature = "neural")]
 fn create_embedding(session: &mut ort::session::Session, text: &str) -> Result<Vec<f32>> {
   use ort::value::TensorRef;
+  use tokenizers::Tokenizer;
+  use std::path::Path;
   
-  // Better word-based tokenization
-  let lowercase_text = text.to_lowercase();
-  let words: Vec<&str> = lowercase_text
-    .split_whitespace()
-    .collect();
+  // Load the proper BERT tokenizer for all-MiniLM-L6-v2
+  let tokenizer_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+    .join("data")
+    .join("tokenizer.json");
   
-  // Simple vocabulary mapping (this is very basic!)
-  let mut tokens: Vec<i64> = vec![101]; // [CLS] token
+  let tokenizer = Tokenizer::from_file(&tokenizer_path)
+    .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))?;
   
-  for word in words.iter().take(254) { // Leave room for [CLS] and [SEP]
-    // Hash word to a token ID (very simple approach)
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::hash::Hash::hash(word, &mut hasher);
-    // Constrain to valid range: [-30522, 30521], use positive range [1000, 30521]
-    let token_id = (std::hash::Hasher::finish(&hasher) % 29521) as i64 + 1000;
-    tokens.push(token_id);
+  // Encode the text using the real tokenizer
+  let encoding = tokenizer.encode(text, false)
+    .map_err(|e| anyhow!("Failed to encode text: {}", e))?;
+  
+  // Get token IDs and attention mask
+  let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
+  let attention_mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&mask| mask as i64).collect();
+  
+  // Ensure we have the right sequence length (model expects max 512 tokens for BERT-style models)
+  let max_length = 512;
+  let mut padded_ids = token_ids;
+  let mut padded_mask = attention_mask;
+  
+  // Truncate if too long
+  if padded_ids.len() > max_length {
+    padded_ids.truncate(max_length);
+    padded_mask.truncate(max_length);
   }
   
-  tokens.push(102); // [SEP] token
+  // Pad if too short
+  while padded_ids.len() < max_length {
+    padded_ids.push(0); // PAD token
+    padded_mask.push(0); // Attention mask 0 for padding
+  }
   
-  // Pad to 256 tokens
-  tokens.resize(256, 0);
-  
-  let attention_mask: Vec<i64> = tokens.iter()
-    .map(|&id| if id != 0 { 1 } else { 0 })
-    .collect();
-  
-  // Create tensors
-  let ids_tensor = TensorRef::from_array_view(([1, 256], &*tokens))?;
-  let mask_tensor = TensorRef::from_array_view(([1, 256], &*attention_mask))?;
+  // Create tensors with proper shape [1, sequence_length]
+  let ids_tensor = TensorRef::from_array_view(([1, max_length], &*padded_ids))?;
+  let mask_tensor = TensorRef::from_array_view(([1, max_length], &*padded_mask))?;
   
   // Run inference
   let outputs = session.run(ort::inputs![ids_tensor, mask_tensor])?;
   
-  // Extract embeddings from output (usually index 1 for sentence transformers)
+  // Extract embeddings from output (index 1 for sentence transformers contains pooled embeddings)
   let embedding_output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
   let embeddings = embedding_output
     .try_extract_array::<f32>()?
     .into_dimensionality::<ndarray::Ix2>()?;
   
-  // Get the first sentence embedding (index 0)
+  // Get the sentence embedding (should be shape [1, 384] for all-MiniLM-L6-v2)
   let embedding_view = embeddings.index_axis(ndarray::Axis(0), 0);
   let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
   
