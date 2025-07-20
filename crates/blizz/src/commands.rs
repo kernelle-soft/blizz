@@ -568,10 +568,10 @@ pub fn search_insights_neural(
         similarity * 100.0
       );
       
-      let full_content = format!("{}\n{}", result.overview, result.details);
+      let full_content = format!("{}\n\n{}", result.overview, result.details);
       let lines: Vec<&str> = full_content.lines().collect();
       for line in lines.iter() {
-        if !line.trim().is_empty() && !line.starts_with("---") {
+        if !line.starts_with("---") {
           println!("{}", line);
         }
       }
@@ -824,7 +824,11 @@ fn collect_exact_results(
                   continue;
                 }
               } else {
-                content
+                if let Ok((overview, details)) = parse_insight_content(&content) {
+                  format!("{}\n\n{}", overview, details)
+                } else {
+                  continue;
+                }
               };
 
               let mut score = 0;
@@ -901,7 +905,7 @@ fn collect_neural_results(
     .map_err(|e| anyhow!("Failed to set thread count: {}", e))?
     .commit_from_url("https://cdn.pyke.io/0/pyke:ort-rs/example-models@0.0.0/all-MiniLM-L6-v2.onnx")
     .map_err(|e| anyhow!("Failed to load model: {}", e))?;
-
+  
   let query_text = terms.join(" ");
   let query_embedding = create_embedding(&mut session, &query_text)
     .map_err(|e| anyhow!("Failed to create query embedding: {}", e))?;
@@ -930,7 +934,7 @@ fn collect_neural_results(
         content: if overview_only { 
           insight.overview 
         } else { 
-          format!("{}\n{}", insight.overview, insight.details) 
+          format!("{}\n\n{}", insight.overview, insight.details) 
         },
         similarity,
       });
@@ -945,30 +949,81 @@ fn display_combined_results(
   results: Vec<CombinedSearchResult>,
   terms: &[String],
 ) -> Result<()> {
-  // Deduplicate by topic/name, keeping the highest scored result
-  let mut best_results: HashMap<(String, String), CombinedSearchResult> = HashMap::new();
-  
-  for result in results {
-    let key = (result.topic.clone(), result.name.clone());
-    
-    if let Some(existing) = best_results.get(&key) {
-      if result.score > existing.score {
-        best_results.insert(key, result);
-      }
-    } else {
-      best_results.insert(key, result);
+  // Helper function to get search type priority (lower = higher priority)
+  fn search_type_priority(search_type: &str) -> u8 {
+    match search_type {
+      "exact" => 1,
+      "semantic" => 2, 
+      "neural" => 3,
+      _ => 4,
     }
   }
   
-  // Convert back to vector and sort by score
-  let mut final_results: Vec<CombinedSearchResult> = best_results.into_values().collect();
-  final_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+  // Group results by insight, collecting all search methods that found each one
+  let mut insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>> = HashMap::new();
+  
+  for result in results {
+    // Normalize insight name by removing .insight suffix for deduplication
+    let normalized_name = result.name.strip_suffix(".insight").unwrap_or(&result.name).to_string();
+    let key = (result.topic.clone(), normalized_name);
+    
+    insight_groups.entry(key).or_insert_with(Vec::new).push(result);
+  }
+  
+  // For each insight, pick the best result but track how many search methods found it
+  let mut final_results: Vec<(CombinedSearchResult, usize)> = Vec::new();
+  
+  for (_, mut group) in insight_groups {
+    let method_count = group.len(); // Number of search methods that found this insight
+    
+    // Sort group by search type priority, then by score to pick the best representative
+    group.sort_by(|a, b| {
+      let a_priority = search_type_priority(&a.search_type);
+      let b_priority = search_type_priority(&b.search_type);
+      
+      match a_priority.cmp(&b_priority) {
+        std::cmp::Ordering::Equal => {
+          b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal)
+        }
+        other => other
+      }
+    });
+    
+    // Take the best result from this group
+    if let Some(best_result) = group.into_iter().next() {
+      final_results.push((best_result, method_count));
+    }
+  }
+  
+  // Sort by: number of search methods (descending), then search type priority, then score
+  final_results.sort_by(|a, b| {
+    // First by number of search methods that found it (more = better)
+    match b.1.cmp(&a.1) {
+      std::cmp::Ordering::Equal => {
+        let a_priority = search_type_priority(&a.0.search_type);
+        let b_priority = search_type_priority(&b.0.search_type);
+        
+        // Then by search type priority
+        match a_priority.cmp(&b_priority) {
+          std::cmp::Ordering::Equal => {
+            // Finally by score (descending)
+            b.0.score.partial_cmp(&a.0.score).unwrap_or(std::cmp::Ordering::Equal)
+          }
+          other => other
+        }
+      }
+      other => other
+    }
+  });
+  
+  // Extract just the results for display
+  let display_results: Vec<CombinedSearchResult> = final_results.into_iter().map(|(result, _)| result).collect();
   
   // Display results
-  if final_results.is_empty() {
+  if display_results.is_empty() {
     println!("No matches found for: {}", terms.join(" "));
   } else {
-    for result in final_results {
+    for result in display_results {
       println!("=== {}/{} ({:.1}%) ===", 
         result.topic.cyan(), 
         result.name.yellow(),
@@ -977,7 +1032,7 @@ fn display_combined_results(
       
       let lines: Vec<&str> = result.content.lines().collect();
       for line in lines.iter() {
-        if !line.trim().is_empty() && !line.starts_with("---") {
+        if !line.starts_with("---") {
           println!("{}", line);
         }
       }
@@ -1190,13 +1245,13 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
   
   for topic in &topics {
     let insights = get_insights(Some(topic))?;
-    println!("  {}  {}:", "◈".blue(), topic.cyan());
+    println!("{} {}:", "◈".blue(), topic.cyan());
     
     for (_, insight_name) in insights {
       let mut insight = match Insight::load(topic, &insight_name) {
         Ok(insight) => insight,
         Err(e) => {
-          eprintln!("  · Failed to load {}: {}", insight_name, e);
+          eprintln!("    · Failed to load {}: {}", insight_name, e);
           errors += 1;
           continue;
         }
@@ -1204,7 +1259,7 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
       
       // Check if we should skip this insight
       if !force && missing_only && insight.has_embedding() {
-        println!("  · {} (already has embedding)", insight_name);
+        println!("    · {} (already has embedding)", insight_name);
         skipped += 1;
         continue;
       }
@@ -1244,7 +1299,7 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
   println!("\nIndexed {} insights across {} topics {}", 
            processed.to_string().yellow(), 
            topics.len().to_string().yellow(),
-           "✅".green());
+           "⚡".blue());
   
   if skipped > 0 {
     println!("  {} Skipped: {}", "⏭".blue(), skipped.to_string().yellow());
