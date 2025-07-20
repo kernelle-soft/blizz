@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use colored::*;
 use std::fs;
-use std::path::Path;
 use std::collections::HashMap;
 #[cfg(feature = "semantic")]
 use std::collections::HashSet;
@@ -34,31 +33,51 @@ struct CombinedSearchResult {
   search_type: String, // Which search method found this result
 }
 
-/// Creates a cross-platform symlink/junction
-fn xplat_symlink(src: &Path, dst: &Path) -> Result<()> {
-  #[cfg(unix)]
-  {
-    std::os::unix::fs::symlink(src, dst).map_err(Into::into)
-  }
 
-  #[cfg(windows)]
+
+/// Compute embedding for an insight using the daemon
+#[cfg(feature = "neural")]
+async fn compute_insight_embedding(insight: &Insight) -> Result<(String, Vec<f32>, String)> {
+  let embedding_text = insight.get_embedding_text();
+  let embedding = daemon_client::get_embedding_from_daemon(&embedding_text).await?;
+  let version = "all-MiniLM-L6-v2".to_string();
+  
+  Ok((version, embedding, embedding_text))
+}
+
+/// Compute embedding for an insight with fallback
+fn compute_and_set_embedding(insight: &mut Insight) -> Result<()> {
+  #[cfg(feature = "neural")]
   {
-    // On Windows, try symlink_file first, fall back to copying if it fails
-    // (symlinks require admin privileges on Windows)
-    match std::os::windows::fs::symlink_file(src, dst) {
-      Ok(()) => Ok(()),
-      Err(_) => {
-        // Fall back to copying the file
-        std::fs::copy(src, dst).map(|_| ()).map_err(Into::into)
+    // Use async runtime to compute embedding
+    let rt = tokio::runtime::Runtime::new()?;
+    match rt.block_on(async { compute_insight_embedding(insight).await }) {
+      Ok((version, embedding, text)) => {
+        insight.set_embedding(version, embedding, text);
+      }
+      Err(e) => {
+        eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
+        eprintln!("  {} Insight saved without embedding (can be computed later with 'blizz index')", "ℹ".blue());
       }
     }
   }
+  
+  #[cfg(not(feature = "neural"))]
+  {
+    // No embedding computation available
+    let _ = insight; // Suppress unused warning
+  }
+  
+  Ok(())
 }
 
 /// Add a new insight to the knowledge base
 pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
-  let insight =
+  let mut insight =
     Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
+
+  // Compute embedding before saving
+  compute_and_set_embedding(&mut insight)?;
 
   insight.save()?;
 
@@ -399,48 +418,41 @@ pub fn update_insight(
   new_details: Option<&str>,
 ) -> Result<()> {
   let mut insight = Insight::load(topic, name)?;
+  
+  // Check if content is actually changing
+  let content_changed = new_overview.is_some() || new_details.is_some();
+  
   insight.update(new_overview, new_details)?;
+  
+  // Recompute embedding if content changed
+  if content_changed {
+    compute_and_set_embedding(&mut insight)?;
+    
+    // Save again with new embedding
+    let file_path = insight.file_path()?;
+    
+    // Create frontmatter with updated embedding
+    let frontmatter = crate::insight::FrontMatter {
+      overview: insight.overview.clone(),
+      embedding_version: insight.embedding_version.clone(),
+      embedding: insight.embedding.clone(),
+      embedding_text: insight.embedding_text.clone(),
+      embedding_computed: insight.embedding_computed,
+    };
+
+    // Serialize frontmatter to YAML
+    let yaml_content = serde_yaml::to_string(&frontmatter)?;
+    
+    // Write the updated content with new embedding
+    let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
+    std::fs::write(&file_path, content)?;
+  }
 
   println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
   Ok(())
 }
 
-/// Create a link from one insight to another topic
-pub fn link_insight(
-  src_topic: &str,
-  src_name: &str,
-  target_topic: &str,
-  target_name: Option<&str>,
-) -> Result<()> {
-  let insights_root = get_insights_root()?;
-  let target_name = target_name.unwrap_or(src_name);
 
-  let src_path = insights_root.join(src_topic).join(format!("{src_name}.insight.md"));
-  let target_dir = insights_root.join(target_topic);
-  let target_path = target_dir.join(format!("{target_name}.insight.md"));
-
-  // Check if source insight exists
-  if !src_path.exists() {
-    return Err(anyhow!("Source insight {}/{} not found", src_topic, src_name));
-  }
-
-  // Create target directory if it doesn't exist
-  fs::create_dir_all(&target_dir)?;
-
-  // Create the symbolic link (cross-platform)
-  xplat_symlink(&src_path, &target_path)?;
-
-  println!(
-    "{} Created link: {}/{} -> {}/{}",
-    "✓".green(),
-    target_topic.cyan(),
-    target_name.yellow(),
-    src_topic.cyan(),
-    src_name.yellow()
-  );
-
-  Ok(())
-}
 
 /// Delete an insight
 pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
@@ -488,69 +500,46 @@ pub fn search_insights_neural(
   _case_sensitive: bool, // Note: Neural embeddings normalize text, so case sensitivity doesn't apply
   overview_only: bool,
 ) -> Result<()> {
-  use ort::{
-    session::{Session, builder::GraphOptimizationLevel}
-  };
-  
-  // Initialize neural embedding search
-  
-  // Initialize ONNX Runtime (required!)
-  ort::init()
-    .with_name("blizz")
-    .commit()
-    .map_err(|e| anyhow!("Failed to initialize ONNX Runtime: {}", e))?;
-  
-  // Load model directly from HuggingFace
-  let mut session = Session::builder()
-    .map_err(|e| anyhow!("Failed to create session builder: {}", e))?
-    .with_optimization_level(GraphOptimizationLevel::Level1)
-    .map_err(|e| anyhow!("Failed to set optimization level: {}", e))?
-    .with_intra_threads(1)
-    .map_err(|e| anyhow!("Failed to set thread count: {}", e))?
-    .commit_from_url("https://cdn.pyke.io/0/pyke:ort-rs/example-models@0.0.0/all-MiniLM-L6-v2.onnx")
-    .map_err(|e| anyhow!("Failed to load model: {}", e))?;
-
-  // Model loaded
-  
   let query_text = terms.join(" ");
-  // Process query
   
-  // Get query embedding
-  let query_embedding = create_embedding(&mut session, &query_text)
-    .map_err(|e| anyhow!("Failed to create query embedding: {}", e))?;
+  // Get query embedding using daemon for speed
+  let rt = tokio::runtime::Runtime::new()?;
+  let query_embedding = rt.block_on(async {
+    daemon_client::get_embedding_from_daemon(&query_text).await
+  }).map_err(|e| anyhow!("Failed to get query embedding: {}", e))?;
   
-  // Query embedding ready
-  
-  // Get all insights and compute similarities
+  // Get all insights and compute similarities using cached embeddings
   let insight_refs = get_insights(topic_filter)?;
   let mut results = Vec::new();
-  
-  // Compute embeddings for all insights
+  let mut warnings = Vec::new();
   
   for (topic, name) in insight_refs {
-    // Load the insight
+    // Load the insight with cached metadata
     let insight = Insight::load(&topic, &name)?;
     
-    // Include topic and insight names in searchable text for better matching
-    let content = if overview_only {
-      format!("{} {} {}", insight.topic, insight.name, insight.overview)
+    let content_embedding = if let Some(cached_embedding) = &insight.embedding {
+      // Use cached embedding for speed!
+      cached_embedding.clone()
     } else {
-      format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
+      // Fallback: compute embedding on-the-fly (slow)
+      warnings.push(format!("{}/{}", topic, name));
+      
+      let content = if overview_only {
+        format!("{} {} {}", insight.topic, insight.name, insight.overview)
+      } else {
+        insight.get_embedding_text()
+      };
+      
+      // Use daemon for computation
+      rt.block_on(async {
+        daemon_client::get_embedding_from_daemon(&content).await
+      }).map_err(|e| anyhow!("Failed to compute embedding for {}/{}: {}", topic, name, e))?
     };
-    
-    // Create embedding for this insight
-    let content_embedding = create_embedding(&mut session, &content)
-      .map_err(|e| anyhow!("Failed to create content embedding: {}", e))?;
     
     // Calculate cosine similarity
     let similarity = cosine_similarity(&query_embedding, &content_embedding);
     
-    // Debug: Print similarity scores for troubleshooting
-    if similarity > 0.05 {
-      eprintln!("DEBUG: {}/{} = {:.3}", insight.topic, insight.name, similarity);
-    }
-    
-    if similarity > 0.2 { // Similarity threshold (raised to 20% for higher quality results)
+    if similarity > 0.2 { // Similarity threshold (20% for quality results)
       results.push((insight, similarity));
     }
   }
@@ -558,9 +547,17 @@ pub fn search_insights_neural(
   // Sort by similarity (highest first)
   results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
   
-  // Display results
+  // Show warnings about missing embeddings
+  if !warnings.is_empty() {
+    eprintln!("{} {} insights computed embeddings on-the-fly (slower):", "⚠".yellow(), warnings.len());
+    for warning in &warnings {
+      eprintln!("  {}", warning);
+    }
+    eprintln!("  {} Tip: Run 'blizz index' to cache embeddings for faster searches", "💡".blue());
+    eprintln!();
+  }
   
-  // Display results in same format as other searches
+  // Display results
   if results.is_empty() {
     println!("No matches found for: {}", terms.join(" "));
   } else {
@@ -581,7 +578,7 @@ pub fn search_insights_neural(
       println!();
     }
   }
-  
+
   Ok(())
 }
 
@@ -1171,4 +1168,90 @@ fn create_embedding_direct(text: &str) -> Result<Vec<f32>> {
   let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
   
   Ok(embedding_vec)
+}
+
+/// Recompute embeddings for all insights
+#[cfg(feature = "neural")]
+pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
+  use crate::insight::{get_topics, get_insights, Insight};
+  
+  let topics = get_topics()?;
+  
+  if topics.is_empty() {
+    println!("No insights found to index.");
+    return Ok(());
+  }
+  
+  let mut processed = 0;
+  let mut skipped = 0;
+  let mut errors = 0;
+  
+
+  
+  for topic in &topics {
+    let insights = get_insights(Some(topic))?;
+    println!("  {}  {}:", "◈".blue(), topic.cyan());
+    
+    for (_, insight_name) in insights {
+      let mut insight = match Insight::load(topic, &insight_name) {
+        Ok(insight) => insight,
+        Err(e) => {
+          eprintln!("  · Failed to load {}: {}", insight_name, e);
+          errors += 1;
+          continue;
+        }
+      };
+      
+      // Check if we should skip this insight
+      if !force && missing_only && insight.has_embedding() {
+        println!("  · {} (already has embedding)", insight_name);
+        skipped += 1;
+        continue;
+      }
+      
+      print!("  · {}... ", insight_name);
+      std::io::Write::flush(&mut std::io::stdout())?;
+      
+      // Compute embedding
+      match compute_and_set_embedding(&mut insight) {
+        Ok(()) => {
+          // Save the insight with new embedding
+          let file_path = insight.file_path()?;
+          
+          let frontmatter = crate::insight::FrontMatter {
+            overview: insight.overview.clone(),
+            embedding_version: insight.embedding_version.clone(),
+            embedding: insight.embedding.clone(),
+            embedding_text: insight.embedding_text.clone(),
+            embedding_computed: insight.embedding_computed,
+          };
+          
+          let yaml_content = serde_yaml::to_string(&frontmatter)?;
+          let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
+          std::fs::write(&file_path, content)?;
+          
+          println!("done");
+          processed += 1;
+        }
+        Err(e) => {
+          println!("failed: {}", e);
+          errors += 1;
+        }
+      }
+    }
+  }
+  
+  println!("\nIndexed {} insights across {} topics {}", 
+           processed.to_string().yellow(), 
+           topics.len().to_string().yellow(),
+           "✅".green());
+  
+  if skipped > 0 {
+    println!("  {} Skipped: {}", "⏭".blue(), skipped.to_string().yellow());
+  }
+  if errors > 0 {
+    println!("  {} Errors: {}", "❌".red(), errors.to_string().yellow());
+  }
+  
+  Ok(())
 }

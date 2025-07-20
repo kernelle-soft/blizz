@@ -83,17 +83,7 @@ enum Commands {
     #[arg(short, long)]
     details: Option<String>,
   },
-  /// Create a link from one insight to another topic
-  Link {
-    /// Source topic
-    src_topic: String,
-    /// Source insight name
-    src_name: String,
-    /// Target topic
-    target_topic: String,
-    /// Target name (defaults to source name)
-    target_name: Option<String>,
-  },
+
   /// Delete an insight
   Delete {
     /// Topic category of the insight
@@ -106,6 +96,16 @@ enum Commands {
   },
   /// List all available topics
   Topics,
+  /// Recompute embeddings for all insights
+  #[cfg(feature = "neural")]
+  Index {
+    /// Force recompute even for insights that already have embeddings
+    #[arg(short, long)]
+    force: bool,
+    /// Only recompute missing embeddings (default behavior)
+    #[arg(short, long)]
+    missing_only: bool,
+  },
 }
 
 fn main() -> Result<()> {
@@ -140,14 +140,15 @@ fn main() -> Result<()> {
     Commands::Update { topic, name, overview, details } => {
       update_insight(&topic, &name, overview.as_deref(), details.as_deref())?;
     }
-    Commands::Link { src_topic, src_name, target_topic, target_name } => {
-      link_insight(&src_topic, &src_name, &target_topic, target_name.as_deref())?;
-    }
     Commands::Delete { topic, name, force } => {
       delete_insight(&topic, &name, force)?;
     }
     Commands::Topics => {
       list_topics()?;
+    }
+    #[cfg(feature = "neural")]
+    Commands::Index { force, missing_only } => {
+      index_insights(force, missing_only)?;
     }
   }
 

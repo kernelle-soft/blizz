@@ -2,18 +2,89 @@ use anyhow::{anyhow, Result};
 use dirs::home_dir;
 use std::fs;
 use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
 
-#[derive(Debug, Clone)]
+/// YAML frontmatter structure for insight files
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FrontMatter {
+  pub overview: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub embedding_version: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub embedding: Option<Vec<f32>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub embedding_text: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub embedding_computed: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Insight {
   pub topic: String,
   pub name: String,
   pub overview: String,
   pub details: String,
+  
+  // Embedding metadata (None if not computed yet)
+  pub embedding_version: Option<String>,
+  pub embedding: Option<Vec<f32>>,
+  pub embedding_text: Option<String>,  // The exact text that was embedded
+  pub embedding_computed: Option<DateTime<Utc>>,
 }
 
 impl Insight {
   pub fn new(topic: String, name: String, overview: String, details: String) -> Self {
-    Self { topic, name, overview, details }
+    Self { 
+      topic, 
+      name, 
+      overview, 
+      details,
+      embedding_version: None,
+      embedding: None,
+      embedding_text: None,
+      embedding_computed: None,
+    }
+  }
+  
+  /// Create a new insight with embedding metadata
+  pub fn new_with_embedding(
+    topic: String, 
+    name: String, 
+    overview: String, 
+    details: String,
+    embedding_version: String,
+    embedding: Vec<f32>,
+    embedding_text: String,
+  ) -> Self {
+    Self {
+      topic,
+      name,
+      overview,
+      details,
+      embedding_version: Some(embedding_version),
+      embedding: Some(embedding),
+      embedding_text: Some(embedding_text),
+      embedding_computed: Some(Utc::now()),
+    }
+  }
+  
+  /// Update embedding metadata for this insight
+  pub fn set_embedding(&mut self, version: String, embedding: Vec<f32>, text: String) {
+    self.embedding_version = Some(version);
+    self.embedding = Some(embedding);
+    self.embedding_text = Some(text);
+    self.embedding_computed = Some(Utc::now());
+  }
+  
+  /// Check if this insight has cached embedding
+  pub fn has_embedding(&self) -> bool {
+    self.embedding.is_some()
+  }
+  
+  /// Get the text that should be embedded for this insight
+  pub fn get_embedding_text(&self) -> String {
+    format!("{} {} {} {}", self.topic, self.name, self.overview, self.details)
   }
 
   /// Get the file path for this insight
@@ -22,7 +93,7 @@ impl Insight {
     Ok(insights_root.join(&self.topic).join(format!("{}.insight.md", self.name)))
   }
 
-  /// Save this insight to disk
+  /// Save this insight to disk using YAML frontmatter format
   pub fn save(&self) -> Result<()> {
     let file_path = self.file_path()?;
 
@@ -36,8 +107,20 @@ impl Insight {
       return Err(anyhow!("Insight {}/{} already exists", self.topic, self.name));
     }
 
-    // Write the insight file with the markdown format
-    let content = format!("---\n{}\n---\n\n{}", self.overview, self.details);
+    // Create frontmatter with overview and optional embedding metadata
+    let frontmatter = FrontMatter {
+      overview: self.overview.clone(),
+      embedding_version: self.embedding_version.clone(),
+      embedding: self.embedding.clone(),
+      embedding_text: self.embedding_text.clone(),
+      embedding_computed: self.embedding_computed,
+    };
+
+    // Serialize frontmatter to YAML
+    let yaml_content = serde_yaml::to_string(&frontmatter)?;
+    
+    // Write the insight file with YAML frontmatter + markdown body
+    let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, self.details);
     fs::write(&file_path, content)?;
 
     Ok(())
@@ -53,12 +136,21 @@ impl Insight {
     }
 
     let content = fs::read_to_string(&file_path)?;
-    let (overview, details) = parse_insight_content(&content)?;
+    let (frontmatter, details) = parse_insight_with_metadata(&content)?;
 
-    Ok(Insight::new(topic.to_string(), name.to_string(), overview, details))
+    Ok(Insight {
+      topic: topic.to_string(),
+      name: name.to_string(),
+      overview: frontmatter.overview,
+      details,
+      embedding_version: frontmatter.embedding_version,
+      embedding: frontmatter.embedding,
+      embedding_text: frontmatter.embedding_text,
+      embedding_computed: frontmatter.embedding_computed,
+    })
   }
 
-  /// Update this insight on disk
+  /// Update this insight on disk using YAML frontmatter format
   pub fn update(&mut self, new_overview: Option<&str>, new_details: Option<&str>) -> Result<()> {
     if let Some(overview) = new_overview {
       self.overview = overview.to_string();
@@ -77,8 +169,29 @@ impl Insight {
       return Err(anyhow!("Insight {}/{} not found", self.topic, self.name));
     }
 
+    // Clear embedding metadata since content changed
+    // (will be recomputed in write operations)
+    if new_overview.is_some() || new_details.is_some() {
+      self.embedding_version = None;
+      self.embedding = None;
+      self.embedding_text = None;
+      self.embedding_computed = None;
+    }
+
+    // Create frontmatter with updated content
+    let frontmatter = FrontMatter {
+      overview: self.overview.clone(),
+      embedding_version: self.embedding_version.clone(),
+      embedding: self.embedding.clone(),
+      embedding_text: self.embedding_text.clone(),
+      embedding_computed: self.embedding_computed,
+    };
+
+    // Serialize frontmatter to YAML
+    let yaml_content = serde_yaml::to_string(&frontmatter)?;
+    
     // Write the updated content
-    let content = format!("---\n{}\n---\n\n{}", self.overview, self.details);
+    let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, self.details);
     fs::write(&file_path, content)?;
 
     Ok(())
@@ -116,45 +229,56 @@ pub fn get_insights_root() -> Result<PathBuf> {
   Ok(home.join(".kernelle").join("insights"))
 }
 
-/// Parse insight content from markdown format
-pub fn parse_insight_content(content: &str) -> Result<(String, String)> {
-  let lines: Vec<&str> = content.lines().collect();
-
-  // Find the overview section (between first two ---)
-  let mut overview_start = None;
-  let mut overview_end = None;
-  let mut dash_count = 0;
-
-  for (i, line) in lines.iter().enumerate() {
-    if line.trim() == "---" {
-      dash_count += 1;
-      if dash_count == 1 {
-        overview_start = Some(i + 1);
-      } else if dash_count == 2 {
-        overview_end = Some(i);
-        break;
-      }
-    }
+/// Parse insight content from YAML frontmatter format (returning full metadata)
+pub fn parse_insight_with_metadata(content: &str) -> Result<(FrontMatter, String)> {
+  // Split content into frontmatter and body
+  if !content.starts_with("---\n") {
+    return Err(anyhow!("Invalid insight format: missing frontmatter"));
   }
 
-  let overview = if let (Some(start), Some(end)) = (overview_start, overview_end) {
-    lines[start..end].join("\n").trim().to_string()
-  } else {
-    return Err(anyhow!("Invalid insight format: could not find overview section"));
-  };
-
-  // Everything after the second --- is details
-  let details = if let Some(end) = overview_end {
-    if end + 2 < lines.len() {
-      lines[end + 2..].join("\n").trim().to_string()
+  // Find the end of frontmatter
+  let content_after_first_dash = &content[4..]; // Skip initial "---\n"
+  if let Some(end_pos) = content_after_first_dash.find("\n---\n") {
+    let frontmatter_section = &content_after_first_dash[..end_pos];
+    let body = &content_after_first_dash[end_pos + 5..]; // Skip "\n---\n"
+    
+    // Try to parse as YAML first (new format)
+    if let Ok(frontmatter) = serde_yaml::from_str::<FrontMatter>(frontmatter_section) {
+      // New YAML format
+      let details = body
+        .lines()
+        .skip_while(|line| line.trim().is_empty() || line.starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string();
+      
+      Ok((frontmatter, details))
     } else {
-      String::new()
+      // Legacy format: frontmatter_section is the overview, body is the details
+      let overview = frontmatter_section.trim().to_string();
+      let details = body.trim().to_string();
+      
+      // Create FrontMatter structure for legacy format (no embeddings)
+      let frontmatter = FrontMatter {
+        overview,
+        embedding_version: None,
+        embedding: None,
+        embedding_text: None,
+        embedding_computed: None,
+      };
+      
+      Ok((frontmatter, details))
     }
   } else {
-    String::new()
-  };
+    Err(anyhow!("Invalid insight format: could not find end of frontmatter"))
+  }
+}
 
-  Ok((overview, details))
+/// Parse insight content from YAML frontmatter format (legacy compatibility)
+pub fn parse_insight_content(content: &str) -> Result<(String, String)> {
+  let (frontmatter, details) = parse_insight_with_metadata(content)?;
+  Ok((frontmatter.overview, details))
 }
 
 /// List all available topics
