@@ -244,11 +244,11 @@ pub fn search_insights_semantic(
       let content = fs::read_to_string(&insight_path)?;
       let (overview, details) = parse_insight_content(&content)?;
       
-      // Determine what text to search
+      // Include topic and insight names for better matching (consistent with neural search)
       let search_text = if overview_only {
-        overview.clone()
+        format!("{} {} {}", topic_name, insight_name, overview)
       } else {
-        format!("{} {}", overview, details)
+        format!("{} {} {} {}", topic_name, insight_name, overview, details)
       };
       
       // Calculate semantic similarity
@@ -521,14 +521,15 @@ pub fn search_insights_neural(
     // Load the insight
     let insight = Insight::load(&topic, &name)?;
     
+    // Include topic and insight names in searchable text for better matching
     let content = if overview_only {
-      &insight.overview
+      format!("{} {} {}", insight.topic, insight.name, insight.overview)
     } else {
-      &format!("{} {}", insight.overview, insight.details)
+      format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
     };
     
     // Create embedding for this insight
-    let content_embedding = create_embedding(&mut session, content)
+    let content_embedding = create_embedding(&mut session, &content)
       .map_err(|e| anyhow!("Failed to create content embedding: {}", e))?;
     
     // Calculate cosine similarity
@@ -539,7 +540,7 @@ pub fn search_insights_neural(
       eprintln!("DEBUG: {}/{} = {:.3}", insight.topic, insight.name, similarity);
     }
     
-    if similarity > 0.2 { // Similarity threshold
+    if similarity > 0.1 { // Similarity threshold (lowered to include more relevant results)
       results.push((insight, similarity));
     }
   }
