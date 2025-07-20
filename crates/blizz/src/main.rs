@@ -3,6 +3,7 @@ use clap::{Args, Parser, Subcommand};
 
 mod commands;
 mod insight;
+mod semantic;
 
 use commands::*;
 

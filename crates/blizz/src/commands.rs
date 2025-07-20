@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::semantic;
 use crate::insight::*;
+use crate::semantic;
 
 #[derive(Debug)]
 struct SearchResult {
@@ -1390,7 +1390,7 @@ async fn request_embedding_with_retry(text: &str) -> Result<Vec<f32>> {
 }
 
 #[cfg(feature = "neural")]
-async fn get_embedding_from_daemon(text: &str) -> Result<Vec<f32>> {
+pub async fn get_embedding_from_daemon(text: &str) -> Result<Vec<f32>> {
   if let Ok(embedding) = request_embedding_from_daemon(text).await {
     return Ok(embedding);
   }

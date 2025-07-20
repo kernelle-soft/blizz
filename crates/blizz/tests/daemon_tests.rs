@@ -1,6 +1,6 @@
 use anyhow::Result;
 use blizz::daemon::{EmbeddingRequest, EmbeddingResponse, EmbeddingService};
-use blizz::model::MockEmbeddingModel;
+use blizz::embedding_model::MockEmbeddingModel;
 
 #[cfg(test)]
 mod daemon_tests {
