@@ -4,6 +4,7 @@ use std::collections::HashMap;
 #[cfg(feature = "semantic")]
 use std::collections::HashSet;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use crate::insight::*;
 
@@ -88,114 +89,69 @@ pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Re
 
 // Legacy search_insights function removed - now using specific search mode functions directly
 
-/// Exact term matching search (the original implementation)
-pub fn search_insights_exact(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  let insights_root = get_insights_root()?;
+/// Build search paths based on topic filter
+fn build_search_paths(insights_root: &Path, topic_filter: Option<&str>) -> Result<Vec<PathBuf>> {
+  if let Some(topic) = topic_filter {
+    Ok(vec![insights_root.join(topic)])
+  } else {
+    Ok(get_topics()?.into_iter().map(|topic| insights_root.join(topic)).collect())
+  }
+}
 
-  if !insights_root.exists() {
-    println!("No insights directory found");
-    return Ok(());
+/// Extract searchable content from insight file
+fn extract_searchable_content(content: &str, overview_only: bool) -> Result<String> {
+  if overview_only {
+    let (overview, _) = parse_insight_content(content)?;
+    Ok(overview)
+  } else {
+    Ok(content.to_string())
+  }
+}
+
+/// Calculate term matches and collect matching lines
+fn calculate_term_matches(
+  content: &str,
+  terms: &[String],
+  case_sensitive: bool,
+) -> (usize, Vec<String>) {
+  let mut score = 0;
+  let mut matching_lines = Vec::new();
+
+  // Count matching terms
+  for term in terms {
+    let term_matches = if case_sensitive {
+      content.contains(term)
+    } else {
+      content.to_lowercase().contains(&term.to_lowercase())
+    };
+
+    if term_matches {
+      score += 1;
+    }
   }
 
-  let search_paths = if let Some(topic) = topic_filter {
-    vec![insights_root.join(topic)]
-  } else {
-    get_topics()?.into_iter().map(|topic| insights_root.join(topic)).collect()
-  };
-
-  let mut results = Vec::new();
-
-  for topic_path in search_paths {
-    if !topic_path.exists() {
-      continue;
-    }
-
-    let topic_name = topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
-
-    for entry in fs::read_dir(&topic_path)? {
-      let entry = entry?;
-      let path = entry.path();
-
-      if path.extension().and_then(|s| s.to_str()) == Some("md") {
-        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-          if file_stem.ends_with(".insight") {
-            let insight_name = file_stem.trim_end_matches(".insight");
-
-            // Read and search the file content
-            if let Ok(content) = fs::read_to_string(&path) {
-              let search_content = if overview_only {
-                // Extract just the overview section
-                if let Ok((overview, _)) = parse_insight_content(&content) {
-                  overview
-                } else {
-                  continue;
-                }
-              } else {
-                content
-              };
-
-              // Count matches for each term
-              let mut score = 0;
-              let mut matching_lines = Vec::new();
-
-              for term in terms {
-                let term_matches = if case_sensitive {
-                  search_content.contains(term)
-                } else {
-                  search_content.to_lowercase().contains(&term.to_lowercase())
-                };
-
-                if term_matches {
-                  score += 1;
-                }
-              }
-
-              // If any terms matched, collect matching lines
-              if score > 0 {
-                for line in search_content.lines() {
-                  let mut line_has_match = false;
-                  for term in terms {
-                    let line_matches = if case_sensitive {
-                      line.contains(term)
-                    } else {
-                      line.to_lowercase().contains(&term.to_lowercase())
-                    };
-
-                    if line_matches {
-                      line_has_match = true;
-                      break;
-                    }
-                  }
-
-                  if line_has_match {
-                    matching_lines.push(line.to_string());
-                  }
-                }
-
-                results.push(SearchResult {
-                  topic: topic_name.to_string(),
-                  name: insight_name.to_string(),
-                  matching_lines,
-                  score,
-                });
-              }
-            }
-          }
+  // Collect matching lines if any terms matched
+  if score > 0 {
+    for line in content.lines() {
+      let line_has_match = terms.iter().any(|term| {
+        if case_sensitive {
+          line.contains(term)
+        } else {
+          line.to_lowercase().contains(&term.to_lowercase())
         }
+      });
+
+      if line_has_match {
+        matching_lines.push(line.to_string());
       }
     }
   }
 
-  // Sort by relevance score (descending), then by topic/name for consistency
-  results.sort_by(|a, b| {
-    b.score.cmp(&a.score).then_with(|| a.topic.cmp(&b.topic).then_with(|| a.name.cmp(&b.name)))
-  });
+  (score, matching_lines)
+}
 
+/// Display exact search results
+fn display_exact_search_results(results: &[SearchResult], terms: &[String]) {
   if results.is_empty() {
     let terms_str = terms.join(" ");
     println!("No matches found for: {}", terms_str.yellow());
@@ -208,102 +164,98 @@ pub fn search_insights_exact(
         result.score.to_string().green()
       );
 
-      for line in result.matching_lines {
+      for line in &result.matching_lines {
         println!("{line}");
       }
       println!();
     }
   }
+}
 
+/// Exact term matching search (the original implementation)
+pub fn search_insights_exact(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  case_sensitive: bool,
+  overview_only: bool,
+) -> Result<()> {
+  let results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
+  
+  // Sort by relevance score (descending), then by topic/name for consistency
+  let mut sorted_results = results;
+  sorted_results.sort_by(|a, b| {
+    b.score.cmp(&a.score).then_with(|| a.topic.cmp(&b.topic).then_with(|| a.name.cmp(&b.name)))
+  });
+
+  display_exact_search_results(&sorted_results, terms);
   Ok(())
 }
 
-/// Semantic similarity search using advanced text analysis
+/// Calculate semantic search result for a single insight
 #[cfg(feature = "semantic")]
-#[allow(dead_code)]
-pub fn search_insights_semantic(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  _case_sensitive: bool, // Note: Semantic search normalizes text, so case sensitivity doesn't apply
+fn calculate_single_insight_semantic(
+  topic_name: &str,
+  insight_path: &Path,
+  query_words: &HashSet<String>,
   overview_only: bool,
-) -> Result<()> {
-  // Combine search terms into a single query
-  let query = terms.join(" ");
+) -> Result<Option<SemanticSearchResult>> {
+  let insight_name = insight_path.file_stem().and_then(|name| name.to_str()).unwrap_or("unknown");
+  
+  let content = fs::read_to_string(insight_path)?;
+  let (overview, details) = parse_insight_content(&content)?;
 
-  let insights_dir = get_insights_root()?;
-  if !insights_dir.exists() {
-    println!("No insights found. Create some insights first!");
-    return Ok(());
+  // Include topic and insight names for better matching (consistent with neural search)
+  let search_text = if overview_only {
+    format!("{topic_name} {insight_name} {overview}")
+  } else {
+    format!("{topic_name} {insight_name} {overview} {details}")
+  };
+
+  // Calculate semantic similarity
+  let similarity = calculate_semantic_similarity(query_words, &search_text);
+
+  // Only include results with meaningful similarity (> 0.2)
+  if similarity > 0.2 {
+    Ok(Some(SemanticSearchResult {
+      topic: topic_name.to_string(),
+      name: insight_name.to_string(),
+      content: if overview_only { overview } else { format!("{overview}\n\n{details}") },
+      similarity,
+    }))
+  } else {
+    Ok(None)
   }
+}
 
+/// Process semantic search for insights in a single topic
+#[cfg(feature = "semantic")]
+fn process_topic_semantic_search(
+  topic_path: &Path,
+  query_words: &HashSet<String>,
+  overview_only: bool,
+) -> Result<Vec<SemanticSearchResult>> {
   let mut results = Vec::new();
-  let query_words = extract_words(&query.to_lowercase());
+  let topic_name = topic_path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown");
 
-  // Process all insights
-  for entry in fs::read_dir(&insights_dir)? {
-    let entry = entry?;
-    let topic_path = entry.path();
+  for insight_entry in fs::read_dir(topic_path)? {
+    let insight_entry = insight_entry?;
+    let insight_path = insight_entry.path();
 
-    if !topic_path.is_dir() {
+    if insight_path.extension().and_then(|s| s.to_str()) != Some("md") {
       continue;
     }
 
-    let topic_name = topic_path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown");
-
-    // Apply topic filter
-    if let Some(filter) = topic_filter {
-      if topic_name != filter {
-        continue;
-      }
-    }
-
-    // Process insights in this topic
-    for insight_entry in fs::read_dir(&topic_path)? {
-      let insight_entry = insight_entry?;
-      let insight_path = insight_entry.path();
-
-      if insight_path.extension().and_then(|s| s.to_str()) != Some("md") {
-        continue;
-      }
-
-      let insight_name =
-        insight_path.file_stem().and_then(|name| name.to_str()).unwrap_or("unknown");
-
-      let content = fs::read_to_string(&insight_path)?;
-      let (overview, details) = parse_insight_content(&content)?;
-
-      // Include topic and insight names for better matching (consistent with neural search)
-      let search_text = if overview_only {
-        format!("{topic_name} {insight_name} {overview}")
-      } else {
-        format!("{topic_name} {insight_name} {overview} {details}")
-      };
-
-      // Calculate semantic similarity
-      let similarity = calculate_semantic_similarity(&query_words, &search_text);
-
-      // Only include results with meaningful similarity (> 0.2)
-      if similarity > 0.2 {
-        results.push(SemanticSearchResult {
-          topic: topic_name.to_string(),
-          name: insight_name.to_string(),
-          content: if overview_only { overview } else { format!("{overview}\n\n{details}") },
-          similarity,
-        });
-      }
+    if let Ok(Some(result)) = calculate_single_insight_semantic(topic_name, &insight_path, query_words, overview_only) {
+      results.push(result);
     }
   }
 
-  // Sort by similarity (descending), then alphabetically
-  results.sort_by(|a, b| {
-    b.similarity
-      .partial_cmp(&a.similarity)
-      .unwrap_or(std::cmp::Ordering::Equal)
-      .then(a.topic.cmp(&b.topic))
-      .then(a.name.cmp(&b.name))
-  });
+  Ok(results)
+}
 
-  // Display results in EXACT same format as regular search
+/// Display semantic search results
+#[cfg(feature = "semantic")]
+fn display_semantic_search_results(results: &[SemanticSearchResult], terms: &[String]) {
   if results.is_empty() {
     println!("No matches found for: {}", terms.join(" "));
   } else {
@@ -321,6 +273,64 @@ pub fn search_insights_semantic(
       println!();
     }
   }
+}
+
+/// Sort semantic search results by similarity and name
+#[cfg(feature = "semantic")]
+fn sort_semantic_results(results: &mut [SemanticSearchResult]) {
+  results.sort_by(|a, b| {
+    b.similarity
+      .partial_cmp(&a.similarity)
+      .unwrap_or(std::cmp::Ordering::Equal)
+      .then(a.topic.cmp(&b.topic))
+      .then(a.name.cmp(&b.name))
+  });
+}
+
+/// Semantic similarity search using advanced text analysis
+#[cfg(feature = "semantic")]
+#[allow(dead_code)]
+pub fn search_insights_semantic(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  _case_sensitive: bool, // Note: Semantic search normalizes text, so case sensitivity doesn't apply
+  overview_only: bool,
+) -> Result<()> {
+  let query = terms.join(" ");
+  let insights_dir = get_insights_root()?;
+
+  if !insights_dir.exists() {
+    println!("No insights found. Create some insights first!");
+    return Ok(());
+  }
+
+  let mut results = Vec::new();
+  let query_words = extract_words(&query.to_lowercase());
+
+  // Process all topics
+  for entry in fs::read_dir(&insights_dir)? {
+    let entry = entry?;
+    let topic_path = entry.path();
+
+    if !topic_path.is_dir() {
+      continue;
+    }
+
+    let topic_name = topic_path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown");
+
+    // Apply topic filter
+    if let Some(filter) = topic_filter {
+      if topic_name != filter {
+        continue;
+      }
+    }
+
+    let topic_results = process_topic_semantic_search(&topic_path, &query_words, overview_only)?;
+    results.extend(topic_results);
+  }
+
+  sort_semantic_results(&mut results);
+  display_semantic_search_results(&results, terms);
 
   Ok(())
 }
@@ -787,6 +797,77 @@ fn collect_semantic_results(
   Ok(results)
 }
 
+/// Check if a file path represents a valid insight file
+fn is_insight_file(path: &Path) -> Option<&str> {
+  if path.extension().and_then(|s| s.to_str()) == Some("md") {
+    if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+      if file_stem.ends_with(".insight") {
+        return Some(file_stem.trim_end_matches(".insight"));
+      }
+    }
+  }
+  None
+}
+
+/// Process a single insight file and return SearchResult if it matches
+fn process_single_insight_file(
+  path: &Path,
+  insight_name: &str,
+  topic_name: &str,
+  terms: &[String],
+  case_sensitive: bool,
+  overview_only: bool,
+) -> Result<Option<SearchResult>> {
+  let content = fs::read_to_string(path)?;
+  let search_content = extract_searchable_content(&content, overview_only)?;
+  let (score, mut matching_lines) = calculate_term_matches(&search_content, terms, case_sensitive);
+
+  if score > 0 {
+    // Filter out empty lines and frontmatter for cleaner output
+    matching_lines.retain(|line| !line.trim().is_empty() && !line.starts_with("---"));
+
+    Ok(Some(SearchResult {
+      topic: topic_name.to_string(),
+      name: insight_name.to_string(),
+      matching_lines,
+      score,
+    }))
+  } else {
+    Ok(None)
+  }
+}
+
+/// Process insight files in a topic directory
+fn process_insight_files_in_topic(
+  topic_path: &Path,
+  terms: &[String],
+  case_sensitive: bool,
+  overview_only: bool,
+) -> Result<Vec<SearchResult>> {
+  let mut results = Vec::new();
+  
+  if !topic_path.exists() {
+    return Ok(results);
+  }
+
+  let topic_name = topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
+
+  for entry in fs::read_dir(topic_path)? {
+    let entry = entry?;
+    let path = entry.path();
+
+    if let Some(insight_name) = is_insight_file(&path) {
+      if let Ok(Some(result)) = process_single_insight_file(
+        &path, insight_name, topic_name, terms, case_sensitive, overview_only
+      ) {
+        results.push(result);
+      }
+    }
+  }
+
+  Ok(results)
+}
+
 /// Helper function to collect exact search results without printing them
 fn collect_exact_results(
   terms: &[String],
@@ -801,83 +882,11 @@ fn collect_exact_results(
     return Ok(results);
   }
 
-  let search_paths = if let Some(topic) = topic_filter {
-    vec![insights_root.join(topic)]
-  } else {
-    get_topics()?.into_iter().map(|topic| insights_root.join(topic)).collect()
-  };
+  let search_paths = build_search_paths(&insights_root, topic_filter)?;
 
   for topic_path in search_paths {
-    if !topic_path.exists() {
-      continue;
-    }
-
-    let topic_name = topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
-
-    for entry in fs::read_dir(&topic_path)? {
-      let entry = entry?;
-      let path = entry.path();
-
-      if path.extension().and_then(|s| s.to_str()) == Some("md") {
-        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-          if file_stem.ends_with(".insight") {
-            let insight_name = file_stem.trim_end_matches(".insight");
-
-            if let Ok(content) = fs::read_to_string(&path) {
-              let search_content = if overview_only {
-                if let Ok((overview, _)) = parse_insight_content(&content) {
-                  overview
-                } else {
-                  continue;
-                }
-              } else if let Ok((overview, details)) = parse_insight_content(&content) {
-                format!("{overview}\n\n{details}")
-              } else {
-                continue;
-              };
-
-              let mut score = 0;
-              let mut matching_lines = Vec::new();
-
-              for term in terms {
-                let term_matches = if case_sensitive {
-                  search_content.contains(term)
-                } else {
-                  search_content.to_lowercase().contains(&term.to_lowercase())
-                };
-
-                if term_matches {
-                  score += 1;
-                }
-              }
-
-              if score > 0 {
-                for line in search_content.lines() {
-                  let line_matches = terms.iter().any(|term| {
-                    if case_sensitive {
-                      line.contains(term)
-                    } else {
-                      line.to_lowercase().contains(&term.to_lowercase())
-                    }
-                  });
-
-                  if line_matches && !line.trim().is_empty() && !line.starts_with("---") {
-                    matching_lines.push(line.to_string());
-                  }
-                }
-
-                results.push(SearchResult {
-                  topic: topic_name.to_string(),
-                  name: insight_name.to_string(),
-                  matching_lines,
-                  score,
-                });
-              }
-            }
-          }
-        }
-      }
-    }
+    let topic_results = process_insight_files_in_topic(&topic_path, terms, case_sensitive, overview_only)?;
+    results.extend(topic_results);
   }
 
   Ok(results)
@@ -947,19 +956,20 @@ fn collect_neural_results(
   Ok(results)
 }
 
-/// Display combined results from multiple search methods
-fn display_combined_results(results: Vec<CombinedSearchResult>, terms: &[String]) -> Result<()> {
-  // Helper function to get search type priority (lower = higher priority)
-  fn search_type_priority(search_type: &str) -> u8 {
-    match search_type {
-      "exact" => 1,
-      "semantic" => 2,
-      "neural" => 3,
-      _ => 4,
-    }
+/// Get search type priority (lower = higher priority)
+fn search_type_priority(search_type: &str) -> u8 {
+  match search_type {
+    "exact" => 1,
+    "semantic" => 2,
+    "neural" => 3,
+    _ => 4,
   }
+}
 
-  // Group results by insight, collecting all search methods that found each one
+/// Group results by insight, collecting all search methods that found each one
+fn group_results_by_insight(
+  results: Vec<CombinedSearchResult>
+) -> HashMap<(String, String), Vec<CombinedSearchResult>> {
   let mut insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>> = HashMap::new();
 
   for result in results {
@@ -970,7 +980,13 @@ fn display_combined_results(results: Vec<CombinedSearchResult>, terms: &[String]
     insight_groups.entry(key).or_default().push(result);
   }
 
-  // For each insight, pick the best result but track how many search methods found it
+  insight_groups
+}
+
+/// Select best result from each group and prepare final sorted list
+fn select_best_results(
+  insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>>
+) -> Vec<CombinedSearchResult> {
   let mut final_results: Vec<(CombinedSearchResult, usize)> = Vec::new();
 
   for (_, mut group) in insight_groups {
@@ -1017,14 +1033,15 @@ fn display_combined_results(results: Vec<CombinedSearchResult>, terms: &[String]
   });
 
   // Extract just the results for display
-  let display_results: Vec<CombinedSearchResult> =
-    final_results.into_iter().map(|(result, _)| result).collect();
+  final_results.into_iter().map(|(result, _)| result).collect()
+}
 
-  // Display results
-  if display_results.is_empty() {
+/// Display the combined search results
+fn display_search_results_combined(results: &[CombinedSearchResult], terms: &[String]) {
+  if results.is_empty() {
     println!("No matches found for: {}", terms.join(" "));
   } else {
-    for result in display_results {
+    for result in results {
       println!(
         "=== {}/{} ({:.1}%) ===",
         result.topic.cyan(),
@@ -1041,7 +1058,13 @@ fn display_combined_results(results: Vec<CombinedSearchResult>, terms: &[String]
       println!();
     }
   }
+}
 
+/// Display combined results from multiple search methods
+fn display_combined_results(results: Vec<CombinedSearchResult>, terms: &[String]) -> Result<()> {
+  let insight_groups = group_results_by_insight(results);
+  let final_results = select_best_results(insight_groups);
+  display_search_results_combined(&final_results, terms);
   Ok(())
 }
 
@@ -1226,10 +1249,83 @@ fn create_embedding_direct(text: &str) -> Result<Vec<f32>> {
   Ok(embedding_vec)
 }
 
+/// Check if insight should be skipped during indexing
+#[cfg(feature = "neural")]
+fn should_skip_insight(insight: &crate::insight::Insight, force: bool, missing_only: bool) -> bool {
+  !force && missing_only && insight.has_embedding()
+}
+
+/// Save insight with embedding metadata to file
+#[cfg(feature = "neural")]
+fn save_insight_with_embedding(insight: &crate::insight::Insight) -> Result<()> {
+  let file_path = insight.file_path()?;
+
+  let frontmatter = crate::insight::FrontMatter {
+    overview: insight.overview.clone(),
+    embedding_version: insight.embedding_version.clone(),
+    embedding: insight.embedding.clone(),
+    embedding_text: insight.embedding_text.clone(),
+    embedding_computed: insight.embedding_computed,
+  };
+
+  let yaml_content = serde_yaml::to_string(&frontmatter)?;
+  let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
+  std::fs::write(&file_path, content)?;
+
+  Ok(())
+}
+
+/// Process a single insight for indexing
+#[cfg(feature = "neural")]
+fn process_single_insight_index(
+  topic: &str,
+  insight_name: &str,
+  force: bool,
+  missing_only: bool,
+) -> Result<(bool, bool)> { // (processed, skipped)
+  use crate::insight::Insight;
+
+  let mut insight = Insight::load(topic, insight_name)?;
+
+  // Check if we should skip this insight
+  if should_skip_insight(&insight, force, missing_only) {
+    println!("    · {insight_name} (already has embedding)");
+    return Ok((false, true));
+  }
+
+  print!("  · {insight_name}... ");
+  std::io::Write::flush(&mut std::io::stdout())?;
+
+  // Compute embedding
+  compute_and_set_embedding(&mut insight)?;
+  save_insight_with_embedding(&insight)?;
+  
+  println!("done");
+  Ok((true, false))
+}
+
+/// Print indexing summary
+#[cfg(feature = "neural")]
+fn print_index_summary(processed: usize, skipped: usize, errors: usize, topic_count: usize) {
+  println!(
+    "\nIndexed {} insights across {} topics {}",
+    processed.to_string().yellow(),
+    topic_count.to_string().yellow(),
+    "⚡".blue()
+  );
+
+  if skipped > 0 {
+    println!("  {} Skipped: {}", "⏭".blue(), skipped.to_string().yellow());
+  }
+  if errors > 0 {
+    println!("  {} Errors: {}", "❌".red(), errors.to_string().yellow());
+  }
+}
+
 /// Recompute embeddings for all insights
 #[cfg(feature = "neural")]
 pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
-  use crate::insight::{get_insights, get_topics, Insight};
+  use crate::insight::{get_insights, get_topics};
 
   let topics = get_topics()?;
 
@@ -1247,67 +1343,19 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
     println!("{} {}:", "◈".blue(), topic.cyan());
 
     for (_, insight_name) in insights {
-      let mut insight = match Insight::load(topic, &insight_name) {
-        Ok(insight) => insight,
-        Err(e) => {
-          eprintln!("    · Failed to load {insight_name}: {e}");
-          errors += 1;
-          continue;
-        }
-      };
-
-      // Check if we should skip this insight
-      if !force && missing_only && insight.has_embedding() {
-        println!("    · {insight_name} (already has embedding)");
-        skipped += 1;
-        continue;
-      }
-
-      print!("  · {insight_name}... ");
-      std::io::Write::flush(&mut std::io::stdout())?;
-
-      // Compute embedding
-      match compute_and_set_embedding(&mut insight) {
-        Ok(()) => {
-          // Save the insight with new embedding
-          let file_path = insight.file_path()?;
-
-          let frontmatter = crate::insight::FrontMatter {
-            overview: insight.overview.clone(),
-            embedding_version: insight.embedding_version.clone(),
-            embedding: insight.embedding.clone(),
-            embedding_text: insight.embedding_text.clone(),
-            embedding_computed: insight.embedding_computed,
-          };
-
-          let yaml_content = serde_yaml::to_string(&frontmatter)?;
-          let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
-          std::fs::write(&file_path, content)?;
-
-          println!("done");
-          processed += 1;
+      match process_single_insight_index(topic, &insight_name, force, missing_only) {
+        Ok((was_processed, was_skipped)) => {
+          if was_processed { processed += 1; }
+          if was_skipped { skipped += 1; }
         }
         Err(e) => {
-          println!("failed: {e}");
+          eprintln!("    · Failed to process {insight_name}: {e}");
           errors += 1;
         }
       }
     }
   }
 
-  println!(
-    "\nIndexed {} insights across {} topics {}",
-    processed.to_string().yellow(),
-    topics.len().to_string().yellow(),
-    "⚡".blue()
-  );
-
-  if skipped > 0 {
-    println!("  {} Skipped: {}", "⏭".blue(), skipped.to_string().yellow());
-  }
-  if errors > 0 {
-    println!("  {} Errors: {}", "❌".red(), errors.to_string().yellow());
-  }
-
+  print_index_summary(processed, skipped, errors, topics.len());
   Ok(())
 }

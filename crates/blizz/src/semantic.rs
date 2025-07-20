@@ -5,7 +5,7 @@ pub fn extract_words(text: &str) -> HashSet<String> {
   let stop_words: HashSet<&str> = [
     "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is",
     "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would",
-    "could", "should",
+    "could", "should", "over", "you", "your", "we", "our", "us", "they", "them", "their", "it", "its",
   ]
   .iter()
   .cloned()
