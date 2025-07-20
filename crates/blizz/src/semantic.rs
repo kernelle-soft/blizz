@@ -1,15 +1,31 @@
 use std::collections::HashSet;
 
+/// Common English stop words to filter out
+const STOP_WORDS: &[&str] = &[
+  // Articles and determiners
+  "the", "a", "an",
+  // Conjunctions 
+  "and", "or", "but",
+  // Prepositions
+  "in", "on", "at", "to", "for", "of", "with", "by", "over",
+  // Common verbs
+  "is", "are", "was", "were", "be", "been", 
+  "have", "has", "had", 
+  "do", "does", "did", 
+  "will", "would", "could", "should",
+  // Pronouns
+  "you", "your", "we", "our", "us", 
+  "they", "them", "their", "it", "its",
+];
+
+/// Get the stop words as a HashSet for efficient lookup
+fn get_stop_words() -> HashSet<&'static str> {
+  STOP_WORDS.iter().cloned().collect()
+}
+
 /// Extract meaningful words from text, filtering out common stop words
 pub fn extract_words(text: &str) -> HashSet<String> {
-  let stop_words: HashSet<&str> = [
-    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is",
-    "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would",
-    "could", "should", "over", "you", "your", "we", "our", "us", "they", "them", "their", "it", "its",
-  ]
-  .iter()
-  .cloned()
-  .collect();
+  let stop_words = get_stop_words();
 
   text
     .split_whitespace()

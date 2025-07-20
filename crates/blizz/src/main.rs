@@ -108,6 +108,29 @@ enum Commands {
   },
 }
 
+fn execute_search(
+  terms: &[String],
+  topic: Option<&str>,
+  case_sensitive: bool,
+  overview_only: bool,
+  exact: bool,
+  #[cfg(feature = "semantic")] semantic: bool,
+) -> Result<()> {
+  if exact {
+    return search_insights_exact(terms, topic, case_sensitive, overview_only);
+  }
+
+  #[cfg(feature = "semantic")]
+  if semantic {
+    search_insights_combined_semantic(terms, topic, case_sensitive, overview_only)
+  } else {
+    search_insights_combined_all(terms, topic, case_sensitive, overview_only)
+  }
+
+  #[cfg(not(feature = "semantic"))]
+  search_insights_combined_all(terms, topic, case_sensitive, overview_only)
+}
+
 fn main() -> Result<()> {
   let cli = Cli::parse();
 
@@ -115,29 +138,8 @@ fn main() -> Result<()> {
     Commands::Add { topic, name, overview, details } => {
       add_insight(&topic, &name, &overview, &details)?;
     }
-    Commands::Search {
-      topic,
-      case_sensitive,
-      overview_only,
-      terms,
-      #[cfg(feature = "semantic")]
-      semantic,
-      exact,
-    } => {
-      // Tiered search approach
-      if exact {
-        // Tier 3: Exact matching only (fastest)
-        search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-      } else if semantic {
-        // Tier 2: Semantic + Exact (drops neural for speed)
-        #[cfg(feature = "semantic")]
-        search_insights_combined_semantic(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-        #[cfg(not(feature = "semantic"))]
-        search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-      } else {
-        // Tier 1: All methods combined (best results)
-        search_insights_combined_all(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-      }
+    Commands::Search { topic, case_sensitive, overview_only, terms, #[cfg(feature = "semantic")] semantic, exact } => {
+      execute_search(&terms, topic.as_deref(), case_sensitive, overview_only, exact, #[cfg(feature = "semantic")] semantic)?;
     }
     Commands::Get { topic, name, overview } => {
       get_insight(&topic, &name, overview)?;

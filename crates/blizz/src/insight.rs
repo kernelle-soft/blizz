@@ -33,6 +33,7 @@ pub struct Insight {
   pub embedding_computed: Option<DateTime<Utc>>,
 }
 
+// Constructors and basic operations
 impl Insight {
   pub fn new(topic: String, name: String, overview: String, details: String) -> Self {
     Self {
@@ -70,6 +71,15 @@ impl Insight {
     }
   }
 
+  /// Get the file path for this insight
+  pub fn file_path(&self) -> Result<PathBuf> {
+    let insights_root = get_insights_root()?;
+    Ok(insights_root.join(&self.topic).join(format!("{}.insight.md", self.name)))
+  }
+}
+
+// Embedding-related operations
+impl Insight {
   /// Update embedding metadata for this insight
   pub fn set_embedding(&mut self, version: String, embedding: Vec<f32>, text: String) {
     self.embedding_version = Some(version);
@@ -87,13 +97,10 @@ impl Insight {
   pub fn get_embedding_text(&self) -> String {
     format!("{} {} {} {}", self.topic, self.name, self.overview, self.details)
   }
+}
 
-  /// Get the file path for this insight
-  pub fn file_path(&self) -> Result<PathBuf> {
-    let insights_root = get_insights_root()?;
-    Ok(insights_root.join(&self.topic).join(format!("{}.insight.md", self.name)))
-  }
-
+// Core file operations
+impl Insight {
   /// Save this insight to disk using YAML frontmatter format
   pub fn save(&self) -> Result<()> {
     let file_path = self.file_path()?;
@@ -108,23 +115,7 @@ impl Insight {
       return Err(anyhow!("Insight {}/{} already exists", self.topic, self.name));
     }
 
-    // Create frontmatter with overview and optional embedding metadata
-    let frontmatter = FrontMatter {
-      overview: self.overview.clone(),
-      embedding_version: self.embedding_version.clone(),
-      embedding: self.embedding.clone(),
-      embedding_text: self.embedding_text.clone(),
-      embedding_computed: self.embedding_computed,
-    };
-
-    // Serialize frontmatter to YAML
-    let yaml_content = serde_yaml::to_string(&frontmatter)?;
-
-    // Write the insight file with YAML frontmatter + markdown body
-    let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, self.details);
-    fs::write(&file_path, content)?;
-
-    Ok(())
+    self.write_to_file(&file_path)
   }
 
   /// Load an insight from disk
@@ -151,6 +142,29 @@ impl Insight {
     })
   }
 
+  /// Delete this insight from disk
+  pub fn delete(&self) -> Result<()> {
+    let file_path = self.file_path()?;
+
+    if !file_path.exists() {
+      return Err(anyhow!("Insight {}/{} not found", self.topic, self.name));
+    }
+
+    fs::remove_file(&file_path)?;
+
+    // Clean up empty topic directory
+    if let Some(topic_dir) = file_path.parent() {
+      if topic_dir.read_dir()?.next().is_none() {
+        fs::remove_dir(topic_dir)?;
+      }
+    }
+
+    Ok(())
+  }
+}
+
+// Update operations
+impl Insight {
   /// Update this insight on disk using YAML frontmatter format
   pub fn update(&mut self, new_overview: Option<&str>, new_details: Option<&str>) -> Result<()> {
     if let Some(overview) = new_overview {
@@ -171,15 +185,16 @@ impl Insight {
     }
 
     // Clear embedding metadata since content changed
-    // (will be recomputed in write operations)
-    if new_overview.is_some() || new_details.is_some() {
-      self.embedding_version = None;
-      self.embedding = None;
-      self.embedding_text = None;
-      self.embedding_computed = None;
-    }
+    self.clear_embedding_cache_if_content_changed(new_overview, new_details);
 
-    // Create frontmatter with updated content
+    self.write_to_file(&file_path)
+  }
+}
+
+// Helper functions for file operations
+impl Insight {
+  /// Helper method to write insight to file
+  fn write_to_file(&self, file_path: &PathBuf) -> Result<()> {
     let frontmatter = FrontMatter {
       overview: self.overview.clone(),
       embedding_version: self.embedding_version.clone(),
@@ -188,34 +203,25 @@ impl Insight {
       embedding_computed: self.embedding_computed,
     };
 
-    // Serialize frontmatter to YAML
     let yaml_content = serde_yaml::to_string(&frontmatter)?;
-
-    // Write the updated content
     let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, self.details);
-    fs::write(&file_path, content)?;
+    fs::write(file_path, content)?;
 
     Ok(())
   }
 
-  /// Delete this insight from disk
-  pub fn delete(&self) -> Result<()> {
-    let file_path = self.file_path()?;
-
-    if !file_path.exists() {
-      return Err(anyhow!("Insight {}/{} not found", self.topic, self.name));
+  /// Helper method to clear embedding cache when content changes
+  fn clear_embedding_cache_if_content_changed(
+    &mut self,
+    new_overview: Option<&str>,
+    new_details: Option<&str>,
+  ) {
+    if new_overview.is_some() || new_details.is_some() {
+      self.embedding_version = None;
+      self.embedding = None;
+      self.embedding_text = None;
+      self.embedding_computed = None;
     }
-
-    fs::remove_file(&file_path)?;
-
-    // Clean up empty topic directory
-    if let Some(topic_dir) = file_path.parent() {
-      if topic_dir.read_dir()?.next().is_none() {
-        fs::remove_dir(topic_dir)?;
-      }
-    }
-
-    Ok(())
   }
 }
 

@@ -60,44 +60,22 @@ impl EmbeddingModel for OnnxEmbeddingModel {
       return Ok(vec![]);
     }
 
-    // Use encode_batch for efficient processing of multiple texts
-    let encodings = self
-      .tokenizer
-      .encode_batch(texts.to_vec(), false)
-      .map_err(|e| anyhow!("Failed to encode texts: {}", e))?;
+    let encodings = self.tokenizer.encode_batch(texts.to_vec(), false).map_err(|e| anyhow!("Failed to encode texts: {}", e))?;
+    let token_length = encodings[0].len();
 
-    // Get the padded length (all encodings are padded to same length)
-    let padded_token_length = encodings[0].len();
+    let ids: Vec<i64> = encodings.iter().flat_map(|e| e.get_ids().iter().map(|&id| id as i64)).collect();
+    let mask: Vec<i64> = encodings.iter().flat_map(|e| e.get_attention_mask().iter().map(|&mask| mask as i64)).collect();
 
-    // Flatten all token IDs and attention masks for batched inference
-    let ids: Vec<i64> =
-      encodings.iter().flat_map(|e| e.get_ids().iter().map(|&id| id as i64)).collect();
-    let mask: Vec<i64> = encodings
-      .iter()
-      .flat_map(|e| e.get_attention_mask().iter().map(|&mask| mask as i64))
-      .collect();
+    let ids_tensor = TensorRef::from_array_view(([texts.len(), token_length], &*ids))?;
+    let mask_tensor = TensorRef::from_array_view(([texts.len(), token_length], &*mask))?;
 
-    // Create tensors with shape [batch_size, sequence_length]
-    let ids_tensor = TensorRef::from_array_view(([texts.len(), padded_token_length], &*ids))?;
-    let mask_tensor = TensorRef::from_array_view(([texts.len(), padded_token_length], &*mask))?;
-
-    // Run batched inference
     let outputs = self.session.run(ort::inputs![ids_tensor, mask_tensor])?;
-
-    // Extract embeddings from output (index 1 for sentence transformers contains pooled embeddings)
     let embedding_output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
-    let embeddings =
-      embedding_output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
+    let embeddings = embedding_output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
 
-    // Extract each embedding from the batch
-    let mut result = Vec::new();
-    for i in 0..texts.len() {
-      let embedding_view = embeddings.index_axis(ndarray::Axis(0), i);
-      let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
-      result.push(embedding_vec);
-    }
-
-    Ok(result)
+    Ok((0..texts.len())
+      .map(|i| embeddings.index_axis(ndarray::Axis(0), i).iter().copied().collect())
+      .collect())
   }
 }
 
