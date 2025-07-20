@@ -90,7 +90,7 @@ mod index_command_tests {
     // Test that command executes without panicking
     match result {
       Ok(_) => println!("Index completed successfully"),
-      Err(e) => println!("Index failed as expected in test environment: {}", e),
+      Err(e) => println!("Index failed as expected in test environment: {e}"),
     }
 
     Ok(())
@@ -126,7 +126,7 @@ mod index_command_tests {
     
     match result {
       Ok(_) => println!("Index completed"),
-      Err(e) => println!("Index failed as expected: {}", e),
+      Err(e) => println!("Index failed as expected: {e}"),
     }
 
     // Verify insights still exist
@@ -287,7 +287,7 @@ mod index_command_tests {
 // Tests that run regardless of feature flags
 #[cfg(test)]
 mod general_index_tests {
-  use super::*;
+  
 
   #[test]
   fn test_index_command_conditional_compilation() {

@@ -275,9 +275,9 @@ pub fn search_insights_semantic(
       
       // Include topic and insight names for better matching (consistent with neural search)
       let search_text = if overview_only {
-        format!("{} {} {}", topic_name, insight_name, overview)
+        format!("{topic_name} {insight_name} {overview}")
       } else {
-        format!("{} {} {} {}", topic_name, insight_name, overview, details)
+        format!("{topic_name} {insight_name} {overview} {details}")
       };
       
       // Calculate semantic similarity
@@ -288,7 +288,7 @@ pub fn search_insights_semantic(
         results.push(SemanticSearchResult {
           topic: topic_name.to_string(),
           name: insight_name.to_string(),
-          content: if overview_only { overview } else { format!("{}\n\n{}", overview, details) },
+          content: if overview_only { overview } else { format!("{overview}\n\n{details}") },
           similarity,
         });
       }
@@ -318,7 +318,7 @@ pub fn search_insights_semantic(
       let lines: Vec<&str> = result.content.lines().collect();
       for line in lines.iter() {
         if !line.trim().is_empty() && !line.starts_with("---") {
-          println!("{}", line);
+          println!("{line}");
         }
       }
       println!();
@@ -522,7 +522,7 @@ pub fn search_insights_neural(
       cached_embedding.clone()
     } else {
       // Fallback: compute embedding on-the-fly (slow)
-      warnings.push(format!("{}/{}", topic, name));
+      warnings.push(format!("{topic}/{name}"));
       
       let content = if overview_only {
         format!("{} {} {}", insight.topic, insight.name, insight.overview)
@@ -551,7 +551,7 @@ pub fn search_insights_neural(
   if !warnings.is_empty() {
     eprintln!("{} {} insights computed embeddings on-the-fly (slower):", "⚠".yellow(), warnings.len());
     for warning in &warnings {
-      eprintln!("  {}", warning);
+      eprintln!("  {warning}");
     }
     eprintln!("  {} Tip: Run 'blizz index' to cache embeddings for faster searches", "💡".blue());
     eprintln!();
@@ -572,7 +572,7 @@ pub fn search_insights_neural(
       let lines: Vec<&str> = full_content.lines().collect();
       for line in lines.iter() {
         if !line.starts_with("---") {
-          println!("{}", line);
+          println!("{line}");
         }
       }
       println!();
@@ -759,9 +759,9 @@ fn collect_semantic_results(
       let (overview, details) = parse_insight_content(&content)?;
       
       let search_text = if overview_only {
-        format!("{} {} {}", topic_name, insight_name, overview)
+        format!("{topic_name} {insight_name} {overview}")
       } else {
-        format!("{} {} {} {}", topic_name, insight_name, overview, details)
+        format!("{topic_name} {insight_name} {overview} {details}")
       };
       
       let similarity = calculate_semantic_similarity(&query_words, &search_text);
@@ -770,7 +770,7 @@ fn collect_semantic_results(
         results.push(SemanticSearchResult {
           topic: topic_name.to_string(),
           name: insight_name.to_string(),
-          content: if overview_only { overview } else { format!("{}\n\n{}", overview, details) },
+          content: if overview_only { overview } else { format!("{overview}\n\n{details}") },
           similarity,
         });
       }
@@ -823,12 +823,10 @@ fn collect_exact_results(
                 } else {
                   continue;
                 }
+              } else if let Ok((overview, details)) = parse_insight_content(&content) {
+                format!("{overview}\n\n{details}")
               } else {
-                if let Ok((overview, details)) = parse_insight_content(&content) {
-                  format!("{}\n\n{}", overview, details)
-                } else {
-                  continue;
-                }
+                continue;
               };
 
               let mut score = 0;
@@ -967,7 +965,7 @@ fn display_combined_results(
     let normalized_name = result.name.strip_suffix(".insight").unwrap_or(&result.name).to_string();
     let key = (result.topic.clone(), normalized_name);
     
-    insight_groups.entry(key).or_insert_with(Vec::new).push(result);
+    insight_groups.entry(key).or_default().push(result);
   }
   
   // For each insight, pick the best result but track how many search methods found it
@@ -1033,7 +1031,7 @@ fn display_combined_results(
       let lines: Vec<&str> = result.content.lines().collect();
       for line in lines.iter() {
         if !line.starts_with("---") {
-          println!("{}", line);
+          println!("{line}");
         }
       }
       println!();
@@ -1108,7 +1106,7 @@ mod daemon_client {
       let mut line = String::new();
       reader.read_line(&mut line).await?;
       
-      let response: EmbeddingResponse = serde_json::from_str(&line.trim())?;
+      let response: EmbeddingResponse = serde_json::from_str(line.trim())?;
       
       if let Some(error) = response.error {
           return Err(anyhow!("Daemon error: {}", error));
@@ -1251,7 +1249,7 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
       let mut insight = match Insight::load(topic, &insight_name) {
         Ok(insight) => insight,
         Err(e) => {
-          eprintln!("    · Failed to load {}: {}", insight_name, e);
+          eprintln!("    · Failed to load {insight_name}: {e}");
           errors += 1;
           continue;
         }
@@ -1259,12 +1257,12 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
       
       // Check if we should skip this insight
       if !force && missing_only && insight.has_embedding() {
-        println!("    · {} (already has embedding)", insight_name);
+        println!("    · {insight_name} (already has embedding)");
         skipped += 1;
         continue;
       }
       
-      print!("  · {}... ", insight_name);
+      print!("  · {insight_name}... ");
       std::io::Write::flush(&mut std::io::stdout())?;
       
       // Compute embedding
@@ -1289,7 +1287,7 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
           processed += 1;
         }
         Err(e) => {
-          println!("failed: {}", e);
+          println!("failed: {e}");
           errors += 1;
         }
       }

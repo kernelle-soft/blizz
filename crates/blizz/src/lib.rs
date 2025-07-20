@@ -5,3 +5,6 @@
 
 pub mod commands;
 pub mod insight;
+pub mod model;
+pub mod semantic;
+pub mod daemon;
