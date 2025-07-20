@@ -15,10 +15,15 @@ path = "src/lib.rs"
 name = "blizz"
 path = "src/main.rs"
 
+[[bin]]
+name = "blizz-daemon"
+path = "src/daemon.rs"
+
 [features]
-default = ["semantic", "neural"]
+default = ["semantic", "neural", "daemon"]
 semantic = []
 neural = ["ort", "ndarray", "tokenizers"]
+daemon = ["tokio", "uuid", "neural"]
 
 [dependencies]
 clap.workspace = true
@@ -38,6 +43,10 @@ tracing-subscriber.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true
+
+# Async runtime for daemon IPC
+tokio = { version = "1.0", features = ["full"], optional = true }
+uuid = { version = "1.0", features = ["v4"], optional = true }
 
 # Neural embeddings via ONNX (v2 API!)
 ort = { version = "2.0.0-rc.10", features = ["fetch-models"], optional = true }

@@ -585,64 +585,23 @@ pub fn search_insights_neural(
   Ok(())
 }
 
-/// Create embedding for text using ONNX model with proper BERT tokenization
+/// Create embedding - now uses daemon for speed!
 #[cfg(feature = "neural")]
-fn create_embedding(session: &mut ort::session::Session, text: &str) -> Result<Vec<f32>> {
-  use ort::value::TensorRef;
-  use tokenizers::Tokenizer;
-  use std::path::Path;
-  
-  // Load the proper BERT tokenizer for all-MiniLM-L6-v2
-  let tokenizer_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-    .join("data")
-    .join("tokenizer.json");
-  
-  let tokenizer = Tokenizer::from_file(&tokenizer_path)
-    .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))?;
-  
-  // Encode the text using the real tokenizer
-  let encoding = tokenizer.encode(text, false)
-    .map_err(|e| anyhow!("Failed to encode text: {}", e))?;
-  
-  // Get token IDs and attention mask
-  let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
-  let attention_mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&mask| mask as i64).collect();
-  
-  // Ensure we have the right sequence length (model expects max 512 tokens for BERT-style models)
-  let max_length = 512;
-  let mut padded_ids = token_ids;
-  let mut padded_mask = attention_mask;
-  
-  // Truncate if too long
-  if padded_ids.len() > max_length {
-    padded_ids.truncate(max_length);
-    padded_mask.truncate(max_length);
+fn create_embedding(_session: &mut ort::session::Session, text: &str) -> Result<Vec<f32>> {
+  #[cfg(feature = "daemon")]
+  {
+    // Use async runtime to call the new daemon-enabled function
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+      create_embedding_async(text).await
+    })
   }
   
-  // Pad if too short
-  while padded_ids.len() < max_length {
-    padded_ids.push(0); // PAD token
-    padded_mask.push(0); // Attention mask 0 for padding
+  #[cfg(not(feature = "daemon"))]
+  {
+    // Fallback to direct computation if daemon not available
+    create_embedding_direct(text)
   }
-  
-  // Create tensors with proper shape [1, sequence_length]
-  let ids_tensor = TensorRef::from_array_view(([1, max_length], &*padded_ids))?;
-  let mask_tensor = TensorRef::from_array_view(([1, max_length], &*padded_mask))?;
-  
-  // Run inference
-  let outputs = session.run(ort::inputs![ids_tensor, mask_tensor])?;
-  
-  // Extract embeddings from output (index 1 for sentence transformers contains pooled embeddings)
-  let embedding_output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
-  let embeddings = embedding_output
-    .try_extract_array::<f32>()?
-    .into_dimensionality::<ndarray::Ix2>()?;
-  
-  // Get the sentence embedding (should be shape [1, 384] for all-MiniLM-L6-v2)
-  let embedding_view = embeddings.index_axis(ndarray::Axis(0), 0);
-  let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
-  
-  Ok(embedding_vec)
 }
 
 /// Calculate cosine similarity between two embeddings
@@ -1039,4 +998,188 @@ fn display_combined_results(
   }
   
   Ok(())
+}
+
+/// Daemon client functions for invisible performance boost
+#[cfg(feature = "daemon")]
+mod daemon_client {
+  use anyhow::{anyhow, Result};
+  use serde::{Deserialize, Serialize};
+  use std::process::Stdio;
+  use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+  use tokio::net::UnixStream;
+  use tokio::process::Command;
+  use tokio::time::{sleep, Duration};
+
+  /// Request to compute an embedding
+  #[derive(Serialize, Deserialize)]
+  struct EmbeddingRequest {
+      text: String,
+      id: String,
+  }
+
+  /// Response with computed embedding
+  #[derive(Serialize, Deserialize)]
+  struct EmbeddingResponse {
+      embedding: Vec<f32>,
+      id: String,
+      error: Option<String>,
+  }
+
+  const SOCKET_PATH: &str = "/tmp/blizz-embeddings.sock";
+
+  /// Try to get embedding from daemon, with auto-start if needed
+  pub async fn get_embedding_from_daemon(text: &str) -> Result<Vec<f32>> {
+      // Try to connect to existing daemon
+      if let Ok(embedding) = request_embedding(text).await {
+          return Ok(embedding);
+      }
+      
+      // Daemon not running - auto-start it
+      start_daemon().await?;
+      
+      // Wait a moment for daemon to initialize
+      sleep(Duration::from_millis(500)).await;
+      
+      // Try again
+      request_embedding(text).await
+  }
+
+  /// Request embedding from running daemon
+  async fn request_embedding(text: &str) -> Result<Vec<f32>> {
+      let mut stream = UnixStream::connect(SOCKET_PATH).await
+          .map_err(|_| anyhow!("Daemon not running"))?;
+      
+      let request = EmbeddingRequest {
+          text: text.to_string(),
+          id: uuid::Uuid::new_v4().to_string(),
+      };
+      
+      // Send request
+      let request_json = serde_json::to_string(&request)?;
+      stream.write_all(request_json.as_bytes()).await?;
+      stream.write_all(b"\n").await?;
+      
+      // Read response
+      let mut reader = BufReader::new(&mut stream);
+      let mut line = String::new();
+      reader.read_line(&mut line).await?;
+      
+      let response: EmbeddingResponse = serde_json::from_str(&line.trim())?;
+      
+      if let Some(error) = response.error {
+          return Err(anyhow!("Daemon error: {}", error));
+      }
+      
+      Ok(response.embedding)
+  }
+
+  /// Start the daemon process invisibly
+  async fn start_daemon() -> Result<()> {
+      let executable_path = std::env::current_exe()?
+          .parent()
+          .ok_or_else(|| anyhow!("Could not find executable directory"))?
+          .join("blizz-daemon");
+      
+      let _child = Command::new(executable_path)
+          .stdout(Stdio::null())
+          .stderr(Stdio::null())
+          .stdin(Stdio::null())
+          .spawn()
+          .map_err(|e| anyhow!("Failed to start daemon: {}", e))?;
+      
+      // Don't wait for the daemon - let it run independently
+      Ok(())
+  }
+}
+
+/// Enhanced create_embedding that uses daemon for speed
+#[cfg(feature = "neural")]
+async fn create_embedding_async(text: &str) -> Result<Vec<f32>> {
+  #[cfg(feature = "daemon")]
+  {
+    // Try daemon first for speed
+    if let Ok(embedding) = daemon_client::get_embedding_from_daemon(text).await {
+        return Ok(embedding);
+    }
+  }
+  
+  // Fallback to direct computation (current slow method)
+  create_embedding_direct(text)
+}
+
+/// Direct embedding computation (the current slow method)
+#[cfg(feature = "neural")]
+fn create_embedding_direct(text: &str) -> Result<Vec<f32>> {
+  use ort::{session::{Session, builder::GraphOptimizationLevel}, value::TensorRef};
+  use tokenizers::Tokenizer;
+  use std::path::Path;
+  
+  // Initialize ONNX Runtime (required!)
+  ort::init()
+    .with_name("blizz")
+    .commit()
+    .map_err(|e| anyhow!("Failed to initialize ONNX Runtime: {}", e))?;
+  
+  // Load model
+  let mut session = Session::builder()
+    .map_err(|e| anyhow!("Failed to create session builder: {}", e))?
+    .with_optimization_level(GraphOptimizationLevel::Level1)
+    .map_err(|e| anyhow!("Failed to set optimization level: {}", e))?
+    .with_intra_threads(1)
+    .map_err(|e| anyhow!("Failed to set thread count: {}", e))?
+    .commit_from_url("https://cdn.pyke.io/0/pyke:ort-rs/example-models@0.0.0/all-MiniLM-L6-v2.onnx")
+    .map_err(|e| anyhow!("Failed to load model: {}", e))?;
+
+  // Load the proper BERT tokenizer for all-MiniLM-L6-v2
+  let tokenizer_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+    .join("data")
+    .join("tokenizer.json");
+  
+  let tokenizer = Tokenizer::from_file(&tokenizer_path)
+    .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))?;
+  
+  // Encode the text using the real tokenizer
+  let encoding = tokenizer.encode(text, false)
+    .map_err(|e| anyhow!("Failed to encode text: {}", e))?;
+  
+  // Get token IDs and attention mask
+  let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
+  let attention_mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&mask| mask as i64).collect();
+  
+  // Ensure we have the right sequence length (model expects max 512 tokens for BERT-style models)
+  let max_length = 512;
+  let mut padded_ids = token_ids;
+  let mut padded_mask = attention_mask;
+  
+  // Truncate if too long
+  if padded_ids.len() > max_length {
+    padded_ids.truncate(max_length);
+    padded_mask.truncate(max_length);
+  }
+  
+  // Pad if too short
+  while padded_ids.len() < max_length {
+    padded_ids.push(0); // PAD token
+    padded_mask.push(0); // Attention mask 0 for padding
+  }
+  
+  // Create tensors with proper shape [1, sequence_length]
+  let ids_tensor = TensorRef::from_array_view(([1, max_length], &*padded_ids))?;
+  let mask_tensor = TensorRef::from_array_view(([1, max_length], &*padded_mask))?;
+  
+  // Run inference
+  let outputs = session.run(ort::inputs![ids_tensor, mask_tensor])?;
+  
+  // Extract embeddings from output (index 1 for sentence transformers contains pooled embeddings)
+  let embedding_output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
+  let embeddings = embedding_output
+    .try_extract_array::<f32>()?
+    .into_dimensionality::<ndarray::Ix2>()?;
+  
+  // Get the sentence embedding (should be shape [1, 384] for all-MiniLM-L6-v2)
+  let embedding_view = embeddings.index_axis(ndarray::Axis(0), 0);
+  let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
+  
+  Ok(embedding_vec)
 }
