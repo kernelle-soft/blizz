@@ -43,11 +43,12 @@ pub fn average_chunk_complexity(file_content: &str) -> f64 {
 }
 
 fn calculate_chunk_scores(file_content: &str, chunks: &[(usize, usize)]) -> Vec<f64> {
+  let lines: Vec<&str> = file_content.lines().collect();
   chunks
     .iter()
     .map(|chunk| {
-      let chunk_content = &file_content[chunk.0..chunk.1];
-      scoring::complexity(chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY)
+      let chunk_content = lines[chunk.0..chunk.1].join("\n");
+      scoring::complexity(&chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY)
     })
     .collect()
 }
