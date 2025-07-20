@@ -139,22 +139,8 @@ fn execute_search(
   search_all(terms, topic, case_sensitive, overview_only)
 }
 
-/// Handle insight-based commands that need topic/name extraction
-fn handle_insight_command(id: &InsightId, command_type: InsightCommandType) -> Result<()> {
-  match command_type {
-    InsightCommandType::Add { overview, details } => {
-      add_insight(&id.topic, &id.name, &overview, &details)
-    }
-    InsightCommandType::Get { overview } => get_insight(&id.topic, &id.name, overview),
-    InsightCommandType::Update { overview, details } => {
-      update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())
-    }
-    InsightCommandType::Delete { force } => delete_insight(&id.topic, &id.name, force),
-  }
-}
-
 /// Handle search command with all its complex options
-fn handle_search_command(options: SearchOptions, terms: Vec<String>) -> Result<()> {
+fn search_insights(options: SearchOptions, terms: Vec<String>) -> Result<()> {
   execute_search(
     &terms,
     options.topic.as_deref(),
@@ -166,35 +152,27 @@ fn handle_search_command(options: SearchOptions, terms: Vec<String>) -> Result<(
   )
 }
 
-/// Enum for insight-based command types
-enum InsightCommandType {
-  Add { overview: String, details: String },
-  Get { overview: bool },
-  Update { overview: Option<String>, details: Option<String> },
-  Delete { force: bool },
-}
-
 fn main() -> Result<()> {
   let cli = Cli::parse();
 
   match cli.command {
     Commands::Add { id, overview, details } => {
-      handle_insight_command(&id, InsightCommandType::Add { overview, details })?;
+      add_insight(&id.topic, &id.name, &overview, &details)?;
     }
     Commands::Search { options, terms } => {
-      handle_search_command(options, terms)?;
+      search_insights(options, terms)?;
     }
     Commands::Get { id, overview } => {
-      handle_insight_command(&id, InsightCommandType::Get { overview })?;
+      get_insight(&id.topic, &id.name, overview)?;
     }
     Commands::List { topic, verbose } => {
       list_insights(topic.as_deref(), verbose)?;
     }
     Commands::Update { id, overview, details } => {
-      handle_insight_command(&id, InsightCommandType::Update { overview, details })?;
+      update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())?;
     }
     Commands::Delete { id, force } => {
-      handle_insight_command(&id, InsightCommandType::Delete { force })?;
+      delete_insight(&id.topic, &id.name, force)?;
     }
     Commands::Topics => {
       list_topics()?;

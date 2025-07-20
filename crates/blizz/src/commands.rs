@@ -1,11 +1,11 @@
 use anyhow::{anyhow, Result};
 use colored::*;
 use std::collections::HashMap;
-#[cfg(feature = "semantic")]
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::semantic;
 use crate::insight::*;
 
 #[derive(Debug)]
@@ -385,7 +385,7 @@ pub fn search_insights_semantic(
 ) -> Result<()> {
   let insights_dir = validate_insights_directory()?;
   let query = terms.join(" ");
-  let query_words = extract_words(&query.to_lowercase());
+  let query_words = semantic::extract_words(&query.to_lowercase());
 
   let results =
     process_all_topics_semantic(&insights_dir, &query_words, topic_filter, overview_only)?;
@@ -394,47 +394,10 @@ pub fn search_insights_semantic(
   Ok(())
 }
 
-// violet ignore chunk
-#[cfg(feature = "semantic")]
-const STOP_WORDS: &[&str] = &[
-  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is",
-  "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would",
-  "could", "should",
-];
-
-#[cfg(feature = "semantic")]
-fn get_stop_words() -> HashSet<&'static str> {
-  STOP_WORDS.iter().cloned().collect()
-}
-
-/// Clean a single word by removing non-alphanumeric characters
-#[cfg(feature = "semantic")]
-fn clean_word(word: &str) -> String {
-  word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase()
-}
-
-/// Check if a word should be kept (not empty and not a stop word)
-#[cfg(feature = "semantic")]
-fn should_keep_word(word: &str, stop_words: &HashSet<&str>) -> bool {
-  !word.is_empty() && !stop_words.contains(word)
-}
-
-/// Extract words from text, filtering stop words  
-#[cfg(feature = "semantic")]
-fn extract_words(text: &str) -> HashSet<String> {
-  let stop_words = get_stop_words();
-
-  text
-    .split_whitespace()
-    .map(clean_word)
-    .filter(|word| should_keep_word(word, &stop_words))
-    .collect()
-}
-
 /// Calculate semantic similarity using Jaccard + frequency analysis
 #[cfg(feature = "semantic")]
 fn calculate_semantic_similarity(query_words: &HashSet<String>, content: &str) -> f32 {
-  let content_words = extract_words(&content.to_lowercase());
+  let content_words = semantic::extract_words(&content.to_lowercase());
 
   if query_words.is_empty() || content_words.is_empty() {
     return 0.0;
@@ -971,7 +934,7 @@ fn collect_semantic_results(
     return Ok(Vec::new());
   }
 
-  let query_words = extract_words(&terms.join(" ").to_lowercase());
+  let query_words = semantic::extract_words(&terms.join(" ").to_lowercase());
   let mut results = Vec::new();
 
   for entry in fs::read_dir(&insights_dir)? {

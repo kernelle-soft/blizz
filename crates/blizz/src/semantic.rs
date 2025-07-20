@@ -2,29 +2,38 @@ use std::collections::HashSet;
 
 // violet ignore chunk
 /// Common English stop words to filter out
-const STOP_WORDS: &[&str] = &[
-  // Articles and determiners
-  "the", "a", "an", // Conjunctions
-  "and", "or", "but", // Prepositions
-  "in", "on", "at", "to", "for", "of", "with", "by", "over", // Common verbs
-  "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will",
-  "would", "could", "should", // Pronouns
-  "you", "your", "we", "our", "us", "they", "them", "their", "it", "its",
+pub const STOP_WORDS: &[&str] = &[
+  "the", "a", "an",
+  "and", "or", "but",
+  "in", "on", "at", 
+  "to", "for", "of", 
+  "with", "by", "over",
+  "is", "are", "was", 
+  "were", "be", "been",
+  "have", "has", "had", 
+  "do", "does", "did", 
+  "will", "would", "could", 
+  "should", "you", "your", 
+  "we", "our", "us",
+  "they", "them", "their",
+  "it", "its"
 ];
 
-/// Get the stop words as a HashSet for efficient lookup
-pub fn get_stop_words() -> HashSet<&'static str> {
-  STOP_WORDS.iter().cloned().collect()
+/// Container for semantic search results
+#[derive(Debug, Clone)]
+pub struct SemanticSearchResult {
+  pub topic: String,
+  pub name: String,
+  pub content: String,
+  pub similarity: f32,
 }
 
 /// Extract meaningful words from text, filtering out common stop words
 pub fn extract_words(text: &str) -> HashSet<String> {
-  let stop_words = get_stop_words();
-
   text
     .split_whitespace()
     .map(|word| word.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase())
-    .filter(|word| !word.is_empty() && !stop_words.contains(word.as_str()))
+    .filter(|word| !word.is_empty() && !STOP_WORDS.contains(&word.as_str()))
     .collect()
 }
 
@@ -52,21 +61,6 @@ pub fn calculate_semantic_similarity(query_words: &HashSet<String>, content: &st
 
   // Combined score: 60% Jaccard + 40% frequency
   (jaccard * 0.6) + (frequency_score.min(1.0) * 0.4)
-}
-
-/// Container for semantic search results
-#[derive(Debug, Clone)]
-pub struct SemanticSearchResult {
-  pub topic: String,
-  pub name: String,
-  pub content: String,
-  pub similarity: f32,
-}
-
-impl SemanticSearchResult {
-  pub fn new(topic: String, name: String, content: String, similarity: f32) -> Self {
-    Self { topic, name, content, similarity }
-  }
 }
 
 #[cfg(test)]
@@ -161,7 +155,7 @@ mod tests {
 
     let similarity = calculate_semantic_similarity(&query_words, content);
     assert_eq!(similarity, 0.0);
-  }
+  } 
 
   #[test]
   fn test_calculate_semantic_similarity_frequency_boost() {
@@ -178,12 +172,12 @@ mod tests {
 
   #[test]
   fn test_semantic_search_result_creation() {
-    let result = SemanticSearchResult::new(
-      "topic".to_string(),
-      "name".to_string(),
-      "content".to_string(),
-      0.75,
-    );
+    let result = SemanticSearchResult {
+      topic: "topic".to_string(),
+      name: "name".to_string(),
+      content: "content".to_string(),
+      similarity: 0.75,
+    };
 
     assert_eq!(result.topic, "topic");
     assert_eq!(result.name, "name");
