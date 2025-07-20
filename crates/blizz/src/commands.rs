@@ -588,20 +588,11 @@ pub fn search_insights_neural(
 /// Create embedding - now uses daemon for speed!
 #[cfg(feature = "neural")]
 fn create_embedding(_session: &mut ort::session::Session, text: &str) -> Result<Vec<f32>> {
-  #[cfg(feature = "daemon")]
-  {
-    // Use async runtime to call the new daemon-enabled function
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async {
-      create_embedding_async(text).await
-    })
-  }
-  
-  #[cfg(not(feature = "daemon"))]
-  {
-    // Fallback to direct computation if daemon not available
-    create_embedding_direct(text)
-  }
+  // Use async runtime to call the new daemon-enabled function
+  let rt = tokio::runtime::Runtime::new()?;
+  rt.block_on(async {
+    create_embedding_async(text).await
+  })
 }
 
 /// Calculate cosine similarity between two embeddings
@@ -1001,7 +992,7 @@ fn display_combined_results(
 }
 
 /// Daemon client functions for invisible performance boost
-#[cfg(feature = "daemon")]
+#[cfg(feature = "neural")]
 mod daemon_client {
   use anyhow::{anyhow, Result};
   use serde::{Deserialize, Serialize};
@@ -1011,17 +1002,17 @@ mod daemon_client {
   use tokio::process::Command;
   use tokio::time::{sleep, Duration};
 
-  /// Request to compute an embedding
+  /// Request to compute embeddings (supports batching!)
   #[derive(Serialize, Deserialize)]
   struct EmbeddingRequest {
-      text: String,
+      texts: Vec<String>,
       id: String,
   }
 
-  /// Response with computed embedding
+  /// Response with computed embeddings (supports batching!)
   #[derive(Serialize, Deserialize)]
   struct EmbeddingResponse {
-      embedding: Vec<f32>,
+      embeddings: Vec<Vec<f32>>,
       id: String,
       error: Option<String>,
   }
@@ -1051,7 +1042,7 @@ mod daemon_client {
           .map_err(|_| anyhow!("Daemon not running"))?;
       
       let request = EmbeddingRequest {
-          text: text.to_string(),
+          texts: vec![text.to_string()],
           id: uuid::Uuid::new_v4().to_string(),
       };
       
@@ -1071,7 +1062,8 @@ mod daemon_client {
           return Err(anyhow!("Daemon error: {}", error));
       }
       
-      Ok(response.embedding)
+      // Return the first (and only) embedding from the batch
+      Ok(response.embeddings.into_iter().next().unwrap_or_default())
   }
 
   /// Start the daemon process invisibly
@@ -1096,12 +1088,9 @@ mod daemon_client {
 /// Enhanced create_embedding that uses daemon for speed
 #[cfg(feature = "neural")]
 async fn create_embedding_async(text: &str) -> Result<Vec<f32>> {
-  #[cfg(feature = "daemon")]
-  {
-    // Try daemon first for speed
-    if let Ok(embedding) = daemon_client::get_embedding_from_daemon(text).await {
-        return Ok(embedding);
-    }
+  // Try daemon first for speed
+  if let Ok(embedding) = daemon_client::get_embedding_from_daemon(text).await {
+      return Ok(embedding);
   }
   
   // Fallback to direct computation (current slow method)

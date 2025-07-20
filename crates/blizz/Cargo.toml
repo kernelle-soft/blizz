@@ -20,10 +20,9 @@ name = "blizz-daemon"
 path = "src/daemon.rs"
 
 [features]
-default = ["semantic", "neural", "daemon"]
+default = ["semantic", "neural"]
 semantic = []
-neural = ["ort", "ndarray", "tokenizers"]
-daemon = ["tokio", "uuid", "neural"]
+neural = ["ort", "ndarray", "tokenizers", "tokio", "uuid"]
 
 [dependencies]
 clap.workspace = true

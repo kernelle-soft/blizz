@@ -10,17 +10,17 @@ use ort::{session::{Session, builder::GraphOptimizationLevel}, value::TensorRef}
 #[cfg(feature = "neural")]
 use tokenizers::Tokenizer;
 
-/// Request to compute an embedding
+/// Request to compute embeddings (supports batching!)
 #[derive(Serialize, Deserialize)]
 struct EmbeddingRequest {
-    text: String,
+    texts: Vec<String>,  // Changed to support multiple texts
     id: String,
 }
 
-/// Response with computed embedding
+/// Response with computed embeddings (supports batching!)
 #[derive(Serialize, Deserialize)]
 struct EmbeddingResponse {
-    embedding: Vec<f32>,
+    embeddings: Vec<Vec<f32>>,  // Changed to support multiple embeddings
     id: String,
     error: Option<String>,
 }
@@ -71,39 +71,33 @@ impl EmbeddingService {
         Err(anyhow!("Neural features not enabled"))
     }
 
-    /// Compute embedding for given text
+    /// Compute embeddings for given texts (supports batching!)
     #[cfg(feature = "neural")]
-    fn compute_embedding(&mut self, text: &str) -> Result<Vec<f32>> {
-        // Encode the text using the real tokenizer
-        let encoding = self.tokenizer.encode(text, false)
-            .map_err(|e| anyhow!("Failed to encode text: {}", e))?;
-        
-        // Get token IDs and attention mask
-        let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
-        let attention_mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&mask| mask as i64).collect();
-        
-        // Ensure we have the right sequence length
-        let max_length = 512;
-        let mut padded_ids = token_ids;
-        let mut padded_mask = attention_mask;
-        
-        // Truncate if too long
-        if padded_ids.len() > max_length {
-            padded_ids.truncate(max_length);
-            padded_mask.truncate(max_length);
+    fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        if texts.is_empty() {
+            return Ok(vec![]);
         }
         
-        // Pad if too short
-        while padded_ids.len() < max_length {
-            padded_ids.push(0); // PAD token
-            padded_mask.push(0); // Attention mask 0 for padding
-        }
+                 // Use encode_batch for efficient processing of multiple texts  
+         let encodings = self.tokenizer.encode_batch(texts.to_vec(), false)
+            .map_err(|e| anyhow!("Failed to encode texts: {}", e))?;
         
-        // Create tensors with proper shape [1, sequence_length]
-        let ids_tensor = TensorRef::from_array_view(([1, max_length], &*padded_ids))?;
-        let mask_tensor = TensorRef::from_array_view(([1, max_length], &*padded_mask))?;
+        // Get the padded length (all encodings are padded to same length)
+        let padded_token_length = encodings[0].len();
         
-        // Run inference
+        // Flatten all token IDs and attention masks for batched inference
+        let ids: Vec<i64> = encodings.iter()
+            .flat_map(|e| e.get_ids().iter().map(|&id| id as i64))
+            .collect();
+        let mask: Vec<i64> = encodings.iter()
+            .flat_map(|e| e.get_attention_mask().iter().map(|&mask| mask as i64))
+            .collect();
+        
+        // Create tensors with shape [batch_size, sequence_length]
+        let ids_tensor = TensorRef::from_array_view(([texts.len(), padded_token_length], &*ids))?;
+        let mask_tensor = TensorRef::from_array_view(([texts.len(), padded_token_length], &*mask))?;
+        
+        // Run batched inference
         let outputs = self.session.run(ort::inputs![ids_tensor, mask_tensor])?;
         
         // Extract embeddings from output (index 1 for sentence transformers contains pooled embeddings)
@@ -112,28 +106,32 @@ impl EmbeddingService {
             .try_extract_array::<f32>()?
             .into_dimensionality::<ndarray::Ix2>()?;
         
-        // Get the sentence embedding (should be shape [1, 384] for all-MiniLM-L6-v2)
-        let embedding_view = embeddings.index_axis(ndarray::Axis(0), 0);
-        let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
+        // Extract each embedding from the batch
+        let mut result = Vec::new();
+        for i in 0..texts.len() {
+            let embedding_view = embeddings.index_axis(ndarray::Axis(0), i);
+            let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
+            result.push(embedding_vec);
+        }
         
-        Ok(embedding_vec)
+        Ok(result)
     }
     
     #[cfg(not(feature = "neural"))]
-    fn compute_embedding(&mut self, _text: &str) -> Result<Vec<f32>> {
+    fn compute_embeddings(&mut self, _texts: &[String]) -> Result<Vec<Vec<f32>>> {
         Err(anyhow!("Neural features not enabled"))
     }
 
     /// Handle incoming embedding request
     async fn handle_request(&mut self, request: EmbeddingRequest) -> EmbeddingResponse {
-        match self.compute_embedding(&request.text) {
-            Ok(embedding) => EmbeddingResponse {
-                embedding,
+        match self.compute_embeddings(&request.texts) {
+            Ok(embeddings) => EmbeddingResponse {
+                embeddings,
                 id: request.id,
                 error: None,
             },
             Err(e) => EmbeddingResponse {
-                embedding: vec![],
+                embeddings: vec![],
                 id: request.id,
                 error: Some(e.to_string()),
             },
