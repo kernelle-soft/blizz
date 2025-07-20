@@ -36,16 +36,16 @@ enum Commands {
     #[arg(short, long)]
     topic: Option<String>,
     /// Case-sensitive search
-    #[arg(long)]
+    #[arg(short, long)]
     case_sensitive: bool,
     /// Search only in overview sections
     #[arg(short, long)]
     overview_only: bool,
-    /// Use algorithmic semantic similarity instead of neural embeddings
+    /// Use semantic + exact search only (drops neural for speed)
     #[cfg(feature = "semantic")]
     #[arg(short, long)]
     semantic: bool,
-    /// Use exact term matching (fastest)
+    /// Use exact term matching only (fastest, drops neural and semantic)
     #[arg(short, long)]
     exact: bool,
     /// Search terms (space-separated)
@@ -116,26 +116,19 @@ fn main() -> Result<()> {
       add_insight(&topic, &name, &overview, &details)?;
     }
     Commands::Search { topic, case_sensitive, overview_only, terms, #[cfg(feature = "semantic")] semantic, exact } => {
-      // Determine search mode based on flags
+      // Tiered search approach
       if exact {
-        // Exact matching (fastest)
+        // Tier 3: Exact matching only (fastest)
         search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-      } else if cfg!(feature = "semantic") && semantic {
-        // Algorithmic semantic similarity
-        #[cfg(feature = "semantic")]
-        search_insights_semantic(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-      } else {
-        // Neural embeddings (default)
-        #[cfg(feature = "neural")]
-        search_insights_neural(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-        
-        #[cfg(not(feature = "neural"))]
-        {
+              } else if semantic {
+          // Tier 2: Semantic + Exact (drops neural for speed)
           #[cfg(feature = "semantic")]
-          search_insights_semantic(&terms, topic.as_deref(), case_sensitive, overview_only)?;
+          search_insights_combined_semantic(&terms, topic.as_deref(), case_sensitive, overview_only)?;
           #[cfg(not(feature = "semantic"))]
           search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
-        }
+      } else {
+        // Tier 1: All methods combined (best results)
+        search_insights_combined_all(&terms, topic.as_deref(), case_sensitive, overview_only)?;
       }
     }
     Commands::Get { topic, name, overview } => {

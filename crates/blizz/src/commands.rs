@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use colored::*;
 use std::fs;
 use std::path::Path;
+use std::collections::HashMap;
 #[cfg(feature = "semantic")]
 use std::collections::HashSet;
 
@@ -22,6 +23,15 @@ struct SemanticSearchResult {
   name: String,
   content: String,
   similarity: f32, // semantic similarity score
+}
+
+#[derive(Debug, Clone)]
+struct CombinedSearchResult {
+  topic: String,
+  name: String,
+  content: String,
+  score: f32, // Unified score across search methods
+  search_type: String, // Which search method found this result
 }
 
 /// Creates a cross-platform symlink/junction
@@ -651,4 +661,390 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
   } else {
     dot_product / (magnitude_a * magnitude_b)
   }
+}
+
+/// Tier 2: Combined semantic + exact search (drops neural for speed)
+#[cfg(feature = "semantic")]
+pub fn search_insights_combined_semantic(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  case_sensitive: bool,
+  overview_only: bool,
+) -> Result<()> {
+  let mut all_results = Vec::new();
+  
+  // Collect semantic search results
+  let semantic_results = collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
+  for result in semantic_results {
+    all_results.push(CombinedSearchResult {
+      topic: result.topic,
+      name: result.name,
+      content: result.content,
+      score: result.similarity,
+      search_type: "semantic".to_string(),
+    });
+  }
+  
+  // Collect exact search results
+  let exact_results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
+  for result in exact_results {
+    all_results.push(CombinedSearchResult {
+      topic: result.topic,
+      name: result.name,
+      content: result.matching_lines.join("\n"),
+      score: result.score as f32 * 0.3, // Scale exact scores to be comparable
+      search_type: "exact".to_string(),
+    });
+  }
+  
+  display_combined_results(all_results, terms)
+}
+
+/// Tier 1: Combined neural + semantic + exact search (best results)
+pub fn search_insights_combined_all(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  case_sensitive: bool,
+  overview_only: bool,
+) -> Result<()> {
+  let mut all_results = Vec::new();
+  
+  // Collect neural search results (if available)
+  #[cfg(feature = "neural")]
+  {
+    let neural_results = collect_neural_results(terms, topic_filter, case_sensitive, overview_only)?;
+    for result in neural_results {
+      all_results.push(CombinedSearchResult {
+        topic: result.topic,
+        name: result.name,
+        content: result.content,
+        score: result.similarity,
+        search_type: "neural".to_string(),
+      });
+    }
+  }
+  
+  // Collect semantic search results (if available)
+  #[cfg(feature = "semantic")]
+  {
+    let semantic_results = collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
+    for result in semantic_results {
+      all_results.push(CombinedSearchResult {
+        topic: result.topic,
+        name: result.name,
+        content: result.content,
+        score: result.similarity * 0.8, // Scale semantic to be slightly lower than neural
+        search_type: "semantic".to_string(),
+      });
+    }
+  }
+  
+  // Collect exact search results
+  let exact_results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
+  for result in exact_results {
+    all_results.push(CombinedSearchResult {
+      topic: result.topic,
+      name: result.name,
+      content: result.matching_lines.join("\n"),
+      score: result.score as f32 * 0.3, // Scale exact scores to be comparable
+      search_type: "exact".to_string(),
+    });
+  }
+  
+  // If no advanced search methods are available, fall back to exact only
+  #[cfg(all(not(feature = "neural"), not(feature = "semantic")))]
+  {
+    return search_insights_exact(terms, topic_filter, case_sensitive, overview_only);
+  }
+  
+  display_combined_results(all_results, terms)
+}
+
+/// Helper function to collect semantic search results without printing them
+#[cfg(feature = "semantic")]
+fn collect_semantic_results(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  case_sensitive: bool,
+  overview_only: bool,
+) -> Result<Vec<SemanticSearchResult>> {
+  let query = terms.join(" ");
+  let insights_dir = get_insights_root()?;
+  let mut results = Vec::new();
+  
+  if !insights_dir.exists() {
+    return Ok(results);
+  }
+
+  let query_words = extract_words(&query.to_lowercase());
+  
+  for entry in fs::read_dir(&insights_dir)? {
+    let entry = entry?;
+    let topic_path = entry.path();
+    
+    if !topic_path.is_dir() {
+      continue;
+    }
+    
+    let topic_name = topic_path.file_name()
+      .and_then(|name| name.to_str())
+      .unwrap_or("unknown");
+    
+    if let Some(filter) = topic_filter {
+      if topic_name != filter {
+        continue;
+      }
+    }
+    
+    for insight_entry in fs::read_dir(&topic_path)? {
+      let insight_entry = insight_entry?;
+      let insight_path = insight_entry.path();
+      
+      if insight_path.extension().and_then(|s| s.to_str()) != Some("md") {
+        continue;
+      }
+      
+      let insight_name = insight_path.file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or("unknown");
+      
+      let content = fs::read_to_string(&insight_path)?;
+      let (overview, details) = parse_insight_content(&content)?;
+      
+      let search_text = if overview_only {
+        format!("{} {} {}", topic_name, insight_name, overview)
+      } else {
+        format!("{} {} {} {}", topic_name, insight_name, overview, details)
+      };
+      
+      let similarity = calculate_semantic_similarity(&query_words, &search_text);
+      
+      if similarity > 0.1 {
+        results.push(SemanticSearchResult {
+          topic: topic_name.to_string(),
+          name: insight_name.to_string(),
+          content: if overview_only { overview } else { format!("{}\n\n{}", overview, details) },
+          similarity,
+        });
+      }
+    }
+  }
+  
+  Ok(results)
+}
+
+/// Helper function to collect exact search results without printing them
+fn collect_exact_results(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  case_sensitive: bool,
+  overview_only: bool,
+) -> Result<Vec<SearchResult>> {
+  let insights_root = get_insights_root()?;
+  let mut results = Vec::new();
+
+  if !insights_root.exists() {
+    return Ok(results);
+  }
+
+  let search_paths = if let Some(topic) = topic_filter {
+    vec![insights_root.join(topic)]
+  } else {
+    get_topics()?.into_iter().map(|topic| insights_root.join(topic)).collect()
+  };
+
+  for topic_path in search_paths {
+    if !topic_path.exists() {
+      continue;
+    }
+
+    let topic_name = topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
+
+    for entry in fs::read_dir(&topic_path)? {
+      let entry = entry?;
+      let path = entry.path();
+
+      if path.extension().and_then(|s| s.to_str()) == Some("md") {
+        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+          if file_stem.ends_with(".insight") {
+            let insight_name = file_stem.trim_end_matches(".insight");
+
+            if let Ok(content) = fs::read_to_string(&path) {
+              let search_content = if overview_only {
+                if let Ok((overview, _)) = parse_insight_content(&content) {
+                  overview
+                } else {
+                  continue;
+                }
+              } else {
+                content
+              };
+
+              let mut score = 0;
+              let mut matching_lines = Vec::new();
+              
+              for term in terms {
+                let term_matches = if case_sensitive {
+                  search_content.contains(term)
+                } else {
+                  search_content.to_lowercase().contains(&term.to_lowercase())
+                };
+                
+                if term_matches {
+                  score += 1;
+                }
+              }
+              
+              if score > 0 {
+                for line in search_content.lines() {
+                  let line_matches = terms.iter().any(|term| {
+                    if case_sensitive {
+                      line.contains(term)
+                    } else {
+                      line.to_lowercase().contains(&term.to_lowercase())
+                    }
+                  });
+                  
+                  if line_matches && !line.trim().is_empty() && !line.starts_with("---") {
+                    matching_lines.push(line.to_string());
+                  }
+                }
+
+                results.push(SearchResult {
+                  topic: topic_name.to_string(),
+                  name: insight_name.to_string(),
+                  matching_lines,
+                  score,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  Ok(results)
+}
+
+/// Helper function to collect neural search results without printing them
+#[cfg(feature = "neural")]
+fn collect_neural_results(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  _case_sensitive: bool,
+  overview_only: bool,
+) -> Result<Vec<SemanticSearchResult>> {
+  use ort::{
+    session::{Session, builder::GraphOptimizationLevel}
+  };
+  
+  // Initialize ONNX Runtime
+  ort::init()
+    .with_name("blizz")
+    .commit()
+    .map_err(|e| anyhow!("Failed to initialize ONNX Runtime: {}", e))?;
+  
+  // Load model
+  let mut session = Session::builder()
+    .map_err(|e| anyhow!("Failed to create session builder: {}", e))?
+    .with_optimization_level(GraphOptimizationLevel::Level1)
+    .map_err(|e| anyhow!("Failed to set optimization level: {}", e))?
+    .with_intra_threads(1)
+    .map_err(|e| anyhow!("Failed to set thread count: {}", e))?
+    .commit_from_url("https://cdn.pyke.io/0/pyke:ort-rs/example-models@0.0.0/all-MiniLM-L6-v2.onnx")
+    .map_err(|e| anyhow!("Failed to load model: {}", e))?;
+
+  let query_text = terms.join(" ");
+  let query_embedding = create_embedding(&mut session, &query_text)
+    .map_err(|e| anyhow!("Failed to create query embedding: {}", e))?;
+  
+  let insight_refs = get_insights(topic_filter)?;
+  let mut results = Vec::new();
+  
+  for (topic, name) in insight_refs {
+    let insight = Insight::load(&topic, &name)?;
+    
+    let content = if overview_only {
+      format!("{} {} {}", insight.topic, insight.name, insight.overview)
+    } else {
+      format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
+    };
+    
+    let content_embedding = create_embedding(&mut session, &content)
+      .map_err(|e| anyhow!("Failed to create content embedding: {}", e))?;
+    
+    let similarity = cosine_similarity(&query_embedding, &content_embedding);
+    
+    if similarity > 0.1 {
+      results.push(SemanticSearchResult {
+        topic: insight.topic,
+        name: insight.name,
+        content: if overview_only { 
+          insight.overview 
+        } else { 
+          format!("{}\n{}", insight.overview, insight.details) 
+        },
+        similarity,
+      });
+    }
+  }
+  
+  Ok(results)
+}
+
+/// Display combined results from multiple search methods
+fn display_combined_results(
+  results: Vec<CombinedSearchResult>,
+  terms: &[String],
+) -> Result<()> {
+  // Deduplicate by topic/name, keeping the highest scored result
+  let mut best_results: HashMap<(String, String), CombinedSearchResult> = HashMap::new();
+  
+  for result in results {
+    let key = (result.topic.clone(), result.name.clone());
+    
+    if let Some(existing) = best_results.get(&key) {
+      if result.score > existing.score {
+        best_results.insert(key, result);
+      }
+    } else {
+      best_results.insert(key, result);
+    }
+  }
+  
+  // Convert back to vector and sort by score
+  let mut final_results: Vec<CombinedSearchResult> = best_results.into_values().collect();
+  final_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+  
+  // Display results
+  if final_results.is_empty() {
+    println!("No matches found for: {}", terms.join(" "));
+  } else {
+    for result in final_results {
+      let search_indicator = match result.search_type.as_str() {
+        "neural" => "🧠",
+        "semantic" => "🔗", 
+        "exact" => "🎯",
+        _ => "📝",
+      };
+      
+      println!("=== {}/{} ({} {:.1}%) ===", 
+        result.topic.cyan(), 
+        result.name.yellow(),
+        search_indicator,
+        result.score * 100.0
+      );
+      
+      let lines: Vec<&str> = result.content.lines().collect();
+      for line in lines.iter() {
+        if !line.trim().is_empty() && !line.starts_with("---") {
+          println!("{}", line);
+        }
+      }
+      println!();
+    }
+  }
+  
+  Ok(())
 }
