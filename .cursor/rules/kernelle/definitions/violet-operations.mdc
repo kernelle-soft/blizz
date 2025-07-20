@@ -3,6 +3,10 @@ description:
 globs:
 alwaysApply: true
 ---
+
+# Violet CLI Help
+
+```
 violet -h
 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool
 
@@ -15,3 +19,4 @@ Options:
   -q, --quiet    Only show files with violations
   -h, --help     Print help
   -V, --version  Print version
+```

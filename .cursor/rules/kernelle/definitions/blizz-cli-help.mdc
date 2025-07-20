@@ -1,46 +1,55 @@
 ---
-description: Historian CRUD operations for knowledge management
+description: Blizz CLI operations for knowledge management
 globs: 
 alwaysApply: true
 ---
-# Blizz CRUD Operations
+# Blizz CLI Operations
 
-This document defines the core Create, Read, Update, and Delete operations for Blizz's knowledge management system.
+## Top Level 
+```
+blizz -h
+Blizz - Knowledge Management System
+High-speed insight storage and retrieval for development workflows
 
-## Create Operations
+Usage: blizz <COMMAND>
 
-### Adding New Insights
-```bash
-blizz add <topic> <name> "<overview>" "<detailed_content>"
+Commands:
+  add     Add a new insight to the knowledge base
+  search  Search through all insights for matching content
+  get     Get content of a specific insight
+  list    List insights in a topic or all topics
+  update  Update an existing insight
+  delete  Delete an insight
+  topics  List all available topics
+  index   Recompute embeddings for all insights
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
 ```
 
-**Parameters:**
-- `topic` - The topic category (flat structure)
-- `name` - Descriptive name for the insight
-- `overview` - One-sentence summary of the key insight
-- `detailed_content` - 1-2 paragraphs of actionable details
+## Add
 
-**Example:**
-```bash
-blizz add debugging react-hooks-deps "Always check dependency arrays first" "When debugging React hooks, the most common issue is missing or incorrect dependencies in useEffect, useMemo, or useCallback arrays..."
+```
+blizz add -h
+Add a new insight to the knowledge base
+
+Usage: blizz add <TOPIC> <NAME> <OVERVIEW> <DETAILS>
+
+Arguments:
+  <TOPIC>     Topic category of the insight
+  <NAME>      Name of the insight
+  <OVERVIEW>  Brief overview/summary of the insight
+  <DETAILS>   Detailed content of the insight
+
+Options:
+  -h, --help  Print help
 ```
 
-### Linking Insights Across Topics
-```bash
-blizz link <src_topic> <src_name> <tgt_topic> [tgt_name]
+## Search
+
 ```
-
-**Purpose:** Connect related insights across the flat topic structure
-
-**Example:**
-```bash
-blizz link team-knowledge sarah-frontend debugging sarah-debugging-help
-```
-
-## Read Operations
-
-### Searching for Insights
-```bash
 blizz search -h
 Search through all insights for matching content
 
@@ -51,61 +60,106 @@ Arguments:
 
 Options:
   -t, --topic <TOPIC>   Optional topic to restrict search to
-      --case-sensitive  Case-sensitive search
+  -c, --case-sensitive  Case-sensitive search
   -o, --overview-only   Search only in overview sections
+  -s, --semantic        Use semantic + exact search only (drops neural for speed)
+  -e, --exact           Use exact term matching only (fastest, drops neural and semantic)
   -h, --help            Print help
 ```
 
-**Use Cases:**
-- Find relevant knowledge before starting complex tasks
-- Query knowledge base when stuck
-- Discover related patterns and solutions
+## Get
 
-### Retrieving Specific Insights
-```bash
-blizz get <topic> <name> [--overview]
+```
+blizz get -h
+Get content of a specific insight
+
+Usage: blizz get [OPTIONS] <TOPIC> <NAME>
+
+Arguments:
+  <TOPIC>  Topic category of the insight
+  <NAME>   Name of the insight
+
+Options:
+  -o, --overview  Show only the overview section
+  -h, --help      Print help
 ```
 
-**Use Cases:**
-- Get detailed information about a known insight
-- Quick overview check with `--overview` flag
+## List
 
-### Browsing Available Knowledge
-```bash
-# List insights globally or for a specific topic. --verbose also prints each insight's overview
-blizz list [topic] [--verbose]
+```
+blizz list -h
+List insights in a topic or all topics
 
-# List the topics that have at least one insight
-blizz topics
+Usage: blizz list [OPTIONS] [TOPIC]
+
+Arguments:
+  [TOPIC]  Optional topic to filter by
+
+Options:
+  -v, --verbose  Show overview content for each insight
+  -h, --help     Print help
 ```
 
-**Use Cases:**
-- Explore available knowledge areas
-- Understand the scope of stored insights
 
-## Update Operations
+## Update
 
-### Modifying Existing Insights
-```bash
-blizz update <topic> <name> [--overview "<new_overview>"] [--details "<new_details>"]
+```
+blizz update -h
+Update an existing insight
+
+Usage: blizz update [OPTIONS] <TOPIC> <NAME>
+
+Arguments:
+  <TOPIC>  Topic category of the insight
+  <NAME>   Name of the insight
+
+Options:
+  -o, --overview <OVERVIEW>  New overview content
+  -d, --details <DETAILS>    New details content
+  -h, --help                 Print help
 ```
 
-**When to Update:**
-- Discover improvements to existing patterns
-- Add new context to previous solutions
-- Refine understanding based on new experience
+## Delete
 
-## Delete Operations
+```
+blizz delete -h
+Delete an insight
 
-### Removing Outdated Insights
-```bash
-blizz delete <topic> <name> [--force]
+Usage: blizz delete [OPTIONS] <TOPIC> <NAME>
+
+Arguments:
+  <TOPIC>  Topic category of the insight
+  <NAME>   Name of the insight
+
+Options:
+  -f, --force  Skip confirmation prompt
+  -h, --help   Print help
 ```
 
-**When to Delete:**
-- Insights become obsolete due to tool/process changes
-- Duplicate insights that have been consolidated
-- Incorrect information that could mislead
+## Topics
+
+```
+blizz topics -h
+List all available topics
+
+Usage: blizz topics
+
+Options:
+  -h, --help  Print help
+```
+## Indexing
+
+```
+blizz index -h
+Recompute embeddings for all insights
+
+Usage: blizz index [OPTIONS]
+
+Options:
+  -f, --force         Force recompute even for insights that already have embeddings
+  -m, --missing-only  Only recompute missing embeddings (default behavior)
+  -h, --help          Print help
+```
 
 ## Quality Guidelines
 
