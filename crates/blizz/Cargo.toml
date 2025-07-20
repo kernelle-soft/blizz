@@ -16,8 +16,9 @@ name = "blizz"
 path = "src/main.rs"
 
 [features]
-default = ["semantic"]
-semantic = [] # Working algorithmic semantic search
+default = ["semantic", "neural"]
+semantic = []
+neural = ["ort", "ndarray", "tokenizers"]
 
 [dependencies]
 clap.workspace = true
@@ -37,6 +38,11 @@ tracing-subscriber.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true
+
+# Neural embeddings via ONNX (v2 API!)
+ort = { version = "2.0.0-rc.10", features = ["fetch-models"], optional = true }
+ndarray = { version = "0.16", optional = true }
+tokenizers = { version = "0.19", default-features = false, features = ["onig"], optional = true }
 
 # Future: Neural embeddings when ecosystem stabilizes
 

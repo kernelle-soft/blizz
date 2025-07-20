@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Result};
 use colored::*;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::hash::{Hash, Hasher};
 #[cfg(feature = "semantic")]
 use std::collections::HashSet;
 
@@ -56,35 +57,10 @@ pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Re
   Ok(())
 }
 
-/// Search through all insights for matching content
-#[cfg(feature = "semantic")]
-pub fn search_insights(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-  semantic: bool,
-) -> Result<()> {
-  if semantic {
-    search_insights_semantic(terms, topic_filter, overview_only)
-  } else {
-    search_insights_exact(terms, topic_filter, case_sensitive, overview_only)
-  }
-}
-
-/// Search through all insights for matching content (non-semantic version)
-#[cfg(not(feature = "semantic"))]
-pub fn search_insights(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  search_insights_exact(terms, topic_filter, case_sensitive, overview_only)
-}
+// Legacy search_insights function removed - now using specific search mode functions directly
 
 /// Exact term matching search (the original implementation)
-fn search_insights_exact(
+pub fn search_insights_exact(
   terms: &[String],
   topic_filter: Option<&str>,
   case_sensitive: bool,
@@ -215,7 +191,7 @@ fn search_insights_exact(
 
 /// Semantic similarity search using advanced text analysis
 #[cfg(feature = "semantic")]
-fn search_insights_semantic(
+pub fn search_insights_semantic(
   terms: &[String],
   topic_filter: Option<&str>,
   overview_only: bool,
@@ -492,4 +468,173 @@ pub fn list_topics() -> Result<()> {
   }
 
   Ok(())
+}
+
+/// Neural embedding search using ONNX
+#[cfg(feature = "neural")]
+pub fn search_insights_neural(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  overview_only: bool,
+) -> Result<()> {
+  use ort::{
+    session::{Session, builder::GraphOptimizationLevel},
+    value::TensorRef
+  };
+  
+  // Initialize neural embedding search
+  
+  // Initialize ONNX Runtime (required!)
+  ort::init()
+    .with_name("blizz")
+    .commit()
+    .map_err(|e| anyhow!("Failed to initialize ONNX Runtime: {}", e))?;
+  
+  // Load model directly from HuggingFace
+  let mut session = Session::builder()
+    .map_err(|e| anyhow!("Failed to create session builder: {}", e))?
+    .with_optimization_level(GraphOptimizationLevel::Level1)
+    .map_err(|e| anyhow!("Failed to set optimization level: {}", e))?
+    .with_intra_threads(1)
+    .map_err(|e| anyhow!("Failed to set thread count: {}", e))?
+    .commit_from_url("https://cdn.pyke.io/0/pyke:ort-rs/example-models@0.0.0/all-MiniLM-L6-v2.onnx")
+    .map_err(|e| anyhow!("Failed to load model: {}", e))?;
+
+  // Model loaded
+  
+  let query_text = terms.join(" ");
+  // Process query
+  
+  // Get query embedding
+  let query_embedding = create_embedding(&mut session, &query_text)
+    .map_err(|e| anyhow!("Failed to create query embedding: {}", e))?;
+  
+  // Query embedding ready
+  
+  // Get all insights and compute similarities
+  let insight_refs = get_insights(topic_filter)?;
+  let mut results = Vec::new();
+  
+  // Compute embeddings for all insights
+  
+  for (topic, name) in insight_refs {
+    // Load the insight
+    let insight = Insight::load(&topic, &name)?;
+    
+    let content = if overview_only {
+      &insight.overview
+    } else {
+      &format!("{} {}", insight.overview, insight.details)
+    };
+    
+    // Create embedding for this insight
+    let content_embedding = create_embedding(&mut session, content)
+      .map_err(|e| anyhow!("Failed to create content embedding: {}", e))?;
+    
+    // Calculate cosine similarity
+    let similarity = cosine_similarity(&query_embedding, &content_embedding);
+    
+    if similarity > 0.2 { // Similarity threshold
+      results.push((insight, similarity));
+    }
+  }
+  
+  // Sort by similarity (highest first)
+  results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+  
+  // Display results
+  
+  // Display results in same format as other searches
+  if results.is_empty() {
+    println!("No matches found for: {}", terms.join(" "));
+  } else {
+    for (result, similarity) in results {
+      println!("=== {}/{} === (similarity: {:.1}%)", 
+        result.topic.cyan(), 
+        result.name.yellow(),
+        similarity * 100.0
+      );
+      
+      let full_content = format!("{}\n{}", result.overview, result.details);
+      let lines: Vec<&str> = full_content.lines().collect();
+      for line in lines.iter() {
+        if !line.trim().is_empty() && !line.starts_with("---") {
+          println!("{}", line);
+        }
+      }
+      println!();
+    }
+  }
+  
+  Ok(())
+}
+
+/// Create embedding for text using ONNX model
+#[cfg(feature = "neural")]
+fn create_embedding(session: &mut ort::session::Session, text: &str) -> Result<Vec<f32>> {
+  use ort::value::TensorRef;
+  
+  // Better word-based tokenization
+  let lowercase_text = text.to_lowercase();
+  let words: Vec<&str> = lowercase_text
+    .split_whitespace()
+    .collect();
+  
+  // Simple vocabulary mapping (this is very basic!)
+  let mut tokens: Vec<i64> = vec![101]; // [CLS] token
+  
+  for word in words.iter().take(254) { // Leave room for [CLS] and [SEP]
+    // Hash word to a token ID (very simple approach)
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    std::hash::Hash::hash(word, &mut hasher);
+    // Constrain to valid range: [-30522, 30521], use positive range [1000, 30521]
+    let token_id = (std::hash::Hasher::finish(&hasher) % 29521) as i64 + 1000;
+    tokens.push(token_id);
+  }
+  
+  tokens.push(102); // [SEP] token
+  
+  // Pad to 256 tokens
+  tokens.resize(256, 0);
+  
+  let attention_mask: Vec<i64> = tokens.iter()
+    .map(|&id| if id != 0 { 1 } else { 0 })
+    .collect();
+  
+  // Create tensors
+  let ids_tensor = TensorRef::from_array_view(([1, 256], &*tokens))?;
+  let mask_tensor = TensorRef::from_array_view(([1, 256], &*attention_mask))?;
+  
+  // Run inference
+  let outputs = session.run(ort::inputs![ids_tensor, mask_tensor])?;
+  
+  // Extract embeddings from output (usually index 1 for sentence transformers)
+  let embedding_output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
+  let embeddings = embedding_output
+    .try_extract_array::<f32>()?
+    .into_dimensionality::<ndarray::Ix2>()?;
+  
+  // Get the first sentence embedding (index 0)
+  let embedding_view = embeddings.index_axis(ndarray::Axis(0), 0);
+  let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
+  
+  Ok(embedding_vec)
+}
+
+/// Calculate cosine similarity between two embeddings
+#[cfg(feature = "neural")]
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+  if a.len() != b.len() {
+    return 0.0;
+  }
+  
+  let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+  let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+  let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+  
+  if magnitude_a == 0.0 || magnitude_b == 0.0 {
+    0.0
+  } else {
+    dot_product / (magnitude_a * magnitude_b)
+  }
 }

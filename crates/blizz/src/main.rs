@@ -41,9 +41,12 @@ enum Commands {
     /// Search only in overview sections
     #[arg(short, long)]
     overview_only: bool,
-    /// Use exact term matching instead of semantic similarity
+    /// Use algorithmic semantic similarity instead of neural embeddings
     #[cfg(feature = "semantic")]
-    #[arg(long)]
+    #[arg(short, long)]
+    semantic: bool,
+    /// Use exact term matching (fastest)
+    #[arg(short, long)]
     exact: bool,
     /// Search terms (space-separated)
     #[arg(required = true)]
@@ -112,14 +115,27 @@ fn main() -> Result<()> {
     Commands::Add { topic, name, overview, details } => {
       add_insight(&topic, &name, &overview, &details)?;
     }
-    Commands::Search { topic, case_sensitive, overview_only, terms, #[cfg(feature = "semantic")] exact } => {
-      #[cfg(feature = "semantic")]
-      {
-        search_insights(&terms, topic.as_deref(), case_sensitive, overview_only, !exact)?;
-      }
-      #[cfg(not(feature = "semantic"))]
-      {
-        search_insights(&terms, topic.as_deref(), case_sensitive, overview_only)?;
+    Commands::Search { topic, case_sensitive, overview_only, terms, #[cfg(feature = "semantic")] semantic, exact } => {
+      // Determine search mode based on flags
+      if exact {
+        // Exact matching (fastest)
+        search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
+      } else if cfg!(feature = "semantic") && semantic {
+        // Algorithmic semantic similarity
+        #[cfg(feature = "semantic")]
+        search_insights_semantic(&terms, topic.as_deref(), overview_only)?;
+      } else {
+        // Neural embeddings (default)
+        #[cfg(feature = "neural")]
+        search_insights_neural(&terms, topic.as_deref(), overview_only)?;
+        
+        #[cfg(not(feature = "neural"))]
+        {
+          #[cfg(feature = "semantic")]
+          search_insights_semantic(&terms, topic.as_deref(), overview_only)?;
+          #[cfg(not(feature = "semantic"))]
+          search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
+        }
       }
     }
     Commands::Get { topic, name, overview } => {
