@@ -50,21 +50,42 @@ async fn handle_connection_result<M: blizz::model::EmbeddingModel>(
   }
 }
 
+async fn wait_for_connection_with_timeout(
+  listener: &UnixListener,
+  timeout_duration: Duration,
+) -> Result<(tokio::net::UnixStream, tokio::net::unix::SocketAddr), String> {
+  match timeout(timeout_duration, listener.accept()).await {
+    Ok(connection_result) => connection_result.map_err(|e| format!("Connection error: {}", e)),
+    Err(_) => Err("Timeout".to_string()),
+  }
+}
+
+async fn handle_single_connection<M: blizz::model::EmbeddingModel>(
+  listener: &UnixListener,
+  service: &mut EmbeddingService<M>,
+  timeout_duration: Duration,
+) -> Result<bool, ()> {
+  match wait_for_connection_with_timeout(listener, timeout_duration).await {
+    Ok(connection_result) => {
+      let should_continue = handle_connection_result(Ok(connection_result), service).await;
+      Ok(should_continue)
+    }
+    Err(error_msg) => {
+      if error_msg == "Timeout" {
+        println!("💤 Blizz daemon shutting down due to inactivity");
+      }
+      Ok(false)
+    }
+  }
+}
+
 async fn run_server_loop<M: blizz::model::EmbeddingModel>(listener: UnixListener, mut service: EmbeddingService<M>) -> Result<()> {
-  let inactivity_timeout = Duration::from_secs(INACTIVITY_TIMEOUT_SECS);
+  let timeout = Duration::from_secs(INACTIVITY_TIMEOUT_SECS);
 
   loop {
-    match timeout(inactivity_timeout, listener.accept()).await {
-      Ok(connection_result) => {
-        let should_continue = handle_connection_result(connection_result, &mut service).await;
-        if !should_continue {
-          break;
-        }
-      }
-      Err(_) => {
-        println!("💤 Blizz daemon shutting down due to inactivity");
-        break;
-      }
+    match handle_single_connection(&listener, &mut service, timeout).await {
+      Ok(true) => continue,
+      _ => break,
     }
   }
 

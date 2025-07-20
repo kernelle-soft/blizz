@@ -44,33 +44,33 @@ async fn compute_insight_embedding(insight: &Insight) -> Result<(String, Vec<f32
   Ok((version, embedding, embedding_text))
 }
 
-/// Compute embedding for an insight with fallback
-fn compute_and_set_embedding(insight: &mut Insight) -> Result<()> {
-  #[cfg(feature = "neural")]
-  {
-    // Use async runtime to compute embedding
-    let rt = tokio::runtime::Runtime::new()?;
-    match rt.block_on(async { compute_insight_embedding(insight).await }) {
-      Ok((version, embedding, text)) => {
-        insight.set_embedding(version, embedding, text);
-      }
-      Err(e) => {
-        eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
-        eprintln!(
-          "  {} Insight saved without embedding (can be computed later with 'blizz index')",
-          "ℹ".blue()
-        );
-      }
+#[cfg(feature = "neural")]
+fn handle_embedding_computation(insight: &mut Insight) -> Result<()> {
+  let rt = tokio::runtime::Runtime::new()?;
+  match rt.block_on(async { compute_insight_embedding(insight).await }) {
+    Ok((version, embedding, text)) => {
+      insight.set_embedding(version, embedding, text);
+    }
+    Err(e) => {
+      eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
+      eprintln!(
+        "  {} Insight saved without embedding (can be computed later with 'blizz index')",
+        "ℹ".blue()
+      );
     }
   }
+  Ok(())
+}
+
+fn compute_and_set_embedding(insight: &mut Insight) -> Result<()> {
+  #[cfg(feature = "neural")]
+  return handle_embedding_computation(insight);
 
   #[cfg(not(feature = "neural"))]
   {
-    // No embedding computation available
-    let _ = insight; // Suppress unused warning
+    let _ = insight;
+    Ok(())
   }
-
-  Ok(())
 }
 
 /// Add a new insight to the knowledge base
@@ -724,7 +724,46 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
   }
 }
 
-/// Tier 2: Combined semantic + exact search (drops neural for speed)
+#[cfg(feature = "semantic")]
+fn transform_semantic_results(semantic_results: Vec<SemanticSearchResult>) -> Vec<CombinedSearchResult> {
+  semantic_results.into_iter().map(|result| CombinedSearchResult {
+    topic: result.topic,
+    name: result.name,
+    content: result.content,
+    score: result.similarity,
+    search_type: "semantic".to_string(),
+  }).collect()
+}
+
+#[cfg(feature = "semantic")]
+fn transform_exact_results(exact_results: Vec<SearchResult>) -> Vec<CombinedSearchResult> {
+  exact_results.into_iter().map(|result| CombinedSearchResult {
+    topic: result.topic,
+    name: result.name,
+    content: result.matching_lines.join("\n"),
+    score: result.score as f32 * 0.3,
+    search_type: "exact".to_string(),
+  }).collect()
+}
+
+#[cfg(feature = "semantic")]
+fn collect_all_search_results(
+  terms: &[String],
+  topic_filter: Option<&str>,
+  case_sensitive: bool,
+  overview_only: bool,
+) -> Result<Vec<CombinedSearchResult>> {
+  let mut all_results = Vec::new();
+
+  let semantic_results = collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
+  all_results.extend(transform_semantic_results(semantic_results));
+
+  let exact_results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
+  all_results.extend(transform_exact_results(exact_results));
+
+  Ok(all_results)
+}
+
 #[cfg(feature = "semantic")]
 pub fn search_insights_combined_semantic(
   terms: &[String],
@@ -732,33 +771,7 @@ pub fn search_insights_combined_semantic(
   case_sensitive: bool,
   overview_only: bool,
 ) -> Result<()> {
-  let mut all_results = Vec::new();
-
-  // Collect semantic search results
-  let semantic_results =
-    collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
-  for result in semantic_results {
-    all_results.push(CombinedSearchResult {
-      topic: result.topic,
-      name: result.name,
-      content: result.content,
-      score: result.similarity,
-      search_type: "semantic".to_string(),
-    });
-  }
-
-  // Collect exact search results
-  let exact_results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
-  for result in exact_results {
-    all_results.push(CombinedSearchResult {
-      topic: result.topic,
-      name: result.name,
-      content: result.matching_lines.join("\n"),
-      score: result.score as f32 * 0.3, // Scale exact scores to be comparable
-      search_type: "exact".to_string(),
-    });
-  }
-
+  let all_results = collect_all_search_results(terms, topic_filter, case_sensitive, overview_only)?;
   display_combined_results(all_results, terms)
 }
 
@@ -1451,7 +1464,12 @@ fn pad_sequences(token_ids: Vec<i64>, attention_mask: Vec<i64>, max_length: usiz
   (padded_ids, padded_mask)
 }
 
-/// Run model inference and extract embeddings
+#[cfg(feature = "neural")]
+fn extract_sentence_embedding(embeddings: ndarray::ArrayView2<f32>) -> Vec<f32> {
+  let embedding_view = embeddings.index_axis(ndarray::Axis(0), 0);
+  embedding_view.iter().copied().collect()
+}
+
 #[cfg(feature = "neural")]
 fn run_inference_and_extract(
   session: &mut ort::session::Session,
@@ -1461,21 +1479,14 @@ fn run_inference_and_extract(
 ) -> Result<Vec<f32>> {
   use ort::value::TensorRef;
 
-  // Create tensors with proper shape [1, sequence_length]
   let ids_tensor = TensorRef::from_array_view(([1, max_length], &*padded_ids))?;
   let mask_tensor = TensorRef::from_array_view(([1, max_length], &*padded_mask))?;
 
-  // Run inference
   let outputs = session.run(ort::inputs![ids_tensor, mask_tensor])?;
-
-  // Extract embeddings from output (index 1 for sentence transformers contains pooled embeddings)
   let embedding_output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
   let embeddings = embedding_output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
 
-  // Get the sentence embedding (should be shape [1, 384] for all-MiniLM-L6-v2)
-  let embedding_view = embeddings.index_axis(ndarray::Axis(0), 0);
-  let embedding_vec: Vec<f32> = embedding_view.iter().copied().collect();
-
+  let embedding_vec = extract_sentence_embedding(embeddings);
   Ok(embedding_vec)
 }
 
