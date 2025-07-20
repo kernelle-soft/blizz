@@ -1,0 +1,17 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+violet -h
+Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool
+
+Usage: violet [OPTIONS] [PATH]...
+
+Arguments:
+  [PATH]...  
+
+Options:
+  -q, --quiet    Only show files with violations
+  -h, --help     Print help
+  -V, --version  Print version

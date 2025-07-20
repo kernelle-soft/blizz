@@ -4,7 +4,6 @@ use std::path::Path;
 #[cfg(feature = "neural")]
 use ort::{
   session::{builder::GraphOptimizationLevel, Session},
-  value::TensorRef,
 };
 #[cfg(feature = "neural")]
 use tokenizers::Tokenizer;
@@ -22,62 +21,114 @@ pub struct OnnxEmbeddingModel {
 }
 
 #[cfg(feature = "neural")]
+fn initialize_onnx_runtime() -> Result<()> {
+  ort::init()
+    .with_name("blizz-model")
+    .commit()
+    .map_err(|e| anyhow!("Failed to initialize ONNX Runtime: {}", e))
+    .map(|_| ())
+}
+
+#[cfg(feature = "neural")]
+fn create_model_session() -> Result<Session> {
+  let session = Session::builder()
+    .map_err(|e| anyhow!("Failed to create session builder: {}", e))?
+    .with_optimization_level(GraphOptimizationLevel::Level1)
+    .map_err(|e| anyhow!("Failed to set optimization level: {}", e))?
+    .with_intra_threads(1)
+    .map_err(|e| anyhow!("Failed to set thread count: {}", e))?
+    .commit_from_url(
+      "https://cdn.pyke.io/0/pyke:ort-rs/example-models@0.0.0/all-MiniLM-L6-v2.onnx",
+    )
+    .map_err(|e| anyhow!("Failed to load model: {}", e))?;
+  
+  Ok(session)
+}
+
+#[cfg(feature = "neural")]
+fn load_tokenizer() -> Result<Tokenizer> {
+  let tokenizer_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+    .join("data")
+    .join("tokenizer.json");
+
+  Tokenizer::from_file(&tokenizer_path)
+    .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))
+}
+
+#[cfg(feature = "neural")]
+fn tokenize_texts(tokenizer: &mut Tokenizer, texts: &[String]) -> Result<Vec<tokenizers::Encoding>> {
+  let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
+  tokenizer.encode_batch(text_refs, true)
+    .map_err(|e| anyhow!("Failed to encode texts: {}", e))
+}
+
+#[cfg(feature = "neural")]
+fn convert_encodings_to_tensor_data(
+  encodings: &[tokenizers::Encoding]
+) -> (Vec<i64>, Vec<i64>, usize, usize) {
+  let batch = encodings.len();
+  let length = encodings[0].len();
+  
+  let ids: Vec<i64> = encodings.iter()
+    .flat_map(|e| e.get_ids().iter().map(|&id| id as i64))
+    .collect();
+  
+  let mask: Vec<i64> = encodings.iter()
+    .flat_map(|e| e.get_attention_mask().iter().map(|&mask| mask as i64))
+    .collect();
+
+  (ids, mask, batch, length)
+}
+
+#[cfg(feature = "neural")]
+fn extract_embedding_vectors(
+  embeddings: ndarray::ArrayView2<f32>,
+  batch_size: usize,
+) -> Vec<Vec<f32>> {
+  let mut results = Vec::new();
+  for i in 0..batch_size {
+    let view = embeddings.index_axis(ndarray::Axis(0), i);
+    let vector: Vec<f32> = view.iter().copied().collect();
+    results.push(vector);
+  }
+  results
+}
+
+#[cfg(feature = "neural")]
 impl OnnxEmbeddingModel {
-  /// Initialize the ONNX model and tokenizer
   pub async fn new() -> Result<Self> {
-    // Initialize ONNX Runtime
-    ort::init()
-      .with_name("blizz-model")
-      .commit()
-      .map_err(|e| anyhow!("Failed to initialize ONNX Runtime: {}", e))?;
-
-    // Load model once at startup
-    let session = Session::builder()
-      .map_err(|e| anyhow!("Failed to create session builder: {}", e))?
-      .with_optimization_level(GraphOptimizationLevel::Level1)
-      .map_err(|e| anyhow!("Failed to set optimization level: {}", e))?
-      .with_intra_threads(1)
-      .map_err(|e| anyhow!("Failed to set thread count: {}", e))?
-      .commit_from_url(
-        "https://cdn.pyke.io/0/pyke:ort-rs/example-models@0.0.0/all-MiniLM-L6-v2.onnx",
-      )
-      .map_err(|e| anyhow!("Failed to load model: {}", e))?;
-
-    // Load tokenizer
-    let tokenizer_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("tokenizer.json");
-
-    let tokenizer = Tokenizer::from_file(&tokenizer_path)
-      .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))?;
-
+    initialize_onnx_runtime()?;
+    let session = create_model_session()?;
+    let tokenizer = load_tokenizer()?;
+    
     Ok(Self { session, tokenizer })
   }
 }
 
 #[cfg(feature = "neural")]
 impl EmbeddingModel for OnnxEmbeddingModel {
+
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
     if texts.is_empty() {
       return Ok(vec![]);
     }
 
-    let encodings = self.tokenizer.encode_batch(texts.to_vec(), false).map_err(|e| anyhow!("Failed to encode texts: {}", e))?;
-    let token_length = encodings[0].len();
-
-    let ids: Vec<i64> = encodings.iter().flat_map(|e| e.get_ids().iter().map(|&id| id as i64)).collect();
-    let mask: Vec<i64> = encodings.iter().flat_map(|e| e.get_attention_mask().iter().map(|&mask| mask as i64)).collect();
-
-    let ids_tensor = TensorRef::from_array_view(([texts.len(), token_length], &*ids))?;
-    let mask_tensor = TensorRef::from_array_view(([texts.len(), token_length], &*mask))?;
-
+    let encodings = tokenize_texts(&mut self.tokenizer, texts)?;
+    let (ids, mask, batch, length) = convert_encodings_to_tensor_data(&encodings);
+    
+    let ids_tensor = ort::value::TensorRef::from_array_view(([batch, length], &*ids))?;
+    let mask_tensor = ort::value::TensorRef::from_array_view(([batch, length], &*mask))?;
+    
     let outputs = self.session.run(ort::inputs![ids_tensor, mask_tensor])?;
-    let embedding_output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
-    let embeddings = embedding_output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
-
-    Ok((0..texts.len())
-      .map(|i| embeddings.index_axis(ndarray::Axis(0), i).iter().copied().collect())
-      .collect())
+    let output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
+    let embeddings = output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
+    
+    let results = extract_embedding_vectors(embeddings, texts.len());
+    Ok(results)
   }
 }
+
+
 
 /// Mock embedding model for testing
 pub struct MockEmbeddingModel {

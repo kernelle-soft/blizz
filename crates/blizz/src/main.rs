@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
 mod commands;
 mod insight;
@@ -9,7 +9,7 @@ use commands::*;
 #[derive(Parser)]
 #[command(name = "blizz")]
 #[command(
-  about = "⚡ Blizz - Knowledge Management System\nHigh-speed insight storage and retrieval for development workflows"
+  about = "Blizz - Knowledge Management System\nHigh-speed insight storage and retrieval for development workflows"
 )]
 #[command(version)]
 struct Cli {
@@ -17,14 +17,43 @@ struct Cli {
   command: Commands,
 }
 
+/// Common insight identifier arguments
+#[derive(Args)]
+struct InsightId {
+  /// Topic category of the insight
+  topic: String,
+  /// Name of the insight
+  name: String,
+}
+
+/// Search configuration options
+#[derive(Args)]
+struct SearchOptions {
+  /// Optional topic to restrict search to
+  #[arg(short, long)]
+  topic: Option<String>,
+  /// Case-sensitive search
+  #[arg(short, long)]
+  case_sensitive: bool,
+  /// Search only in overview sections
+  #[arg(short, long)]
+  overview_only: bool,
+  /// Use semantic + exact search only (drops neural for speed)
+  #[cfg(feature = "semantic")]
+  #[arg(short, long)]
+  semantic: bool,
+  /// Use exact term matching only (fastest, drops neural and semantic)
+  #[arg(short, long)]
+  exact: bool,
+}
+
+// violet ignore chunk
 #[derive(Subcommand)]
 enum Commands {
   /// Add a new insight to the knowledge base
   Add {
-    /// Topic category for the insight
-    topic: String,
-    /// Name/identifier for the insight
-    name: String,
+    #[command(flatten)]
+    id: InsightId,
     /// Brief overview/summary of the insight
     overview: String,
     /// Detailed content of the insight
@@ -32,32 +61,16 @@ enum Commands {
   },
   /// Search through all insights for matching content
   Search {
-    /// Optional topic to restrict search to
-    #[arg(short, long)]
-    topic: Option<String>,
-    /// Case-sensitive search
-    #[arg(short, long)]
-    case_sensitive: bool,
-    /// Search only in overview sections
-    #[arg(short, long)]
-    overview_only: bool,
-    /// Use semantic + exact search only (drops neural for speed)
-    #[cfg(feature = "semantic")]
-    #[arg(short, long)]
-    semantic: bool,
-    /// Use exact term matching only (fastest, drops neural and semantic)
-    #[arg(short, long)]
-    exact: bool,
+    #[command(flatten)]
+    options: SearchOptions,
     /// Search terms (space-separated)
     #[arg(required = true)]
     terms: Vec<String>,
   },
   /// Get content of a specific insight
   Get {
-    /// Topic category of the insight
-    topic: String,
-    /// Name of the insight
-    name: String,
+    #[command(flatten)]
+    id: InsightId,
     /// Show only the overview section
     #[arg(short, long)]
     overview: bool,
@@ -72,10 +85,8 @@ enum Commands {
   },
   /// Update an existing insight
   Update {
-    /// Topic category of the insight
-    topic: String,
-    /// Name of the insight
-    name: String,
+    #[command(flatten)]
+    id: InsightId,
     /// New overview content
     #[arg(short, long)]
     overview: Option<String>,
@@ -83,13 +94,10 @@ enum Commands {
     #[arg(short, long)]
     details: Option<String>,
   },
-
   /// Delete an insight
   Delete {
-    /// Topic category of the insight
-    topic: String,
-    /// Name of the insight
-    name: String,
+    #[command(flatten)]
+    id: InsightId,
     /// Skip confirmation prompt
     #[arg(short, long)]
     force: bool,
@@ -124,34 +132,72 @@ fn execute_search(
   if semantic {
     search_insights_combined_semantic(terms, topic, case_sensitive, overview_only)
   } else {
-    search_insights_combined_all(terms, topic, case_sensitive, overview_only)
+    search_all(terms, topic, case_sensitive, overview_only)
   }
 
   #[cfg(not(feature = "semantic"))]
-  search_insights_combined_all(terms, topic, case_sensitive, overview_only)
+  search_all(terms, topic, case_sensitive, overview_only)
+}
+
+/// Handle insight-based commands that need topic/name extraction
+fn handle_insight_command(id: &InsightId, command_type: InsightCommandType) -> Result<()> {
+  match command_type {
+    InsightCommandType::Add { overview, details } => {
+      add_insight(&id.topic, &id.name, &overview, &details)
+    }
+    InsightCommandType::Get { overview } => {
+      get_insight(&id.topic, &id.name, overview)
+    }
+    InsightCommandType::Update { overview, details } => {
+      update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())
+    }
+    InsightCommandType::Delete { force } => {
+      delete_insight(&id.topic, &id.name, force)
+    }
+  }
+}
+
+/// Handle search command with all its complex options
+fn handle_search_command(options: SearchOptions, terms: Vec<String>) -> Result<()> {
+  execute_search(
+    &terms, 
+    options.topic.as_deref(), 
+    options.case_sensitive, 
+    options.overview_only, 
+    options.exact,
+    #[cfg(feature = "semantic")] options.semantic
+  )
+}
+
+/// Enum for insight-based command types
+enum InsightCommandType {
+  Add { overview: String, details: String },
+  Get { overview: bool },
+  Update { overview: Option<String>, details: Option<String> },
+  Delete { force: bool },
 }
 
 fn main() -> Result<()> {
   let cli = Cli::parse();
 
   match cli.command {
-    Commands::Add { topic, name, overview, details } => {
-      add_insight(&topic, &name, &overview, &details)?;
+    Commands::Add { id, overview, details } => {
+      handle_insight_command(&id, InsightCommandType::Add { overview, details })?;
     }
-    Commands::Search { topic, case_sensitive, overview_only, terms, #[cfg(feature = "semantic")] semantic, exact } => {
-      execute_search(&terms, topic.as_deref(), case_sensitive, overview_only, exact, #[cfg(feature = "semantic")] semantic)?;
+    Commands::Search { options, terms } => {
+      handle_search_command(options, terms)?;
     }
-    Commands::Get { topic, name, overview } => {
-      get_insight(&topic, &name, overview)?;
+    Commands::Get { id, overview } => {
+      handle_insight_command(&id, InsightCommandType::Get { overview })?;
     }
     Commands::List { topic, verbose } => {
       list_insights(topic.as_deref(), verbose)?;
     }
-    Commands::Update { topic, name, overview, details } => {
-      update_insight(&topic, &name, overview.as_deref(), details.as_deref())?;
+    Commands::Update { id, overview, details } => {
+      handle_insight_command(&id, InsightCommandType::Update { overview, details })?;
     }
-    Commands::Delete { topic, name, force } => {
-      delete_insight(&topic, &name, force)?;
+    Commands::Delete { id, force } => {
+      handle_insight_command(&id, InsightCommandType::Delete { force })?;
     }
     Commands::Topics => {
       list_topics()?;

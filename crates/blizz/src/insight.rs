@@ -33,7 +33,6 @@ pub struct Insight {
   pub embedding_computed: Option<DateTime<Utc>>,
 }
 
-// Constructors and basic operations
 impl Insight {
   pub fn new(topic: String, name: String, overview: String, details: String) -> Self {
     Self {
@@ -48,30 +47,6 @@ impl Insight {
     }
   }
 
-  /// Create a new insight with embedding metadata
-  #[allow(dead_code)]
-  pub fn new_with_embedding(
-    topic: String,
-    name: String,
-    overview: String,
-    details: String,
-    embedding_version: String,
-    embedding: Vec<f32>,
-    embedding_text: String,
-  ) -> Self {
-    Self {
-      topic,
-      name,
-      overview,
-      details,
-      embedding_version: Some(embedding_version),
-      embedding: Some(embedding),
-      embedding_text: Some(embedding_text),
-      embedding_computed: Some(Utc::now()),
-    }
-  }
-
-  /// Get the file path for this insight
   pub fn file_path(&self) -> Result<PathBuf> {
     let insights_root = get_insights_root()?;
     Ok(insights_root.join(&self.topic).join(format!("{}.insight.md", self.name)))
@@ -104,63 +79,76 @@ impl Insight {
   /// Save this insight to disk using YAML frontmatter format
   pub fn save(&self) -> Result<()> {
     let file_path = self.file_path()?;
-
-    // Create the topic directory if it doesn't exist
-    if let Some(parent) = file_path.parent() {
-      fs::create_dir_all(parent)?;
-    }
-
-    // Check if insight already exists
-    if file_path.exists() {
-      return Err(anyhow!("Insight {}/{} already exists", self.topic, self.name));
-    }
-
+    ensure_parent_dir_exists(&file_path)?;
+    check_insight_is_new(&file_path, &self.topic, &self.name)?;
     self.write_to_file(&file_path)
   }
 
   /// Load an insight from disk
   pub fn load(topic: &str, name: &str) -> Result<Self> {
-    let insights_root = get_insights_root()?;
-    let file_path = insights_root.join(topic).join(format!("{name}.insight.md"));
-
-    if !file_path.exists() {
-      return Err(anyhow!("Insight {}/{} not found", topic, name));
-    }
-
+    let file_path = make_insight_path(topic, name)?;
+    check_insight_exists(&file_path, topic, name)?;
     let content = fs::read_to_string(&file_path)?;
-    let (frontmatter, details) = parse_insight_with_metadata(&content)?;
-
-    Ok(Insight {
-      topic: topic.to_string(),
-      name: name.to_string(),
-      overview: frontmatter.overview,
-      details,
-      embedding_version: frontmatter.embedding_version,
-      embedding: frontmatter.embedding,
-      embedding_text: frontmatter.embedding_text,
-      embedding_computed: frontmatter.embedding_computed,
-    })
+    parse_insight_from_content(topic, name, &content)
   }
 
   /// Delete this insight from disk
   pub fn delete(&self) -> Result<()> {
     let file_path = self.file_path()?;
-
-    if !file_path.exists() {
-      return Err(anyhow!("Insight {}/{} not found", self.topic, self.name));
-    }
-
+    check_insight_exists(&file_path, &self.topic, &self.name)?;
     fs::remove_file(&file_path)?;
-
-    // Clean up empty topic directory
-    if let Some(topic_dir) = file_path.parent() {
-      if topic_dir.read_dir()?.next().is_none() {
-        fs::remove_dir(topic_dir)?;
-      }
-    }
-
+    cleanup_empty_dir(&file_path)?;
     Ok(())
   }
+}
+
+fn make_insight_path(topic: &str, name: &str) -> Result<std::path::PathBuf> {
+  let root = get_insights_root()?;
+  Ok(root.join(topic).join(format!("{name}.insight.md")))
+}
+
+fn ensure_parent_dir_exists(path: &std::path::Path) -> Result<()> {
+  if let Some(parent) = path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+  Ok(())
+}
+
+fn check_insight_is_new(path: &std::path::Path, topic: &str, name: &str) -> Result<()> {
+  if path.exists() {
+    return Err(anyhow!("Insight {}/{} already exists", topic, name));
+  }
+  Ok(())
+}
+
+fn check_insight_exists(path: &std::path::Path, topic: &str, name: &str) -> Result<()> {
+  if !path.exists() {
+    return Err(anyhow!("Insight {}/{} not found", topic, name));
+  }
+  Ok(())
+}
+
+fn parse_insight_from_content(topic: &str, name: &str, content: &str) -> Result<Insight> {
+  let (fm, details) = parse_insight_with_metadata(content)?;
+  Ok(Insight {
+    topic: topic.to_string(),
+    name: name.to_string(),
+    overview: fm.overview,
+    details,
+    embedding_version: fm.embedding_version,
+    embedding: fm.embedding,
+    embedding_text: fm.embedding_text,
+    embedding_computed: fm.embedding_computed,
+  })
+}
+
+fn cleanup_empty_dir(path: &std::path::Path) -> Result<()> {
+  if let Some(dir) = path.parent() {
+    if dir.read_dir()?.next().is_none() {
+      fs::remove_dir(dir)?;
+    }
+  }
+  Ok(())
 }
 
 // Update operations
@@ -236,49 +224,71 @@ pub fn get_insights_root() -> Result<PathBuf> {
   Ok(home.join(".kernelle").join("insights"))
 }
 
-/// Parse insight content from YAML frontmatter format (returning full metadata)
-pub fn parse_insight_with_metadata(content: &str) -> Result<(FrontMatter, String)> {
-  // Split content into frontmatter and body
-  if !content.starts_with("---\n") {
+// Frontmatter parsing constants
+const FRONTMATTER_START: &str = "---\n";
+const FRONTMATTER_END: &str = "\n---\n";
+const FRONTMATTER_START_LEN: usize = 4; // Length of "---\n"
+const FRONTMATTER_END_LEN: usize = 5;   // Length of "\n---\n"
+
+/// Split content into frontmatter and body sections
+fn split_frontmatter_content(content: &str) -> Result<(&str, &str)> {
+  if !content.starts_with(FRONTMATTER_START) {
     return Err(anyhow!("Invalid insight format: missing frontmatter"));
   }
 
-  // Find the end of frontmatter
-  let content_after_first_dash = &content[4..]; // Skip initial "---\n"
-  if let Some(end_pos) = content_after_first_dash.find("\n---\n") {
-    let frontmatter_section = &content_after_first_dash[..end_pos];
-    let body = &content_after_first_dash[end_pos + 5..]; // Skip "\n---\n"
-
-    // Try to parse as YAML first (new format)
-    if let Ok(frontmatter) = serde_yaml::from_str::<FrontMatter>(frontmatter_section) {
-      // New YAML format
-      let details = body
-        .lines()
-        .skip_while(|line| line.trim().is_empty() || line.starts_with('#'))
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim()
-        .to_string();
-
-      Ok((frontmatter, details))
-    } else {
-      // Legacy format: frontmatter_section is the overview, body is the details
-      let overview = frontmatter_section.trim().to_string();
-      let details = body.trim().to_string();
-
-      // Create FrontMatter structure for legacy format (no embeddings)
-      let frontmatter = FrontMatter {
-        overview,
-        embedding_version: None,
-        embedding: None,
-        embedding_text: None,
-        embedding_computed: None,
-      };
-
-      Ok((frontmatter, details))
-    }
+  let content_after_start = &content[FRONTMATTER_START_LEN..];
+  if let Some(end_pos) = content_after_start.find(FRONTMATTER_END) {
+    let frontmatter_section = &content_after_start[..end_pos];
+    let body = &content_after_start[end_pos + FRONTMATTER_END_LEN..];
+    Ok((frontmatter_section, body))
   } else {
     Err(anyhow!("Invalid insight format: could not find end of frontmatter"))
+  }
+}
+
+/// Clean body content by removing empty lines and comments
+fn clean_body_content(body: &str) -> String {
+  body
+    .lines()
+    .skip_while(|line| line.trim().is_empty() || line.starts_with('#'))
+    .collect::<Vec<_>>()
+    .join("\n")
+    .trim()
+    .to_string()
+}
+
+/// Parse YAML frontmatter format
+fn parse_yaml_format(frontmatter_section: &str, body: &str) -> Result<(FrontMatter, String)> {
+  let frontmatter = serde_yaml::from_str::<FrontMatter>(frontmatter_section)?;
+  let details = clean_body_content(body);
+  Ok((frontmatter, details))
+}
+
+/// Parse legacy frontmatter format
+fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (FrontMatter, String) {
+  let overview = frontmatter_section.trim().to_string();
+  let details = body.trim().to_string();
+  
+  let frontmatter = FrontMatter {
+    overview,
+    embedding_version: None,
+    embedding: None,
+    embedding_text: None,
+    embedding_computed: None,
+  };
+  
+  (frontmatter, details)
+}
+
+/// Parse insight content from YAML frontmatter format (returning full metadata)
+pub fn parse_insight_with_metadata(content: &str) -> Result<(FrontMatter, String)> {
+  let (frontmatter_section, body) = split_frontmatter_content(content)?;
+
+  // Try YAML format first, fall back to legacy format
+  if let Ok(result) = parse_yaml_format(frontmatter_section, body) {
+    Ok(result)
+  } else {
+    Ok(parse_legacy_format(frontmatter_section, body))
   }
 }
 
@@ -311,39 +321,82 @@ pub fn get_topics() -> Result<Vec<String>> {
   Ok(topics)
 }
 
-/// List all insights, optionally filtered by topic
-pub fn get_insights(topic_filter: Option<&str>) -> Result<Vec<(String, String)>> {
+fn get_search_paths(topic_filter: Option<&str>) -> Result<Vec<std::path::PathBuf>> {
   let insights_root = get_insights_root()?;
+  
+  if let Some(topic) = topic_filter {
+    return Ok(vec![insights_root.join(topic)]);
+  }
+  
+  let paths = get_topics()?
+    .into_iter()
+    .map(|topic| insights_root.join(topic))
+    .collect();
+  Ok(paths)
+}
+
+fn extract_topic_name(topic_path: &std::path::Path) -> &str {
+  topic_path
+    .file_name()
+    .and_then(|n| n.to_str())
+    .unwrap_or("unknown")
+}
+
+fn is_insight_file(path: &std::path::Path) -> bool {
+  if path.extension().and_then(|s| s.to_str()) != Some("md") {
+    return false;
+  }
+  
+  if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
+    return file_stem.ends_with(".insight");
+  }
+  
+  false
+}
+
+fn extract_insight_name(path: &std::path::Path) -> Option<String> {
+  let file_stem = path.file_stem()?.to_str()?;
+  
+  if !file_stem.ends_with(".insight") {
+    return None;
+  }
+  
+  Some(file_stem.trim_end_matches(".insight").to_string())
+}
+
+fn collect_insights_from_topic(topic_path: &std::path::Path) -> Result<Vec<(String, String)>> {
+  if !topic_path.exists() {
+    return Ok(Vec::new());
+  }
+
+  let topic_name = extract_topic_name(topic_path);
   let mut insights = Vec::new();
 
-  let search_paths = if let Some(topic) = topic_filter {
-    vec![insights_root.join(topic)]
-  } else {
-    get_topics()?.into_iter().map(|topic| insights_root.join(topic)).collect()
-  };
-
-  for topic_path in search_paths {
-    if !topic_path.exists() {
+  for entry in fs::read_dir(topic_path)? {
+    let path = entry?.path();
+    
+    if !is_insight_file(&path) {
       continue;
     }
-
-    let topic_name = topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
-
-    for entry in fs::read_dir(&topic_path)? {
-      let entry = entry?;
-      let path = entry.path();
-
-      if path.extension().and_then(|s| s.to_str()) == Some("md") {
-        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-          if file_stem.ends_with(".insight") {
-            let insight_name = file_stem.trim_end_matches(".insight");
-            insights.push((topic_name.to_string(), insight_name.to_string()));
-          }
-        }
-      }
+    
+    if let Some(insight_name) = extract_insight_name(&path) {
+      insights.push((topic_name.to_string(), insight_name));
     }
   }
 
-  insights.sort();
   Ok(insights)
+}
+
+/// List all insights, optionally filtered by topic
+pub fn get_insights(topic_filter: Option<&str>) -> Result<Vec<(String, String)>> {
+  let search_paths = get_search_paths(topic_filter)?;
+  let mut all_insights = Vec::new();
+
+  for topic_path in search_paths {
+    let mut topic_insights = collect_insights_from_topic(&topic_path)?;
+    all_insights.append(&mut topic_insights);
+  }
+
+  all_insights.sort();
+  Ok(all_insights)
 }

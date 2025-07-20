@@ -8,50 +8,78 @@ use tokio::net::UnixListener;
 use tokio::time::{timeout, Duration};
 
 const SOCKET_PATH: &str = "/tmp/blizz-embeddings.sock";
+const INACTIVITY_TIMEOUT_SECS: u64 = 300;
 
-#[tokio::main]
-async fn main() -> Result<()> {
-  // Clean up any existing socket
+fn cleanup_existing_socket() {
   let _ = std::fs::remove_file(SOCKET_PATH);
+}
 
-  // Create the embedding service (loads model)
-  #[cfg(feature = "neural")]
+#[cfg(feature = "neural")]
+async fn create_embedding_service() -> Result<EmbeddingService<blizz::model::OnnxEmbeddingModel>> {
   let model = create_production_model().await?;
-  #[cfg(not(feature = "neural"))]
+  Ok(EmbeddingService::new(model))
+}
+
+#[cfg(not(feature = "neural"))]
+async fn create_embedding_service() -> Result<EmbeddingService<MockEmbeddingModel>> {
   let model = MockEmbeddingModel::new();
+  Ok(EmbeddingService::new(model))
+}
 
-  let mut service = EmbeddingService::new(model);
-
-  // Bind to Unix socket
+async fn setup_listener() -> Result<UnixListener> {
   let listener = UnixListener::bind(SOCKET_PATH)?;
   println!("🚀 Blizz daemon listening on {SOCKET_PATH}");
+  Ok(listener)
+}
 
-  // Auto-shutdown after 5 minutes of inactivity
-  let inactivity_timeout = Duration::from_secs(300);
+async fn handle_connection_result<M: blizz::model::EmbeddingModel>(
+  connection_result: Result<(tokio::net::UnixStream, tokio::net::unix::SocketAddr), std::io::Error>,
+  service: &mut EmbeddingService<M>,
+) -> bool {
+  match connection_result {
+    Ok((stream, _)) => {
+      if let Err(e) = handle_client(stream, service).await {
+        eprintln!("Error handling client: {e}");
+      }
+      true // Continue running
+    }
+    Err(e) => {
+      eprintln!("Error accepting connection: {e}");
+      false // Stop running
+    }
+  }
+}
+
+async fn run_server_loop<M: blizz::model::EmbeddingModel>(listener: UnixListener, mut service: EmbeddingService<M>) -> Result<()> {
+  let inactivity_timeout = Duration::from_secs(INACTIVITY_TIMEOUT_SECS);
 
   loop {
-    // Wait for connection with timeout
     match timeout(inactivity_timeout, listener.accept()).await {
-      Ok(Ok((stream, _))) => {
-        // Handle request
-        if let Err(e) = handle_client(stream, &mut service).await {
-          eprintln!("Error handling client: {e}");
+      Ok(connection_result) => {
+        let should_continue = handle_connection_result(connection_result, &mut service).await;
+        if !should_continue {
+          break;
         }
       }
-      Ok(Err(e)) => {
-        eprintln!("Error accepting connection: {e}");
-        break;
-      }
       Err(_) => {
-        // Timeout - shutdown due to inactivity
         println!("💤 Blizz daemon shutting down due to inactivity");
         break;
       }
     }
   }
 
-  // Clean up socket
-  let _ = std::fs::remove_file(SOCKET_PATH);
+  Ok(())
+}
 
+#[tokio::main]
+async fn main() -> Result<()> {
+  cleanup_existing_socket();
+  
+  let service = create_embedding_service().await?;
+  let listener = setup_listener().await?;
+  
+  run_server_loop(listener, service).await?;
+  
+  cleanup_existing_socket();
   Ok(())
 }

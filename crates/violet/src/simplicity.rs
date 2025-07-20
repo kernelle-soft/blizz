@@ -114,8 +114,11 @@ fn analyze_chunk(
     return None;
   }
 
-  let score =
+  let raw_score =
     scoring::complexity(&chunk_content, DEPTH_PENALTY, VERBOSITY_PENALTY, SYNTACTIC_PENALTY);
+  
+  // Round to 2 decimal places before threshold comparison to match display precision
+  let score = (raw_score * 100.0).round() / 100.0;
 
   if score > context.threshold {
     Some(create_complexity_region(start, end, score, &chunk_content, &context.lines[start..end]))
