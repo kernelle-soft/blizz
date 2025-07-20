@@ -9,7 +9,6 @@
     "crates/jerrod/**",
     "crates/sentinel/**",
     "crates/kernelle/**",
-    "crates/blizz/**"
   ],
   ignore_patterns: [
     "#\\[cfg\\(test\\)\\]" // ignore rust inline test code
