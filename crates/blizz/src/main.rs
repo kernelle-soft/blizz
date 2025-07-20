@@ -123,16 +123,16 @@ fn main() -> Result<()> {
       } else if cfg!(feature = "semantic") && semantic {
         // Algorithmic semantic similarity
         #[cfg(feature = "semantic")]
-        search_insights_semantic(&terms, topic.as_deref(), overview_only)?;
+        search_insights_semantic(&terms, topic.as_deref(), case_sensitive, overview_only)?;
       } else {
         // Neural embeddings (default)
         #[cfg(feature = "neural")]
-        search_insights_neural(&terms, topic.as_deref(), overview_only)?;
+        search_insights_neural(&terms, topic.as_deref(), case_sensitive, overview_only)?;
         
         #[cfg(not(feature = "neural"))]
         {
           #[cfg(feature = "semantic")]
-          search_insights_semantic(&terms, topic.as_deref(), overview_only)?;
+          search_insights_semantic(&terms, topic.as_deref(), case_sensitive, overview_only)?;
           #[cfg(not(feature = "semantic"))]
           search_insights_exact(&terms, topic.as_deref(), case_sensitive, overview_only)?;
         }

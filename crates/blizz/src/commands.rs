@@ -194,6 +194,7 @@ pub fn search_insights_exact(
 pub fn search_insights_semantic(
   terms: &[String],
   topic_filter: Option<&str>,
+  _case_sensitive: bool, // Note: Semantic search normalizes text, so case sensitivity doesn't apply
   overview_only: bool,
 ) -> Result<()> {
   // Combine search terms into a single query
@@ -475,6 +476,7 @@ pub fn list_topics() -> Result<()> {
 pub fn search_insights_neural(
   terms: &[String],
   topic_filter: Option<&str>,
+  _case_sensitive: bool, // Note: Neural embeddings normalize text, so case sensitivity doesn't apply
   overview_only: bool,
 ) -> Result<()> {
   use ort::{
