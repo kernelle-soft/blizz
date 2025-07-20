@@ -8,8 +8,6 @@ use std::path::{Path, PathBuf};
 
 use crate::insight::*;
 
-
-
 #[derive(Debug)]
 struct SearchResult {
   topic: String,
@@ -1156,7 +1154,8 @@ fn collect_neural_results(
   let query_embedding = create_embedding(&mut session, &terms.join(" "))?;
   let insight_refs = get_insights(topic_filter)?;
 
-  let results = process_insights_for_neural(&insight_refs, &mut session, &query_embedding, overview_only);
+  let results =
+    process_insights_for_neural(&insight_refs, &mut session, &query_embedding, overview_only);
   Ok(results)
 }
 
@@ -1169,7 +1168,9 @@ fn process_insights_for_neural(
 ) -> Vec<SemanticSearchResult> {
   insight_refs
     .iter()
-    .filter_map(|(topic, name)| process_single_insight_neural(topic, name, session, query_embedding, overview_only))
+    .filter_map(|(topic, name)| {
+      process_single_insight_neural(topic, name, session, query_embedding, overview_only)
+    })
     .collect()
 }
 
@@ -1182,9 +1183,10 @@ fn process_single_insight_neural(
   overview_only: bool,
 ) -> Option<SemanticSearchResult> {
   let insight = Insight::load(topic, name).ok()?;
-  let search_result = process_insight_for_neural_search(&insight, session, query_embedding, overview_only)
-    .ok()
-    .flatten()?;
+  let search_result =
+    process_insight_for_neural_search(&insight, session, query_embedding, overview_only)
+      .ok()
+      .flatten()?;
   Some(search_result)
 }
 
