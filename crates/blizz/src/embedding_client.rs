@@ -52,7 +52,7 @@ struct EmbeddingResponse {
 }
 
 #[cfg(feature = "neural")]
-const SOCKET_PATH: &str = "/tmp/blizz-embeddings.sock";
+const SOCKET_PATH: &str = "/tmp/blizz_embeddings.sock";
 #[cfg(feature = "neural")]
 const STARTUP_DELAY_MS: u64 = 500;
 
@@ -186,7 +186,7 @@ fn get_daemon_executable_path() -> Result<std::path::PathBuf> {
   let current_exe = std::env::current_exe()?;
   let exe_dir =
     current_exe.parent().ok_or_else(|| anyhow!("Could not find executable directory"))?;
-  Ok(exe_dir.join("blizz-daemon"))
+  Ok(exe_dir.join("blizz_embedding_daemon"))
 }
 
 #[cfg(feature = "neural")]

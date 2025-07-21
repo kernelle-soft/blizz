@@ -13,7 +13,7 @@ use blizz::embedding_model::MockEmbeddingModel;
 use tokio::net::UnixListener;
 use tokio::time::{timeout, Duration};
 
-const SOCKET_PATH: &str = "/tmp/blizz-embeddings.sock";
+const SOCKET_PATH: &str = "/tmp/blizz_embeddings.sock";
 const INACTIVITY_TIMEOUT_SECS: u64 = 300;
 
 /// Embedding service that keeps model loaded in memory
