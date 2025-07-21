@@ -299,7 +299,7 @@ New format details"#;
   #[test]
   #[serial]
   fn test_frontmatter_serialization() -> Result<()> {
-    let frontmatter = FrontMatter {
+    let frontmatter = InsightMetaData {
       overview: "Test overview".to_string(),
       embedding_version: Some("v1.0".to_string()),
       embedding: Some(vec![0.1, 0.2, 0.3]),
@@ -310,7 +310,7 @@ New format details"#;
     };
 
     let yaml = serde_yaml::to_string(&frontmatter)?;
-    let deserialized: FrontMatter = serde_yaml::from_str(&yaml)?;
+    let deserialized: InsightMetaData = serde_yaml::from_str(&yaml)?;
 
     assert_eq!(deserialized.overview, "Test overview");
     assert_eq!(deserialized.embedding_version, Some("v1.0".to_string()));
@@ -324,7 +324,7 @@ New format details"#;
   #[test]
   #[serial]
   fn test_frontmatter_skips_none_values() -> Result<()> {
-    let frontmatter = FrontMatter {
+    let frontmatter = InsightMetaData {
       overview: "Just overview".to_string(),
       embedding_version: None,
       embedding: None,

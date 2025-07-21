@@ -9,7 +9,7 @@ use crate::embedding_client::Embedding;
 
 /// YAML frontmatter structure for insight files
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FrontMatter {
+pub struct InsightMetaData {
   pub overview: String,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub embedding_version: Option<String>,
@@ -184,7 +184,7 @@ impl Insight {
 impl Insight {
   /// Helper method to write insight to file
   fn write_to_file(&self, file_path: &PathBuf) -> Result<()> {
-    let frontmatter = FrontMatter {
+    let frontmatter = InsightMetaData {
       overview: self.overview.clone(),
       embedding_version: self.embedding_version.clone(),
       embedding: self.embedding.clone(),
@@ -259,18 +259,18 @@ fn clean_body_content(body: &str) -> String {
 }
 
 /// Parse YAML frontmatter format
-fn parse_yaml_format(frontmatter_section: &str, body: &str) -> Result<(FrontMatter, String)> {
-  let frontmatter = serde_yaml::from_str::<FrontMatter>(frontmatter_section)?;
+fn parse_yaml_format(frontmatter_section: &str, body: &str) -> Result<(InsightMetaData, String)> {
+  let frontmatter = serde_yaml::from_str::<InsightMetaData>(frontmatter_section)?;
   let details = clean_body_content(body);
   Ok((frontmatter, details))
 }
 
 /// Parse legacy frontmatter format
-fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (FrontMatter, String) {
+fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (InsightMetaData, String) {
   let overview = frontmatter_section.trim().to_string();
   let details = body.trim().to_string();
 
-  let frontmatter = FrontMatter {
+  let frontmatter = InsightMetaData {
     overview,
     embedding_version: None,
     embedding: None,
@@ -282,7 +282,7 @@ fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (FrontMatter, S
 }
 
 /// Parse insight content from YAML frontmatter format (returning full metadata)
-pub fn parse_insight_with_metadata(content: &str) -> Result<(FrontMatter, String)> {
+pub fn parse_insight_with_metadata(content: &str) -> Result<(InsightMetaData, String)> {
   let (frontmatter_section, body) = split_frontmatter_content(content)?;
 
   // Try YAML format first, fall back to legacy format

@@ -98,26 +98,6 @@ enum Commands {
   },
 }
 
-fn execute_search(
-  terms: &[String],
-  options: SearchOptions,
-) -> Result<()> {
-  if options.exact {
-    return commands::search_insights_exact(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only);
-  }
-
-  #[cfg(feature = "semantic")]
-  if options.semantic {
-    return commands::search_insights_combined_semantic(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
-  } else {
-    commands::search_all(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
-  }
-
-  #[cfg(not(feature = "semantic"))]
-  search_all(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
-}
-
-
 fn main() -> Result<()> {
   let cli = Cli::parse();
 
@@ -126,7 +106,7 @@ fn main() -> Result<()> {
       commands::add_insight(&id.topic, &id.name, &overview, &details)?;
     }
     Commands::Search { options, terms } => {
-      execute_search(&terms, options)?;
+      search::search(&terms, &options)?;
     }
     Commands::Get { id, overview } => {
       commands::get_insight(&id.topic, &id.name, overview)?;

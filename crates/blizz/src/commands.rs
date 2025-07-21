@@ -20,61 +20,6 @@ pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Re
   Ok(())
 }
 
-/// Exact term matching search (delegates to search module)
-pub fn search_insights_exact(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  search::search_insights_exact(terms, topic_filter, case_sensitive, overview_only)
-}
-
-/// Semantic similarity search (delegates to search module)
-#[cfg(feature = "semantic")]
-#[allow(dead_code)]
-pub fn search_insights_semantic(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  search::search_insights_semantic(terms, topic_filter, case_sensitive, overview_only)
-}
-
-/// Neural search (delegates to search module)
-#[cfg(feature = "neural")]
-#[allow(dead_code)]
-pub fn search_neural(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  search::search_neural(terms, topic_filter, case_sensitive, overview_only)
-}
-
-/// Combined semantic search (delegates to search module)
-#[cfg(feature = "semantic")]
-pub fn search_insights_combined_semantic(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  search::search_insights_combined_semantic(terms, topic_filter, case_sensitive, overview_only)
-}
-
-/// Search using all available methods (delegates to search module)
-pub fn search_all(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  search::search_all(terms, topic_filter, case_sensitive, overview_only)
-}
-
 /// Get content of a specific insight
 pub fn get_insight(topic: &str, name: &str, overview_only: bool) -> Result<()> {
   let insight = Insight::load(topic, name)?;
@@ -212,7 +157,7 @@ fn should_skip_insight(insight: &crate::insight::Insight, force: bool, missing_o
 fn save_insight_with_embedding(insight: &crate::insight::Insight) -> Result<()> {
   let file_path = insight.file_path()?;
 
-  let frontmatter = crate::insight::FrontMatter {
+  let frontmatter = crate::insight::InsightMetaData {
     overview: insight.overview.clone(),
     embedding_version: insight.embedding_version.clone(),
     embedding: insight.embedding.clone(),

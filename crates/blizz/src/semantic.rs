@@ -38,7 +38,7 @@ pub fn extract_words(text: &str) -> HashSet<String> {
 }
 
 /// Calculate semantic similarity using Jaccard + frequency analysis
-pub fn calculate_semantic_similarity(query_words: &HashSet<String>, content: &str) -> f32 {
+pub fn similarity(query_words: &HashSet<String>, content: &str) -> f32 {
   let content_words = extract_words(&content.to_lowercase());
 
   if query_words.is_empty() || content_words.is_empty() {
@@ -115,7 +115,7 @@ mod tests {
       ["machine", "learning"].iter().map(|s| s.to_string()).collect();
     let content = "machine learning algorithms";
 
-    let similarity = calculate_semantic_similarity(&query_words, content);
+    let similarity = similarity(&query_words, content);
     assert!(similarity > 0.6); // Should be high similarity
   }
 
@@ -125,7 +125,7 @@ mod tests {
       ["machine", "learning"].iter().map(|s| s.to_string()).collect();
     let content = "machine algorithms and data science";
 
-    let similarity = calculate_semantic_similarity(&query_words, content);
+    let similarity = similarity(&query_words, content);
     assert!(similarity > 0.2 && similarity < 0.6); // Should be medium similarity
   }
 
@@ -135,7 +135,7 @@ mod tests {
       ["machine", "learning"].iter().map(|s| s.to_string()).collect();
     let content = "completely different topic about cooking";
 
-    let similarity = calculate_semantic_similarity(&query_words, content);
+    let similarity = similarity(&query_words, content);
     assert!(similarity < 0.1); // Should be very low similarity
   }
 
@@ -144,7 +144,7 @@ mod tests {
     let query_words: HashSet<String> = HashSet::new();
     let content = "some content here";
 
-    let similarity = calculate_semantic_similarity(&query_words, content);
+    let similarity = similarity(&query_words, content);
     assert_eq!(similarity, 0.0);
   }
 
@@ -153,7 +153,7 @@ mod tests {
     let query_words: HashSet<String> = ["test"].iter().map(|s| s.to_string()).collect();
     let content = "";
 
-    let similarity = calculate_semantic_similarity(&query_words, content);
+    let similarity = similarity(&query_words, content);
     assert_eq!(similarity, 0.0);
   } 
 
@@ -163,8 +163,8 @@ mod tests {
     let content_single = "test algorithm";
     let content_multiple = "test test test algorithm";
 
-    let similarity_single = calculate_semantic_similarity(&query_words, content_single);
-    let similarity_multiple = calculate_semantic_similarity(&query_words, content_multiple);
+    let similarity_single = similarity(&query_words, content_single);
+    let similarity_multiple = similarity(&query_words, content_multiple);
 
     // Multiple occurrences should get frequency boost
     assert!(similarity_multiple > similarity_single);
