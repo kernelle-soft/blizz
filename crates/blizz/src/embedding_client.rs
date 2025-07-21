@@ -84,7 +84,7 @@ pub struct ProductionEmbeddingService;
 
 impl EmbeddingService for ProductionEmbeddingService {
   fn embed_insight(&self, insight: &mut Insight) -> Embedding {
-    embad_insight(insight)
+    blocking_embed(insight)
   }
 }
 
@@ -101,7 +101,7 @@ impl EmbeddingService for MockEmbeddingService {
 }
 
 // Private implementation functions
-fn embad_insight(insight: &mut Insight) -> Embedding {
+fn blocking_embed(insight: &mut Insight) -> Embedding {
   #[cfg(feature = "neural")]
   {
     let rt = tokio::runtime::Runtime::new().unwrap();
