@@ -10,6 +10,30 @@ use colored::*;
 
 use crate::insight::{self, Insight};
 
+pub trait EmbeddingService {
+  fn embed_insight(&self, insight: &mut Insight) -> Embedding;
+}
+
+pub struct ProductionEmbeddingService;
+
+impl EmbeddingService for ProductionEmbeddingService {
+  fn embed_insight(&self, insight: &mut Insight) -> Embedding {
+    embed_insight_impl(insight)
+  }
+}
+
+pub struct MockEmbeddingService;
+
+impl EmbeddingService for MockEmbeddingService {
+  fn embed_insight(&self, _insight: &mut Insight) -> Embedding {
+    Embedding {
+      version: "test-mock".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.1; 384], // Mock 384-dimensional embedding
+    }
+  }
+}
+
 #[cfg(feature = "neural")]
 const SOCKET_PATH: &str = "/tmp/blizz_embeddings.sock";
 #[cfg(feature = "neural")]
@@ -55,7 +79,7 @@ pub fn create_embedding_daemon_only(text: &str) -> Result<Vec<f32>> {
   })
 }
 
-pub fn embed_insight(insight: &mut Insight) -> Embedding {
+fn embed_insight_impl(insight: &mut Insight) -> Embedding {
   #[cfg(feature = "neural")]
   {
     let rt = tokio::runtime::Runtime::new().unwrap();
@@ -72,13 +96,16 @@ pub fn embed_insight(insight: &mut Insight) -> Embedding {
   }
 }
 
+// Convenience function for production use
+pub fn embed_insight(insight: &mut Insight) -> Embedding {
+  let service = ProductionEmbeddingService;
+  service.embed_insight(insight)
+}
+
 #[cfg(feature = "neural")]
 async fn compute_insight_embedding(insight: &Insight) -> Result<Embedding> {
   let embedding_text = insight::get_embedding_text(insight);
-  let rt = tokio::runtime::Runtime::new()?;
-  let result = rt.block_on(async { 
-    request(&embedding_text).await
-  });
+  let result = request(&embedding_text).await;
   let version = "all-MiniLM-L6-v2".to_string();
 
   match result {

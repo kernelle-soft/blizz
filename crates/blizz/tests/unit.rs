@@ -1,5 +1,5 @@
 use anyhow::Result;
-use blizz::insight::*;
+use blizz::insight::{self, Insight};
 use serial_test::serial;
 use std::env;
 use tempfile::TempDir;
@@ -35,7 +35,7 @@ mod insight_tests {
   #[serial]
   fn test_get_insights_root_with_env_var() -> Result<()> {
     let _temp = setup_temp_insights_root("root_test");
-    let root = get_insights_root()?;
+    let root = insight::get_insights_root()?;
     assert!(root.to_string_lossy().contains("tmp"));
     Ok(())
   }
@@ -53,10 +53,10 @@ mod insight_tests {
     );
 
     // Save the insight
-    insight.save()?;
+    insight::save(&insight)?;
 
     // Load it back
-    let loaded = Insight::load("save_test", "test_insight")?;
+    let loaded = insight::load("save_test", "test_insight")?;
     assert_eq!(loaded.overview, "Save test overview");
     assert_eq!(loaded.details, "Save test details");
 
@@ -75,10 +75,10 @@ mod insight_tests {
       "Details".to_string(),
     );
 
-    insight.save()?;
+    insight::save(&insight)?;
 
     // Try to save again - should fail
-    let result = insight.save();
+    let result = insight::save(&insight);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("already exists"));
 
@@ -90,7 +90,7 @@ mod insight_tests {
   fn test_load_nonexistent_insight() {
     let _temp = setup_temp_insights_root("load_none");
 
-    let result = Insight::load("nonexistent", "insight");
+    let result = insight::load("nonexistent", "insight");
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("not found"));
   }
@@ -107,20 +107,20 @@ mod insight_tests {
       "Original details".to_string(),
     );
 
-    insight.save()?;
+    insight::save(&insight)?;
 
     // Update just overview
-    insight.update(Some("Updated overview"), None)?;
+    insight::update(&mut insight, Some("Updated overview"), None)?;
     assert_eq!(insight.overview, "Updated overview");
     assert_eq!(insight.details, "Original details");
 
     // Update just details
-    insight.update(None, Some("Updated details"))?;
+    insight::update(&mut insight, None, Some("Updated details"))?;
     assert_eq!(insight.overview, "Updated overview");
     assert_eq!(insight.details, "Updated details");
 
     // Reload to verify persistence
-    let reloaded = Insight::load("update_test", "updateable")?;
+    let reloaded = insight::load("update_test", "updateable")?;
     assert_eq!(reloaded.overview, "Updated overview");
     assert_eq!(reloaded.details, "Updated details");
 
@@ -139,9 +139,9 @@ mod insight_tests {
       "Details".to_string(),
     );
 
-    insight.save()?;
+    insight::save(&insight)?;
 
-    let result = insight.update(None, None);
+    let result = insight::update(&mut insight, None, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("At least one"));
 
@@ -160,16 +160,16 @@ mod insight_tests {
       "Will be gone".to_string(),
     );
 
-    insight.save()?;
+    insight::save(&insight)?;
 
     // Verify it exists
-    assert!(Insight::load("delete_test", "deletable").is_ok());
+    assert!(insight::load("delete_test", "deletable").is_ok());
 
     // Delete it
-    insight.delete()?;
+    insight::delete(&insight)?;
 
     // Verify it's gone
-    assert!(Insight::load("delete_test", "deletable").is_err());
+    assert!(insight::load("delete_test", "deletable").is_err());
 
     Ok(())
   }
@@ -186,7 +186,7 @@ mod insight_tests {
       "Not there".to_string(),
     );
 
-    let result = insight.delete();
+    let result = insight::delete(&insight);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("not found"));
   }
@@ -194,10 +194,10 @@ mod insight_tests {
   #[test]
   #[serial]
   fn test_parse_insight_content_valid() -> Result<()> {
-    let content = "---\nThis is the overview\nSpanning multiple lines\n---\n\nThis is the details section\nWith more content";
+    let content = "---\noverview: \"This is the overview\\nSpanning multiple lines\"\n---\n\n# Details\nThis is the details section\nWith more content";
 
-    let (overview, details) = parse_insight_content(content)?;
-    assert_eq!(overview, "This is the overview\nSpanning multiple lines");
+    let (metadata, details) = insight::parse_insight_with_metadata(content)?;
+    assert_eq!(metadata.overview, "This is the overview\nSpanning multiple lines");
     assert_eq!(details, "This is the details section\nWith more content");
 
     Ok(())
@@ -206,10 +206,10 @@ mod insight_tests {
   #[test]
   #[serial]
   fn test_parse_insight_content_minimal() -> Result<()> {
-    let content = "---\nSimple overview\n---\n\n";
+    let content = "---\noverview: Simple overview\n---\n\n# Details\n";
 
-    let (overview, details) = parse_insight_content(content)?;
-    assert_eq!(overview, "Simple overview");
+    let (metadata, details) = insight::parse_insight_with_metadata(content)?;
+    assert_eq!(metadata.overview, "Simple overview");
     assert_eq!(details, "");
 
     Ok(())
@@ -220,7 +220,7 @@ mod insight_tests {
   fn test_parse_insight_content_invalid() {
     let content = "This is not valid format";
 
-    let result = parse_insight_content(content);
+    let result = insight::parse_insight_with_metadata(content);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Invalid insight format"));
   }
@@ -230,7 +230,7 @@ mod insight_tests {
   fn test_get_topics_empty() -> Result<()> {
     let _temp = setup_temp_insights_root("topics_empty");
 
-    let topics = get_topics()?;
+    let topics = insight::get_topics()?;
     assert!(topics.is_empty());
 
     Ok(())
@@ -249,11 +249,11 @@ mod insight_tests {
     let insight3 =
       Insight::new("alpha".to_string(), "test3".to_string(), "O3".to_string(), "D3".to_string());
 
-    insight1.save()?;
-    insight2.save()?;
-    insight3.save()?;
+    insight::save(&insight1)?;
+    insight::save(&insight2)?;
+    insight::save(&insight3)?;
 
-    let topics = get_topics()?;
+    let topics = insight::get_topics()?;
     assert_eq!(topics.len(), 2);
     assert!(topics.contains(&"alpha".to_string()));
     assert!(topics.contains(&"beta".to_string()));
@@ -285,17 +285,20 @@ mod insight_tests {
       "D3".to_string(),
     );
 
-    insight1.save()?;
-    insight2.save()?;
-    insight3.save()?;
+    insight::save(&insight1)?;
+    insight::save(&insight2)?;
+    insight::save(&insight3)?;
 
-    let insights = get_insights(None)?;
+    let insights = insight::get_insights(None)?;
     assert_eq!(insights.len(), 3);
 
-    // Should be sorted
-    assert_eq!(insights[0], ("topic1".to_string(), "insight1".to_string()));
-    assert_eq!(insights[1], ("topic1".to_string(), "insight2".to_string()));
-    assert_eq!(insights[2], ("topic2".to_string(), "insight3".to_string()));
+    // Should be sorted by name
+    assert_eq!(insights[0].topic, "topic1");
+    assert_eq!(insights[0].name, "insight1");
+    assert_eq!(insights[1].topic, "topic1");
+    assert_eq!(insights[1].name, "insight2");
+    assert_eq!(insights[2].topic, "topic2");
+    assert_eq!(insights[2].name, "insight3");
 
     Ok(())
   }
@@ -318,12 +321,13 @@ mod insight_tests {
       "D2".to_string(),
     );
 
-    insight1.save()?;
-    insight2.save()?;
+    insight::save(&insight1)?;
+    insight::save(&insight2)?;
 
-    let insights = get_insights(Some("filter_topic"))?;
+    let insights = insight::get_insights(Some("filter_topic"))?;
     assert_eq!(insights.len(), 1);
-    assert_eq!(insights[0], ("filter_topic".to_string(), "insight1".to_string()));
+    assert_eq!(insights[0].topic, "filter_topic");
+    assert_eq!(insights[0].name, "insight1");
 
     Ok(())
   }
@@ -333,7 +337,7 @@ mod insight_tests {
   fn test_get_insights_nonexistent_topic() -> Result<()> {
     let _temp = setup_temp_insights_root("insights_none");
 
-    let insights = get_insights(Some("nonexistent"))?;
+    let insights = insight::get_insights(Some("nonexistent"))?;
     assert!(insights.is_empty());
 
     Ok(())
@@ -351,17 +355,17 @@ mod insight_tests {
       "Will clean up directory".to_string(),
     );
 
-    insight.save()?;
+    insight::save(&insight)?;
 
     // Verify topic directory exists
-    let topics = get_topics()?;
+    let topics = insight::get_topics()?;
     assert!(topics.contains(&"cleanup_topic".to_string()));
 
     // Delete the insight
-    insight.delete()?;
+    insight::delete(&insight)?;
 
     // Verify topic directory is removed
-    let topics_after = get_topics()?;
+    let topics_after = insight::get_topics()?;
     assert!(!topics_after.contains(&"cleanup_topic".to_string()));
 
     Ok(())

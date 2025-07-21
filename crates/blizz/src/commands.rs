@@ -1,20 +1,32 @@
 use anyhow::Result;
 use colored::*;
 
-use crate::embedding_client;
+use crate::embedding_client::{self, EmbeddingService};
 use crate::insight::{self, Insight};
 
-/// Add a new insight to the knowledge base
-pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
+/// Add a new insight to the knowledge base (testable version with dependency injection)
+pub fn add_insight_with_service<T: EmbeddingService>(
+  topic: &str, 
+  name: &str, 
+  overview: &str, 
+  details: &str,
+  embedding_service: &T
+) -> Result<()> {
   let mut insight = Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
 
   // Compute embedding before saving
-  let embedding = embedding_client::embed_insight(&mut insight);
+  let embedding = embedding_service.embed_insight(&mut insight);
   insight::set_embedding(&mut insight, embedding);
   insight::save(&insight)?;
 
   println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
   Ok(())
+}
+
+/// Add a new insight to the knowledge base (production version)
+pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
+  let service = embedding_client::ProductionEmbeddingService;
+  add_insight_with_service(topic, name, overview, details, &service)
 }
 
 /// Get content of a specific insight
@@ -64,8 +76,8 @@ fn has_content_changed(new_overview: Option<&str>, new_details: Option<&str>) ->
 }
 
 /// Recompute embedding and save insight using existing methods
-fn recompute_and_save_updated_insight(insight: &mut Insight) -> Result<()> {
-  let embedding = embedding_client::embed_insight(insight);
+fn recompute_and_save_updated_insight<T: EmbeddingService>(insight: &mut Insight, embedding_service: &T) -> Result<()> {
+  let embedding = embedding_service.embed_insight(insight);
   insight::set_embedding(insight, embedding);
 
   // For updates, we need to delete first then save since save() checks for existing files
@@ -84,12 +96,13 @@ fn print_update_success(topic: &str, name: &str) {
   println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
 }
 
-/// Update an existing insight
-pub fn update_insight(
+/// Update an existing insight (testable version with dependency injection)
+pub fn update_insight_with_service<T: EmbeddingService>(
   topic: &str,
   name: &str,
   new_overview: Option<&str>,
   new_details: Option<&str>,
+  embedding_service: &T,
 ) -> Result<()> {
   let mut insight = insight::load(topic, name)?;
   let content_changed = has_content_changed(new_overview, new_details);
@@ -97,11 +110,22 @@ pub fn update_insight(
   insight::update(&mut insight, new_overview, new_details)?;
 
   if content_changed {
-    recompute_and_save_updated_insight(&mut insight)?;
+    recompute_and_save_updated_insight(&mut insight, embedding_service)?;
   }
 
   print_update_success(topic, name);
   Ok(())
+}
+
+/// Update an existing insight (production version)
+pub fn update_insight(
+  topic: &str,
+  name: &str,
+  new_overview: Option<&str>,
+  new_details: Option<&str>,
+) -> Result<()> {
+  let service = embedding_client::ProductionEmbeddingService;
+  update_insight_with_service(topic, name, new_overview, new_details, &service)
 }
 
 /// Delete an insight
@@ -168,13 +192,14 @@ fn save_insight_with_embedding(insight: &crate::insight::Insight) -> Result<()> 
   Ok(())
 }
 
-/// Process a single insight for indexing
+/// Process a single insight for indexing (testable version with dependency injection)
 #[cfg(feature = "neural")]
-fn process_single_insight_index(
+fn process_single_insight_index_with_service<T: EmbeddingService>(
   topic: &str,
   insight_name: &str,
   force: bool,
   missing_only: bool,
+  embedding_service: &T,
 ) -> Result<(bool, bool)> {
   let mut insight = insight::load(topic, insight_name)?;
 
@@ -188,12 +213,24 @@ fn process_single_insight_index(
   std::io::Write::flush(&mut std::io::stdout())?;
 
   // Compute embedding
-  let embedding = embedding_client::embed_insight(&mut insight);
+  let embedding = embedding_service.embed_insight(&mut insight);
   insight::set_embedding(&mut insight, embedding);
   save_insight_with_embedding(&insight)?;
 
   println!("done");
   Ok((true, false))
+}
+
+/// Process a single insight for indexing (production version)
+#[cfg(feature = "neural")]
+fn process_single_insight_index(
+  topic: &str,
+  insight_name: &str,
+  force: bool,
+  missing_only: bool,
+) -> Result<(bool, bool)> {
+  let service = embedding_client::ProductionEmbeddingService;
+  process_single_insight_index_with_service(topic, insight_name, force, missing_only, &service)
 }
 
 /// Print indexing summary
@@ -254,19 +291,20 @@ fn validate_topics_for_indexing() -> Result<Vec<String>> {
   Ok(topics)
 }
 
-/// Process indexing for all insights in a single topic
+/// Process indexing for all insights in a single topic (testable version with dependency injection)
 #[cfg(feature = "neural")]
-fn process_topic_indexing(
+fn process_topic_indexing_with_service<T: EmbeddingService>(
   topic: &str,
   force: bool,
   missing_only: bool,
   stats: &mut IndexingStats,
+  embedding_service: &T,
 ) -> Result<()> {
   let insights = insight::get_insights(Some(topic))?;
   println!("{} {}:", "◈".blue(), topic.cyan());
 
   for insight in insights {
-    let result = process_single_insight_index(topic, &insight.name, force, missing_only);
+    let result = process_single_insight_index_with_service(topic, &insight.name, force, missing_only, embedding_service);
     if let Err(ref e) = result {
       eprintln!("    · Failed to process {}: {e}", insight.name);
     }
@@ -276,9 +314,21 @@ fn process_topic_indexing(
   Ok(())
 }
 
-/// Recompute embeddings for all insights
+/// Process indexing for all insights in a single topic (production version)
 #[cfg(feature = "neural")]
-pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
+fn process_topic_indexing(
+  topic: &str,
+  force: bool,
+  missing_only: bool,
+  stats: &mut IndexingStats,
+) -> Result<()> {
+  let service = embedding_client::ProductionEmbeddingService;
+  process_topic_indexing_with_service(topic, force, missing_only, stats, &service)
+}
+
+/// Recompute embeddings for all insights (testable version with dependency injection)
+#[cfg(feature = "neural")]
+pub fn index_insights_with_service<T: EmbeddingService>(force: bool, missing_only: bool, embedding_service: &T) -> Result<()> {
   let topics = validate_topics_for_indexing()?;
 
   if topics.is_empty() {
@@ -288,9 +338,16 @@ pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
   let mut stats = IndexingStats::default();
 
   for topic in &topics {
-    process_topic_indexing(topic, force, missing_only, &mut stats)?;
+    process_topic_indexing_with_service(topic, force, missing_only, &mut stats, embedding_service)?;
   }
 
   print_index_summary(stats.processed, stats.skipped, stats.errors, topics.len());
   Ok(())
+}
+
+/// Recompute embeddings for all insights (production version)
+#[cfg(feature = "neural")]
+pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
+  let service = embedding_client::ProductionEmbeddingService;
+  index_insights_with_service(force, missing_only, &service)
 }

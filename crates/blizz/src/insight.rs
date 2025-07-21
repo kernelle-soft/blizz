@@ -27,7 +27,7 @@ pub struct InsightMetaData {
   pub embedding_computed: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Insight {
   pub topic: String,
   pub name: String,
