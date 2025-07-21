@@ -109,14 +109,13 @@ fn blocking_embed(insight: &mut Insight) -> Embedding {
       Ok(embedding) => embedding,
       Err(e) => {
         eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
-        eprintln!("  {} Insight saved without embedding (can be computed later with 'blizz index')", "ℹ".blue());
-        
+        eprintln!(
+          "  {} Insight saved without embedding (can be computed later with 'blizz index')",
+          "ℹ".blue()
+        );
+
         // Return a placeholder embedding instead of panicking
-        Embedding {
-          version: "placeholder".to_string(),
-          created_at: Utc::now(),
-          embedding: vec![],
-        }
+        Embedding { version: "placeholder".to_string(), created_at: Utc::now(), embedding: vec![] }
       }
     }
   }
@@ -125,11 +124,7 @@ fn blocking_embed(insight: &mut Insight) -> Embedding {
   {
     let _ = insight;
     // Return a placeholder embedding for non-neural builds
-    Embedding {
-      version: "mock".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.0; 384],
-    }
+    Embedding { version: "mock".to_string(), created_at: Utc::now(), embedding: vec![0.0; 384] }
   }
 }
 

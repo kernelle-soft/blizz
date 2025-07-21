@@ -87,7 +87,7 @@ fn initialize_onnx_runtime() -> Result<()> {
 fn create_model_session() -> Result<Session> {
   // Try to load from URL if local file doesn't exist
   let local_model_path = Path::new("all-MiniLM-L6-v2.onnx");
-  
+
   let session = if local_model_path.exists() {
     Session::builder()?
       .with_optimization_level(GraphOptimizationLevel::Level1)?
@@ -108,7 +108,7 @@ fn create_model_session() -> Result<Session> {
 #[allow(dead_code)] // Used by daemon binary
 fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
   let tokenizer_path = get_tokenizer_path()?;
-  
+
   if tokenizer_path.exists() {
     tokenizers::Tokenizer::from_file(&tokenizer_path)
       .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))
@@ -133,22 +133,25 @@ fn get_tokenizer_path() -> Result<std::path::PathBuf> {
 fn create_default_tokenizer() -> Result<tokenizers::Tokenizer> {
   // Create a simple tokenizer from pre-trained model if possible
   use tokenizers::models::wordpiece::WordPiece;
-  
+
   let wordpiece = WordPiece::default();
   let tokenizer = tokenizers::Tokenizer::new(wordpiece);
-  
+
   Ok(tokenizer)
 }
 
 #[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
-pub fn compute_onnx_embeddings(model: &mut OnnxEmbeddingModel, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+pub fn compute_onnx_embeddings(
+  model: &mut OnnxEmbeddingModel,
+  texts: &[String],
+) -> Result<Vec<Vec<f32>>> {
   if texts.is_empty() {
     return Ok(vec![]);
   }
 
   validate_input_texts(texts)?;
-  
+
   let encodings = tokenize_texts(&mut model.tokenizer, texts)?;
   let (ids, mask, batch, length) = batch_tokens(&encodings);
 
@@ -157,16 +160,23 @@ pub fn compute_onnx_embeddings(model: &mut OnnxEmbeddingModel, texts: &[String])
   let mask_tensor = ort::value::Tensor::from_array(([batch, length], mask.into_boxed_slice()))?;
 
   // Run inference
-  let outputs = model.session.run(ort::inputs!["input_ids" => ids_tensor, "attention_mask" => mask_tensor])?;
-  
+  let outputs =
+    model.session.run(ort::inputs!["input_ids" => ids_tensor, "attention_mask" => mask_tensor])?;
+
   // Extract embeddings from the output - try common output names first, then fallback to first output
-  let output = outputs.get("last_hidden_state")
+  let output = outputs
+    .get("last_hidden_state")
     .or_else(|| outputs.get("output_0"))
     .or_else(|| outputs.get("logits"))
-    .ok_or_else(|| anyhow!("No output tensor found - available outputs: {:?}", outputs.keys().collect::<Vec<_>>()))?;
-    
+    .ok_or_else(|| {
+      anyhow!(
+        "No output tensor found - available outputs: {:?}",
+        outputs.keys().collect::<Vec<_>>()
+      )
+    })?;
+
   let (_shape, data) = output.try_extract_tensor::<f32>()?;
-  
+
   let results = extract_embeddings(data, texts.len());
   Ok(results)
 }
@@ -183,9 +193,7 @@ fn tokenize_texts(
 
 #[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
-fn batch_tokens(
-  encodings: &[tokenizers::Encoding],
-) -> (Vec<i64>, Vec<i64>, usize, usize) {
+fn batch_tokens(encodings: &[tokenizers::Encoding]) -> (Vec<i64>, Vec<i64>, usize, usize) {
   let batch = encodings.len();
   let length = encodings.iter().map(|e| e.len()).max().unwrap_or(0);
 
@@ -195,7 +203,7 @@ fn batch_tokens(
   for encoding in encodings {
     let encoding_ids = encoding.get_ids();
     let encoding_mask = encoding.get_attention_mask();
-    
+
     // Pad to max length
     for i in 0..length {
       if i < encoding_ids.len() {
@@ -213,16 +221,13 @@ fn batch_tokens(
 
 #[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
-fn extract_embeddings(
-  data: &[f32], 
-  batch_size: usize,
-) -> Vec<Vec<f32>> {
+fn extract_embeddings(data: &[f32], batch_size: usize) -> Vec<Vec<f32>> {
   let mut results = Vec::new();
-  
+
   // For now, assume the data is already in [batch, features] format (384-dim embeddings)
   // This works for most sentence transformer models that output pooled embeddings
   let features = data.len() / batch_size.max(1);
-  
+
   for i in 0..batch_size {
     let start = i * features;
     let end = start + features;
@@ -235,7 +240,7 @@ fn extract_embeddings(
       results.push(vec![0.0; 384]);
     }
   }
-  
+
   results
 }
 
@@ -254,12 +259,12 @@ fn validate_input_texts(texts: &[String]) -> Result<()> {
   if texts.is_empty() {
     return Err(anyhow!("Input texts cannot be empty"));
   }
-  
+
   for text in texts {
     if text.len() > 8192 {
       return Err(anyhow!("Text too long: {} characters (max 8192)", text.len()));
     }
   }
-  
+
   Ok(())
 }
