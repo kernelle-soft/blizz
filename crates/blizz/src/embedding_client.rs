@@ -49,47 +49,43 @@ pub struct EmbeddingClient {
 }
 
 // Constructor functions
-impl EmbeddingClient {
-  /// Create a new embedding client with production service (default)
-  pub fn new() -> Self {
-    Self {
-      service: Box::new(ProductionEmbeddingService),
-    }
-  }
-
-  /// Create a new embedding client with injected service (for testing)
-  pub fn with_service(service: Box<dyn EmbeddingService>) -> Self {
-    Self { service }
-  }
-
-  /// Create a new embedding client with mock service (convenience for testing)
-  pub fn with_mock() -> Self {
-    Self {
-      service: Box::new(MockEmbeddingService),
-    }
+/// Create a new embedding client with production service (default)
+pub fn new() -> EmbeddingClient {
+  EmbeddingClient {
+    service: Box::new(ProductionEmbeddingService),
   }
 }
 
-// Client methods (operate on the client instance)
-impl EmbeddingClient {
-  pub fn embed_insight(&self, insight: &mut Insight) -> Embedding {
-    self.service.embed_insight(insight)
+/// Create a new embedding client with injected service (for testing)
+pub fn with_service(service: Box<dyn EmbeddingService>) -> EmbeddingClient {
+  EmbeddingClient { service }
+}
+
+/// Create a new embedding client with mock service (convenience for testing)
+pub fn with_mock() -> EmbeddingClient {
+  EmbeddingClient {
+    service: Box::new(MockEmbeddingService),
+  }
+}
+
+// Client functions (operate on the client instance as first parameter)
+pub fn embed_insight(client: &EmbeddingClient, insight: &mut Insight) -> Embedding {
+  client.service.embed_insight(insight)
+}
+
+pub fn create_embedding(_client: &EmbeddingClient, text: &str) -> Result<Vec<f32>> {
+  #[cfg(feature = "neural")]
+  {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(async {
+      request_embedding_from_daemon(text).await
+    })
   }
 
-  pub fn create_embedding_daemon_only(&self, text: &str) -> Result<Vec<f32>> {
-    #[cfg(feature = "neural")]
-    {
-      let rt = tokio::runtime::Runtime::new()?;
-      rt.block_on(async {
-        request_embedding_from_daemon(text).await
-      })
-    }
-
-    #[cfg(not(feature = "neural"))]
-    {
-      let _ = text;
-      Err(anyhow!("Neural features not enabled"))
-    }
+  #[cfg(not(feature = "neural"))]
+  {
+    let _ = (_client, text);
+    Err(anyhow!("Neural features not enabled"))
   }
 }
 
@@ -114,10 +110,16 @@ impl EmbeddingService for MockEmbeddingService {
   }
 }
 
+// Convenience functions for backwards compatibility
+pub fn embed_insight_legacy(insight: &mut Insight) -> Embedding {
+  let client = new();
+  embed_insight(&client, insight)
+}
+
 #[cfg(feature = "neural")]
-pub fn create_embedding_daemon_only(text: &str) -> Result<Vec<f32>> {
-  let client = EmbeddingClient::new();
-  client.create_embedding_daemon_only(text)
+pub fn create_embedding_daemon_only_legacy(text: &str) -> Result<Vec<f32>> {
+  let client = new();
+  create_embedding(&client, text)
 }
 
 // Private implementation functions

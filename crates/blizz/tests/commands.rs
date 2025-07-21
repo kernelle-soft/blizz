@@ -1,6 +1,6 @@
 use anyhow::Result;
 use blizz::commands::*;
-use blizz::embedding_client::EmbeddingClient;
+use blizz::embedding_client;
 use blizz::insight::{self, Insight};
 use serial_test::serial;
 use std::env;
@@ -20,7 +20,7 @@ mod command_tests {
   #[serial]
   fn test_add_insight_success() -> Result<()> {
     let _temp = setup_temp_insights_root("add_insight_success");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Test overview", "Test details", &client)?;
 
@@ -38,7 +38,7 @@ mod command_tests {
   #[serial]
   fn test_add_insight_empty_fields() -> Result<()> {
     let _temp = setup_temp_insights_root("add_insight_empty");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     // Empty fields should be allowed (creating unusual but valid insights)
     add_insight_with_client("", "", "", "", &client)?;
@@ -52,7 +52,7 @@ mod command_tests {
   #[serial]
   fn test_add_duplicate_insight_fails() -> Result<()> {
     let _temp = setup_temp_insights_root("add_duplicate");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Overview", "Details", &client)?;
 
@@ -67,7 +67,7 @@ mod command_tests {
   #[serial]
   fn test_get_insight_full() -> Result<()> {
     let _temp = setup_temp_insights_root("get_insight_full");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Test overview", "Test details", &client)?;
 
@@ -81,7 +81,7 @@ mod command_tests {
   #[serial]
   fn test_get_insight_overview_only() -> Result<()> {
     let _temp = setup_temp_insights_root("get_insight_overview");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Test overview", "Test details", &client)?;
 
@@ -106,7 +106,7 @@ mod command_tests {
   #[serial]
   fn test_get_insight_with_special_characters() -> Result<()> {
     let _temp = setup_temp_insights_root("get_special_chars");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client(
       "special_topic", 
@@ -137,7 +137,7 @@ mod command_tests {
   #[serial]
   fn test_list_insights_with_data() -> Result<()> {
     let _temp = setup_temp_insights_root("list_with_data");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("topic1", "insight1", "Overview 1", "Details 1", &client)?;
     add_insight_with_client("topic1", "insight2", "Overview 2", "Details 2", &client)?;
@@ -155,7 +155,7 @@ mod command_tests {
   #[serial]
   fn test_list_insights_nonexistent_topic() -> Result<()> {
     let _temp = setup_temp_insights_root("list_nonexistent_topic");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("real_topic", "insight1", "Overview", "Details", &client)?;
 
@@ -178,7 +178,7 @@ mod command_tests {
   #[serial]
   fn test_list_topics_with_data() -> Result<()> {
     let _temp = setup_temp_insights_root("list_topics_with_data");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("topic1", "insight1", "Overview 1", "Details 1", &client)?;
     add_insight_with_client("topic2", "insight2", "Overview 2", "Details 2", &client)?;
@@ -193,7 +193,7 @@ mod command_tests {
   #[serial]
   fn test_update_insight_overview() -> Result<()> {
     let _temp = setup_temp_insights_root("update_overview");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Original overview", "Original details", &client)?;
 
@@ -210,7 +210,7 @@ mod command_tests {
   #[serial]
   fn test_update_insight_details() -> Result<()> {
     let _temp = setup_temp_insights_root("update_details");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Original overview", "Original details", &client)?;
 
@@ -227,7 +227,7 @@ mod command_tests {
   #[serial]
   fn test_update_insight_both() -> Result<()> {
     let _temp = setup_temp_insights_root("update_both");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Original overview", "Original details", &client)?;
 
@@ -250,7 +250,7 @@ mod command_tests {
   #[serial]
   fn test_update_insight_no_changes() -> Result<()> {
     let _temp = setup_temp_insights_root("update_no_changes");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Original overview", "Original details", &client)?;
 
@@ -264,7 +264,7 @@ mod command_tests {
   #[serial]
   fn test_update_nonexistent_insight() -> Result<()> {
     let _temp = setup_temp_insights_root("update_nonexistent");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     let result = update_insight_with_client(
       "nonexistent_topic", 
@@ -282,7 +282,7 @@ mod command_tests {
   #[serial]
   fn test_delete_insight_force() -> Result<()> {
     let _temp = setup_temp_insights_root("delete_force");
-    let client = EmbeddingClient::with_mock();
+    let client = embedding_client::with_mock();
 
     add_insight_with_client("test_topic", "test_name", "Overview", "Details", &client)?;
 

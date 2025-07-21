@@ -15,7 +15,7 @@ pub fn add_insight_with_client(
   let mut insight = Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
 
   // Compute embedding before saving
-  let embedding = client.embed_insight(&mut insight);
+  let embedding = embedding_client::embed_insight(client, &mut insight);
   insight::set_embedding(&mut insight, embedding);
   insight::save(&insight)?;
 
@@ -25,7 +25,7 @@ pub fn add_insight_with_client(
 
 /// Add a new insight to the knowledge base (production version)
 pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
-  let client = EmbeddingClient::new();
+  let client = embedding_client::new();
   add_insight_with_client(topic, name, overview, details, &client)
 }
 
@@ -95,7 +95,7 @@ pub fn update_insight_with_client(
   insight::update(&mut insight, new_overview, new_details)?;
 
   // Recompute and set embedding after content change
-  let embedding = client.embed_insight(&mut insight);
+  let embedding = embedding_client::embed_insight(client, &mut insight);
   insight::set_embedding(&mut insight, embedding);
 
   // Save the updated insight with new embedding
@@ -119,7 +119,7 @@ pub fn update_insight_with_client(
 
 /// Update an existing insight's overview and/or details (production version)
 pub fn update_insight(topic: &str, name: &str, new_overview: Option<&str>, new_details: Option<&str>) -> Result<()> {
-  let client = EmbeddingClient::new();
+  let client = embedding_client::new();
   update_insight_with_client(topic, name, new_overview, new_details, &client)
 }
 
@@ -147,7 +147,7 @@ fn process_insight_indexing(insight: &mut Insight, force: bool, missing_only: bo
   };
 
   if should_update {
-    let embedding = client.embed_insight(insight);
+    let embedding = embedding_client::embed_insight(client, insight);
     insight::set_embedding(insight, embedding);
     
     // Save the updated insight with new embedding (for existing insights)
@@ -200,7 +200,7 @@ fn process_single_insight_index_with_client(
 }
 
 fn process_single_insight_index(topic: &str, name: &str, force: bool, missing_only: bool) -> Result<bool> {
-  let client = EmbeddingClient::new();
+  let client = embedding_client::new();
   process_single_insight_index_with_client(topic, name, force, missing_only, &client)
 }
 
@@ -224,7 +224,7 @@ fn process_topic_indexing_with_client(
 }
 
 fn process_topic_indexing(topic: &str, force: bool, missing_only: bool) -> Result<(usize, usize)> {
-  let client = EmbeddingClient::new();
+  let client = embedding_client::new();
   process_topic_indexing_with_client(topic, force, missing_only, &client)
 }
 
@@ -258,7 +258,7 @@ pub fn index_insights_with_client(force: bool, missing_only: bool, client: &Embe
 
 /// Recompute embeddings for insights (production version)
 pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
-  let client = EmbeddingClient::new();
+  let client = embedding_client::new();
   index_insights_with_client(force, missing_only, &client)
 }
 
@@ -268,9 +268,9 @@ pub fn add_insight_with_service<T: embedding_client::EmbeddingService>(
   name: &str, 
   overview: &str, 
   details: &str,
-  service: &T
+  _service: &T
 ) -> Result<()> {
-  let client = EmbeddingClient::with_service(Box::new(embedding_client::MockEmbeddingService));
+  let client = embedding_client::with_mock();
   add_insight_with_client(topic, name, overview, details, &client)
 }
 
@@ -281,11 +281,11 @@ pub fn update_insight_with_service<T: embedding_client::EmbeddingService>(
   new_details: Option<&str>,
   _service: &T
 ) -> Result<()> {
-  let client = EmbeddingClient::with_mock();
+  let client = embedding_client::with_mock();
   update_insight_with_client(topic, name, new_overview, new_details, &client)
 }
 
 pub fn index_insights_with_service<T: embedding_client::EmbeddingService>(force: bool, missing_only: bool, _service: &T) -> Result<()> {
-  let client = EmbeddingClient::with_mock();
+  let client = embedding_client::with_mock();
   index_insights_with_client(force, missing_only, &client)
 }

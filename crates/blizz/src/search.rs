@@ -88,7 +88,7 @@ fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
 }
 
 /// Search a topic for matches based on a search strategy
-fn search_topic(terms: &[String], search_strategy: fn(&str, &[String]) -> f32, threshold: f32, options: &SearchOptions) -> Result<Vec<SearchResult>> {
+fn search_topic(terms: &[String], search_strategy: fn(&insight::Insight, &[String], &SearchOptions) -> f32, threshold: f32, options: &SearchOptions) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
 
   let insights_dir = insight::get_valid_insights_dir()?;
@@ -111,26 +111,8 @@ fn search_topic(terms: &[String], search_strategy: fn(&str, &[String]) -> f32, t
   Ok(results)
 }
 
-fn search_insight(insight: &insight::Insight, search_strategy: fn(&str, &[String]) -> f32, terms: &[String], threshold: f32, options: &SearchOptions) -> Result<Option<SearchResult>> {
-  let search_content = if options.overview_only {
-    format!("{} {} {}", insight.topic, insight.name, insight.overview)
-  } else {
-    format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
-  };
-
-  let normalized_content = if options.case_sensitive {
-    search_content.to_string()
-  } else {
-    search_content.to_lowercase()
-  };
-
-  let normalized_terms = if options.case_sensitive {
-    terms.to_vec()
-  } else {
-    terms.iter().map(|t| t.to_lowercase()).collect::<Vec<String>>()
-  };
-  
-  let score = search_strategy(&normalized_content, &normalized_terms);
+fn search_insight(insight: &insight::Insight, search_strategy: fn(&insight::Insight, &[String], &SearchOptions) -> f32, terms: &[String], threshold: f32, options: &SearchOptions) -> Result<Option<SearchResult>> {
+  let score = search_strategy(insight, terms, options);
   if score > threshold {
     Ok(Some(SearchResult {
       topic: insight.topic.to_string(),
@@ -144,31 +126,60 @@ fn search_insight(insight: &insight::Insight, search_strategy: fn(&str, &[String
   }
 }
 
-fn get_exact_match(content: &str, terms: &[String]) -> f32 {
-  terms
+fn get_normalized_content(insight: &insight::Insight, options: &SearchOptions) -> String {
+  if options.overview_only {
+    format!("{} {} {}", insight.topic, insight.name, insight.overview)
+  } else {
+    format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
+  }
+}
+
+fn get_normalized_terms(terms: &[String], options: &SearchOptions) -> Vec<String> {
+  if options.case_sensitive {
+    terms.to_vec()
+  } else {
+    terms.iter().map(|t| t.to_lowercase()).collect::<Vec<String>>()
+  }
+}
+
+fn get_exact_match(insight: &insight::Insight, terms: &[String], options: &SearchOptions) -> f32 {
+  let normalized_content = get_normalized_content(insight, options);
+  let normalized_terms = get_normalized_terms(terms, options);
+
+  normalized_terms
     .iter()
-    .map(|term| content.matches(term).count())
+    .map(|term| normalized_content.matches(term).count())
     .sum::<usize>() as f32
 }
 
 #[cfg(feature = "semantic")]
-fn get_semantic_match(content: &str, terms: &[String]) -> f32 {
-  let extracted_terms = similarity::extract_words(&terms.join(" "));
-  similarity::semantic(&extracted_terms, content)
+fn get_semantic_match(insight: &insight::Insight, terms: &[String], options: &SearchOptions) -> f32 {
+  let normalized_content = get_normalized_content(insight, options);
+  let normalized_terms = get_normalized_terms(terms, options);
+
+  similarity::semantic(&normalized_terms.into_iter().collect(), &normalized_content)
 }
 
 #[cfg(feature = "neural")]
-fn get_embedding_match(content: &str, terms: &[String]) -> f32 {
-  match try_daemon_embedding_match(content, terms) {
+fn get_embedding_match(insight: &insight::Insight, terms: &[String], options: &SearchOptions) -> f32 {
+  match try_daemon_embedding_match(insight, terms, options) {
     Ok(similarity) => similarity,
     Err(_) => 0.0,
   }
 }
 
 #[cfg(feature = "neural")]
-fn try_daemon_embedding_match(content: &str, terms: &[String]) -> Result<f32> {
-  let query_embedding = embedding_client::create_embedding_daemon_only(&terms.join(" "))?;
-  let content_embedding = embedding_client::create_embedding_daemon_only(content)?;
+fn try_daemon_embedding_match(insight: &insight::Insight, terms: &[String], options: &SearchOptions) -> Result<f32> {
+  let client = embedding_client::new();
+  let normalized_terms = get_normalized_terms(terms, options);
+
+  let query_embedding = embedding_client::create_embedding(&client, &normalized_terms.join(" "))?;
+  let content_embedding = if let Some(embedding) = insight.embedding.as_ref() {
+    embedding.clone()
+  } else {
+    let normalized_content = get_normalized_content(insight, options);
+    embedding_client::create_embedding(&client, &normalized_content)?
+  };
   
   Ok(similarity::cosine(&query_embedding, &content_embedding))
 }
