@@ -5,6 +5,7 @@ use std::path::Path;
 use ort::session::{builder::GraphOptimizationLevel, Session};
 
 pub trait EmbeddingModel {
+  #[allow(dead_code)]
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
 }
 
@@ -62,6 +63,7 @@ impl EmbeddingModel for MockEmbeddingModel {
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)]
 pub async fn create_production_model() -> Result<OnnxEmbeddingModel> {
   initialize_onnx_runtime()?;
   let session = create_model_session()?;
@@ -71,6 +73,7 @@ pub async fn create_production_model() -> Result<OnnxEmbeddingModel> {
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn initialize_onnx_runtime() -> Result<()> {
   ort::init()
     .with_name("blizz-model")
@@ -80,6 +83,7 @@ fn initialize_onnx_runtime() -> Result<()> {
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn create_model_session() -> Result<Session> {
   // Try to load from URL if local file doesn't exist
   let local_model_path = Path::new("all-MiniLM-L6-v2.onnx");
@@ -101,6 +105,7 @@ fn create_model_session() -> Result<Session> {
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
   let tokenizer_path = get_tokenizer_path()?;
   
@@ -114,6 +119,7 @@ fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn get_tokenizer_path() -> Result<std::path::PathBuf> {
   let mut path = std::env::current_exe()?;
   path.pop(); // Remove the executable name
@@ -123,6 +129,7 @@ fn get_tokenizer_path() -> Result<std::path::PathBuf> {
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn create_default_tokenizer() -> Result<tokenizers::Tokenizer> {
   // Create a simple tokenizer from pre-trained model if possible
   use tokenizers::models::wordpiece::WordPiece;
@@ -134,6 +141,7 @@ fn create_default_tokenizer() -> Result<tokenizers::Tokenizer> {
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 pub fn compute_onnx_embeddings(model: &mut OnnxEmbeddingModel, texts: &[String]) -> Result<Vec<Vec<f32>>> {
   if texts.is_empty() {
     return Ok(vec![]);
@@ -157,13 +165,14 @@ pub fn compute_onnx_embeddings(model: &mut OnnxEmbeddingModel, texts: &[String])
     .or_else(|| outputs.get("logits"))
     .ok_or_else(|| anyhow!("No output tensor found - available outputs: {:?}", outputs.keys().collect::<Vec<_>>()))?;
     
-  let (_, data) = output.try_extract_tensor::<f32>()?;
+  let (_shape, data) = output.try_extract_tensor::<f32>()?;
   
   let results = extract_embeddings(data, texts.len());
   Ok(results)
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn tokenize_texts(
   tokenizer: &mut tokenizers::Tokenizer,
   texts: &[String],
@@ -173,6 +182,7 @@ fn tokenize_texts(
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn batch_tokens(
   encodings: &[tokenizers::Encoding],
 ) -> (Vec<i64>, Vec<i64>, usize, usize) {
@@ -202,6 +212,7 @@ fn batch_tokens(
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn extract_embeddings(
   data: &[f32], 
   batch_size: usize,
@@ -229,6 +240,7 @@ fn extract_embeddings(
 }
 
 #[cfg(feature = "neural")]
+#[allow(dead_code)] // Used by daemon binary
 fn normalize_vector(vector: Vec<f32>) -> Vec<f32> {
   let magnitude: f32 = vector.iter().map(|x| x * x).sum::<f32>().sqrt();
   if magnitude > 0.0 {
