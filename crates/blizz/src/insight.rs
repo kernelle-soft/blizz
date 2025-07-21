@@ -54,109 +54,109 @@ impl Insight {
       embedding_computed: None,
     }
   }
+}
 
-  pub fn file_path(&self) -> Result<PathBuf> {
-    let insights_root = get_insights_root()?;
-    Ok(insights_root.join(&self.topic).join(format!("{}.insight.md", self.name)))
+pub fn file_path(insight: &Insight) -> Result<PathBuf> {
+  let insights_root = get_insights_root()?;
+  Ok(insights_root.join(&insight.topic).join(format!("{}.insight.md", insight.name)))
+}
+
+pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
+  insight.embedding_version = Some(embedding.version);
+  insight.embedding = Some(embedding.embedding);
+  insight.embedding_computed = Some(embedding.created_at);
+}
+
+pub fn has_embedding(insight: &Insight) -> bool {
+  insight.embedding.is_some()
+}
+
+pub fn get_embedding_text(insight: &Insight) -> String {
+  format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
+}
+
+pub fn save(insight: &Insight) -> Result<()> {
+  let file_path = file_path(insight)?;
+  ensure_parent_dir_exists(&file_path)?;
+  check_insight_is_new(&file_path, &insight.topic, &insight.name)?;
+  write_to_file(insight, &file_path)
+}
+
+fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
+  let frontmatter = InsightMetaData {
+    overview: insight.overview.clone(),
+    embedding_version: insight.embedding_version.clone(),
+    embedding: insight.embedding.clone(),
+    embedding_text: insight.embedding_text.clone(),
+    embedding_computed: insight.embedding_computed,
+  };
+
+  let yaml_content = serde_yaml::to_string(&frontmatter)?;
+  let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
+  fs::write(file_path, content)?;
+
+  Ok(())
+}
+
+pub fn load(topic: &str, name: &str) -> Result<Insight> {
+  let file_path = make_insight_path(topic, name)?;
+  check_insight_exists(&file_path, topic, name)?;
+  let content = fs::read_to_string(&file_path)?;
+  parse_insight_from_content(topic, name, &content)
+}
+
+pub fn load_from_path(path: &std::path::Path) -> Result<Insight> {
+  let content = fs::read_to_string(path)?;
+  parse_insight_from_content(
+    path.parent().unwrap().file_name().unwrap().to_str().unwrap(), 
+    path.file_stem().unwrap().to_str().unwrap(), 
+    &content
+  )
+}
+
+pub fn update(insight: &mut Insight, new_overview: Option<&str>, new_details: Option<&str>) -> Result<()> {
+  if let Some(overview) = new_overview {
+    insight.overview = overview.to_string();
+  }
+  if let Some(details) = new_details {
+    insight.details = details.to_string();
   }
 
-  pub fn set_embedding(&mut self, embedding: Embedding) {
-    self.embedding_version = Some(embedding.version);
-    self.embedding = Some(embedding.embedding);
-    self.embedding_computed = Some(embedding.created_at);
+  // Check if at least one section is being updated
+  if new_overview.is_none() && new_details.is_none() {
+    return Err(anyhow!("At least one of overview or details must be provided"));
   }
 
-  pub fn has_embedding(&self) -> bool {
-    self.embedding.is_some()
+  let file_path = file_path(insight)?;
+  if !file_path.exists() {
+    return Err(anyhow!("Insight {}/{} not found", insight.topic, insight.name));
   }
 
-  pub fn get_embedding_text(&self) -> String {
-    format!("{} {} {} {}", self.topic, self.name, self.overview, self.details)
+  // Clear embedding metadata since content changed
+  clear_embedding_cache_if_content_changed(insight, new_overview, new_details);
+
+  write_to_file(insight, &file_path)
+}
+
+fn clear_embedding_cache_if_content_changed(
+  insight: &mut Insight,
+  new_overview: Option<&str>,
+  new_details: Option<&str>,
+) {
+  if new_overview.is_some() || new_details.is_some() {
+    insight.embedding_version = None;
+    insight.embedding = None;
+    insight.embedding_text = None;
+    insight.embedding_computed = None;
   }
+}
 
-  pub fn save(&self) -> Result<()> {
-    let file_path = self.file_path()?;
-    ensure_parent_dir_exists(&file_path)?;
-    check_insight_is_new(&file_path, &self.topic, &self.name)?;
-    self.write_to_file(&file_path)
-  }
-
-  fn write_to_file(&self, file_path: &PathBuf) -> Result<()> {
-    let frontmatter = InsightMetaData {
-      overview: self.overview.clone(),
-      embedding_version: self.embedding_version.clone(),
-      embedding: self.embedding.clone(),
-      embedding_text: self.embedding_text.clone(),
-      embedding_computed: self.embedding_computed,
-    };
-
-    let yaml_content = serde_yaml::to_string(&frontmatter)?;
-    let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, self.details);
-    fs::write(file_path, content)?;
-
-    Ok(())
-  }
-
-  pub fn load(topic: &str, name: &str) -> Result<Self> {
-    let file_path = make_insight_path(topic, name)?;
-    check_insight_exists(&file_path, topic, name)?;
-    let content = fs::read_to_string(&file_path)?;
-    parse_insight_from_content(topic, name, &content)
-  }
-
-  pub fn load_from_path(path: &std::path::Path) -> Result<Self> {
-    let content = fs::read_to_string(path)?;
-    parse_insight_from_content(
-      path.parent().unwrap().file_name().unwrap().to_str().unwrap(), 
-      path.file_stem().unwrap().to_str().unwrap(), 
-      &content
-    )
-  }
-
-  pub fn update(&mut self, new_overview: Option<&str>, new_details: Option<&str>) -> Result<()> {
-    if let Some(overview) = new_overview {
-      self.overview = overview.to_string();
-    }
-    if let Some(details) = new_details {
-      self.details = details.to_string();
-    }
-
-    // Check if at least one section is being updated
-    if new_overview.is_none() && new_details.is_none() {
-      return Err(anyhow!("At least one of overview or details must be provided"));
-    }
-
-    let file_path = self.file_path()?;
-    if !file_path.exists() {
-      return Err(anyhow!("Insight {}/{} not found", self.topic, self.name));
-    }
-
-    // Clear embedding metadata since content changed
-    self.clear_embedding_cache_if_content_changed(new_overview, new_details);
-
-    self.write_to_file(&file_path)
-  }
-
-  fn clear_embedding_cache_if_content_changed(
-    &mut self,
-    new_overview: Option<&str>,
-    new_details: Option<&str>,
-  ) {
-    if new_overview.is_some() || new_details.is_some() {
-      self.embedding_version = None;
-      self.embedding = None;
-      self.embedding_text = None;
-      self.embedding_computed = None;
-    }
-  }
-
-  pub fn delete(&self) -> Result<()> {
-    let file_path = self.file_path()?;
-    check_insight_exists(&file_path, &self.topic, &self.name)?;
-    fs::remove_file(&file_path)?;
-    cleanup_empty_dir(&file_path)?;
-    Ok(())
-  }
+pub fn delete(insight: &Insight) -> Result<()> {
+  let file_path = file_path(insight)?;
+  check_insight_exists(&file_path, &insight.topic, &insight.name)?;
+  fs::remove_file(&file_path)?;
+  cleanup_empty_dir(&file_path)?;
+  Ok(())
 }
 
 pub fn get_insights_root() -> Result<PathBuf> {
