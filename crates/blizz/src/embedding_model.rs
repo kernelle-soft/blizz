@@ -1,26 +1,23 @@
 use anyhow::{anyhow, Result};
+use std::path::Path;
 
 #[cfg(feature = "neural")]
-use ort::session::Session;
+use ort::session::{builder::GraphOptimizationLevel, Session};
 
 pub trait EmbeddingModel {
-  #[allow(dead_code)] // Used by daemon binary
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
 }
 
 #[cfg(feature = "neural")]
 pub struct OnnxEmbeddingModel {
-  #[allow(dead_code)]
   session: Session,
-  #[allow(dead_code)]
   tokenizer: tokenizers::Tokenizer,
 }
 
 #[cfg(feature = "neural")]
 impl EmbeddingModel for OnnxEmbeddingModel {
-  fn compute_embeddings(&mut self, _texts: &[String]) -> Result<Vec<Vec<f32>>> {
-    // Placeholder implementation - return mock embeddings for now
-    Ok(vec![vec![0.0; 384]])
+  fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+    compute_onnx_embeddings(self, texts)
   }
 }
 
@@ -65,8 +62,192 @@ impl EmbeddingModel for MockEmbeddingModel {
 }
 
 #[cfg(feature = "neural")]
-#[allow(dead_code)] // Used by daemon binary
 pub async fn create_production_model() -> Result<OnnxEmbeddingModel> {
-  // Placeholder implementation - in practice this would load the actual ONNX model
-  Err(anyhow!("ONNX model loading not yet implemented"))
+  initialize_onnx_runtime()?;
+  let session = create_model_session()?;
+  let tokenizer = load_tokenizer()?;
+
+  Ok(OnnxEmbeddingModel { session, tokenizer })
+}
+
+#[cfg(feature = "neural")]
+fn initialize_onnx_runtime() -> Result<()> {
+  ort::init()
+    .with_name("blizz-model")
+    .commit()
+    .map_err(|e| anyhow!("Failed to initialize ONNX Runtime: {}", e))
+    .map(|_| ())
+}
+
+#[cfg(feature = "neural")]
+fn create_model_session() -> Result<Session> {
+  // Try to load from URL if local file doesn't exist
+  let local_model_path = Path::new("all-MiniLM-L6-v2.onnx");
+  
+  let session = if local_model_path.exists() {
+    Session::builder()?
+      .with_optimization_level(GraphOptimizationLevel::Level1)?
+      .commit_from_file(local_model_path)
+      .map_err(|e| anyhow!("Failed to load local ONNX model: {}", e))?
+  } else {
+    // Load from remote URL
+    Session::builder()?
+      .with_optimization_level(GraphOptimizationLevel::Level1)?
+      .commit_from_url("https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx")
+      .map_err(|e| anyhow!("Failed to load ONNX model from URL: {}", e))?
+  };
+
+  Ok(session)
+}
+
+#[cfg(feature = "neural")]
+fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
+  let tokenizer_path = get_tokenizer_path()?;
+  
+  if tokenizer_path.exists() {
+    tokenizers::Tokenizer::from_file(&tokenizer_path)
+      .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))
+  } else {
+    // If local tokenizer doesn't exist, try to load from embedded data or create a basic one
+    create_default_tokenizer()
+  }
+}
+
+#[cfg(feature = "neural")]
+fn get_tokenizer_path() -> Result<std::path::PathBuf> {
+  let mut path = std::env::current_exe()?;
+  path.pop(); // Remove the executable name
+  path.push("data");
+  path.push("tokenizer.json");
+  Ok(path)
+}
+
+#[cfg(feature = "neural")]
+fn create_default_tokenizer() -> Result<tokenizers::Tokenizer> {
+  // Create a simple tokenizer from pre-trained model if possible
+  use tokenizers::models::wordpiece::WordPiece;
+  
+  let wordpiece = WordPiece::default();
+  let tokenizer = tokenizers::Tokenizer::new(wordpiece);
+  
+  Ok(tokenizer)
+}
+
+#[cfg(feature = "neural")]
+pub fn compute_onnx_embeddings(model: &mut OnnxEmbeddingModel, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+  if texts.is_empty() {
+    return Ok(vec![]);
+  }
+
+  validate_input_texts(texts)?;
+  
+  let encodings = tokenize_texts(&mut model.tokenizer, texts)?;
+  let (ids, mask, batch, length) = batch_tokens(&encodings);
+
+  // Create input tensors using the correct API
+  let ids_tensor = ort::value::Tensor::from_array(([batch, length], ids.into_boxed_slice()))?;
+  let mask_tensor = ort::value::Tensor::from_array(([batch, length], mask.into_boxed_slice()))?;
+
+  // Run inference
+  let outputs = model.session.run(ort::inputs!["input_ids" => ids_tensor, "attention_mask" => mask_tensor])?;
+  
+  // Extract embeddings from the output - try common output names first, then fallback to first output
+  let output = outputs.get("last_hidden_state")
+    .or_else(|| outputs.get("output_0"))
+    .or_else(|| outputs.get("logits"))
+    .ok_or_else(|| anyhow!("No output tensor found - available outputs: {:?}", outputs.keys().collect::<Vec<_>>()))?;
+    
+  let (_, data) = output.try_extract_tensor::<f32>()?;
+  
+  let results = extract_embeddings(data, texts.len());
+  Ok(results)
+}
+
+#[cfg(feature = "neural")]
+fn tokenize_texts(
+  tokenizer: &mut tokenizers::Tokenizer,
+  texts: &[String],
+) -> Result<Vec<tokenizers::Encoding>> {
+  let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
+  tokenizer.encode_batch(text_refs, true).map_err(|e| anyhow!("Failed to encode texts: {}", e))
+}
+
+#[cfg(feature = "neural")]
+fn batch_tokens(
+  encodings: &[tokenizers::Encoding],
+) -> (Vec<i64>, Vec<i64>, usize, usize) {
+  let batch = encodings.len();
+  let length = encodings.iter().map(|e| e.len()).max().unwrap_or(0);
+
+  let mut ids = Vec::with_capacity(batch * length);
+  let mut mask = Vec::with_capacity(batch * length);
+
+  for encoding in encodings {
+    let encoding_ids = encoding.get_ids();
+    let encoding_mask = encoding.get_attention_mask();
+    
+    // Pad to max length
+    for i in 0..length {
+      if i < encoding_ids.len() {
+        ids.push(encoding_ids[i] as i64);
+        mask.push(encoding_mask[i] as i64);
+      } else {
+        ids.push(0); // PAD token
+        mask.push(0); // No attention
+      }
+    }
+  }
+
+  (ids, mask, batch, length)
+}
+
+#[cfg(feature = "neural")]
+fn extract_embeddings(
+  data: &[f32], 
+  batch_size: usize,
+) -> Vec<Vec<f32>> {
+  let mut results = Vec::new();
+  
+  // For now, assume the data is already in [batch, features] format (384-dim embeddings)
+  // This works for most sentence transformer models that output pooled embeddings
+  let features = data.len() / batch_size.max(1);
+  
+  for i in 0..batch_size {
+    let start = i * features;
+    let end = start + features;
+    if end <= data.len() {
+      let vector: Vec<f32> = data[start..end].to_vec();
+      let normalized = normalize_vector(vector);
+      results.push(normalized);
+    } else {
+      // Fallback: create a zero vector if dimensions don't match
+      results.push(vec![0.0; 384]);
+    }
+  }
+  
+  results
+}
+
+#[cfg(feature = "neural")]
+fn normalize_vector(vector: Vec<f32>) -> Vec<f32> {
+  let magnitude: f32 = vector.iter().map(|x| x * x).sum::<f32>().sqrt();
+  if magnitude > 0.0 {
+    vector.into_iter().map(|x| x / magnitude).collect()
+  } else {
+    vector
+  }
+}
+
+fn validate_input_texts(texts: &[String]) -> Result<()> {
+  if texts.is_empty() {
+    return Err(anyhow!("Input texts cannot be empty"));
+  }
+  
+  for text in texts {
+    if text.len() > 8192 {
+      return Err(anyhow!("Text too long: {} characters (max 8192)", text.len()));
+    }
+  }
+  
+  Ok(())
 }

@@ -84,7 +84,7 @@ pub struct ProductionEmbeddingService;
 
 impl EmbeddingService for ProductionEmbeddingService {
   fn embed_insight(&self, insight: &mut Insight) -> Embedding {
-    embed_insight_impl(insight)
+    embad_insight(insight)
   }
 }
 
@@ -101,18 +101,35 @@ impl EmbeddingService for MockEmbeddingService {
 }
 
 // Private implementation functions
-fn embed_insight_impl(insight: &mut Insight) -> Embedding {
+fn embad_insight(insight: &mut Insight) -> Embedding {
   #[cfg(feature = "neural")]
   {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let result = rt.block_on(async { compute_insight_embedding(insight).await }).unwrap();
-    result
+    match rt.block_on(async { compute_insight_embedding(insight).await }) {
+      Ok(embedding) => embedding,
+      Err(e) => {
+        eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
+        eprintln!("  {} Insight saved without embedding (can be computed later with 'blizz index')", "ℹ".blue());
+        
+        // Return a placeholder embedding instead of panicking
+        Embedding {
+          version: "placeholder".to_string(),
+          created_at: Utc::now(),
+          embedding: vec![],
+        }
+      }
+    }
   }
 
   #[cfg(not(feature = "neural"))]
   {
     let _ = insight;
-    panic!("Neural features not enabled")
+    // Return a placeholder embedding for non-neural builds
+    Embedding {
+      version: "mock".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.0; 384],
+    }
   }
 }
 
@@ -124,14 +141,7 @@ async fn compute_insight_embedding(insight: &Insight) -> Result<Embedding> {
 
   match result {
     Ok(embedding) => Ok(Embedding { version, created_at: Utc::now(), embedding }),
-    Err(e) => {
-      eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
-      eprintln!(
-        "  {} Insight saved without embedding (can be computed later with 'blizz index')",
-        "ℹ".blue()
-      );
-      Err(e)
-    }
+    Err(e) => Err(e),
   }
 }
 

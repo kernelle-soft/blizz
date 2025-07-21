@@ -92,16 +92,14 @@ pub fn update_insight_with_client(
 ) -> Result<()> {
   let mut insight = insight::load(topic, name)?;
 
-  // Update the insight content using the existing update function
   insight::update(&mut insight, new_overview, new_details)?;
 
   // Recompute and set embedding after content change
   let embedding = embedding_client::embed_insight(client, &mut insight);
   insight::set_embedding(&mut insight, embedding);
 
-  // Save the updated insight with new embedding
   let file_path = insight::file_path(&insight)?;
-  let frontmatter = InsightMetaData {
+  let metadata = InsightMetaData {
     overview: insight.overview.clone(),
     embedding_version: insight.embedding_version.clone(),
     embedding: insight.embedding.clone(),
@@ -109,8 +107,8 @@ pub fn update_insight_with_client(
     embedding_computed: insight.embedding_computed,
   };
 
-  let yaml_content = serde_yaml::to_string(&frontmatter)?;
-  let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
+  let yaml_content = serde_yaml::to_string(&metadata)?;
+  let content = format!("---\n{}---\n\n{}", yaml_content, insight.details);
   std::fs::write(&file_path, content)?;
 
   println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
