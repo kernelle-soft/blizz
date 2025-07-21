@@ -1,9 +1,7 @@
 use anyhow::Result;
-use blizz::insight::{self, Insight};
-#[cfg(feature = "neural")]
 use blizz::embedding_client::Embedding;
-#[cfg(feature = "neural")]
-use chrono::{DateTime, Utc};
+use blizz::insight::{self, Insight};
+use chrono::Utc;
 use serial_test::serial;
 use std::env;
 use tempfile::TempDir;
@@ -27,11 +25,14 @@ mod neural_feature_tests {
       "Test overview".to_string(),
       "Test details".to_string(),
     );
-    insight::set_embedding(&mut insight, Embedding {
-      version: "v1.0".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.1, 0.2, 0.3],
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding {
+        version: "v1.0".to_string(),
+        created_at: Utc::now(),
+        embedding: vec![0.1, 0.2, 0.3],
+      },
+    );
 
     assert_eq!(insight.topic, "test_topic");
     assert_eq!(insight.name, "test_name");
@@ -61,11 +62,14 @@ mod neural_feature_tests {
     assert!(!insight::has_embedding(&insight));
 
     let mut insight_with_embedding = insight;
-    insight::set_embedding(&mut insight_with_embedding, Embedding {
-      version: "v2.0".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.4, 0.5, 0.6],
-    });
+    insight::set_embedding(
+      &mut insight_with_embedding,
+      Embedding {
+        version: "v2.0".to_string(),
+        created_at: Utc::now(),
+        embedding: vec![0.4, 0.5, 0.6],
+      },
+    );
 
     assert!(insight::has_embedding(&insight_with_embedding));
   }
@@ -103,11 +107,14 @@ mod neural_feature_tests {
       "Test details".to_string(),
     );
 
-    insight::set_embedding(&mut original, Embedding {
-      version: "v1.0".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.1, 0.2, 0.3],
-    });
+    insight::set_embedding(
+      &mut original,
+      Embedding {
+        version: "v1.0".to_string(),
+        created_at: Utc::now(),
+        embedding: vec![0.1, 0.2, 0.3],
+      },
+    );
 
     insight::save(&original)?;
 
@@ -125,7 +132,7 @@ mod neural_feature_tests {
     let _temp = setup_temp_insights_root("embedding_timestamp");
 
     let before = Utc::now();
-    
+
     let mut insight = Insight::new(
       "test_topic".to_string(),
       "test_name".to_string(),
@@ -134,11 +141,14 @@ mod neural_feature_tests {
     );
 
     let embedding_time = Utc::now();
-    insight::set_embedding(&mut insight, Embedding {
-      version: "v1.0".to_string(),
-      created_at: embedding_time,
-      embedding: vec![0.1, 0.2, 0.3],
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding {
+        version: "v1.0".to_string(),
+        created_at: embedding_time,
+        embedding: vec![0.1, 0.2, 0.3],
+      },
+    );
 
     insight::save(&insight)?;
     let loaded = insight::load("test_topic", "test_name")?;
@@ -167,11 +177,14 @@ mod neural_feature_tests {
     );
 
     // Set initial embedding
-    insight::set_embedding(&mut insight, Embedding {
-      version: "v1.0".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.1, 0.2, 0.3],
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding {
+        version: "v1.0".to_string(),
+        created_at: Utc::now(),
+        embedding: vec![0.1, 0.2, 0.3],
+      },
+    );
 
     insight::save(&insight)?;
     assert!(insight::has_embedding(&insight));
@@ -199,20 +212,26 @@ mod neural_feature_tests {
     );
 
     // Test version v1.0
-    insight::set_embedding(&mut insight, Embedding {
-      version: "v1.0".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.1, 0.2, 0.3],
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding {
+        version: "v1.0".to_string(),
+        created_at: Utc::now(),
+        embedding: vec![0.1, 0.2, 0.3],
+      },
+    );
 
     assert_eq!(insight.embedding_version, Some("v1.0".to_string()));
 
     // Test version v2.0
-    insight::set_embedding(&mut insight, Embedding {
-      version: "v2.0".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.4, 0.5, 0.6],
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding {
+        version: "v2.0".to_string(),
+        created_at: Utc::now(),
+        embedding: vec![0.4, 0.5, 0.6],
+      },
+    );
 
     assert_eq!(insight.embedding_version, Some("v2.0".to_string()));
 
@@ -235,19 +254,25 @@ mod neural_feature_tests {
     let small_embedding = vec![0.1, 0.2, 0.3];
     let large_embedding = vec![0.1; 384]; // Common dimension size
 
-    insight::set_embedding(&mut insight, Embedding {
-      version: "small".to_string(),
-      created_at: Utc::now(),
-      embedding: small_embedding.clone(),
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding {
+        version: "small".to_string(),
+        created_at: Utc::now(),
+        embedding: small_embedding.clone(),
+      },
+    );
 
     assert_eq!(insight.embedding, Some(small_embedding));
 
-    insight::set_embedding(&mut insight, Embedding {
-      version: "large".to_string(),
-      created_at: Utc::now(),
-      embedding: large_embedding.clone(),
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding {
+        version: "large".to_string(),
+        created_at: Utc::now(),
+        embedding: large_embedding.clone(),
+      },
+    );
 
     assert_eq!(insight.embedding, Some(large_embedding));
 
@@ -300,7 +325,8 @@ mod neural_feature_tests {
   #[test]
   #[serial]
   fn test_parse_new_yaml_format() -> Result<()> {
-    let new_content = "---\noverview: \"This is the overview\"\n---\n\n# Details\nThis is the details section.";
+    let new_content =
+      "---\noverview: \"This is the overview\"\n---\n\n# Details\nThis is the details section.";
 
     let (metadata, details) = insight::parse_insight_with_metadata(new_content)?;
     assert_eq!(metadata.overview, "This is the overview");
@@ -322,22 +348,24 @@ mod neural_feature_tests {
       "Test details".to_string(),
     );
 
-    insight::set_embedding(&mut insight, Embedding {
-      version: "empty".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![],
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding { version: "empty".to_string(), created_at: Utc::now(), embedding: vec![] },
+    );
 
     assert!(insight::has_embedding(&insight));
     assert_eq!(insight.embedding, Some(vec![]));
 
     // Test very large embedding
     let large_embedding = vec![0.5; 1536]; // GPT-3 embedding size
-    insight::set_embedding(&mut insight, Embedding {
-      version: "large".to_string(),
-      created_at: Utc::now(),
-      embedding: large_embedding.clone(),
-    });
+    insight::set_embedding(
+      &mut insight,
+      Embedding {
+        version: "large".to_string(),
+        created_at: Utc::now(),
+        embedding: large_embedding.clone(),
+      },
+    );
 
     assert_eq!(insight.embedding, Some(large_embedding));
 

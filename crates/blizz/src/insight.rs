@@ -108,13 +108,17 @@ pub fn load(topic: &str, name: &str) -> Result<Insight> {
 pub fn load_from_path(path: &std::path::Path) -> Result<Insight> {
   let content = fs::read_to_string(path)?;
   parse_insight_from_content(
-    path.parent().unwrap().file_name().unwrap().to_str().unwrap(), 
-    path.file_stem().unwrap().to_str().unwrap(), 
-    &content
+    path.parent().unwrap().file_name().unwrap().to_str().unwrap(),
+    path.file_stem().unwrap().to_str().unwrap(),
+    &content,
   )
 }
 
-pub fn update(insight: &mut Insight, new_overview: Option<&str>, new_details: Option<&str>) -> Result<()> {
+pub fn update(
+  insight: &mut Insight,
+  new_overview: Option<&str>,
+  new_details: Option<&str>,
+) -> Result<()> {
   if let Some(overview) = new_overview {
     insight.overview = overview.to_string();
   }

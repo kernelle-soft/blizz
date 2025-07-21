@@ -3,20 +3,10 @@ use std::collections::HashSet;
 // violet ignore chunk
 /// Common English stop words to filter out
 pub const STOP_WORDS: &[&str] = &[
-  "the", "a", "an",
-  "and", "or", "but",
-  "in", "on", "at", 
-  "to", "for", "of", 
-  "with", "by", "over",
-  "is", "are", "was", 
-  "were", "be", "been",
-  "have", "has", "had", 
-  "do", "does", "did", 
-  "will", "would", "could", 
-  "should", "you", "your", 
-  "we", "our", "us",
-  "they", "them", "their",
-  "it", "its"
+  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "over",
+  "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will",
+  "would", "could", "should", "you", "your", "we", "our", "us", "they", "them", "their", "it",
+  "its",
 ];
 
 /// Calculate cosine similarity between two embeddings
@@ -163,7 +153,7 @@ mod tests {
 
     let similarity = semantic(&query_words, content);
     assert_eq!(similarity, 0.0);
-  } 
+  }
 
   #[test]
   fn test_calculate_semantic_similarity_frequency_boost() {

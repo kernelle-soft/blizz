@@ -5,8 +5,8 @@
 
 pub mod commands;
 pub mod embedding_client;
-pub mod insight;
 pub mod embedding_model;
+pub mod insight;
 pub mod search;
 pub mod semantic;
 pub mod similarity;

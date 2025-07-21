@@ -5,7 +5,7 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::time::{timeout, Duration};
 
 #[cfg(feature = "neural")]
-use blizz::embedding_model::{EmbeddingModel, create_production_model};
+use blizz::embedding_model::{create_production_model, EmbeddingModel};
 
 #[cfg(not(feature = "neural"))]
 use blizz::embedding_model::MockEmbeddingModel;
@@ -49,7 +49,8 @@ impl<M: EmbeddingModel> EmbeddingService<M> {
 }
 
 #[cfg(feature = "neural")]
-async fn create_embedding_service() -> Result<EmbeddingService<blizz::embedding_model::OnnxEmbeddingModel>> {
+async fn create_embedding_service(
+) -> Result<EmbeddingService<blizz::embedding_model::OnnxEmbeddingModel>> {
   let model = create_production_model().await?;
   Ok(EmbeddingService::new(model))
 }
@@ -80,7 +81,8 @@ async fn run_server_loop<M: EmbeddingModel>(
   let timeout = Duration::from_secs(INACTIVITY_TIMEOUT_SECS);
 
   loop {
-    let should_continue = handle_single_connection(&listener, &mut service, timeout).await.unwrap_or(false);
+    let should_continue =
+      handle_single_connection(&listener, &mut service, timeout).await.unwrap_or(false);
     if !should_continue {
       break;
     }

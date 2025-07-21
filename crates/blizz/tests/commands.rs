@@ -1,8 +1,8 @@
 use anyhow::Result;
 use blizz::commands::*;
 use blizz::embedding_client;
-use blizz::insight;
 use blizz::embedding_client::MockEmbeddingService;
+use blizz::insight;
 use serial_test::serial;
 use std::env;
 use tempfile::TempDir;
@@ -58,7 +58,13 @@ mod command_tests {
     add_insight_with_client("test_topic", "test_name", "Overview", "Details", &client)?;
 
     // Adding the same insight again should fail
-    let result = add_insight_with_client("test_topic", "test_name", "Different overview", "Different details", &client);
+    let result = add_insight_with_client(
+      "test_topic",
+      "test_name",
+      "Different overview",
+      "Different details",
+      &client,
+    );
     assert!(result.is_err());
 
     Ok(())
@@ -110,11 +116,11 @@ mod command_tests {
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     add_insight_with_client(
-      "special_topic", 
-      "special_name", 
-      "Overview with émojis 🚀", 
+      "special_topic",
+      "special_name",
+      "Overview with émojis 🚀",
       "Details with special chars: @#$%^&*()",
-      &client
+      &client,
     )?;
 
     get_insight("special_topic", "special_name", false)?;
@@ -196,7 +202,13 @@ mod command_tests {
     let _temp = setup_temp_insights_root("update_overview");
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
-    add_insight_with_client("test_topic", "test_name", "Original overview", "Original details", &client)?;
+    add_insight_with_client(
+      "test_topic",
+      "test_name",
+      "Original overview",
+      "Original details",
+      &client,
+    )?;
 
     update_insight_with_client("test_topic", "test_name", Some("Updated overview"), None, &client)?;
 
@@ -213,7 +225,13 @@ mod command_tests {
     let _temp = setup_temp_insights_root("update_details");
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
-    add_insight_with_client("test_topic", "test_name", "Original overview", "Original details", &client)?;
+    add_insight_with_client(
+      "test_topic",
+      "test_name",
+      "Original overview",
+      "Original details",
+      &client,
+    )?;
 
     update_insight_with_client("test_topic", "test_name", None, Some("Updated details"), &client)?;
 
@@ -230,14 +248,20 @@ mod command_tests {
     let _temp = setup_temp_insights_root("update_both");
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
-    add_insight_with_client("test_topic", "test_name", "Original overview", "Original details", &client)?;
+    add_insight_with_client(
+      "test_topic",
+      "test_name",
+      "Original overview",
+      "Original details",
+      &client,
+    )?;
 
     update_insight_with_client(
-      "test_topic", 
-      "test_name", 
-      Some("Updated overview"), 
+      "test_topic",
+      "test_name",
+      Some("Updated overview"),
       Some("Updated details"),
-      &client
+      &client,
     )?;
 
     let loaded = insight::load("test_topic", "test_name")?;
@@ -253,7 +277,13 @@ mod command_tests {
     let _temp = setup_temp_insights_root("update_no_changes");
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
-    add_insight_with_client("test_topic", "test_name", "Original overview", "Original details", &client)?;
+    add_insight_with_client(
+      "test_topic",
+      "test_name",
+      "Original overview",
+      "Original details",
+      &client,
+    )?;
 
     let result = update_insight_with_client("test_topic", "test_name", None, None, &client);
     assert!(result.is_err());
@@ -268,11 +298,11 @@ mod command_tests {
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     let result = update_insight_with_client(
-      "nonexistent_topic", 
-      "nonexistent_name", 
-      Some("New overview"), 
+      "nonexistent_topic",
+      "nonexistent_name",
+      Some("New overview"),
       None,
-      &client
+      &client,
     );
     assert!(result.is_err());
 

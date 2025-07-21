@@ -1,8 +1,8 @@
 use anyhow::Result;
+use clap::Args;
 use colored::*;
 use std::fs;
 use std::path::{Path, PathBuf};
-use clap::Args;
 
 use crate::embedding_client;
 use crate::insight;
@@ -51,26 +51,33 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<()> {
 
   #[cfg(feature = "semantic")]
   if can_use_semantic_similarity_search(options) {
-    results.extend(search_topic(terms, get_semantic_match, SEMANTIC_SIMILARITY_THRESHOLD, options)?);
+    results.extend(search_topic(
+      terms,
+      get_semantic_match,
+      SEMANTIC_SIMILARITY_THRESHOLD,
+      options,
+    )?);
   }
 
   #[cfg(feature = "neural")]
   if can_use_embedding_search(options) {
-    results.extend(search_topic(terms, get_embedding_match, EMBEDDING_SIMILARITY_THRESHOLD, options)?);
+    results.extend(search_topic(
+      terms,
+      get_embedding_match,
+      EMBEDDING_SIMILARITY_THRESHOLD,
+      options,
+    )?);
   }
 
   // remove duplicates
-  results.sort_by(
-    |a, b| 
-    b.score.partial_cmp(&a.score)
+  results.sort_by(|a, b| {
+    b.score
+      .partial_cmp(&a.score)
       .unwrap_or(std::cmp::Ordering::Equal)
-      .then_with(|| a.topic.cmp(&b.topic)
-      .then_with(|| a.name.cmp(&b.name)))
-  );
+      .then_with(|| a.topic.cmp(&b.topic).then_with(|| a.name.cmp(&b.name)))
+  });
 
-  results.dedup_by(
-    |a, b| a.topic == b.topic && a.name == b.name
-  );
+  results.dedup_by(|a, b| a.topic == b.topic && a.name == b.name);
 
   display_results(&results, terms, options.overview_only);
 
@@ -88,7 +95,12 @@ fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
 }
 
 /// Search a topic for matches based on a search strategy
-fn search_topic(terms: &[String], search_strategy: fn(&insight::Insight, &[String], &SearchOptions) -> f32, threshold: f32, options: &SearchOptions) -> Result<Vec<SearchResult>> {
+fn search_topic(
+  terms: &[String],
+  search_strategy: fn(&insight::Insight, &[String], &SearchOptions) -> f32,
+  threshold: f32,
+  options: &SearchOptions,
+) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
 
   let insights_dir = insight::get_valid_insights_dir()?;
@@ -101,7 +113,9 @@ fn search_topic(terms: &[String], search_strategy: fn(&insight::Insight, &[Strin
 
       if insight::is_insight_file(&path) {
         let insight = insight::load_from_path(&path)?;
-        if let Ok(Some(result)) = search_insight(&insight, search_strategy, terms, threshold, options) {
+        if let Ok(Some(result)) =
+          search_insight(&insight, search_strategy, terms, threshold, options)
+        {
           results.push(result);
         }
       }
@@ -111,7 +125,13 @@ fn search_topic(terms: &[String], search_strategy: fn(&insight::Insight, &[Strin
   Ok(results)
 }
 
-fn search_insight(insight: &insight::Insight, search_strategy: fn(&insight::Insight, &[String], &SearchOptions) -> f32, terms: &[String], threshold: f32, options: &SearchOptions) -> Result<Option<SearchResult>> {
+fn search_insight(
+  insight: &insight::Insight,
+  search_strategy: fn(&insight::Insight, &[String], &SearchOptions) -> f32,
+  terms: &[String],
+  threshold: f32,
+  options: &SearchOptions,
+) -> Result<Option<SearchResult>> {
   let score = search_strategy(insight, terms, options);
   if score > threshold {
     Ok(Some(SearchResult {
@@ -146,14 +166,15 @@ fn get_exact_match(insight: &insight::Insight, terms: &[String], options: &Searc
   let normalized_content = get_normalized_content(insight, options);
   let normalized_terms = get_normalized_terms(terms, options);
 
-  normalized_terms
-    .iter()
-    .map(|term| normalized_content.matches(term).count())
-    .sum::<usize>() as f32
+  normalized_terms.iter().map(|term| normalized_content.matches(term).count()).sum::<usize>() as f32
 }
 
 #[cfg(feature = "semantic")]
-fn get_semantic_match(insight: &insight::Insight, terms: &[String], options: &SearchOptions) -> f32 {
+fn get_semantic_match(
+  insight: &insight::Insight,
+  terms: &[String],
+  options: &SearchOptions,
+) -> f32 {
   let normalized_content = get_normalized_content(insight, options);
   let normalized_terms = get_normalized_terms(terms, options);
 
@@ -161,15 +182,20 @@ fn get_semantic_match(insight: &insight::Insight, terms: &[String], options: &Se
 }
 
 #[cfg(feature = "neural")]
-fn get_embedding_match(insight: &insight::Insight, terms: &[String], options: &SearchOptions) -> f32 {
-  match try_daemon_embedding_match(insight, terms, options) {
-    Ok(similarity) => similarity,
-    Err(_) => 0.0,
-  }
+fn get_embedding_match(
+  insight: &insight::Insight,
+  terms: &[String],
+  options: &SearchOptions,
+) -> f32 {
+  try_daemon_embedding_match(insight, terms, options).unwrap_or(0.0)
 }
 
 #[cfg(feature = "neural")]
-fn try_daemon_embedding_match(insight: &insight::Insight, terms: &[String], options: &SearchOptions) -> Result<f32> {
+fn try_daemon_embedding_match(
+  insight: &insight::Insight,
+  terms: &[String],
+  options: &SearchOptions,
+) -> Result<f32> {
   let client = embedding_client::create();
   let normalized_terms = get_normalized_terms(terms, options);
 
@@ -180,7 +206,7 @@ fn try_daemon_embedding_match(insight: &insight::Insight, terms: &[String], opti
     let normalized_content = get_normalized_content(insight, options);
     embedding_client::create_embedding(&client, &normalized_content)?
   };
-  
+
   Ok(similarity::cosine(&query_embedding, &content_embedding))
 }
 
@@ -199,21 +225,17 @@ fn display_results(results: &[SearchResult], terms: &[String], overview_only: bo
     println!("No matches found for: {}", terms.join(" ").yellow());
   } else {
     for result in results {
-      display_single_result(&result, overview_only);
+      display_single_result(result, overview_only);
     }
   }
 }
 
 /// Display a single search result
 fn display_single_result(result: &SearchResult, overview_only: bool) {
-  let header = format!(
-    "=== {}/{} ===",
-    result.topic.blue().bold(),
-    result.name.yellow().bold()
-  );
+  let header = format!("=== {}/{} ===", result.topic.blue().bold(), result.name.yellow().bold());
 
-  println!("{}", header);
-        
+  println!("{header}");
+
   // Wrap and display the content with proper formatting
   let wrap_with = if header.len() < 80 { 80 } else { header.len() };
 
@@ -225,7 +247,7 @@ fn display_single_result(result: &SearchResult, overview_only: bool) {
 
   let wrapped_lines = wrap_text(&content, wrap_with);
   for line in wrapped_lines {
-    println!("{}", line);
+    println!("{line}");
   }
   println!();
 }
@@ -233,16 +255,16 @@ fn display_single_result(result: &SearchResult, overview_only: bool) {
 /// Wrap text to fit within a specified width
 fn wrap_text(text: &str, width: usize) -> Vec<String> {
   let mut lines = Vec::new();
-  
+
   for paragraph in text.split('\n') {
     if paragraph.trim().is_empty() {
       lines.push(String::new());
       continue;
     }
-    
+
     let words: Vec<&str> = paragraph.split_whitespace().collect();
     let mut current_line = String::new();
-    
+
     for word in words {
       if current_line.is_empty() {
         current_line = word.to_string();
@@ -254,11 +276,11 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
         current_line = word.to_string();
       }
     }
-    
+
     if !current_line.is_empty() {
       lines.push(current_line);
     }
   }
-  
+
   lines
 }

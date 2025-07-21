@@ -1,12 +1,12 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
+use colored::*;
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
-use colored::*;
 
 use crate::insight::{self, Insight};
 
@@ -51,9 +51,7 @@ pub struct EmbeddingClient {
 // Constructor functions
 /// Create a new embedding client with production service (default)
 pub fn create() -> EmbeddingClient {
-  EmbeddingClient {
-    service: Box::new(ProductionEmbeddingService),
-  }
+  EmbeddingClient { service: Box::new(ProductionEmbeddingService) }
 }
 
 /// Create a new embedding client with injected service (for testing)
@@ -71,9 +69,7 @@ pub fn create_embedding(_client: &EmbeddingClient, text: &str) -> Result<Vec<f32
   #[cfg(feature = "neural")]
   {
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async {
-      request_embedding_from_daemon(text).await
-    })
+    rt.block_on(async { request_embedding_from_daemon(text).await })
   }
 
   #[cfg(not(feature = "neural"))]
@@ -104,26 +100,12 @@ impl EmbeddingService for MockEmbeddingService {
   }
 }
 
-// Convenience functions for backwards compatibility
-pub fn embed_insight_legacy(insight: &mut Insight) -> Embedding {
-  let client = create();
-  embed_insight(&client, insight)
-}
-
-#[cfg(feature = "neural")]
-pub fn create_embedding_daemon_only_legacy(text: &str) -> Result<Vec<f32>> {
-  let client = create();
-  create_embedding(&client, text)
-}
-
 // Private implementation functions
 fn embed_insight_impl(insight: &mut Insight) -> Embedding {
   #[cfg(feature = "neural")]
   {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    let result = rt.block_on(async { 
-      compute_insight_embedding(insight).await
-    }).unwrap();
+    let result = rt.block_on(async { compute_insight_embedding(insight).await }).unwrap();
     result
   }
 
@@ -141,13 +123,7 @@ async fn compute_insight_embedding(insight: &Insight) -> Result<Embedding> {
   let version = "all-MiniLM-L6-v2".to_string();
 
   match result {
-    Ok(embedding) => {
-      Ok(Embedding {
-        version,
-        created_at: Utc::now(),
-        embedding,
-      })
-    },
+    Ok(embedding) => Ok(Embedding { version, created_at: Utc::now(), embedding }),
     Err(e) => {
       eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
       eprintln!(
@@ -177,10 +153,7 @@ async fn request_embedding_from_daemon(text: &str) -> Result<Vec<f32>> {
 
 #[cfg(feature = "neural")]
 fn create_request(text: &str) -> EmbeddingRequest {
-  EmbeddingRequest { 
-    texts: vec![text.to_string()], 
-    id: uuid::Uuid::new_v4().to_string() 
-  }
+  EmbeddingRequest { texts: vec![text.to_string()], id: uuid::Uuid::new_v4().to_string() }
 }
 
 #[cfg(feature = "neural")]

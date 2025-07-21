@@ -1,8 +1,8 @@
 use anyhow::Result;
 use blizz::commands::*;
 use blizz::embedding_client;
-use blizz::insight::{self, Insight};
 use blizz::embedding_client::MockEmbeddingService;
+use blizz::insight::{self};
 use serial_test::serial;
 use std::env;
 use tempfile::TempDir;
@@ -24,11 +24,17 @@ mod cli_enhancement_tests {
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Test add -> get -> list flow
-    add_insight_with_client("workflow", "basic", "Basic workflow test", "Testing the basic command flow", &client)?;
-    
+    add_insight_with_client(
+      "workflow",
+      "basic",
+      "Basic workflow test",
+      "Testing the basic command flow",
+      &client,
+    )?;
+
     get_insight("workflow", "basic", false)?;
     get_insight("workflow", "basic", true)?;
-    
+
     list_insights(Some("workflow"), false)?;
     list_insights(None, false)?;
     list_topics()?;
@@ -69,7 +75,13 @@ mod cli_enhancement_tests {
     // Test various update scenarios
     update_insight_with_client("updates", "test", Some("Updated overview"), None, &client)?;
     update_insight_with_client("updates", "test", None, Some("Updated details"), &client)?;
-    update_insight_with_client("updates", "test", Some("Final overview"), Some("Final details"), &client)?;
+    update_insight_with_client(
+      "updates",
+      "test",
+      Some("Final overview"),
+      Some("Final details"),
+      &client,
+    )?;
 
     // Verify final state
     let final_insight = insight::load("updates", "test")?;
@@ -144,7 +156,8 @@ mod cli_enhancement_tests {
     assert!(result.is_err());
 
     // Test updating non-existent insight
-    let result = update_insight_with_client("nonexistent", "insight", Some("overview"), None, &client);
+    let result =
+      update_insight_with_client("nonexistent", "insight", Some("overview"), None, &client);
     assert!(result.is_err());
 
     // Test deleting non-existent insight
@@ -172,11 +185,11 @@ mod cli_enhancement_tests {
 
     // Test with special characters
     add_insight_with_client(
-      "special", 
-      "chars", 
-      "Overview with émojis 🚀 and symbols: @#$%", 
+      "special",
+      "chars",
+      "Overview with émojis 🚀 and symbols: @#$%",
       "Details with\nmultiple\nlines\nand unicode: ñáéíóú",
-      &client
+      &client,
     )?;
 
     // Test with long content
@@ -202,13 +215,13 @@ mod cli_enhancement_tests {
 
     // Test different output modes
     get_insight("output", "test1", false)?; // Full content
-    get_insight("output", "test1", true)?;  // Overview only
+    get_insight("output", "test1", true)?; // Overview only
 
     list_insights(Some("output"), false)?; // Normal list
-    list_insights(Some("output"), true)?;  // Verbose list
+    list_insights(Some("output"), true)?; // Verbose list
 
     list_insights(None, false)?; // All insights normal
-    list_insights(None, true)?;  // All insights verbose
+    list_insights(None, true)?; // All insights verbose
 
     Ok(())
   }

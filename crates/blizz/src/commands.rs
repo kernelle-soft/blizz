@@ -6,13 +6,14 @@ use crate::insight::{self, Insight, InsightMetaData};
 
 /// Add a new insight to the knowledge base (testable version with dependency injection)
 pub fn add_insight_with_client(
-  topic: &str, 
-  name: &str, 
-  overview: &str, 
+  topic: &str,
+  name: &str,
+  overview: &str,
   details: &str,
-  client: &EmbeddingClient
+  client: &EmbeddingClient,
 ) -> Result<()> {
-  let mut insight = Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
+  let mut insight =
+    Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
 
   // Compute embedding before saving
   let embedding = embedding_client::embed_insight(client, &mut insight);
@@ -87,7 +88,7 @@ pub fn update_insight_with_client(
   name: &str,
   new_overview: Option<&str>,
   new_details: Option<&str>,
-  client: &EmbeddingClient
+  client: &EmbeddingClient,
 ) -> Result<()> {
   let mut insight = insight::load(topic, name)?;
 
@@ -118,7 +119,12 @@ pub fn update_insight_with_client(
 }
 
 /// Update an existing insight's overview and/or details (production version)
-pub fn update_insight(topic: &str, name: &str, new_overview: Option<&str>, new_details: Option<&str>) -> Result<()> {
+pub fn update_insight(
+  topic: &str,
+  name: &str,
+  new_overview: Option<&str>,
+  new_details: Option<&str>,
+) -> Result<()> {
   let client = embedding_client::create();
   update_insight_with_client(topic, name, new_overview, new_details, &client)
 }
@@ -137,19 +143,18 @@ pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
   Ok(())
 }
 
-fn process_insight_indexing(insight: &mut Insight, force: bool, missing_only: bool, client: &EmbeddingClient) -> Result<bool> {
-  let should_update = if force {
-    true
-  } else if missing_only {
-    !insight::has_embedding(insight)
-  } else {
-    !insight::has_embedding(insight)
-  };
+fn process_insight_indexing(
+  insight: &mut Insight,
+  force: bool,
+  _missing_only: bool,
+  client: &EmbeddingClient,
+) -> Result<bool> {
+  let should_update = if force { true } else { !insight::has_embedding(insight) };
 
   if should_update {
     let embedding = embedding_client::embed_insight(client, insight);
     insight::set_embedding(insight, embedding);
-    
+
     // Save the updated insight with new embedding (for existing insights)
     let file_path = insight::file_path(insight)?;
     let frontmatter = InsightMetaData {
@@ -163,7 +168,7 @@ fn process_insight_indexing(insight: &mut Insight, force: bool, missing_only: bo
     let yaml_content = serde_yaml::to_string(&frontmatter)?;
     let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
     std::fs::write(&file_path, content)?;
-    
+
     println!(
       "  {} Updated embeddings for {}/{}",
       "✓".green(),
@@ -180,7 +185,7 @@ fn process_topic_indexing_with_client(
   topic: &str,
   force: bool,
   missing_only: bool,
-  client: &EmbeddingClient
+  client: &EmbeddingClient,
 ) -> Result<(usize, usize)> {
   let insights = insight::get_insights(Some(topic))?;
   let total = insights.len();
@@ -196,9 +201,13 @@ fn process_topic_indexing_with_client(
 }
 
 /// Recompute embeddings for insights (testable version with dependency injection)
-pub fn index_insights_with_client(force: bool, missing_only: bool, client: &EmbeddingClient) -> Result<()> {
+pub fn index_insights_with_client(
+  force: bool,
+  missing_only: bool,
+  client: &EmbeddingClient,
+) -> Result<()> {
   let topics = insight::get_topics()?;
-  
+
   if topics.is_empty() {
     println!("No topics found to index.");
     return Ok(());
@@ -208,7 +217,8 @@ pub fn index_insights_with_client(force: bool, missing_only: bool, client: &Embe
   let mut total_processed = 0;
 
   for topic in topics {
-    let (updated, processed) = process_topic_indexing_with_client(&topic, force, missing_only, client)?;
+    let (updated, processed) =
+      process_topic_indexing_with_client(&topic, force, missing_only, client)?;
     total_updated += updated;
     total_processed += processed;
   }

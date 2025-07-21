@@ -1,18 +1,11 @@
-#[cfg(feature = "neural")]
 use anyhow::Result;
-#[cfg(feature = "neural")]
 use blizz::commands::*;
 #[cfg(feature = "neural")]
 use blizz::embedding_client;
-#[cfg(feature = "neural")]
-use blizz::insight;
-#[cfg(feature = "neural")]
 use blizz::embedding_client::MockEmbeddingService;
-#[cfg(feature = "neural")]
+use blizz::insight::{self};
 use serial_test::serial;
-#[cfg(feature = "neural")]
 use std::env;
-#[cfg(feature = "neural")]
 use tempfile::TempDir;
 
 #[cfg(test)]
@@ -77,9 +70,21 @@ mod index_command_tests {
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create insights across multiple topics
-    add_insight_with_client("ai", "neural_networks", "About neural networks", "Deep learning details", &client)?;
+    add_insight_with_client(
+      "ai",
+      "neural_networks",
+      "About neural networks",
+      "Deep learning details",
+      &client,
+    )?;
     add_insight_with_client("ai", "machine_learning", "About ML", "ML algorithms", &client)?;
-    add_insight_with_client("databases", "postgresql", "About PostgreSQL", "Database management", &client)?;
+    add_insight_with_client(
+      "databases",
+      "postgresql",
+      "About PostgreSQL",
+      "Database management",
+      &client,
+    )?;
     add_insight_with_client("databases", "redis", "About Redis", "In-memory store", &client)?;
     add_insight_with_client("rust", "ownership", "About ownership", "Memory management", &client)?;
 
@@ -151,7 +156,7 @@ mod index_command_tests {
       "test",
       "Overview with émojis 🚀 and unicode: ñáéíóú",
       "Details with Chinese: 你好世界, Arabic: مرحبا, Russian: Привет",
-      &client
+      &client,
     )?;
 
     // Index should handle unicode content without issues
@@ -172,10 +177,17 @@ mod index_command_tests {
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     let original_overview = "This is a test overview with specific content";
-    let original_details = "These are test details with\nmultiple lines\nand special characters: @#$%^&*()";
+    let original_details =
+      "These are test details with\nmultiple lines\nand special characters: @#$%^&*()";
 
     // Create insight with specific content
-    add_insight_with_client("content", "preservation", &original_overview, &original_details, &client)?;
+    add_insight_with_client(
+      "content",
+      "preservation",
+      original_overview,
+      original_details,
+      &client,
+    )?;
 
     // Index the insights
     index_insights_with_client(true, false, &client)?;

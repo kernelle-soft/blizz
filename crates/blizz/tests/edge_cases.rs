@@ -1,8 +1,8 @@
 use anyhow::Result;
 use blizz::commands::*;
 use blizz::embedding_client;
-use blizz::insight::{self, Insight};
 use blizz::embedding_client::MockEmbeddingService;
+use blizz::insight::{self};
 use serial_test::serial;
 use std::env;
 use tempfile::TempDir;
@@ -25,7 +25,7 @@ mod edge_case_tests {
 
     // Empty topic and name should be allowed (although unusual)
     add_insight_with_client("", "", "", "", &client)?;
-    
+
     // Verify it was stored and can be retrieved
     let loaded = insight::load("", "")?;
     assert_eq!(loaded.topic, "");
@@ -69,7 +69,13 @@ mod edge_case_tests {
     let unicode_overview = "Émojis and symbols: 🚀🎉 αβγδε";
     let unicode_details = "Mixed content: 日本語 العربية Русский français 中文";
 
-    add_insight_with_client(unicode_topic, unicode_name, unicode_overview, unicode_details, &client)?;
+    add_insight_with_client(
+      unicode_topic,
+      unicode_name,
+      unicode_overview,
+      unicode_details,
+      &client,
+    )?;
 
     let loaded = insight::load(unicode_topic, unicode_name)?;
     assert_eq!(loaded.topic, unicode_topic);
@@ -97,7 +103,7 @@ mod edge_case_tests {
 
     for (topic, name) in special_cases {
       add_insight_with_client(topic, name, "Test overview", "Test details", &client)?;
-      
+
       let loaded = insight::load(topic, name)?;
       assert_eq!(loaded.topic, topic);
       assert_eq!(loaded.name, name);
@@ -191,7 +197,13 @@ mod edge_case_tests {
     let _temp = setup_temp_insights_root("delete_no_force");
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
-    add_insight_with_client("delete_test", "protected", "Protected", "Should not be deleted", &client)?;
+    add_insight_with_client(
+      "delete_test",
+      "protected",
+      "Protected",
+      "Should not be deleted",
+      &client,
+    )?;
 
     // Delete without force should fail
     let result = delete_insight("delete_test", "protected", false);
@@ -230,7 +242,8 @@ mod edge_case_tests {
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     let multiline_overview = "Line 1\nLine 2\nLine 3";
-    let multiline_details = "Details line 1\n\nDetails line 3 (with blank line above)\n\n\nMultiple blank lines above";
+    let multiline_details =
+      "Details line 1\n\nDetails line 3 (with blank line above)\n\n\nMultiple blank lines above";
 
     add_insight_with_client("multiline", "test", multiline_overview, multiline_details, &client)?;
 
@@ -251,7 +264,13 @@ mod edge_case_tests {
     let whitespace_overview = "  Overview with spaces  ";
     let whitespace_details = "\tDetails with tabs and spaces\n  ";
 
-    add_insight_with_client("whitespace", "test", whitespace_overview, whitespace_details, &client)?;
+    add_insight_with_client(
+      "whitespace",
+      "test",
+      whitespace_overview,
+      whitespace_details,
+      &client,
+    )?;
 
     let loaded = insight::load("whitespace", "test")?;
     assert_eq!(loaded.overview, whitespace_overview);
@@ -269,7 +288,13 @@ mod edge_case_tests {
 
     // Test that topic and name are case-sensitive
     add_insight_with_client("CaseSensitive", "TestName", "Overview", "Details", &client)?;
-    add_insight_with_client("casesensitive", "testname", "Different overview", "Different details", &client)?;
+    add_insight_with_client(
+      "casesensitive",
+      "testname",
+      "Different overview",
+      "Different details",
+      &client,
+    )?;
 
     let upper = insight::load("CaseSensitive", "TestName")?;
     let lower = insight::load("casesensitive", "testname")?;
