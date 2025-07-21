@@ -93,6 +93,11 @@ impl Insight {
     parse_insight_from_content(topic, name, &content)
   }
 
+  pub fn load_from_path(path: &std::path::Path) -> Result<Self> {
+    let content = fs::read_to_string(path)?;
+    parse_insight_from_content(path.parent().unwrap().file_name().unwrap().to_str().unwrap(), path.file_stem().unwrap().to_str().unwrap(), &content)
+  }
+
   /// Delete this insight from disk
   pub fn delete(&self) -> Result<()> {
     let file_path = self.file_path()?;
@@ -348,7 +353,7 @@ fn extract_topic_name(topic_path: &std::path::Path) -> &str {
   topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown")
 }
 
-fn is_insight_file(path: &std::path::Path) -> bool {
+pub fn is_insight_file(path: &std::path::Path) -> bool {
   if path.extension().and_then(|s| s.to_str()) != Some("md") {
     return false;
   }

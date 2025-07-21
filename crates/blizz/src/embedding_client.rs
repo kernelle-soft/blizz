@@ -170,6 +170,15 @@ pub fn create_embedding(_session: &mut ort::session::Session, text: &str) -> Res
   })
 }
 
+/// Create embedding using only the daemon (no internet fallback)
+#[cfg(feature = "neural")]
+pub fn create_embedding_daemon_only(text: &str) -> Result<Vec<f32>> {
+  let rt = tokio::runtime::Runtime::new()?;
+  rt.block_on(async {
+    request_embedding_from_daemon(text).await
+  })
+}
+
 /// Compute embedding for an insight using the daemon
 #[cfg(feature = "neural")]
 async fn compute_insight_embedding(insight: &Insight) -> Result<Embedding> {

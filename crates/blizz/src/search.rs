@@ -96,14 +96,12 @@ fn search_topic(terms: &[String], search_strategy: fn(&str, &[String]) -> f32, t
   let search_paths = get_search_paths(&insights_dir, options.topic.as_deref())?;
 
   for topic_path in search_paths {
-    let topic_name = topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
-
     for entry in fs::read_dir(&topic_path)? {
       let entry = entry?;
       let path = entry.path();
 
-      if let Some(insight_name) = is_insight_file(&path) {
-        let insight = insight::Insight::load(topic_name, insight_name)?;
+      if insight::is_insight_file(&path) {
+        let insight = insight::Insight::load_from_path(&path)?;
         if let Ok(Some(result)) = search_insight(&insight, search_strategy, terms, threshold, options) {
           results.push(result);
         }
@@ -162,35 +160,18 @@ fn get_semantic_match(content: &str, terms: &[String]) -> f32 {
 
 #[cfg(feature = "neural")]
 fn get_embedding_match(content: &str, terms: &[String]) -> f32 {
-  let mut session = init_embedding_session().unwrap();
-  let query_embedding = embedding_client::create_embedding(&mut session, &terms.join(" ")).unwrap();
-  let content_embedding = embedding_client::create_embedding(&mut session, content).unwrap();
-  similarity::cosine_similarity(&query_embedding, &content_embedding)
-}
-
-/// Check if a file path represents a valid insight file
-fn is_insight_file(path: &Path) -> Option<&str> {
-  if path.extension().and_then(|s| s.to_str()) == Some("md") {
-    if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-      if file_stem.ends_with(".insight") {
-        return Some(file_stem.trim_end_matches(".insight"));
-      }
-    }
+  match try_daemon_embedding_match(content, terms) {
+    Ok(similarity) => similarity,
+    Err(_) => 0.0,
   }
-  None
 }
 
 #[cfg(feature = "neural")]
-fn init_embedding_session() -> Result<ort::session::Session> {
-  use ort::session::{builder::GraphOptimizationLevel, Session};
-
-  ort::init().with_name("blizz").commit()?;
-
-  Session::builder()?
-    .with_optimization_level(GraphOptimizationLevel::Level1)?
-    .with_intra_threads(1)?
-    .commit_from_url("https://cdn.pyke.io/0/pyke:ort-rs/example-models@0.0.0/all-MiniLM-L6-v2.onnx")
-    .map_err(Into::into)
+fn try_daemon_embedding_match(content: &str, terms: &[String]) -> Result<f32> {
+  let query_embedding = embedding_client::create_embedding_daemon_only(&terms.join(" "))?;
+  let content_embedding = embedding_client::create_embedding_daemon_only(content)?;
+  
+  Ok(similarity::cosine_similarity(&query_embedding, &content_embedding))
 }
 
 /// Build search paths based on topic filter
