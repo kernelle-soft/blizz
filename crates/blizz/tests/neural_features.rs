@@ -1,5 +1,8 @@
 use anyhow::Result;
 use blizz::insight::*;
+#[cfg(feature = "neural")]
+use blizz::embedding_client::Embedding;
+#[cfg(feature = "neural")]
 use chrono::{DateTime, Utc};
 use serial_test::serial;
 use std::env;
@@ -24,7 +27,11 @@ mod neural_feature_tests {
       "Test overview".to_string(),
       "Test details".to_string(),
     );
-    insight.set_embedding("v1.0".to_string(), vec![0.1, 0.2, 0.3], "embedded text".to_string());
+    insight.set_embedding(Embedding {
+      version: "v1.0".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.1, 0.2, 0.3],
+    });
 
     assert_eq!(insight.topic, "test_topic");
     assert_eq!(insight.name, "test_name");
@@ -49,7 +56,11 @@ mod neural_feature_tests {
 
     assert!(!insight.has_embedding());
 
-    insight.set_embedding("v2.0".to_string(), vec![0.4, 0.5, 0.6], "new embedded text".to_string());
+    insight.set_embedding(Embedding {
+      version: "v2.0".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.4, 0.5, 0.6],
+    });
 
     assert!(insight.has_embedding());
     assert_eq!(insight.embedding_version, Some("v2.0".to_string()));
@@ -83,11 +94,11 @@ mod neural_feature_tests {
       "Test overview".to_string(),
       "Test details".to_string(),
     );
-    original.set_embedding(
-      "v1.5".to_string(),
-      vec![0.7, 0.8, 0.9],
-      "test embedding text".to_string(),
-    );
+    original.set_embedding(Embedding {
+      version: "v1.5".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.7, 0.8, 0.9],
+    });
 
     original.save()?;
 
@@ -144,7 +155,11 @@ mod neural_feature_tests {
       "Original overview".to_string(),
       "Original details".to_string(),
     );
-    insight.set_embedding("v1.0".to_string(), vec![0.1, 0.2, 0.3], "original text".to_string());
+    insight.set_embedding(Embedding {
+      version: "v1.0".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.1, 0.2, 0.3],
+    });
 
     insight.save()?;
     assert!(insight.has_embedding());

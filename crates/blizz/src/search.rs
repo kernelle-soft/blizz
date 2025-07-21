@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use crate::embedding_client;
 use crate::insight::*;
 use crate::semantic;
+use crate::similarity;
 
 #[derive(Debug)]
 pub struct SearchResult {
@@ -388,9 +389,9 @@ async fn get_insight_embedding(
     };
 
     // Use daemon for computation
-    embedding_client::get_embedding_from_daemon(&content).await.map_err(|e| {
+    embedding_client::generate_embedding(&content).await.map_err(|e| {
       anyhow!("Failed to compute embedding for {}/{}: {}", insight.topic, insight.name, e)
-    })
+    }).map(|embedding| embedding.embedding)
   }
 }
 
@@ -411,7 +412,7 @@ async fn calculate_neural_similarities(
     let content_embedding = get_insight_embedding(&insight, overview_only, &mut warnings).await?;
 
     // Calculate cosine similarity
-    let similarity = embedding_client::cosine_similarity(query_embedding, &content_embedding);
+    let similarity = similarity::cosine_similarity(query_embedding, &content_embedding);
 
     if similarity > 0.2 {
       // Similarity threshold (20% for quality results)
@@ -476,12 +477,12 @@ pub fn search_neural(
 
   let rt = tokio::runtime::Runtime::new()?;
   let embedding = rt
-    .block_on(async { embedding_client::get_embedding_from_daemon(&query).await })
+    .block_on(async { embedding_client::generate_embedding(&query).await })
     .map_err(|e| anyhow!("Failed to get query embedding: {}", e))?;
 
   let refs = get_insights(topic_filter)?;
   let (mut results, warnings) =
-    rt.block_on(async { calculate_neural_similarities(refs, &embedding, overview_only).await })?;
+    rt.block_on(async { calculate_neural_similarities(refs, &embedding.embedding, overview_only).await })?;
 
   results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
@@ -883,7 +884,7 @@ fn process_insight_for_neural_search(
 ) -> Result<Option<SemanticSearchResult>> {
   let content = format_insight_content(insight, overview_only);
   let content_embedding = embedding_client::create_embedding(session, &content)?;
-  let similarity = embedding_client::cosine_similarity(query_embedding, &content_embedding);
+  let similarity = similarity::cosine_similarity(query_embedding, &content_embedding);
 
   if similarity <= 0.2 {
     return Ok(None);

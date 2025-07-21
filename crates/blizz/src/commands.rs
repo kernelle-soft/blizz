@@ -5,44 +5,6 @@ use crate::embedding_client;
 use crate::insight::*;
 use crate::search;
 
-/// Compute embedding for an insight using the daemon
-#[cfg(feature = "neural")]
-async fn compute_insight_embedding(insight: &Insight) -> Result<(String, Vec<f32>, String)> {
-  let embedding_text = insight.get_embedding_text();
-  let embedding = embedding_client::get_embedding_from_daemon(&embedding_text).await?;
-  let version = "all-MiniLM-L6-v2".to_string();
-
-  Ok((version, embedding, embedding_text))
-}
-
-#[cfg(feature = "neural")]
-fn handle_embedding_computation(insight: &mut Insight) -> Result<()> {
-  let rt = tokio::runtime::Runtime::new()?;
-  match rt.block_on(async { compute_insight_embedding(insight).await }) {
-    Ok((version, embedding, text)) => {
-      insight.set_embedding(version, embedding, text);
-    }
-    Err(e) => {
-      eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
-      eprintln!(
-        "  {} Insight saved without embedding (can be computed later with 'blizz index')",
-        "ℹ".blue()
-      );
-    }
-  }
-  Ok(())
-}
-
-fn compute_and_set_embedding(insight: &mut Insight) -> Result<()> {
-  #[cfg(feature = "neural")]
-  return handle_embedding_computation(insight);
-
-  #[cfg(not(feature = "neural"))]
-  {
-    let _ = insight;
-    Ok(())
-  }
-}
 
 /// Add a new insight to the knowledge base
 pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
@@ -50,8 +12,8 @@ pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Re
     Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
 
   // Compute embedding before saving
-  compute_and_set_embedding(&mut insight)?;
-
+  let embedding = embedding_client::embed_insight(&mut insight);
+  insight.set_embedding(embedding);
   insight.save()?;
 
   println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
@@ -163,7 +125,8 @@ fn has_content_changed(new_overview: Option<&str>, new_details: Option<&str>) ->
 
 /// Recompute embedding and save insight using existing methods
 fn recompute_and_save_updated_insight(insight: &mut Insight) -> Result<()> {
-  compute_and_set_embedding(insight)?;
+  let embedding = embedding_client::embed_insight(insight);
+  insight.set_embedding(embedding);
 
   // For updates, we need to delete first then save since save() checks for existing files
   let file_path = insight.file_path()?;
@@ -287,7 +250,8 @@ fn process_single_insight_index(
   std::io::Write::flush(&mut std::io::stdout())?;
 
   // Compute embedding
-  compute_and_set_embedding(&mut insight)?;
+  let embedding = embedding_client::embed_insight(&mut insight);
+  insight.set_embedding(embedding);
   save_insight_with_embedding(&insight)?;
 
   println!("done");

@@ -5,6 +5,10 @@ use blizz::commands::*;
 #[cfg(feature = "neural")]
 use blizz::insight::*;
 #[cfg(feature = "neural")]
+use chrono::Utc;
+#[cfg(feature = "neural")]
+use blizz::embedding_client::Embedding;
+#[cfg(feature = "neural")]
 use serial_test::serial;
 #[cfg(feature = "neural")]
 use std::env;
@@ -79,7 +83,11 @@ mod index_command_tests {
       "Overview".to_string(),
       "Details".to_string(),
     );
-    insight.set_embedding("v1.0".to_string(), vec![0.1, 0.2, 0.3], "embedded text".to_string());
+    insight.set_embedding(Embedding {
+      version: "v1.0".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.1, 0.2, 0.3],
+    });
     insight.save()?;
 
     // Index with force = true should recompute even existing embeddings
@@ -106,11 +114,11 @@ mod index_command_tests {
       "Has embedding".to_string(),
       "Details".to_string(),
     );
-    insight_with_embedding.set_embedding(
-      "v1.0".to_string(),
-      vec![0.1, 0.2, 0.3],
-      "embedded".to_string(),
-    );
+    insight_with_embedding.set_embedding(Embedding {
+      version: "v1.0".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.1, 0.2, 0.3],
+    }); 
     insight_with_embedding.save()?;
 
     let insight_without_embedding = Insight::new(
@@ -240,7 +248,11 @@ mod index_command_tests {
     assert!(!insight.has_embedding());
 
     // Can manually set embedding
-    insight.set_embedding("test_version".to_string(), vec![0.1, 0.2, 0.3], "test_text".to_string());
+    insight.set_embedding(Embedding {
+      version: "test_version".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.1, 0.2, 0.3],
+    });
 
     assert!(insight.has_embedding());
     assert_eq!(insight.embedding_version, Some("test_version".to_string()));
@@ -259,11 +271,11 @@ mod index_command_tests {
     );
 
     // Set embedding with version
-    insight.set_embedding(
-      "v1.5".to_string(),
-      vec![0.1, 0.2, 0.3, 0.4],
-      "test embedding text".to_string(),
-    );
+    insight.set_embedding(Embedding {
+      version: "v1.5".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.1, 0.2, 0.3, 0.4],
+    });
 
     insight.save()?;
 

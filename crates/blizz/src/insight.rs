@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::embedding_client::Embedding;
+
 /// YAML frontmatter structure for insight files
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FrontMatter {
@@ -56,11 +58,10 @@ impl Insight {
 // Embedding-related operations
 impl Insight {
   /// Update embedding metadata for this insight
-  pub fn set_embedding(&mut self, version: String, embedding: Vec<f32>, text: String) {
-    self.embedding_version = Some(version);
-    self.embedding = Some(embedding);
-    self.embedding_text = Some(text);
-    self.embedding_computed = Some(Utc::now());
+  pub fn set_embedding(&mut self, embedding: Embedding) {
+    self.embedding_version = Some(embedding.version);
+    self.embedding = Some(embedding.embedding);
+    self.embedding_computed = Some(embedding.created_at);
   }
 
   /// Check if this insight has cached embedding

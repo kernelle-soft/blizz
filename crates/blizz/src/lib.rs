@@ -9,3 +9,4 @@ pub mod insight;
 pub mod embedding_model;
 pub mod search;
 pub mod semantic;
+pub mod similarity;

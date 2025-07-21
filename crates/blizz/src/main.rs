@@ -7,6 +7,7 @@ mod embedding_model;
 mod insight;
 mod search;
 mod semantic;
+mod similarity;
 
 use commands::*;
 
