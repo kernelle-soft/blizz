@@ -4,18 +4,23 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use clap::Args;
 
 use crate::embedding_client;
 use crate::insight::*;
 use crate::semantic;
 use crate::similarity;
 
+// Search result scoring constants
+const SEMANTIC_SCALE_FACTOR: f32 = 0.8;
+const EXACT_SCALE_FACTOR: f32 = 0.3;
+
 #[derive(Debug)]
 pub struct SearchResult {
   pub topic: String,
   pub name: String,
-  pub matching_lines: Vec<String>,
-  pub score: usize, // number of matching terms
+  pub content: String,
+  pub score: f32, // number of matching terms
 }
 
 #[cfg(feature = "semantic")]
@@ -34,6 +39,79 @@ pub struct CombinedSearchResult {
   pub content: String,
   pub score: f32,          // Unified score across search methods
   pub search_type: String, // Which search method found this result
+}
+
+/// Search configuration options
+#[derive(Args)]
+pub struct SearchOptions {
+  /// Optional topic to restrict search to
+  #[arg(short, long)]
+  topic: Option<String>,
+  /// Case-sensitive search
+  #[arg(short, long)]
+  case_sensitive: bool,
+  /// Search only in overview sections
+  #[arg(short, long)]
+  overview_only: bool,
+  /// Use semantic + exact search only (drops neural for speed)
+  #[cfg(feature = "semantic")]
+  #[arg(short, long)]
+  semantic: bool,
+  /// Use exact term matching only (fastest, drops neural and semantic)
+  #[arg(short, long)]
+  exact: bool,
+}
+
+pub fn can_use_neural_search(options: &SearchOptions) -> bool {
+  cfg!(feature = "neural") && !options.semantic && !options.exact
+}
+
+pub fn can_use_semantic_search(options: &SearchOptions) -> bool {
+  cfg!(feature = "semantic") && !options.exact
+}
+
+pub fn search(terms: &[String], options: &SearchOptions) -> Result<()> {
+  let mut results = Vec::new();
+  results.extend(find_exact_matches(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)?);
+
+  if can_use_semantic_search(options) {
+    results.extend(find_semantic_matches(terms, options)?);
+  }
+
+  if can_use_neural_search(options) {
+    results.extend(find_embedding_matches(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)?);
+  }
+
+  // remove duplicates
+  results.sort_by(
+    |a, b| 
+    b.score.partial_cmp(&a.score)
+      .unwrap_or(std::cmp::Ordering::Equal)
+      .then_with(|| a.topic.cmp(&b.topic)
+      .then_with(|| a.name.cmp(&b.name)))
+  );
+
+  results.dedup_by(
+    |a, b| 
+    a.topic == b.topic && a.name == b.name
+  );
+
+  display_results(&results, terms);
+
+  Ok(())
+}
+
+fn find_semantic_matches(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchResult>> {
+  if !can_use_semantic_search(options) {
+    return Ok(Vec::new());
+  } 
+
+  let insights_dir = validate_insights_directory()?;
+  let query = terms.join(" ");
+  let query_words = semantic::extract_words(&query);
+
+  let results = process_all_topics_semantic(&insights_dir, &query_words, options.topic.as_deref(), options.overview_only)?;
+  Ok(results)
 }
 
 /// Build search paths based on topic filter
@@ -59,80 +137,26 @@ fn calc_term_matches(
   content: &str,
   terms: &[String],
   case_sensitive: bool,
-) -> (usize, Vec<String>) {
+) -> f32 {
   let mut score = 0;
-  let mut lines = Vec::new();
+
+  let content = if case_sensitive {
+    content.to_string()
+  } else {
+    content.to_lowercase()
+  };
 
   for term in terms {
-    let matches = if case_sensitive {
-      content.contains(term)
+    let term = if case_sensitive {
+      term.to_string()
     } else {
-      content.to_lowercase().contains(&term.to_lowercase())
+      term.to_lowercase()
     };
-
-    if matches {
-      score += 1;
-    }
+    
+    score += content.matches(&term).count();
   }
 
-  if score > 0 {
-    for line in content.lines() {
-      let has_match = terms.iter().any(|term| {
-        if case_sensitive {
-          line.contains(term)
-        } else {
-          line.to_lowercase().contains(&term.to_lowercase())
-        }
-      });
-
-      if has_match {
-        lines.push(line.to_string());
-      }
-    }
-  }
-
-  (score, lines)
-}
-
-/// Display exact search results
-fn display_exact_search_results(results: &[SearchResult], terms: &[String]) {
-  if results.is_empty() {
-    let terms_str = terms.join(" ");
-    println!("No matches found for: {}", terms_str.yellow());
-  } else {
-    for result in results {
-      println!(
-        "=== {}/{} ({} terms) ===",
-        result.topic.cyan(),
-        result.name.yellow(),
-        result.score.to_string().green()
-      );
-
-      for line in &result.matching_lines {
-        println!("{line}");
-      }
-      println!();
-    }
-  }
-}
-
-/// Exact term matching search (the original implementation)
-pub fn search_insights_exact(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  let results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
-
-  // Sort by relevance score (descending), then by topic/name for consistency
-  let mut sorted_results = results;
-  sorted_results.sort_by(|a, b| {
-    b.score.cmp(&a.score).then_with(|| a.topic.cmp(&b.topic).then_with(|| a.name.cmp(&b.name)))
-  });
-
-  display_exact_search_results(&sorted_results, terms);
-  Ok(())
+  score as f32
 }
 
 // Semantic similarity threshold for meaningful results
@@ -161,32 +185,6 @@ fn build_search_text(
   }
 }
 
-/// Create search result if similarity meets threshold
-#[cfg(feature = "semantic")]
-fn create_semantic_result_if_meaningful(
-  topic_name: &str,
-  insight_name: &str,
-  overview: &str,
-  details: &str,
-  similarity: f32,
-  overview_only: bool,
-) -> Option<SemanticSearchResult> {
-  if similarity > SEMANTIC_SIMILARITY_THRESHOLD {
-    Some(SemanticSearchResult {
-      topic: topic_name.to_string(),
-      name: insight_name.to_string(),
-      content: if overview_only {
-        overview.to_string()
-      } else {
-        format!("{overview}\n\n{details}")
-      },
-      similarity,
-    })
-  } else {
-    None
-  }
-}
-
 /// Calculate semantic search result for a single insight
 #[cfg(feature = "semantic")]
 fn calculate_single_insight_semantic(
@@ -194,7 +192,7 @@ fn calculate_single_insight_semantic(
   insight_path: &Path,
   query_words: &HashSet<String>,
   overview_only: bool,
-) -> Result<Option<SemanticSearchResult>> {
+) -> Result<Option<SearchResult>> {
   let insight_name = extract_insight_name_from_path(insight_path);
   let content = fs::read_to_string(insight_path)?;
   let (overview, details) = parse_insight_content(&content)?;
@@ -202,14 +200,20 @@ fn calculate_single_insight_semantic(
   let search_text = build_search_text(topic_name, insight_name, &overview, &details, overview_only);
   let similarity = calculate_semantic_similarity(query_words, &search_text);
 
-  Ok(create_semantic_result_if_meaningful(
-    topic_name,
-    insight_name,
-    &overview,
-    &details,
-    similarity,
-    overview_only,
-  ))
+  if similarity > SEMANTIC_SIMILARITY_THRESHOLD {
+    Ok(Some(SearchResult {
+      topic: topic_name.to_string(),
+      name: insight_name.to_string(),
+      content: if overview_only {
+        overview.to_string()
+      } else {
+        format!("{overview}\n\n{details}")
+      },
+      score: similarity,
+    }))
+  } else {
+    Ok(None)
+  }
 }
 
 #[cfg(feature = "semantic")]
@@ -217,7 +221,7 @@ fn process_topic_semantic(
   topic_path: &Path,
   query_words: &HashSet<String>,
   overview_only: bool,
-) -> Result<Vec<SemanticSearchResult>> {
+) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
   let name = topic_path.file_name().and_then(|name| name.to_str()).unwrap_or("unknown");
 
@@ -239,38 +243,10 @@ fn process_topic_semantic(
   Ok(results)
 }
 
-/// Display semantic search results
-#[cfg(feature = "semantic")]
-fn display_semantic_search_results(results: &[SemanticSearchResult], terms: &[String]) {
-  if results.is_empty() {
-    println!("No matches found for: {}", terms.join(" "));
-  } else {
-    for result in results {
-      // Format exactly like regular search
-      println!("=== {}/{} ===", result.topic.cyan(), result.name.yellow());
-
-      // Show content same as regular search - split into lines and show first several
-      let lines: Vec<&str> = result.content.lines().collect();
-      for line in lines.iter() {
-        if !line.trim().is_empty() && !line.starts_with("---") {
-          println!("{line}");
-        }
-      }
-      println!();
-    }
-  }
-}
-
 /// Sort semantic search results by similarity and name
 #[cfg(feature = "semantic")]
-fn sort_semantic_results(results: &mut [SemanticSearchResult]) {
-  results.sort_by(|a, b| {
-    b.similarity
-      .partial_cmp(&a.similarity)
-      .unwrap_or(std::cmp::Ordering::Equal)
-      .then(a.topic.cmp(&b.topic))
-      .then(a.name.cmp(&b.name))
-  });
+fn sort_semantic_results(results: &mut [SearchResult]) {
+  results.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.topic.cmp(&b.topic).then_with(|| a.name.cmp(&b.name))));
 }
 
 /// Validate insights directory exists, return early if not
@@ -291,7 +267,7 @@ fn process_all_topics_semantic(
   query_words: &HashSet<String>,
   topic_filter: Option<&str>,
   overview_only: bool,
-) -> Result<Vec<SemanticSearchResult>> {
+) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
 
   for entry in fs::read_dir(insights_dir)? {
@@ -314,31 +290,19 @@ fn process_all_topics_semantic(
   Ok(results)
 }
 
-/// Finalize and display semantic search results
-#[cfg(feature = "semantic")]
-fn finalize_semantic_results(mut results: Vec<SemanticSearchResult>, terms: &[String]) {
-  sort_semantic_results(&mut results);
-  display_semantic_search_results(&results, terms);
-}
-
 /// Semantic similarity search using advanced text analysis
 #[cfg(feature = "semantic")]
-#[allow(dead_code)]
 pub fn search_insights_semantic(
   terms: &[String],
   topic_filter: Option<&str>,
   _case_sensitive: bool, // Note: Semantic search normalizes text, so case sensitivity doesn't apply
   overview_only: bool,
-) -> Result<()> {
+) -> Result<Vec<SearchResult>> {
   let insights_dir = validate_insights_directory()?;
   let query = terms.join(" ");
   let query_words = semantic::extract_words(&query.to_lowercase());
 
-  let results =
-    process_all_topics_semantic(&insights_dir, &query_words, topic_filter, overview_only)?;
-  finalize_semantic_results(results, terms);
-
-  Ok(())
+  process_all_topics_semantic(&insights_dir, &query_words, topic_filter, overview_only)?;
 }
 
 /// Calculate semantic similarity using Jaccard + frequency analysis
@@ -515,8 +479,8 @@ fn transform_exact_results(exact_results: Vec<SearchResult>) -> Vec<CombinedSear
     .map(|result| CombinedSearchResult {
       topic: result.topic,
       name: result.name,
-      content: result.matching_lines.join("\n"),
-      score: result.score as f32 * 0.3,
+      content: result.content,
+      score: result.score as f32 * EXACT_SCALE_FACTOR,
       search_type: "exact".to_string(),
     })
     .collect()
@@ -535,44 +499,28 @@ fn collect_all_search_results(
     collect_semantic_results(terms, topic_filter, case_sensitive, overview_only)?;
   all_results.extend(transform_semantic_results(semantic_results));
 
-  let exact_results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
+  let exact_results = find_exact_matches(terms, topic_filter, case_sensitive, overview_only)?;
   all_results.extend(transform_exact_results(exact_results));
 
   Ok(all_results)
 }
 
-#[cfg(feature = "semantic")]
-pub fn search_insights_combined_semantic(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  let all_results = collect_all_search_results(terms, topic_filter, case_sensitive, overview_only)?;
-  display_combined_results(all_results, terms)
-}
-
-// Search result scoring constants
-const SEMANTIC_SCALE_FACTOR: f32 = 0.8;
-const EXACT_SCALE_FACTOR: f32 = 0.3;
-
 /// Transform neural search results into combined format
 #[cfg(feature = "neural")]
 fn add_neural_results(
-  all_results: &mut Vec<CombinedSearchResult>,
+  all_results: &mut Vec<SearchResult>,
   terms: &[String],
   topic_filter: Option<&str>,
   case_sensitive: bool,
   overview_only: bool,
 ) -> Result<()> {
-  let neural_results = collect_neural_results(terms, topic_filter, case_sensitive, overview_only)?;
+  let neural_results = find_embedding_matches(terms, topic_filter, case_sensitive, overview_only)?;
   for result in neural_results {
-    all_results.push(CombinedSearchResult {
+    all_results.push(SearchResult {
       topic: result.topic,
       name: result.name,
       content: result.content,
-      score: result.similarity,
-      search_type: "neural".to_string(),
+      score: result.score,
     });
   }
   Ok(())
@@ -609,7 +557,7 @@ fn add_exact_results(
   case_sensitive: bool,
   overview_only: bool,
 ) -> Result<()> {
-  let exact_results = collect_exact_results(terms, topic_filter, case_sensitive, overview_only)?;
+  let exact_results = find_exact_matches(terms, topic_filter, case_sensitive, overview_only)?;
   for result in exact_results {
     all_results.push(CombinedSearchResult {
       topic: result.topic,
@@ -620,30 +568,6 @@ fn add_exact_results(
     });
   }
   Ok(())
-}
-
-pub fn search_all(
-  terms: &[String],
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  #[cfg(all(not(feature = "neural"), not(feature = "semantic")))]
-  {
-    return search_insights_exact(terms, topic_filter, case_sensitive, overview_only);
-  }
-
-  let mut results = Vec::new();
-
-  #[cfg(feature = "neural")]
-  add_neural_results(&mut results, terms, topic_filter, case_sensitive, overview_only)?;
-
-  #[cfg(feature = "semantic")]
-  add_semantic_results(&mut results, terms, topic_filter, case_sensitive, overview_only)?;
-
-  add_exact_results(&mut results, terms, topic_filter, case_sensitive, overview_only)?;
-
-  display_combined_results(results, terms)
 }
 
 #[cfg(feature = "semantic")]
@@ -775,16 +699,13 @@ fn process_single_insight_file(
 ) -> Result<Option<SearchResult>> {
   let content = fs::read_to_string(path)?;
   let search_content = extract_searchable_content(&content, overview_only)?;
-  let (score, mut matching_lines) = calc_term_matches(&search_content, terms, case_sensitive);
+  let score = calc_term_matches(&search_content, terms, case_sensitive);
 
-  if score > 0 {
-    // Filter out empty lines and frontmatter for cleaner output
-    matching_lines.retain(|line| !line.trim().is_empty() && !line.starts_with("---"));
-
+  if score > 0.0 {
     Ok(Some(SearchResult {
       topic: topic_name.to_string(),
       name: insight_name.to_string(),
-      matching_lines,
+      content: search_content,
       score,
     }))
   } else {
@@ -829,7 +750,7 @@ fn process_insight_files_in_topic(
 }
 
 /// Helper function to collect exact search results without printing them
-fn collect_exact_results(
+fn find_exact_matches(
   terms: &[String],
   topic_filter: Option<&str>,
   case_sensitive: bool,
@@ -854,7 +775,7 @@ fn collect_exact_results(
 }
 
 #[cfg(feature = "neural")]
-fn init_neural_session() -> Result<ort::session::Session> {
+fn init_embedding_session() -> Result<ort::session::Session> {
   use ort::session::{builder::GraphOptimizationLevel, Session};
 
   ort::init().with_name("blizz").commit()?;
@@ -881,7 +802,7 @@ fn process_insight_for_neural_search(
   session: &mut ort::session::Session,
   query_embedding: &[f32],
   overview_only: bool,
-) -> Result<Option<SemanticSearchResult>> {
+) -> Result<Option<SearchResult>> {
   let content = format_insight_content(insight, overview_only);
   let content_embedding = embedding_client::create_embedding(session, &content)?;
   let similarity = similarity::cosine_similarity(query_embedding, &content_embedding);
@@ -890,7 +811,7 @@ fn process_insight_for_neural_search(
     return Ok(None);
   }
 
-  Ok(Some(SemanticSearchResult {
+  Ok(Some(SearchResult {
     topic: insight.topic.clone(),
     name: insight.name.clone(),
     content: if overview_only {
@@ -898,18 +819,18 @@ fn process_insight_for_neural_search(
     } else {
       format!("{}\n\n{}", insight.overview, insight.details)
     },
-    similarity,
+    score: similarity,
   }))
 }
 
 #[cfg(feature = "neural")]
-fn collect_neural_results(
+fn find_embedding_matches(
   terms: &[String],
   topic_filter: Option<&str>,
   _case_sensitive: bool,
   overview_only: bool,
-) -> Result<Vec<SemanticSearchResult>> {
-  let mut session = init_neural_session()?;
+) -> Result<Vec<SearchResult>> {
+  let mut session = init_embedding_session()?;
   let query_embedding = embedding_client::create_embedding(&mut session, &terms.join(" "))?;
   let insight_refs = get_insights(topic_filter)?;
 
@@ -924,7 +845,7 @@ fn process_insights_for_neural(
   session: &mut ort::session::Session,
   query_embedding: &[f32],
   overview_only: bool,
-) -> Vec<SemanticSearchResult> {
+) -> Vec<SearchResult> {
   insight_refs
     .iter()
     .filter_map(|(topic, name)| {
@@ -940,7 +861,7 @@ fn process_single_insight_neural(
   session: &mut ort::session::Session,
   query_embedding: &[f32],
   overview_only: bool,
-) -> Option<SemanticSearchResult> {
+) -> Option<SearchResult> {
   let insight = Insight::load(topic, name).ok()?;
   let search_result =
     process_insight_for_neural_search(&insight, session, query_embedding, overview_only)
@@ -959,37 +880,6 @@ fn search_type_priority(search_type: &str) -> u8 {
   }
 }
 
-/// Group results by insight, collecting all search methods that found each one
-fn group_results_by_insight(
-  results: Vec<CombinedSearchResult>,
-) -> HashMap<(String, String), Vec<CombinedSearchResult>> {
-  let mut insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>> = HashMap::new();
-
-  for result in results {
-    // Normalize insight name by removing .insight suffix for deduplication
-    let normalized_name = result.name.strip_suffix(".insight").unwrap_or(&result.name).to_string();
-    let key = (result.topic.clone(), normalized_name);
-
-    insight_groups.entry(key).or_default().push(result);
-  }
-
-  insight_groups
-}
-
-/// Sort a group of results by priority and score to find the best representative
-fn sort_group_by_priority(group: &mut [CombinedSearchResult]) {
-  group.sort_by(|a, b| {
-    let a_priority = search_type_priority(&a.search_type);
-    let b_priority = search_type_priority(&b.search_type);
-
-    match a_priority.cmp(&b_priority) {
-      std::cmp::Ordering::Equal => {
-        b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal)
-      }
-      other => other,
-    }
-  });
-}
 
 /// Compare two final results for sorting by method count, priority, and score
 fn compare_final_results(
@@ -1015,40 +905,8 @@ fn compare_final_results(
   }
 }
 
-/// Extract the best result from each insight group
-fn extract_best_from_groups(
-  insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>>,
-) -> Vec<(CombinedSearchResult, usize)> {
-  let mut final_results = Vec::new();
-
-  for (_, mut group) in insight_groups {
-    let method_count = group.len(); // Number of search methods that found this insight
-    sort_group_by_priority(&mut group);
-
-    // Take the best result from this group
-    if let Some(best_result) = group.into_iter().next() {
-      final_results.push((best_result, method_count));
-    }
-  }
-
-  final_results
-}
-
-/// Select best result from each group and prepare final sorted list
-fn select_best_results(
-  insight_groups: HashMap<(String, String), Vec<CombinedSearchResult>>,
-) -> Vec<CombinedSearchResult> {
-  let mut final_results = extract_best_from_groups(insight_groups);
-
-  // Sort by: number of search methods (descending), then search type priority, then score
-  final_results.sort_by(compare_final_results);
-
-  // Extract just the results for display
-  final_results.into_iter().map(|(result, _)| result).collect()
-}
-
 /// Display the combined search results
-fn display_search_results_combined(results: &[CombinedSearchResult], terms: &[String]) {
+fn display_results(results: &[SearchResult], terms: &[String]) {
   if results.is_empty() {
     println!("No matches found for: {}", terms.join(" "));
   } else {
@@ -1070,12 +928,3 @@ fn display_search_results_combined(results: &[CombinedSearchResult], terms: &[St
     }
   }
 }
-
-/// Display combined results from multiple search methods
-fn display_combined_results(results: Vec<CombinedSearchResult>, terms: &[String]) -> Result<()> {
-  let insight_groups = group_results_by_insight(results);
-  let final_results = select_best_results(insight_groups);
-  display_search_results_combined(&final_results, terms);
-  Ok(())
-}
-

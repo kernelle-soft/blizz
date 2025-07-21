@@ -29,27 +29,6 @@ struct InsightId {
   name: String,
 }
 
-/// Search configuration options
-#[derive(Args)]
-struct SearchOptions {
-  /// Optional topic to restrict search to
-  #[arg(short, long)]
-  topic: Option<String>,
-  /// Case-sensitive search
-  #[arg(short, long)]
-  case_sensitive: bool,
-  /// Search only in overview sections
-  #[arg(short, long)]
-  overview_only: bool,
-  /// Use semantic + exact search only (drops neural for speed)
-  #[cfg(feature = "semantic")]
-  #[arg(short, long)]
-  semantic: bool,
-  /// Use exact term matching only (fastest, drops neural and semantic)
-  #[arg(short, long)]
-  exact: bool,
-}
-
 // violet ignore chunk
 #[derive(Subcommand)]
 enum Commands {
@@ -65,7 +44,7 @@ enum Commands {
   /// Search through all insights for matching content
   Search {
     #[command(flatten)]
-    options: SearchOptions,
+    options: search::SearchOptions,
     /// Search terms (space-separated)
     #[arg(required = true)]
     terms: Vec<String>,
