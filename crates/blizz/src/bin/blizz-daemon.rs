@@ -4,10 +4,10 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 
 #[cfg(feature = "neural")]
-use crate::embedding_model::{EmbeddingModel, create_production_model};
+use blizz::embedding_model::{EmbeddingModel, create_production_model};
 
 #[cfg(not(feature = "neural"))]
-use crate::embedding_model::MockEmbeddingModel;
+use blizz::embedding_model::MockEmbeddingModel;
 
 
 use tokio::net::UnixListener;
