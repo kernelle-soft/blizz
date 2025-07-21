@@ -25,7 +25,7 @@ pub fn add_insight_with_client(
 
 /// Add a new insight to the knowledge base (production version)
 pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
-  let client = embedding_client::new();
+  let client = embedding_client::create();
   add_insight_with_client(topic, name, overview, details, &client)
 }
 
@@ -60,7 +60,7 @@ pub fn list_insights(filter: Option<&str>, verbose: bool) -> Result<()> {
     } else {
       format!("{}/{}", insight.topic.cyan(), insight.name.yellow())
     };
-    println!("{}", formatted_name);
+    println!("{formatted_name}");
   }
 
   Ok(())
@@ -119,7 +119,7 @@ pub fn update_insight_with_client(
 
 /// Update an existing insight's overview and/or details (production version)
 pub fn update_insight(topic: &str, name: &str, new_overview: Option<&str>, new_details: Option<&str>) -> Result<()> {
-  let client = embedding_client::new();
+  let client = embedding_client::create();
   update_insight_with_client(topic, name, new_overview, new_details, &client)
 }
 
@@ -176,34 +176,6 @@ fn process_insight_indexing(insight: &mut Insight, force: bool, missing_only: bo
   }
 }
 
-fn process_single_insight_index_with_client(
-  topic: &str,
-  name: &str,
-  force: bool,
-  missing_only: bool,
-  client: &EmbeddingClient
-) -> Result<bool> {
-  match insight::load(topic, name) {
-    Ok(mut insight) => {
-      process_insight_indexing(&mut insight, force, missing_only, client)
-    }
-    Err(_) => {
-      eprintln!(
-        "  {} Warning: Could not load insight {}/{}",
-        "⚠".yellow(),
-        topic,
-        name
-      );
-      Ok(false)
-    }
-  }
-}
-
-fn process_single_insight_index(topic: &str, name: &str, force: bool, missing_only: bool) -> Result<bool> {
-  let client = embedding_client::new();
-  process_single_insight_index_with_client(topic, name, force, missing_only, &client)
-}
-
 fn process_topic_indexing_with_client(
   topic: &str,
   force: bool,
@@ -221,11 +193,6 @@ fn process_topic_indexing_with_client(
   }
 
   Ok((updated, total))
-}
-
-fn process_topic_indexing(topic: &str, force: bool, missing_only: bool) -> Result<(usize, usize)> {
-  let client = embedding_client::new();
-  process_topic_indexing_with_client(topic, force, missing_only, &client)
 }
 
 /// Recompute embeddings for insights (testable version with dependency injection)
@@ -258,34 +225,6 @@ pub fn index_insights_with_client(force: bool, missing_only: bool, client: &Embe
 
 /// Recompute embeddings for insights (production version)
 pub fn index_insights(force: bool, missing_only: bool) -> Result<()> {
-  let client = embedding_client::new();
-  index_insights_with_client(force, missing_only, &client)
-}
-
-// Legacy function names for backwards compatibility
-pub fn add_insight_with_service<T: embedding_client::EmbeddingService>(
-  topic: &str, 
-  name: &str, 
-  overview: &str, 
-  details: &str,
-  _service: &T
-) -> Result<()> {
-  let client = embedding_client::with_mock();
-  add_insight_with_client(topic, name, overview, details, &client)
-}
-
-pub fn update_insight_with_service<T: embedding_client::EmbeddingService>(
-  topic: &str,
-  name: &str,
-  new_overview: Option<&str>,
-  new_details: Option<&str>,
-  _service: &T
-) -> Result<()> {
-  let client = embedding_client::with_mock();
-  update_insight_with_client(topic, name, new_overview, new_details, &client)
-}
-
-pub fn index_insights_with_service<T: embedding_client::EmbeddingService>(force: bool, missing_only: bool, _service: &T) -> Result<()> {
-  let client = embedding_client::with_mock();
+  let client = embedding_client::create();
   index_insights_with_client(force, missing_only, &client)
 }

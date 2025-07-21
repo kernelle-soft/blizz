@@ -50,22 +50,16 @@ pub struct EmbeddingClient {
 
 // Constructor functions
 /// Create a new embedding client with production service (default)
-pub fn new() -> EmbeddingClient {
+pub fn create() -> EmbeddingClient {
   EmbeddingClient {
     service: Box::new(ProductionEmbeddingService),
   }
 }
 
 /// Create a new embedding client with injected service (for testing)
+#[allow(dead_code)] // used for dependency injection during testing
 pub fn with_service(service: Box<dyn EmbeddingService>) -> EmbeddingClient {
   EmbeddingClient { service }
-}
-
-/// Create a new embedding client with mock service (convenience for testing)
-pub fn with_mock() -> EmbeddingClient {
-  EmbeddingClient {
-    service: Box::new(MockEmbeddingService),
-  }
 }
 
 // Client functions (operate on the client instance as first parameter)
@@ -112,13 +106,13 @@ impl EmbeddingService for MockEmbeddingService {
 
 // Convenience functions for backwards compatibility
 pub fn embed_insight_legacy(insight: &mut Insight) -> Embedding {
-  let client = new();
+  let client = create();
   embed_insight(&client, insight)
 }
 
 #[cfg(feature = "neural")]
 pub fn create_embedding_daemon_only_legacy(text: &str) -> Result<Vec<f32>> {
-  let client = new();
+  let client = create();
   create_embedding(&client, text)
 }
 

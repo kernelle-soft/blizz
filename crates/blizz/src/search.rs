@@ -119,7 +119,7 @@ fn search_insight(insight: &insight::Insight, search_strategy: fn(&insight::Insi
       name: insight.name.to_string(),
       overview: insight.overview.to_string(),
       details: insight.details.to_string(),
-      score: score,
+      score,
     }))
   } else {
     Ok(None)
@@ -170,7 +170,7 @@ fn get_embedding_match(insight: &insight::Insight, terms: &[String], options: &S
 
 #[cfg(feature = "neural")]
 fn try_daemon_embedding_match(insight: &insight::Insight, terms: &[String], options: &SearchOptions) -> Result<f32> {
-  let client = embedding_client::new();
+  let client = embedding_client::create();
   let normalized_terms = get_normalized_terms(terms, options);
 
   let query_embedding = embedding_client::create_embedding(&client, &normalized_terms.join(" "))?;

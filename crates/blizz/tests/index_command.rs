@@ -5,11 +5,9 @@ use blizz::commands::*;
 #[cfg(feature = "neural")]
 use blizz::embedding_client;
 #[cfg(feature = "neural")]
-use blizz::insight::{self, Insight};
+use blizz::insight;
 #[cfg(feature = "neural")]
-use chrono::Utc;
-#[cfg(feature = "neural")]
-use blizz::embedding_client::Embedding;
+use blizz::embedding_client::MockEmbeddingService;
 #[cfg(feature = "neural")]
 use serial_test::serial;
 #[cfg(feature = "neural")]
@@ -31,7 +29,7 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_empty_database() -> Result<()> {
     let _temp = setup_temp_insights_root("index_empty");
-    let client = embedding_client::with_mock();
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Should handle empty database gracefully
     index_insights_with_client(false, true, &client)?;
@@ -43,7 +41,7 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_force_all() -> Result<()> {
     let _temp = setup_temp_insights_root("index_force_all");
-    let client = embedding_client::with_mock();
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create some insights first
     add_insight_with_client("topic1", "insight1", "Overview 1", "Details 1", &client)?;
@@ -60,7 +58,7 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_missing_only() -> Result<()> {
     let _temp = setup_temp_insights_root("index_missing_only");
-    let client = embedding_client::with_mock();
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create insights (they'll have embeddings from MockEmbeddingService)
     add_insight_with_client("topic1", "insight1", "Overview 1", "Details 1", &client)?;
@@ -76,7 +74,7 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_multiple_topics() -> Result<()> {
     let _temp = setup_temp_insights_root("index_multiple_topics");
-    let client = embedding_client::with_mock();
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create insights across multiple topics
     add_insight_with_client("ai", "neural_networks", "About neural networks", "Deep learning details", &client)?;
@@ -95,7 +93,7 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_preserves_existing_insights() -> Result<()> {
     let _temp = setup_temp_insights_root("index_preserves");
-    let client = embedding_client::with_mock();
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create an insight
     add_insight_with_client("preserve", "test", "Original overview", "Original details", &client)?;
@@ -120,7 +118,7 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_updates_embedding_metadata() -> Result<()> {
     let _temp = setup_temp_insights_root("index_metadata");
-    let client = embedding_client::with_mock();
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create an insight
     add_insight_with_client("metadata", "test", "Test overview", "Test details", &client)?;
@@ -145,7 +143,7 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_handles_unicode_content() -> Result<()> {
     let _temp = setup_temp_insights_root("index_unicode");
-    let client = embedding_client::with_mock();
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create insights with unicode content
     add_insight_with_client(
@@ -171,7 +169,7 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_verify_content_preserved() -> Result<()> {
     let _temp = setup_temp_insights_root("index_content_preserved");
-    let client = embedding_client::with_mock();
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     let original_overview = "This is a test overview with specific content";
     let original_details = "These are test details with\nmultiple lines\nand special characters: @#$%^&*()";
