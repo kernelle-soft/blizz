@@ -101,7 +101,7 @@ fn search_topic(terms: &[String], search_strategy: fn(&str, &[String]) -> f32, t
       let path = entry.path();
 
       if insight::is_insight_file(&path) {
-        let insight = insight::Insight::load_from_path(&path)?;
+        let insight = insight::load_from_path(&path)?;
         if let Ok(Some(result)) = search_insight(&insight, search_strategy, terms, threshold, options) {
           results.push(result);
         }

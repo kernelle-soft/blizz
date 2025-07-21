@@ -8,7 +8,7 @@ use tokio::process::Command;
 use tokio::time::{sleep, Duration};
 use colored::*;
 
-use crate::insight::Insight;
+use crate::insight::{self, Insight};
 
 #[derive(Debug, Clone)]
 pub struct Embedding {
@@ -182,7 +182,7 @@ pub fn create_embedding_daemon_only(text: &str) -> Result<Vec<f32>> {
 /// Compute embedding for an insight using the daemon
 #[cfg(feature = "neural")]
 async fn compute_insight_embedding(insight: &Insight) -> Result<Embedding> {
-  let embedding_text = insight.get_embedding_text();
+  let embedding_text = insight::get_embedding_text(insight);
   let rt = tokio::runtime::Runtime::new()?;
   let result = rt.block_on(async { 
     request(&embedding_text).await

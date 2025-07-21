@@ -257,7 +257,7 @@ pub fn get_topics() -> Result<Vec<String>> {
   Ok(topics)
 }
 
-pub fn get_insights(topic_filter: Option<&str>) -> Result<Vec<(String, String)>> {
+pub fn get_insights(topic_filter: Option<&str>) -> Result<Vec<Insight>> {
   let search_paths = get_search_paths(topic_filter)?;
   let mut all_insights = Vec::new();
 
@@ -266,7 +266,7 @@ pub fn get_insights(topic_filter: Option<&str>) -> Result<Vec<(String, String)>>
     all_insights.append(&mut topic_insights);
   }
 
-  all_insights.sort();
+  all_insights.sort_by_key(|insight| insight.name.clone());
   Ok(all_insights)
 }
 
@@ -281,7 +281,7 @@ fn get_search_paths(topic_filter: Option<&str>) -> Result<Vec<std::path::PathBuf
   Ok(paths)
 }
 
-fn collect_insights_from_topic(topic_path: &std::path::Path) -> Result<Vec<(String, String)>> {
+fn collect_insights_from_topic(topic_path: &std::path::Path) -> Result<Vec<Insight>> {
   if !topic_path.exists() {
     return Ok(Vec::new());
   }
@@ -297,7 +297,7 @@ fn collect_insights_from_topic(topic_path: &std::path::Path) -> Result<Vec<(Stri
     }
 
     if let Some(insight_name) = extract_insight_name(&path) {
-      insights.push((topic_name.to_string(), insight_name));
+      insights.push(load(topic_name, &insight_name)?);
     }
   }
 
