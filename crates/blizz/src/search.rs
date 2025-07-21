@@ -6,7 +6,6 @@ use clap::Args;
 
 use crate::embedding_client;
 use crate::insight;
-use crate::semantic;
 use crate::similarity;
 
 // Semantic similarity threshold for meaningful results
@@ -154,8 +153,8 @@ fn get_exact_match(content: &str, terms: &[String]) -> f32 {
 
 #[cfg(feature = "semantic")]
 fn get_semantic_match(content: &str, terms: &[String]) -> f32 {
-  let extracted_terms = semantic::extract_words(&terms.join(" "));
-  semantic::similarity(&extracted_terms, content)
+  let extracted_terms = similarity::extract_words(&terms.join(" "));
+  similarity::semantic(&extracted_terms, content)
 }
 
 #[cfg(feature = "neural")]
@@ -171,7 +170,7 @@ fn try_daemon_embedding_match(content: &str, terms: &[String]) -> Result<f32> {
   let query_embedding = embedding_client::create_embedding_daemon_only(&terms.join(" "))?;
   let content_embedding = embedding_client::create_embedding_daemon_only(content)?;
   
-  Ok(similarity::cosine_similarity(&query_embedding, &content_embedding))
+  Ok(similarity::cosine(&query_embedding, &content_embedding))
 }
 
 /// Build search paths based on topic filter
