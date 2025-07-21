@@ -46,16 +46,6 @@ pub struct SearchOptions {
   exact: bool,
 }
 
-/// Check if embedding search feature can be used
-pub fn can_use_embedding_search(options: &SearchOptions) -> bool {
-  !options.semantic && !options.exact
-}
-
-/// Check if semantic search feature can be used
-pub fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
-  !options.exact
-}
-
 pub fn search(terms: &[String], options: &SearchOptions) -> Result<()> {
   let mut results = Vec::new();
   results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
@@ -86,6 +76,16 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<()> {
   display_results(&results, terms, options.overview_only);
 
   Ok(())
+}
+
+/// Check if embedding search feature can be used
+fn can_use_embedding_search(options: &SearchOptions) -> bool {
+  !options.semantic && !options.exact
+}
+
+/// Check if semantic search feature can be used
+fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
+  !options.exact
 }
 
 /// Search a topic for matches based on a search strategy

@@ -1,10 +1,71 @@
 ---
-description: 
+description: Source Code Organization Pattern
 globs: 
 alwaysApply: true
 ---
-Pretty much no matter the language, there are going to be a few file organization conventions we should follow, in order of appearance:
-1. imports at the top
-2. file-wide constants, types, structs, etc
-3. functions and their helper functions
-4. exports (if working in JS/TS land)
+# Code Organization
+
+Source code should always use functional programming principles.
+
+## File Organization
+
+No matter the language, you should organize source code files as follows:
+1. imports/modules/crates to use at the top, then
+2. file-wide constants,
+2. types, structs, and other datastructure definitions, then
+3. constructor functions for any data structures related to the file, then
+4. functions and their helper functions, then
+5. exported functions (e.g., if working in JS/TS land)
+
+## Function/Helper Placement
+
+For languages that use public/private declarations, organize your functions as follows:
+
+1. define the public function first, then
+2. put any helper functions specific to that public function below it
+3. Helper functions used in more than one public function should go at the bottom of the file. 
+If the language you're writing in requires functions to be declared before use, then reverse the order: shared helpers, then specific helpers just before the public function.
+
+Generally, where functions are placed within this order depends on the order they're used in the actual function. For example:
+
+```rust
+
+pub fn formula(a: f32, b: f32, c: f32) {
+  let sum = handle_a(a);    // first in function, first defined after funtion
+  sum = sum + handle_b(b);  // second in function, second defined after function
+  sum = sum + handle_c(c);  // etc
+
+  let result = shared_functionality(sum, a, b, c)
+  result
+}
+
+fn handle_a(a: f32) {
+  // logic
+}
+
+fn handle_b(b: f32) {
+  // logic
+}
+
+fn handle_c(c: f32) {
+  // logic
+}
+
+//... later towards the bottom ...
+
+fn shared_functionality(sum: f32, a: f32, b: f32, c: f32) {
+  // logic
+}
+
+```
+
+If helper functions define their own helper functions, then the same pattern applies recursively.
+
+## Nested Data Structure Definitions
+
+Types and/or structs that have a nested structure with more custom types/structs should use the same pattern encouraged for function placement:
+1. top-level datastructure definition gets defined first, then
+2. nested structure comes next, then
+3. Shared structures below that
+
+Again, reverse this logic if the language requires definitions to be placed before they're used.
