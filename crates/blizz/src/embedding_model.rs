@@ -6,16 +6,28 @@ use ort::session::{builder::GraphOptimizationLevel, Session};
 #[cfg(feature = "neural")]
 use tokenizers::Tokenizer;
 
-/// Trait for computing text embeddings - allows for testing with mocks
 pub trait EmbeddingModel {
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
 }
 
-/// Real ONNX-based embedding model implementation
 #[cfg(feature = "neural")]
 pub struct OnnxEmbeddingModel {
   session: Session,
   tokenizer: Tokenizer,
+}
+
+pub struct MockEmbeddingModel {
+  pub fail_on_texts: Vec<String>,
+  pub response_embeddings: Vec<Vec<f32>>,
+}
+
+#[cfg(feature = "neural")]
+pub async fn create_model() -> Result<OnnxEmbeddingModel> {
+  initialize_onnx_runtime()?;
+  let session = create_model_session()?;
+  let tokenizer = load_tokenizer()?;
+
+  Ok(OnnxEmbeddingModel { session, tokenizer })
 }
 
 #[cfg(feature = "neural")]
@@ -46,6 +58,26 @@ fn load_tokenizer() -> Result<Tokenizer> {
   let tokenizer_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("tokenizer.json");
 
   Tokenizer::from_file(&tokenizer_path).map_err(|e| anyhow!("Failed to load tokenizer: {}", e))
+}
+
+#[cfg(feature = "neural")]
+pub fn compute_onnx_embeddings(model: &mut OnnxEmbeddingModel, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+  if texts.is_empty() {
+    return Ok(vec![]);
+  }
+
+  let encodings = tokenize_texts(&mut model.tokenizer, texts)?;
+  let (ids, mask, batch, length) = convert_encodings_to_tensor_data(&encodings);
+
+  let ids_tensor = ort::value::TensorRef::from_array_view(([batch, length], &*ids))?;
+  let mask_tensor = ort::value::TensorRef::from_array_view(([batch, length], &*mask))?;
+
+  let outputs = model.session.run(ort::inputs![ids_tensor, mask_tensor])?;
+  let output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
+  let embeddings = output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
+
+  let results = extract_embedding_vectors(embeddings, texts.len());
+  Ok(results)
 }
 
 #[cfg(feature = "neural")]
@@ -87,92 +119,66 @@ fn extract_embedding_vectors(
   results
 }
 
-#[cfg(feature = "neural")]
-impl OnnxEmbeddingModel {
-  pub async fn new() -> Result<Self> {
-    initialize_onnx_runtime()?;
-    let session = create_model_session()?;
-    let tokenizer = load_tokenizer()?;
-
-    Ok(Self { session, tokenizer })
+pub fn create_mock_model() -> MockEmbeddingModel {
+  MockEmbeddingModel {
+    fail_on_texts: vec![],
+    response_embeddings: vec![vec![0.1, 0.2, 0.3]; 10], // Default mock embeddings
   }
 }
 
+pub fn with_failure_on(mut model: MockEmbeddingModel, text: String) -> MockEmbeddingModel {
+  model.fail_on_texts.push(text);
+  model
+}
+
+pub fn with_embeddings(mut model: MockEmbeddingModel, embeddings: Vec<Vec<f32>>) -> MockEmbeddingModel {
+  model.response_embeddings = embeddings;
+  model
+}
+
+pub fn compute_mock_embeddings(model: &mut MockEmbeddingModel, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+  // Check if we should fail for any of these texts
+  for text in texts {
+    if model.fail_on_texts.contains(text) {
+      return Err(anyhow!("Mock failure for text: {}", text));
+    }
+  }
+
+  // Return mock embeddings (cycle through available ones)
+  let mut result = Vec::new();
+  for (i, _text) in texts.iter().enumerate() {
+    let embedding_index = i % model.response_embeddings.len();
+    result.push(model.response_embeddings[embedding_index].clone());
+  }
+
+  Ok(result)
+}
+
+pub fn compute_embeddings(model: &mut dyn EmbeddingModel, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+  model.compute_embeddings(texts)
+}
+
+// Trait implementations for compatibility
 #[cfg(feature = "neural")]
 impl EmbeddingModel for OnnxEmbeddingModel {
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-    if texts.is_empty() {
-      return Ok(vec![]);
-    }
-
-    let encodings = tokenize_texts(&mut self.tokenizer, texts)?;
-    let (ids, mask, batch, length) = convert_encodings_to_tensor_data(&encodings);
-
-    let ids_tensor = ort::value::TensorRef::from_array_view(([batch, length], &*ids))?;
-    let mask_tensor = ort::value::TensorRef::from_array_view(([batch, length], &*mask))?;
-
-    let outputs = self.session.run(ort::inputs![ids_tensor, mask_tensor])?;
-    let output = if outputs.len() > 1 { &outputs[1] } else { &outputs[0] };
-    let embeddings = output.try_extract_array::<f32>()?.into_dimensionality::<ndarray::Ix2>()?;
-
-    let results = extract_embedding_vectors(embeddings, texts.len());
-    Ok(results)
-  }
-}
-
-/// Mock embedding model for testing
-pub struct MockEmbeddingModel {
-  pub fail_on_texts: Vec<String>,
-  pub response_embeddings: Vec<Vec<f32>>,
-}
-
-impl Default for MockEmbeddingModel {
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-impl MockEmbeddingModel {
-  pub fn new() -> Self {
-    Self {
-      fail_on_texts: vec![],
-      response_embeddings: vec![vec![0.1, 0.2, 0.3]; 10], // Default mock embeddings
-    }
-  }
-
-  pub fn with_failure_on(mut self, text: String) -> Self {
-    self.fail_on_texts.push(text);
-    self
-  }
-
-  pub fn with_embeddings(mut self, embeddings: Vec<Vec<f32>>) -> Self {
-    self.response_embeddings = embeddings;
-    self
+    compute_onnx_embeddings(self, texts)
   }
 }
 
 impl EmbeddingModel for MockEmbeddingModel {
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-    // Check if we should fail for any of these texts
-    for text in texts {
-      if self.fail_on_texts.contains(text) {
-        return Err(anyhow!("Mock failure for text: {}", text));
-      }
-    }
-
-    // Return mock embeddings (cycle through available ones)
-    let mut result = Vec::new();
-    for (i, _text) in texts.iter().enumerate() {
-      let embedding_index = i % self.response_embeddings.len();
-      result.push(self.response_embeddings[embedding_index].clone());
-    }
-
-    Ok(result)
+    compute_mock_embeddings(self, texts)
   }
 }
 
-/// Factory function to create the appropriate model for the environment
+impl Default for MockEmbeddingModel {
+  fn default() -> Self {
+    create_mock_model()
+  }
+}
+
 #[cfg(feature = "neural")]
 pub async fn create_production_model() -> Result<OnnxEmbeddingModel> {
-  OnnxEmbeddingModel::new().await
+  create_model().await
 }
