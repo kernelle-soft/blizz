@@ -7,6 +7,12 @@ use std::path::PathBuf;
 
 use crate::embedding_client::Embedding;
 
+// Frontmatter parsing constants
+const FRONTMATTER_START: &str = "---\n";
+const FRONTMATTER_END: &str = "\n---\n";
+const FRONTMATTER_START_LEN: usize = 4; // Length of "---\n"
+const FRONTMATTER_END_LEN: usize = 5; // Length of "\n---\n"
+
 /// YAML frontmatter structure for insight files
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InsightMetaData {
@@ -240,13 +246,6 @@ pub fn get_valid_insights_dir() -> Result<std::path::PathBuf> {
   Ok(insights_dir)
 }
 
-
-// Frontmatter parsing constants
-const FRONTMATTER_START: &str = "---\n";
-const FRONTMATTER_END: &str = "\n---\n";
-const FRONTMATTER_START_LEN: usize = 4; // Length of "---\n"
-const FRONTMATTER_END_LEN: usize = 5; // Length of "\n---\n"
-
 /// Split content into frontmatter and body sections
 fn split_frontmatter_content(content: &str) -> Result<(&str, &str)> {
   if !content.starts_with(FRONTMATTER_START) {
@@ -307,12 +306,6 @@ pub fn parse_insight_with_metadata(content: &str) -> Result<(InsightMetaData, St
   } else {
     Ok(parse_legacy_format(frontmatter_section, body))
   }
-}
-
-/// Parse insight content from YAML frontmatter format (legacy compatibility)
-pub fn parse_insight_content(content: &str) -> Result<(String, String)> {
-  let (frontmatter, details) = parse_insight_with_metadata(content)?;
-  Ok((frontmatter.overview, details))
 }
 
 /// List all available topics
