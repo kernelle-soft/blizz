@@ -10,35 +10,12 @@ use colored::*;
 
 use crate::insight::{self, Insight};
 
-pub trait EmbeddingService {
-  fn embed_insight(&self, insight: &mut Insight) -> Embedding;
-}
-
-pub struct ProductionEmbeddingService;
-
-impl EmbeddingService for ProductionEmbeddingService {
-  fn embed_insight(&self, insight: &mut Insight) -> Embedding {
-    embed_insight_impl(insight)
-  }
-}
-
-pub struct MockEmbeddingService;
-
-impl EmbeddingService for MockEmbeddingService {
-  fn embed_insight(&self, _insight: &mut Insight) -> Embedding {
-    Embedding {
-      version: "test-mock".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.1; 384], // Mock 384-dimensional embedding
-    }
-  }
-}
-
 #[cfg(feature = "neural")]
 const SOCKET_PATH: &str = "/tmp/blizz_embeddings.sock";
 #[cfg(feature = "neural")]
 const STARTUP_DELAY_MS: u64 = 500;
 
+// Core data structures
 #[derive(Debug, Clone)]
 pub struct Embedding {
   pub version: String,
@@ -61,24 +38,89 @@ struct EmbeddingResponse {
   error: Option<String>,
 }
 
+// Service trait for dependency injection
+pub trait EmbeddingService {
+  fn embed_insight(&self, insight: &mut Insight) -> Embedding;
+}
 
-#[cfg(feature = "neural")]
-async fn request(text: &str) -> Result<Vec<f32>> {
-  if let Ok(embedding) = request_embedding_from_daemon(text).await {
-    return Ok(embedding);
+// Main EmbeddingClient struct (the "class")
+pub struct EmbeddingClient {
+  service: Box<dyn EmbeddingService>,
+}
+
+// Constructor functions
+impl EmbeddingClient {
+  /// Create a new embedding client with production service (default)
+  pub fn new() -> Self {
+    Self {
+      service: Box::new(ProductionEmbeddingService),
+    }
   }
 
-  request_embedding_with_retry(text).await
+  /// Create a new embedding client with injected service (for testing)
+  pub fn with_service(service: Box<dyn EmbeddingService>) -> Self {
+    Self { service }
+  }
+
+  /// Create a new embedding client with mock service (convenience for testing)
+  pub fn with_mock() -> Self {
+    Self {
+      service: Box::new(MockEmbeddingService),
+    }
+  }
+}
+
+// Client methods (operate on the client instance)
+impl EmbeddingClient {
+  pub fn embed_insight(&self, insight: &mut Insight) -> Embedding {
+    self.service.embed_insight(insight)
+  }
+
+  pub fn create_embedding_daemon_only(&self, text: &str) -> Result<Vec<f32>> {
+    #[cfg(feature = "neural")]
+    {
+      let rt = tokio::runtime::Runtime::new()?;
+      rt.block_on(async {
+        request_embedding_from_daemon(text).await
+      })
+    }
+
+    #[cfg(not(feature = "neural"))]
+    {
+      let _ = text;
+      Err(anyhow!("Neural features not enabled"))
+    }
+  }
+}
+
+// Service implementations
+pub struct ProductionEmbeddingService;
+
+impl EmbeddingService for ProductionEmbeddingService {
+  fn embed_insight(&self, insight: &mut Insight) -> Embedding {
+    embed_insight_impl(insight)
+  }
+}
+
+pub struct MockEmbeddingService;
+
+impl EmbeddingService for MockEmbeddingService {
+  fn embed_insight(&self, _insight: &mut Insight) -> Embedding {
+    Embedding {
+      version: "test-mock".to_string(),
+      created_at: Utc::now(),
+      embedding: vec![0.1; 384], // Mock 384-dimensional embedding
+    }
+  }
 }
 
 #[cfg(feature = "neural")]
 pub fn create_embedding_daemon_only(text: &str) -> Result<Vec<f32>> {
-  let rt = tokio::runtime::Runtime::new()?;
-  rt.block_on(async {
-    request_embedding_from_daemon(text).await
-  })
+  let client = EmbeddingClient::new();
+  client.create_embedding_daemon_only(text)
 }
 
+// Private implementation functions
 fn embed_insight_impl(insight: &mut Insight) -> Embedding {
   #[cfg(feature = "neural")]
   {
@@ -94,12 +136,6 @@ fn embed_insight_impl(insight: &mut Insight) -> Embedding {
     let _ = insight;
     panic!("Neural features not enabled")
   }
-}
-
-// Convenience function for production use
-pub fn embed_insight(insight: &mut Insight) -> Embedding {
-  let service = ProductionEmbeddingService;
-  service.embed_insight(insight)
 }
 
 #[cfg(feature = "neural")]
@@ -125,6 +161,15 @@ async fn compute_insight_embedding(insight: &Insight) -> Result<Embedding> {
       Err(e)
     }
   }
+}
+
+#[cfg(feature = "neural")]
+async fn request(text: &str) -> Result<Vec<f32>> {
+  if let Ok(embedding) = request_embedding_from_daemon(text).await {
+    return Ok(embedding);
+  }
+
+  request_embedding_with_retry(text).await
 }
 
 #[cfg(feature = "neural")]
@@ -199,8 +244,6 @@ async fn start_daemon() -> Result<()> {
 
   Ok(())
 }
-
-// Shared utility functions
 
 #[cfg(feature = "neural")]
 fn get_daemon_executable_path() -> Result<std::path::PathBuf> {

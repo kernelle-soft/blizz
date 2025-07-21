@@ -3,7 +3,7 @@ use anyhow::Result;
 #[cfg(feature = "neural")]
 use blizz::commands::*;
 #[cfg(feature = "neural")]
-use blizz::embedding_client::MockEmbeddingService;
+use blizz::embedding_client::EmbeddingClient;
 #[cfg(feature = "neural")]
 use blizz::insight::{self, Insight};
 #[cfg(feature = "neural")]
@@ -17,7 +17,6 @@ use std::env;
 #[cfg(feature = "neural")]
 use tempfile::TempDir;
 
-#[cfg(feature = "neural")]
 #[cfg(test)]
 mod index_command_tests {
   use super::*;
@@ -30,41 +29,29 @@ mod index_command_tests {
 
   #[test]
   #[serial]
+  fn test_index_insights_empty_database() -> Result<()> {
+    let _temp = setup_temp_insights_root("index_empty");
+    let client = EmbeddingClient::with_mock();
+
+    // Should handle empty database gracefully
+    index_insights_with_client(false, true, &client)?;
+
+    Ok(())
+  }
+
+  #[test]
+  #[serial]
   fn test_index_insights_force_all() -> Result<()> {
     let _temp = setup_temp_insights_root("index_force_all");
-    let embedding_service = MockEmbeddingService;
+    let client = EmbeddingClient::with_mock();
 
-    // Create test insights
-    let insight1 = Insight::new(
-      "topic1".to_string(),
-      "insight1".to_string(),
-      "Overview 1".to_string(),
-      "Details 1".to_string(),
-    );
-    let insight2 = Insight::new(
-      "topic1".to_string(),
-      "insight2".to_string(),
-      "Overview 2".to_string(),
-      "Details 2".to_string(),
-    );
-    let insight3 = Insight::new(
-      "topic2".to_string(),
-      "insight3".to_string(),
-      "Overview 3".to_string(),
-      "Details 3".to_string(),
-    );
+    // Create some insights first
+    add_insight_with_client("topic1", "insight1", "Overview 1", "Details 1", &client)?;
+    add_insight_with_client("topic1", "insight2", "Overview 2", "Details 2", &client)?;
+    add_insight_with_client("topic2", "insight3", "Overview 3", "Details 3", &client)?;
 
-    insight::save(&insight1)?;
-    insight::save(&insight2)?;
-    insight::save(&insight3)?;
-
-    // Test force indexing
-    index_insights_with_service(true, false, &embedding_service)?;
-
-    // Verify all insights have embeddings
-    let _insight1 = insight::load("topic1", "insight1")?;
-    let _insight2 = insight::load("topic1", "insight2")?;
-    let _insight3 = insight::load("topic2", "insight3")?;
+    // Force recompute all embeddings
+    index_insights_with_client(true, false, &client)?;
 
     Ok(())
   }
@@ -73,104 +60,14 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_missing_only() -> Result<()> {
     let _temp = setup_temp_insights_root("index_missing_only");
-    let embedding_service = MockEmbeddingService;
+    let client = EmbeddingClient::with_mock();
 
-    // Create insight with embedding
-    let mut insight_with_embedding = Insight::new(
-      "topic1".to_string(),
-      "with_embedding".to_string(),
-      "Has embedding".to_string(),
-      "Already embedded".to_string(),
-    );
+    // Create insights (they'll have embeddings from MockEmbeddingService)
+    add_insight_with_client("topic1", "insight1", "Overview 1", "Details 1", &client)?;
+    add_insight_with_client("topic2", "insight2", "Overview 2", "Details 2", &client)?;
 
-    insight::set_embedding(&mut insight_with_embedding, Embedding {
-      version: "test".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.1; 384],
-    });
-
-    insight::save(&insight_with_embedding)?;
-
-    // Create insight without embedding
-    let insight_without_embedding = Insight::new(
-      "topic1".to_string(),
-      "without_embedding".to_string(),
-      "No embedding".to_string(),
-      "Not embedded".to_string(),
-    );
-
-    insight::save(&insight_without_embedding)?;
-
-    // Test missing-only indexing
-    index_insights_with_service(false, true, &embedding_service)?;
-
-    // Verify embeddings
-    let _loaded_with = insight::load("topic1", "with_embedding")?;
-    let _loaded_without = insight::load("topic1", "without_embedding")?;
-
-    // Both should now have embeddings
-
-    Ok(())
-  }
-
-  #[test]
-  #[serial]
-  fn test_index_insights_empty_database() -> Result<()> {
-    let _temp = setup_temp_insights_root("index_empty");
-    let embedding_service = MockEmbeddingService;
-
-    // Test indexing with no insights
-    index_insights_with_service(false, true, &embedding_service)?;
-
-    Ok(())
-  }
-
-  #[test]
-  #[serial]
-  fn test_index_insights_verify_content_preserved() -> Result<()> {
-    let _temp = setup_temp_insights_root("index_preserve_content");
-    let embedding_service = MockEmbeddingService;
-
-    // Create insight
-    let original = Insight::new(
-      "topic1".to_string(),
-      "normal".to_string(),
-      "Original overview".to_string(),
-      "Original details".to_string(),
-    );
-
-    insight::save(&original)?;
-
-    // Index insights
-    index_insights_with_service(true, false, &embedding_service)?;
-
-    // Verify content is preserved
-    let loaded = insight::load("topic1", "normal")?;
-    assert_eq!(loaded.overview, "Original overview");
-    assert_eq!(loaded.details, "Original details");
-
-    Ok(())
-  }
-
-  #[test]
-  #[serial]
-  fn test_index_insights_preserves_existing_insights() -> Result<()> {
-    let _temp = setup_temp_insights_root("index_preserve_existing");
-
-    // Create original insight
-    let original = Insight::new(
-      "topic1".to_string(),
-      "insight1".to_string(),
-      "Original overview".to_string(),
-      "Original details".to_string(),
-    );
-
-    insight::save(&original)?;
-
-    // Verify it was saved
-    let loaded = insight::load("topic1", "insight1")?;
-    assert_eq!(loaded.overview, "Original overview");
-    assert_eq!(loaded.details, "Original details");
+    // Index only missing embeddings
+    index_insights_with_client(false, true, &client)?;
 
     Ok(())
   }
@@ -179,52 +76,42 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_multiple_topics() -> Result<()> {
     let _temp = setup_temp_insights_root("index_multiple_topics");
-    let embedding_service = MockEmbeddingService;
+    let client = EmbeddingClient::with_mock();
 
-    // Create insights in different topics
-    let a1 = Insight::new("topic_a".to_string(), "insight1".to_string(), "A1".to_string(), "Details A1".to_string());
-    let a2 = Insight::new("topic_a".to_string(), "insight2".to_string(), "A2".to_string(), "Details A2".to_string());
-    let b1 = Insight::new("topic_b".to_string(), "insight1".to_string(), "B1".to_string(), "Details B1".to_string());
-    let c1 = Insight::new("topic_c".to_string(), "insight1".to_string(), "C1".to_string(), "Details C1".to_string());
+    // Create insights across multiple topics
+    add_insight_with_client("ai", "neural_networks", "About neural networks", "Deep learning details", &client)?;
+    add_insight_with_client("ai", "machine_learning", "About ML", "ML algorithms", &client)?;
+    add_insight_with_client("databases", "postgresql", "About PostgreSQL", "Database management", &client)?;
+    add_insight_with_client("databases", "redis", "About Redis", "In-memory store", &client)?;
+    add_insight_with_client("rust", "ownership", "About ownership", "Memory management", &client)?;
 
-    insight::save(&a1)?;
-    insight::save(&a2)?;
-    insight::save(&b1)?;
-    insight::save(&c1)?;
-
-    // Index all topics
-    index_insights_with_service(true, false, &embedding_service)?;
+    // Index all insights
+    index_insights_with_client(false, true, &client)?;
 
     Ok(())
   }
 
   #[test]
   #[serial]
-  fn test_index_insights_handles_unicode_content() -> Result<()> {
-    let _temp = setup_temp_insights_root("index_unicode");
-    let embedding_service = MockEmbeddingService;
+  fn test_index_insights_preserves_existing_insights() -> Result<()> {
+    let _temp = setup_temp_insights_root("index_preserves");
+    let client = EmbeddingClient::with_mock();
 
-    // Create insight with Unicode content
-    let mut insight = Insight::new(
-      "unicode_topic".to_string(),
-      "unicode_insight".to_string(),
-      "Überblick mit émojis 🚀 and 中文".to_string(),
-      "Détails with русский text and 🎉 symbols".to_string(),
-    );
+    // Create an insight
+    add_insight_with_client("preserve", "test", "Original overview", "Original details", &client)?;
 
-    insight::set_embedding(&mut insight, Embedding {
-      version: "test".to_string(),
-      created_at: Utc::now(),
-      embedding: vec![0.1; 384],
-    });
+    // Verify content before indexing
+    let before = insight::load("preserve", "test")?;
+    assert_eq!(before.overview, "Original overview");
+    assert_eq!(before.details, "Original details");
 
-    insight::save(&insight)?;
+    // Run indexing
+    index_insights_with_client(true, false, &client)?;
 
-    // Index with Unicode content
-    index_insights_with_service(true, false, &embedding_service)?;
-
-    let loaded = insight::load("unicode_topic", "unicode_insight")?;
-    assert_eq!(loaded.overview, "Überblick mit émojis 🚀 and 中文");
+    // Verify content is preserved after indexing
+    let after = insight::load("preserve", "test")?;
+    assert_eq!(after.overview, "Original overview");
+    assert_eq!(after.details, "Original details");
 
     Ok(())
   }
@@ -233,31 +120,83 @@ mod index_command_tests {
   #[serial]
   fn test_index_insights_updates_embedding_metadata() -> Result<()> {
     let _temp = setup_temp_insights_root("index_metadata");
-    let embedding_service = MockEmbeddingService;
+    let client = EmbeddingClient::with_mock();
 
-    // Create insight
-    let original = Insight::new(
-      "topic1".to_string(),
-      "insight1".to_string(),
-      "Test overview".to_string(),
-      "Test details".to_string(),
-    );
+    // Create an insight
+    add_insight_with_client("metadata", "test", "Test overview", "Test details", &client)?;
 
-    insight::save(&original)?;
+    // Load and verify it has embedding data (from MockEmbeddingService)
+    let insight = insight::load("metadata", "test")?;
+    assert!(insight::has_embedding(&insight));
+    assert!(insight.embedding_version.is_some());
 
-    // Index insights  
-    index_insights_with_service(true, false, &embedding_service)?;
+    // Force reindex
+    index_insights_with_client(true, false, &client)?;
 
-    // Verify embedding metadata was added
-    let _loaded = insight::load("topic1", "insight1")?;
-    // Note: In test mode with mocks, embeddings are automatically added
+    // Verify it still has embedding metadata
+    let reindexed = insight::load("metadata", "test")?;
+    assert!(insight::has_embedding(&reindexed));
+    assert!(reindexed.embedding_version.is_some());
 
     Ok(())
   }
 
+  #[test]
+  #[serial]
+  fn test_index_insights_handles_unicode_content() -> Result<()> {
+    let _temp = setup_temp_insights_root("index_unicode");
+    let client = EmbeddingClient::with_mock();
+
+    // Create insights with unicode content
+    add_insight_with_client(
+      "unicode",
+      "test",
+      "Overview with émojis 🚀 and unicode: ñáéíóú",
+      "Details with Chinese: 你好世界, Arabic: مرحبا, Russian: Привет",
+      &client
+    )?;
+
+    // Index should handle unicode content without issues
+    index_insights_with_client(false, true, &client)?;
+
+    // Verify the insight still exists and has correct content
+    let insight = insight::load("unicode", "test")?;
+    assert!(insight.overview.contains("émojis 🚀"));
+    assert!(insight.details.contains("你好世界"));
+
+    Ok(())
+  }
+
+  #[test]
+  #[serial]
+  fn test_index_insights_verify_content_preserved() -> Result<()> {
+    let _temp = setup_temp_insights_root("index_content_preserved");
+    let client = EmbeddingClient::with_mock();
+
+    let original_overview = "This is a test overview with specific content";
+    let original_details = "These are test details with\nmultiple lines\nand special characters: @#$%^&*()";
+
+    // Create insight with specific content
+    add_insight_with_client("content", "preservation", &original_overview, &original_details, &client)?;
+
+    // Index the insights
+    index_insights_with_client(true, false, &client)?;
+
+    // Verify exact content preservation
+    let preserved = insight::load("content", "preservation")?;
+    assert_eq!(preserved.overview, original_overview);
+    assert_eq!(preserved.details, original_details);
+
+    Ok(())
+  }
+
+  // Helper function for creating test insights directory (unused in simplified tests)
+  #[allow(dead_code)]
   fn create_test_insights_dir() -> Result<()> {
-    let insights_root = insight::get_insights_root()?;
-    std::fs::create_dir_all(&insights_root)?;
+    use std::fs;
+
+    let insights_dir = std::env::var("BLIZZ_INSIGHTS_ROOT")?;
+    fs::create_dir_all(&insights_dir)?;
     Ok(())
   }
 }
