@@ -225,6 +225,17 @@ pub fn get_insights_root() -> Result<PathBuf> {
   Ok(home.join(".kernelle").join("insights"))
 }
 
+/// Validate insights directory exists, return early if not
+pub fn get_valid_insights_dir() -> Result<std::path::PathBuf> {
+  let insights_dir = get_insights_root()?;
+  if !insights_dir.exists() {
+    println!("No insights found. Create some insights first!");
+    return Err(anyhow!("No insights directory found"));
+  }
+  Ok(insights_dir)
+}
+
+
 // Frontmatter parsing constants
 const FRONTMATTER_START: &str = "---\n";
 const FRONTMATTER_END: &str = "\n---\n";
