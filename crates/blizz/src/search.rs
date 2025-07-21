@@ -183,39 +183,6 @@ fn get_search_paths(insights_root: &Path, topic_filter: Option<&str>) -> Result<
   }
 }
 
-/// Wrap text to fit within a specified width
-fn wrap_text(text: &str, width: usize) -> Vec<String> {
-  let mut lines = Vec::new();
-  
-  for paragraph in text.split('\n') {
-    if paragraph.trim().is_empty() {
-      lines.push(String::new());
-      continue;
-    }
-    
-    let words: Vec<&str> = paragraph.split_whitespace().collect();
-    let mut current_line = String::new();
-    
-    for word in words {
-      if current_line.is_empty() {
-        current_line = word.to_string();
-      } else if current_line.len() + 1 + word.len() <= width {
-        current_line.push(' ');
-        current_line.push_str(word);
-      } else {
-        lines.push(current_line);
-        current_line = word.to_string();
-      }
-    }
-    
-    if !current_line.is_empty() {
-      lines.push(current_line);
-    }
-  }
-  
-  lines
-}
-
 /// Display the combined search results
 fn display_results(results: &[SearchResult], terms: &[String], overview_only: bool) {
   if results.is_empty() {
@@ -251,4 +218,37 @@ fn display_single_result(result: &SearchResult, overview_only: bool) {
     println!("{}", line);
   }
   println!();
+}
+
+/// Wrap text to fit within a specified width
+fn wrap_text(text: &str, width: usize) -> Vec<String> {
+  let mut lines = Vec::new();
+  
+  for paragraph in text.split('\n') {
+    if paragraph.trim().is_empty() {
+      lines.push(String::new());
+      continue;
+    }
+    
+    let words: Vec<&str> = paragraph.split_whitespace().collect();
+    let mut current_line = String::new();
+    
+    for word in words {
+      if current_line.is_empty() {
+        current_line = word.to_string();
+      } else if current_line.len() + 1 + word.len() <= width {
+        current_line.push(' ');
+        current_line.push_str(word);
+      } else {
+        lines.push(current_line);
+        current_line = word.to_string();
+      }
+    }
+    
+    if !current_line.is_empty() {
+      lines.push(current_line);
+    }
+  }
+  
+  lines
 }
