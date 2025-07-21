@@ -9,8 +9,6 @@ mod search;
 mod semantic;
 mod similarity;
 
-use commands::*;
-
 #[derive(Parser)]
 #[command(name = "blizz")]
 #[command(
@@ -126,14 +124,14 @@ fn execute_search(
   options: SearchOptions,
 ) -> Result<()> {
   if options.exact {
-    return search_insights_exact(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only);
+    return commands::search_insights_exact(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only);
   }
 
   #[cfg(feature = "semantic")]
   if options.semantic {
-    return search_insights_combined_semantic(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
+    return commands::search_insights_combined_semantic(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
   } else {
-    search_all(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
+    commands::search_all(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
   }
 
   #[cfg(not(feature = "semantic"))]
@@ -146,29 +144,29 @@ fn main() -> Result<()> {
 
   match cli.command {
     Commands::Add { id, overview, details } => {
-      add_insight(&id.topic, &id.name, &overview, &details)?;
+      commands::add_insight(&id.topic, &id.name, &overview, &details)?;
     }
     Commands::Search { options, terms } => {
       execute_search(&terms, options)?;
     }
     Commands::Get { id, overview } => {
-      get_insight(&id.topic, &id.name, overview)?;
+      commands::get_insight(&id.topic, &id.name, overview)?;
     }
     Commands::List { topic, verbose } => {
-      list_insights(topic.as_deref(), verbose)?;
+      commands::list_insights(topic.as_deref(), verbose)?;
     }
     Commands::Update { id, overview, details } => {
-      update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())?;
+      commands::update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())?;
     }
     Commands::Delete { id, force } => {
-      delete_insight(&id.topic, &id.name, force)?;
+      commands::delete_insight(&id.topic, &id.name, force)?;
     }
     Commands::Topics => {
-      list_topics()?;
+      commands::list_topics()?;
     }
     #[cfg(feature = "neural")]
     Commands::Index { force, missing_only } => {
-      index_insights(force, missing_only)?;
+      commands::index_insights(force, missing_only)?;
     }
   }
 
