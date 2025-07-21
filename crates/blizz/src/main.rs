@@ -92,9 +92,6 @@ enum Commands {
     /// Force recompute even for insights that already have embeddings
     #[arg(short, long)]
     force: bool,
-    /// Only recompute missing embeddings (default behavior)
-    #[arg(short, long)]
-    missing_only: bool,
   },
 }
 
@@ -124,8 +121,8 @@ fn main() -> Result<()> {
       commands::list_topics()?;
     }
     #[cfg(feature = "neural")]
-    Commands::Index { force, missing_only } => {
-      commands::index_insights(force, missing_only)?;
+    Commands::Index { force } => {
+      commands::index_insights(force)?;
     }
   }
 

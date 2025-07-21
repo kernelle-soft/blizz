@@ -104,27 +104,30 @@ impl EmbeddingService for MockEmbeddingService {
 fn blocking_embed(insight: &mut Insight) -> Embedding {
   #[cfg(feature = "neural")]
   {
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    match rt.block_on(async { compute_insight_embedding(insight).await }) {
-      Ok(embedding) => embedding,
-      Err(e) => {
-        eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
-        eprintln!(
-          "  {} Insight saved without embedding (can be computed later with 'blizz index')",
-          "ℹ".blue()
-        );
-
-        // Return a placeholder embedding instead of panicking
-        Embedding { version: "placeholder".to_string(), created_at: Utc::now(), embedding: vec![] }
-      }
-    }
+    real_blocking_embed(insight)
   }
 
   #[cfg(not(feature = "neural"))]
   {
     let _ = insight;
-    // Return a placeholder embedding for non-neural builds
     Embedding { version: "mock".to_string(), created_at: Utc::now(), embedding: vec![0.0; 384] }
+  }
+}
+
+fn real_blocking_embed(insight: &mut Insight) -> Embedding {
+  let rt = tokio::runtime::Runtime::new().unwrap();
+  match rt.block_on(async { compute_insight_embedding(insight).await }) {
+    Ok(embedding) => embedding,
+    Err(e) => {
+      eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
+      eprintln!(
+        "  {} Insight saved without embedding",
+        "ℹ".blue()
+      );
+
+      // Return a placeholder embedding instead of panicking
+      Embedding { version: "placeholder".to_string(), created_at: Utc::now(), embedding: vec![] }
+    }
   }
 }
 

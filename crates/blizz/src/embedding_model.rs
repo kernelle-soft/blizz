@@ -3,6 +3,7 @@ use std::path::Path;
 
 #[cfg(feature = "neural")]
 use ort::session::{builder::GraphOptimizationLevel, Session};
+use ort::{session::SessionOutputs, value::{Tensor}};
 
 pub trait EmbeddingModel {
   #[allow(dead_code)]
@@ -156,14 +157,23 @@ pub fn compute_onnx_embeddings(
   let (ids, mask, batch, length) = batch_tokens(&encodings);
 
   // Create input tensors using the correct API
-  let ids_tensor = ort::value::Tensor::from_array(([batch, length], ids.into_boxed_slice()))?;
-  let mask_tensor = ort::value::Tensor::from_array(([batch, length], mask.into_boxed_slice()))?;
+  let ids = Tensor::from_array(([batch, length], ids.into_boxed_slice()))?;
+  let mask = Tensor::from_array(([batch, length], mask.into_boxed_slice()))?;
 
   // Run inference
   let outputs =
-    model.session.run(ort::inputs!["input_ids" => ids_tensor, "attention_mask" => mask_tensor])?;
+    model.session.run(ort::inputs!["input_ids" => ids, "attention_mask" => mask])?;
 
   // Extract embeddings from the output - try common output names first, then fallback to first output
+  let output = get_session_outputs(&outputs)?;
+
+  let (_shape, data) = output.try_extract_tensor::<f32>()?;
+
+  let results = extract_embeddings(data, texts.len());
+  Ok(results)
+}
+
+fn get_session_outputs<'a>(outputs: &'a SessionOutputs<'_>) -> Result<&'a ort::value::Value> {
   let output = outputs
     .get("last_hidden_state")
     .or_else(|| outputs.get("output_0"))
@@ -175,10 +185,7 @@ pub fn compute_onnx_embeddings(
       )
     })?;
 
-  let (_shape, data) = output.try_extract_tensor::<f32>()?;
-
-  let results = extract_embeddings(data, texts.len());
-  Ok(results)
+  Ok(output)
 }
 
 #[cfg(feature = "neural")]
