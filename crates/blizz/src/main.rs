@@ -123,39 +123,23 @@ enum Commands {
 
 fn execute_search(
   terms: &[String],
-  topic: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-  exact: bool,
-  #[cfg(feature = "semantic")] semantic: bool,
+  options: SearchOptions,
 ) -> Result<()> {
-  if exact {
-    return search_insights_exact(terms, topic, case_sensitive, overview_only);
+  if options.exact {
+    return search_insights_exact(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only);
   }
 
   #[cfg(feature = "semantic")]
-  if semantic {
-    search_insights_combined_semantic(terms, topic, case_sensitive, overview_only)
+  if options.semantic {
+    return search_insights_combined_semantic(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
   } else {
-    search_all(terms, topic, case_sensitive, overview_only)
+    search_all(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
   }
 
   #[cfg(not(feature = "semantic"))]
-  search_all(terms, topic, case_sensitive, overview_only)
+  search_all(terms, options.topic.as_deref(), options.case_sensitive, options.overview_only)
 }
 
-/// Handle search command with all its complex options
-fn search_insights(options: SearchOptions, terms: Vec<String>) -> Result<()> {
-  execute_search(
-    &terms,
-    options.topic.as_deref(),
-    options.case_sensitive,
-    options.overview_only,
-    options.exact,
-    #[cfg(feature = "semantic")]
-    options.semantic,
-  )
-}
 
 fn main() -> Result<()> {
   let cli = Cli::parse();
@@ -165,7 +149,7 @@ fn main() -> Result<()> {
       add_insight(&id.topic, &id.name, &overview, &details)?;
     }
     Commands::Search { options, terms } => {
-      search_insights(options, terms)?;
+      execute_search(&terms, options)?;
     }
     Commands::Get { id, overview } => {
       get_insight(&id.topic, &id.name, overview)?;
