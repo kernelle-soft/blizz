@@ -1,9 +1,10 @@
 ---
-description: 
+description: When to write comments
 globs: 
 alwaysApply: true
 ---
-Code should be self-documenting. Please avoid writing obvious comments.
+
+Code should be self-documenting. Please avoid writing comments unless the design choices or behavior are subtle.
 
 Comments are appropriate when:
 - functions/classes/data structure/etc are public. Use a top-level comment in these cases.
