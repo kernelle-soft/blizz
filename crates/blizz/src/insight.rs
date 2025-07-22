@@ -4,8 +4,7 @@ use dirs::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-
-use crate::embedding_client::Embedding;
+use crate::embedding_client::{self, Embedding};
 
 // Frontmatter parsing constants
 const FRONTMATTER_START: &str = "---\n";
@@ -153,7 +152,10 @@ pub fn update(
 
   let new_file_path = file_path(insight)?;
 
+  // Gets recomputed lazily on next search.
   clear_embedding(insight);
+
+  // Save updates.
   write_to_file(insight, &new_file_path)?;
 
   // If we migrated from legacy path to normalized path, clean up the old file

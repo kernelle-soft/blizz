@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Args;
 use colored::*;
+use chrono::Utc;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -26,7 +27,7 @@ pub struct SearchResult {
 
 /// Search configuration options
 #[derive(Args)]
-pub struct SearchOptions {
+pub struct SearchCommandOptions {
   /// Optional topic to restrict search to
   #[arg(short, long)]
   topic: Option<String>,
@@ -43,6 +44,30 @@ pub struct SearchOptions {
   /// Use exact term matching only (fastest, drops neural and semantic)
   #[arg(short, long)]
   exact: bool,
+}
+
+pub struct SearchOptions {
+  pub topic: Option<String>,
+  pub case_sensitive: bool,
+  pub overview_only: bool,
+  #[cfg(feature = "semantic")]
+  pub semantic: bool,
+  pub exact: bool,
+  pub embedding_client: embedding_client::EmbeddingClient,
+}
+
+impl SearchOptions {
+  pub fn from(options: &SearchCommandOptions) -> Self {
+    Self {
+      topic: options.topic.clone(),
+      case_sensitive: options.case_sensitive,
+      overview_only: options.overview_only,
+      #[cfg(feature = "semantic")]
+      semantic: options.semantic,
+      exact: options.exact,
+      embedding_client: embedding_client::create(),
+    }
+  }
 }
 
 pub fn search(terms: &[String], options: &SearchOptions) -> Result<()> {
@@ -196,7 +221,8 @@ fn try_daemon_embedding_match(
   terms: &[String],
   options: &SearchOptions,
 ) -> Result<f32> {
-  let client = embedding_client::create();
+  let client = &options.embedding_client;
+
   let normalized_terms = get_normalized_terms(terms, options);
 
   let query_embedding = embedding_client::create_embedding(&client, &normalized_terms.join(" "))?;
@@ -204,7 +230,17 @@ fn try_daemon_embedding_match(
     embedding.clone()
   } else {
     let normalized_content = get_normalized_content(insight, options);
-    embedding_client::create_embedding(&client, &normalized_content)?
+    let embedding = embedding_client::Embedding {
+      version: "all-MiniLM-L6-v2".to_string(),
+      created_at: Utc::now(),
+      embedding: embedding_client::create_embedding(&client, &normalized_content)?,
+    };
+
+    // Lazily recompute and save embedding.
+    let mut to_save = insight.clone();
+    insight::set_embedding(&mut to_save, embedding.clone());
+    insight::save(&to_save)?;
+    embedding.embedding
   };
 
   Ok(similarity::cosine(&query_embedding, &content_embedding))

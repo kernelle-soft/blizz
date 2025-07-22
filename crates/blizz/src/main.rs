@@ -44,7 +44,7 @@ enum Commands {
   /// Search through all insights for matching content
   Search {
     #[command(flatten)]
-    options: search::SearchOptions,
+    options: search::SearchCommandOptions,
     /// Search terms (space-separated)
     #[arg(required = true)]
     terms: Vec<String>,
@@ -103,7 +103,8 @@ fn main() -> Result<()> {
       commands::add_insight(&id.topic, &id.name, &overview, &details)?;
     }
     Commands::Search { options, terms } => {
-      search::search(&terms, &options)?;
+      let search_options = search::SearchOptions::from(&options);
+      search::search(&terms, &search_options)?;
     }
     Commands::Get { id, overview } => {
       commands::get_insight(&id.topic, &id.name, overview)?;
