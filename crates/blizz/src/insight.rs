@@ -66,7 +66,7 @@ pub fn file_path(insight: &Insight) -> Result<PathBuf> {
   // Original case is preserved in insight metadata.
   let normalized_topic = insight.topic.to_lowercase();
   let normalized_name = insight.name.to_lowercase();
-  Ok(insights_root.join(&normalized_topic).join(format!("{}.insight.md", normalized_name)))
+  Ok(insights_root.join(&normalized_topic).join(format!("{normalized_name}.insight.md")))
 }
 
 pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
@@ -92,7 +92,7 @@ pub fn save(insight: &Insight) -> Result<()> {
 
 fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
   ensure_parent_dir_exists(file_path)?;
-  
+
   let frontmatter = InsightMetaData {
     topic: insight.topic.clone(),
     name: insight.name.clone(),
@@ -112,11 +112,11 @@ fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
 
 pub fn load(topic: &str, name: &str) -> Result<Insight> {
   let file_path = make_insight_path(topic, name)?;
-  
+
   if !file_path.exists() {
     return Err(anyhow!("Insight {}/{} not found", topic, name));
   }
-  
+
   let content = fs::read_to_string(&file_path)?;
   parse_insight_from_content(topic, name, &content)
 }
@@ -151,20 +151,17 @@ pub fn update(
     return Err(anyhow!("Insight {}/{} not found", insight.topic, insight.name));
   }
 
-  // Determine where to write the updated file. Always uses normalized path.
   let new_file_path = file_path(insight)?;
 
   clear_embedding(insight);
-
-  // Write to the new (normalized) path
   write_to_file(insight, &new_file_path)?;
 
   // If we migrated from legacy path to normalized path, clean up the old file
   if existing_file_path != new_file_path {
-    let _ = fs::remove_file(&existing_file_path); // Ignore errors in cleanup
-    // Also try to clean up empty directories
+    // Try to clean up empty directories. Ignore errors in cleanup.
+    let _ = fs::remove_file(&existing_file_path);
     if let Some(parent) = existing_file_path.parent() {
-      let _ = fs::remove_dir(parent); // Will only succeed if empty
+      let _ = fs::remove_dir(parent);
     }
   }
 
@@ -349,23 +346,23 @@ pub fn is_insight_file(path: &std::path::Path) -> bool {
 
 fn make_insight_path(topic: &str, name: &str) -> Result<std::path::PathBuf> {
   let root = get_insights_root()?;
-  
+
   // Try normalized case first.
   let normalized_topic = topic.to_lowercase();
   let normalized_name = name.to_lowercase();
-  let normalized_path = root.join(&normalized_topic).join(format!("{}.insight.md", normalized_name));
-  
+  let normalized_path = root.join(&normalized_topic).join(format!("{normalized_name}.insight.md"));
+
   // If normalized path exists, use it
   if normalized_path.exists() {
     return Ok(normalized_path);
   }
-  
+
   // Fallback to original case for backwards compatibility with legacy insights
-  let legacy_path = root.join(topic).join(format!("{}.insight.md", name));
+  let legacy_path = root.join(topic).join(format!("{name}.insight.md"));
   if legacy_path.exists() {
     return Ok(legacy_path);
   }
-  
+
   // If neither exists, return the normalized path (for error messages and new file creation)
   Ok(normalized_path)
 }

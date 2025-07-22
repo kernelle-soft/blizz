@@ -150,11 +150,11 @@ fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -
     return Ok(false);
   }
 
-  // Recompute and set embedding
+  // Recompute embedding.
   let embedding = embedding_client::embed_insight(client, insight);
   insight::set_embedding(insight, embedding);
 
-  // Save the updated insight
+  // Save updates.
   let file_path = insight::file_path(insight)?;
   let metadata = InsightMetaData {
     topic: insight.topic.clone(),
@@ -166,8 +166,8 @@ fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -
     embedding_computed: insight.embedding_computed,
   };
 
-  let yaml_content = serde_yaml::to_string(&metadata)?;
-  let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
+  let yaml = serde_yaml::to_string(&metadata)?;
+  let content = format!("---\n{}---\n\n# Details\n{}", yaml, insight.details);
   std::fs::write(&file_path, content)?;
 
   println!(
