@@ -104,7 +104,8 @@ fn main() -> Result<()> {
     }
     Commands::Search { options, terms } => {
       let search_options = search::SearchOptions::from(&options);
-      search::search(&terms, &search_options)?;
+      let results = search::search(&terms, &search_options)?;
+      search::display_results(&results, &terms, search_options.overview_only);
     }
     Commands::Get { id, overview } => {
       commands::get_insight(&id.topic, &id.name, overview)?;
