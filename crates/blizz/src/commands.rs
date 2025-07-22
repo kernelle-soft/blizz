@@ -141,22 +141,30 @@ pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
   Ok(())
 }
 
-fn index_insight(
-  insight: &mut Insight,
-  force: bool,
-  client: &EmbeddingClient,
-) -> Result<bool> {
-  let should_update = if force {
-    true
-  } else { 
-    !insight::has_embedding(insight)
-  };
+fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -> Result<bool> {
+  let should_update = if force { true } else { !insight::has_embedding(insight) };
 
   if !should_update {
     return Ok(false);
   }
 
-  update_insight_with_client(insight.topic.as_str(), insight.name.as_str(), None, None, client)?;
+  // Recompute and set embedding
+  let embedding = embedding_client::embed_insight(client, insight);
+  insight::set_embedding(insight, embedding);
+
+  // Save the updated insight
+  let file_path = insight::file_path(insight)?;
+  let metadata = InsightMetaData {
+    overview: insight.overview.clone(),
+    embedding_version: insight.embedding_version.clone(),
+    embedding: insight.embedding.clone(),
+    embedding_text: insight.embedding_text.clone(),
+    embedding_computed: insight.embedding_computed,
+  };
+
+  let yaml_content = serde_yaml::to_string(&metadata)?;
+  let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
+  std::fs::write(&file_path, content)?;
 
   println!(
     "  {} Updated embeddings for {}/{}",
@@ -187,10 +195,7 @@ fn index_topics_with_client(
 }
 
 /// Recompute embeddings for insights (testable version with dependency injection)
-pub fn index_insights_with_client(
-  force: bool,
-  client: &EmbeddingClient,
-) -> Result<()> {
+pub fn index_insights_with_client(force: bool, client: &EmbeddingClient) -> Result<()> {
   let topics = insight::get_topics()?;
 
   if topics.is_empty() {
@@ -202,8 +207,7 @@ pub fn index_insights_with_client(
   let mut total_processed = 0;
 
   for topic in topics {
-    let (updated, processed) =
-      index_topics_with_client(&topic, force, client)?;
+    let (updated, processed) = index_topics_with_client(&topic, force, client)?;
     total_updated += updated;
     total_processed += processed;
   }

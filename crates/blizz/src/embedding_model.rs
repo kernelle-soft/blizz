@@ -3,7 +3,7 @@ use std::path::Path;
 
 #[cfg(feature = "neural")]
 use ort::session::{builder::GraphOptimizationLevel, Session};
-use ort::{session::SessionOutputs, value::{Tensor}};
+use ort::{session::SessionOutputs, value::Tensor};
 
 pub trait EmbeddingModel {
   #[allow(dead_code)]
@@ -161,8 +161,7 @@ pub fn compute_onnx_embeddings(
   let mask = Tensor::from_array(([batch, length], mask.into_boxed_slice()))?;
 
   // Run inference
-  let outputs =
-    model.session.run(ort::inputs!["input_ids" => ids, "attention_mask" => mask])?;
+  let outputs = model.session.run(ort::inputs!["input_ids" => ids, "attention_mask" => mask])?;
 
   // Extract embeddings from the output - try common output names first, then fallback to first output
   let output = get_session_outputs(&outputs)?;

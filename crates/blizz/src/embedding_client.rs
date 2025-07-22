@@ -120,10 +120,7 @@ fn real_blocking_embed(insight: &mut Insight) -> Embedding {
     Ok(embedding) => embedding,
     Err(e) => {
       eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
-      eprintln!(
-        "  {} Insight saved without embedding",
-        "ℹ".blue()
-      );
+      eprintln!("  {} Insight saved without embedding", "ℹ".blue());
 
       // Return a placeholder embedding instead of panicking
       Embedding { version: "placeholder".to_string(), created_at: Utc::now(), embedding: vec![] }

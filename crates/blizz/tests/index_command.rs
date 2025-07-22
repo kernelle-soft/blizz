@@ -25,7 +25,7 @@ mod index_command_tests {
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Should handle empty database gracefully
-    index_insights_with_client(false, true, &client)?;
+    index_insights_with_client(false, &client)?;
 
     Ok(())
   }
@@ -42,7 +42,7 @@ mod index_command_tests {
     add_insight_with_client("topic2", "insight3", "Overview 3", "Details 3", &client)?;
 
     // Force recompute all embeddings
-    index_insights_with_client(true, false, &client)?;
+    index_insights_with_client(true, &client)?;
 
     Ok(())
   }
@@ -58,7 +58,7 @@ mod index_command_tests {
     add_insight_with_client("topic2", "insight2", "Overview 2", "Details 2", &client)?;
 
     // Index only missing embeddings
-    index_insights_with_client(false, true, &client)?;
+    index_insights_with_client(false, &client)?;
 
     Ok(())
   }
@@ -89,7 +89,7 @@ mod index_command_tests {
     add_insight_with_client("rust", "ownership", "About ownership", "Memory management", &client)?;
 
     // Index all insights
-    index_insights_with_client(false, true, &client)?;
+    index_insights_with_client(false, &client)?;
 
     Ok(())
   }
@@ -109,7 +109,7 @@ mod index_command_tests {
     assert_eq!(before.details, "Original details");
 
     // Run indexing
-    index_insights_with_client(true, false, &client)?;
+    index_insights_with_client(true, &client)?;
 
     // Verify content is preserved after indexing
     let after = insight::load("preserve", "test")?;
@@ -134,7 +134,7 @@ mod index_command_tests {
     assert!(insight.embedding_version.is_some());
 
     // Force reindex
-    index_insights_with_client(true, false, &client)?;
+    index_insights_with_client(true, &client)?;
 
     // Verify it still has embedding metadata
     let reindexed = insight::load("metadata", "test")?;
@@ -160,7 +160,7 @@ mod index_command_tests {
     )?;
 
     // Index should handle unicode content without issues
-    index_insights_with_client(false, true, &client)?;
+    index_insights_with_client(false, &client)?;
 
     // Verify the insight still exists and has correct content
     let insight = insight::load("unicode", "test")?;
@@ -190,7 +190,7 @@ mod index_command_tests {
     )?;
 
     // Index the insights
-    index_insights_with_client(true, false, &client)?;
+    index_insights_with_client(true, &client)?;
 
     // Verify exact content preservation
     let preserved = insight::load("content", "preservation")?;
