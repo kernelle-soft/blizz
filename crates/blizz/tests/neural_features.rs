@@ -326,9 +326,11 @@ mod neural_feature_tests {
   #[serial]
   fn test_parse_new_yaml_format() -> Result<()> {
     let new_content =
-      "---\noverview: \"This is the overview\"\n---\n\n# Details\nThis is the details section.";
+      "---\ntopic: \"TestTopic\"\nname: \"TestName\"\noverview: \"This is the overview\"\n---\n\n# Details\nThis is the details section.";
 
     let (metadata, details) = insight::parse_insight_with_metadata(new_content)?;
+    assert_eq!(metadata.topic, "TestTopic");
+    assert_eq!(metadata.name, "TestName");
     assert_eq!(metadata.overview, "This is the overview");
     assert_eq!(details, "This is the details section.");
 

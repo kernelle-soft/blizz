@@ -286,22 +286,99 @@ mod edge_case_tests {
     let _temp = setup_temp_insights_root("case_sensitivity");
     let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
-    // Test that topic and name are case-sensitive
+    // Test that topic and name are case-normalized for cross-platform compatibility
+    // Both of these should be treated as the same insight
     add_insight_with_client("CaseSensitive", "TestName", "Overview", "Details", &client)?;
-    add_insight_with_client(
+    
+    // This should fail because case is normalized, so it's the same insight
+    let result = add_insight_with_client(
       "casesensitive",
       "testname",
       "Different overview",
       "Different details",
       &client,
-    )?;
+    );
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("already exists"));
 
+    // Loading should work with either case, but should return the original data
     let upper = insight::load("CaseSensitive", "TestName")?;
     let lower = insight::load("casesensitive", "testname")?;
 
-    assert_eq!(upper.overview, "Overview");
-    assert_eq!(lower.overview, "Different overview");
+    // Both should return the same insight (the originally stored one)
+    assert_eq!(upper.topic, "CaseSensitive"); // Original case preserved in data
+    assert_eq!(upper.name, "TestName"); // Original case preserved in data
+    assert_eq!(upper.overview, "Overview"); // Original content
+    
+    assert_eq!(lower.topic, "CaseSensitive"); // Same insight returned
+    assert_eq!(lower.name, "TestName"); // Same insight returned  
+    assert_eq!(lower.overview, "Overview"); // Same content
 
+    Ok(())
+  }
+
+  #[test]
+  #[serial]
+  fn test_backwards_compatibility_legacy_insights() -> Result<()> {
+    let temp = setup_temp_insights_root("backwards_compatibility");
+    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
+    
+    // Manually create a legacy insight file in the old format (no topic/name in frontmatter)
+    let legacy_topic_dir = temp.path().join("Legacy-Topic");
+    std::fs::create_dir_all(&legacy_topic_dir)?;
+    
+    let legacy_file = legacy_topic_dir.join("Legacy-Name.insight.md");
+    let legacy_content = "---\noverview: Legacy insight overview\n---\n\n# Details\nThis is legacy content without topic/name in frontmatter";
+    std::fs::write(&legacy_file, legacy_content)?;
+    
+    // Test 1: Legacy insight should load correctly
+    let loaded = insight::load("Legacy-Topic", "Legacy-Name")?;
+    assert_eq!(loaded.topic, "Legacy-Topic"); // Uses parameter fallback
+    assert_eq!(loaded.name, "Legacy-Name"); // Uses parameter fallback  
+    assert_eq!(loaded.overview, "Legacy insight overview");
+    assert_eq!(loaded.details, "This is legacy content without topic/name in frontmatter");
+    
+    // Test 2: Legacy files should NOT work with different case (before migration)
+    // This is expected - legacy files must be accessed with exact original case
+    let result_lower = insight::load("legacy-topic", "legacy-name");
+    assert!(result_lower.is_err(), "Legacy files should only work with original case");
+
+    // Test 3: Update should migrate to new format
+    update_insight_with_client(
+      "Legacy-Topic", 
+      "Legacy-Name", 
+      Some("Updated legacy overview"), 
+      None, 
+      &client
+    )?;
+    
+    // Test 4: After migration, should work with both case variations
+    let migrated_upper = insight::load("Legacy-Topic", "Legacy-Name")?;
+    let migrated_lower = insight::load("legacy-topic", "legacy-name")?;
+    
+    // Both should return the same migrated insight with preserved case
+    assert_eq!(migrated_upper.topic, "Legacy-Topic"); // Original case preserved
+    assert_eq!(migrated_upper.name, "Legacy-Name"); // Original case preserved
+    assert_eq!(migrated_upper.overview, "Updated legacy overview");
+    
+    assert_eq!(migrated_lower.topic, "Legacy-Topic"); // Same insight
+    assert_eq!(migrated_lower.name, "Legacy-Name"); // Same insight
+    assert_eq!(migrated_lower.overview, "Updated legacy overview");
+    
+    // Test 5: Verify file was migrated to normalized path
+    let normalized_dir = temp.path().join("legacy-topic");
+    let normalized_file = normalized_dir.join("legacy-name.insight.md");
+    assert!(normalized_file.exists(), "File should be migrated to normalized path");
+    
+    // Test 6: Old file should be cleaned up
+    assert!(!legacy_file.exists(), "Legacy file should be removed after migration");
+    
+    // Test 7: Read the migrated file and verify new frontmatter format
+    let migrated_content = std::fs::read_to_string(&normalized_file)?;
+    assert!(migrated_content.contains("topic: Legacy-Topic"), "Should have topic in frontmatter");
+    assert!(migrated_content.contains("name: Legacy-Name"), "Should have name in frontmatter");
+    assert!(migrated_content.contains("overview: Updated legacy overview"), "Should have updated overview");
+    
     Ok(())
   }
 

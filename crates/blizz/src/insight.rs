@@ -16,6 +16,10 @@ const FRONTMATTER_END_LEN: usize = 5; // Length of "\n---\n"
 /// YAML frontmatter structure for insight files
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InsightMetaData {
+  #[serde(default)]
+  pub topic: String,
+  #[serde(default)]
+  pub name: String,
   pub overview: String,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub embedding_version: Option<String>,
@@ -58,7 +62,11 @@ impl Insight {
 
 pub fn file_path(insight: &Insight) -> Result<PathBuf> {
   let insights_root = get_insights_root()?;
-  Ok(insights_root.join(&insight.topic).join(format!("{}.insight.md", insight.name)))
+  // Normalize file paths for x-platform compatibility.
+  // Original case is preserved in insight metadata.
+  let normalized_topic = insight.topic.to_lowercase();
+  let normalized_name = insight.name.to_lowercase();
+  Ok(insights_root.join(&normalized_topic).join(format!("{}.insight.md", normalized_name)))
 }
 
 pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
@@ -83,7 +91,11 @@ pub fn save(insight: &Insight) -> Result<()> {
 }
 
 fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
+  ensure_parent_dir_exists(file_path)?;
+  
   let frontmatter = InsightMetaData {
+    topic: insight.topic.clone(),
+    name: insight.name.clone(),
     overview: insight.overview.clone(),
     embedding_version: insight.embedding_version.clone(),
     embedding: insight.embedding.clone(),
@@ -100,7 +112,11 @@ fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
 
 pub fn load(topic: &str, name: &str) -> Result<Insight> {
   let file_path = make_insight_path(topic, name)?;
-  check_insight_exists(&file_path, topic, name)?;
+  
+  if !file_path.exists() {
+    return Err(anyhow!("Insight {}/{} not found", topic, name));
+  }
+  
   let content = fs::read_to_string(&file_path)?;
   parse_insight_from_content(topic, name, &content)
 }
@@ -126,33 +142,40 @@ pub fn update(
     insight.details = details.to_string();
   }
 
-  // Check if at least one section is being updated
   if new_overview.is_none() && new_details.is_none() {
     return Err(anyhow!("At least one of overview or details must be provided"));
   }
 
-  let file_path = file_path(insight)?;
-  if !file_path.exists() {
+  let existing_file_path = make_insight_path(&insight.topic, &insight.name)?;
+  if !existing_file_path.exists() {
     return Err(anyhow!("Insight {}/{} not found", insight.topic, insight.name));
   }
 
-  // Clear embedding metadata since content changed
-  clear_embedding_cache_if_content_changed(insight, new_overview, new_details);
+  // Determine where to write the updated file. Always uses normalized path.
+  let new_file_path = file_path(insight)?;
 
-  write_to_file(insight, &file_path)
+  clear_embedding(insight);
+
+  // Write to the new (normalized) path
+  write_to_file(insight, &new_file_path)?;
+
+  // If we migrated from legacy path to normalized path, clean up the old file
+  if existing_file_path != new_file_path {
+    let _ = fs::remove_file(&existing_file_path); // Ignore errors in cleanup
+    // Also try to clean up empty directories
+    if let Some(parent) = existing_file_path.parent() {
+      let _ = fs::remove_dir(parent); // Will only succeed if empty
+    }
+  }
+
+  Ok(())
 }
 
-fn clear_embedding_cache_if_content_changed(
-  insight: &mut Insight,
-  new_overview: Option<&str>,
-  new_details: Option<&str>,
-) {
-  if new_overview.is_some() || new_details.is_some() {
-    insight.embedding_version = None;
-    insight.embedding = None;
-    insight.embedding_text = None;
-    insight.embedding_computed = None;
-  }
+pub fn clear_embedding(insight: &mut Insight) {
+  insight.embedding_version = None;
+  insight.embedding = None;
+  insight.embedding_text = None;
+  insight.embedding_computed = None;
 }
 
 pub fn delete(insight: &Insight) -> Result<()> {
@@ -219,6 +242,8 @@ fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (InsightMetaDat
   let details = body.trim().to_string();
 
   let frontmatter = InsightMetaData {
+    topic: "".to_string(),
+    name: "".to_string(),
     overview,
     embedding_version: None,
     embedding: None,
@@ -324,7 +349,25 @@ pub fn is_insight_file(path: &std::path::Path) -> bool {
 
 fn make_insight_path(topic: &str, name: &str) -> Result<std::path::PathBuf> {
   let root = get_insights_root()?;
-  Ok(root.join(topic).join(format!("{name}.insight.md")))
+  
+  // Try normalized case first.
+  let normalized_topic = topic.to_lowercase();
+  let normalized_name = name.to_lowercase();
+  let normalized_path = root.join(&normalized_topic).join(format!("{}.insight.md", normalized_name));
+  
+  // If normalized path exists, use it
+  if normalized_path.exists() {
+    return Ok(normalized_path);
+  }
+  
+  // Fallback to original case for backwards compatibility with legacy insights
+  let legacy_path = root.join(topic).join(format!("{}.insight.md", name));
+  if legacy_path.exists() {
+    return Ok(legacy_path);
+  }
+  
+  // If neither exists, return the normalized path (for error messages and new file creation)
+  Ok(normalized_path)
 }
 
 fn ensure_parent_dir_exists(path: &std::path::Path) -> Result<()> {
@@ -351,8 +394,10 @@ fn check_insight_exists(path: &std::path::Path, topic: &str, name: &str) -> Resu
 fn parse_insight_from_content(topic: &str, name: &str, content: &str) -> Result<Insight> {
   let (fm, details) = parse_insight_with_metadata(content)?;
   Ok(Insight {
-    topic: topic.to_string(),
-    name: name.to_string(),
+    // Use topic and name from frontmatter to preserve original case.
+    // Fall back to parameters for backward compatibility.
+    topic: if !fm.topic.is_empty() { fm.topic } else { topic.to_string() },
+    name: if !fm.name.is_empty() { fm.name } else { name.to_string() },
     overview: fm.overview,
     details,
     embedding_version: fm.embedding_version,

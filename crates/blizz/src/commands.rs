@@ -100,6 +100,8 @@ pub fn update_insight_with_client(
 
   let file_path = insight::file_path(&insight)?;
   let metadata = InsightMetaData {
+    topic: insight.topic.clone(),
+    name: insight.name.clone(),
     overview: insight.overview.clone(),
     embedding_version: insight.embedding_version.clone(),
     embedding: insight.embedding.clone(),
@@ -155,6 +157,8 @@ fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -
   // Save the updated insight
   let file_path = insight::file_path(insight)?;
   let metadata = InsightMetaData {
+    topic: insight.topic.clone(),
+    name: insight.name.clone(),
     overview: insight.overview.clone(),
     embedding_version: insight.embedding_version.clone(),
     embedding: insight.embedding.clone(),

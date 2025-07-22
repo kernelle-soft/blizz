@@ -194,9 +194,11 @@ mod insight_tests {
   #[test]
   #[serial]
   fn test_parse_insight_content_valid() -> Result<()> {
-    let content = "---\noverview: \"This is the overview\\nSpanning multiple lines\"\n---\n\n# Details\nThis is the details section\nWith more content";
+    let content = "---\ntopic: \"TestTopic\"\nname: \"TestName\"\noverview: \"This is the overview\\nSpanning multiple lines\"\n---\n\n# Details\nThis is the details section\nWith more content";
 
     let (metadata, details) = insight::parse_insight_with_metadata(content)?;
+    assert_eq!(metadata.topic, "TestTopic");
+    assert_eq!(metadata.name, "TestName");
     assert_eq!(metadata.overview, "This is the overview\nSpanning multiple lines");
     assert_eq!(details, "This is the details section\nWith more content");
 
@@ -206,9 +208,11 @@ mod insight_tests {
   #[test]
   #[serial]
   fn test_parse_insight_content_minimal() -> Result<()> {
-    let content = "---\noverview: Simple overview\n---\n\n# Details\n";
+    let content = "---\ntopic: \"MinimalTopic\"\nname: \"MinimalName\"\noverview: Simple overview\n---\n\n# Details\n";
 
     let (metadata, details) = insight::parse_insight_with_metadata(content)?;
+    assert_eq!(metadata.topic, "MinimalTopic");
+    assert_eq!(metadata.name, "MinimalName");
     assert_eq!(metadata.overview, "Simple overview");
     assert_eq!(details, "");
 
