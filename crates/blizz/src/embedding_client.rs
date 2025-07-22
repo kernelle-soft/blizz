@@ -4,16 +4,46 @@ use colored::*;
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixStream;
 use tokio::process::Command;
 use tokio::time::{sleep, Duration};
 
+// Platform-specific imports
+#[cfg(windows)]
+use tokio::net::TcpStream;
+#[cfg(unix)]
+use tokio::net::UnixStream;
+
 use crate::insight::{self, Insight};
 
-#[cfg(feature = "neural")]
+// Platform-specific constants
+#[cfg(all(feature = "neural", unix))]
 const SOCKET_PATH: &str = "/tmp/blizz_embeddings.sock";
+#[cfg(all(feature = "neural", windows))]
+const TCP_ADDRESS: &str = "127.0.0.1:47291";
+
 #[cfg(feature = "neural")]
 const STARTUP_DELAY_MS: u64 = 500;
+
+// Cross-platform stream abstraction
+#[cfg(feature = "neural")]
+enum BlizzStream {
+  #[cfg(unix)]
+  Unix(UnixStream),
+  #[cfg(windows)]
+  Tcp(TcpStream),
+}
+
+#[cfg(feature = "neural")]
+impl BlizzStream {
+  async fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
+    match self {
+      #[cfg(unix)]
+      BlizzStream::Unix(stream) => stream.write_all(buf).await,
+      #[cfg(windows)]
+      BlizzStream::Tcp(stream) => stream.write_all(buf).await,
+    }
+  }
+}
 
 // Core data structures
 #[derive(Debug, Clone)]
@@ -168,13 +198,20 @@ async fn send(request: &EmbeddingRequest) -> Result<EmbeddingResponse> {
   stream_from(&mut stream).await
 }
 
-#[cfg(feature = "neural")]
-async fn connect_to_daemon() -> Result<UnixStream> {
-  UnixStream::connect(SOCKET_PATH).await.map_err(|_| anyhow!("Daemon not running"))
+#[cfg(all(feature = "neural", unix))]
+async fn connect_to_daemon() -> Result<BlizzStream> {
+  let stream = UnixStream::connect(SOCKET_PATH).await.map_err(|_| anyhow!("Daemon not running"))?;
+  Ok(BlizzStream::Unix(stream))
+}
+
+#[cfg(all(feature = "neural", windows))]
+async fn connect_to_daemon() -> Result<BlizzStream> {
+  let stream = TcpStream::connect(TCP_ADDRESS).await.map_err(|_| anyhow!("Daemon not running"))?;
+  Ok(BlizzStream::Tcp(stream))
 }
 
 #[cfg(feature = "neural")]
-async fn stream_to(stream: &mut UnixStream, request: &EmbeddingRequest) -> Result<()> {
+async fn stream_to(stream: &mut BlizzStream, request: &EmbeddingRequest) -> Result<()> {
   let json = serde_json::to_string(request)?;
   stream.write_all(json.as_bytes()).await?;
   stream.write_all(b"\n").await?;
@@ -182,9 +219,16 @@ async fn stream_to(stream: &mut UnixStream, request: &EmbeddingRequest) -> Resul
 }
 
 #[cfg(feature = "neural")]
-async fn stream_from(stream: &mut UnixStream) -> Result<EmbeddingResponse> {
-  let mut reader = BufReader::new(stream);
+async fn stream_from(stream: &mut BlizzStream) -> Result<EmbeddingResponse> {
+  let reader = match stream {
+    #[cfg(unix)]
+    BlizzStream::Unix(stream) => BufReader::new(stream),
+    #[cfg(windows)]
+    BlizzStream::Tcp(stream) => BufReader::new(stream),
+  };
+
   let mut line = String::new();
+  let mut reader = reader;
   reader.read_line(&mut line).await?;
 
   serde_json::from_str(line.trim()).map_err(|e| anyhow!("Invalid response: {}", e))
@@ -219,7 +263,15 @@ async fn start_daemon() -> Result<()> {
   Ok(())
 }
 
-#[cfg(feature = "neural")]
+#[cfg(all(feature = "neural", windows))]
+fn get_daemon_executable_path() -> Result<std::path::PathBuf> {
+  let current_exe = std::env::current_exe()?;
+  let exe_dir =
+    current_exe.parent().ok_or_else(|| anyhow!("Could not find executable directory"))?;
+  Ok(exe_dir.join("blizz_embedding_daemon.exe"))
+}
+
+#[cfg(all(feature = "neural", unix))]
 fn get_daemon_executable_path() -> Result<std::path::PathBuf> {
   let current_exe = std::env::current_exe()?;
   let exe_dir =

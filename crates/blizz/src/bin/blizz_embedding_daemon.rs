@@ -1,8 +1,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixListener, UnixStream};
 use tokio::time::{timeout, Duration};
+
+// Platform-specific imports
+#[cfg(windows)]
+use tokio::net::{TcpListener, TcpStream};
+#[cfg(unix)]
+use tokio::net::{UnixListener, UnixStream};
 
 #[cfg(feature = "neural")]
 use blizz::embedding_model::{create_production_model, EmbeddingModel};
@@ -10,8 +15,57 @@ use blizz::embedding_model::{create_production_model, EmbeddingModel};
 #[cfg(not(feature = "neural"))]
 use blizz::embedding_model::MockEmbeddingModel;
 
+// Platform-specific constants
+#[cfg(unix)]
 const SOCKET_PATH: &str = "/tmp/blizz_embeddings.sock";
+#[cfg(windows)]
+const TCP_ADDRESS: &str = "127.0.0.1:47291";
+
 const INACTIVITY_TIMEOUT_SECS: u64 = 300;
+
+// Cross-platform listener abstraction
+pub enum BlizzListener {
+  #[cfg(unix)]
+  Unix(UnixListener),
+  #[cfg(windows)]
+  Tcp(TcpListener),
+}
+
+// Cross-platform stream abstraction
+pub enum BlizzStream {
+  #[cfg(unix)]
+  Unix(UnixStream),
+  #[cfg(windows)]
+  Tcp(TcpStream),
+}
+
+impl BlizzListener {
+  async fn accept(&self) -> std::io::Result<(BlizzStream, String)> {
+    match self {
+      #[cfg(unix)]
+      BlizzListener::Unix(listener) => {
+        let (stream, addr) = listener.accept().await?;
+        Ok((BlizzStream::Unix(stream), format!("{addr:?}")))
+      }
+      #[cfg(windows)]
+      BlizzListener::Tcp(listener) => {
+        let (stream, addr) = listener.accept().await?;
+        Ok((BlizzStream::Tcp(stream), addr.to_string()))
+      }
+    }
+  }
+}
+
+impl BlizzStream {
+  async fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
+    match self {
+      #[cfg(unix)]
+      BlizzStream::Unix(stream) => stream.write_all(buf).await,
+      #[cfg(windows)]
+      BlizzStream::Tcp(stream) => stream.write_all(buf).await,
+    }
+  }
+}
 
 /// Embedding service that keeps model loaded in memory
 pub struct EmbeddingService<M: EmbeddingModel> {
@@ -75,7 +129,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run_server_loop<M: EmbeddingModel>(
-  listener: UnixListener,
+  listener: BlizzListener,
   mut service: EmbeddingService<M>,
 ) -> Result<()> {
   let timeout = Duration::from_secs(INACTIVITY_TIMEOUT_SECS);
@@ -92,7 +146,7 @@ async fn run_server_loop<M: EmbeddingModel>(
 }
 
 async fn handle_single_connection<M: blizz::embedding_model::EmbeddingModel>(
-  listener: &UnixListener,
+  listener: &BlizzListener,
   service: &mut EmbeddingService<M>,
   timeout_duration: Duration,
 ) -> Result<bool, ()> {
@@ -111,9 +165,9 @@ async fn handle_single_connection<M: blizz::embedding_model::EmbeddingModel>(
 }
 
 async fn wait_for_connections(
-  listener: &UnixListener,
+  listener: &BlizzListener,
   timeout_duration: Duration,
-) -> Result<(tokio::net::UnixStream, tokio::net::unix::SocketAddr), String> {
+) -> Result<(BlizzStream, String), String> {
   match timeout(timeout_duration, listener.accept()).await {
     Ok(connection_result) => connection_result.map_err(|e| format!("Connection error: {e}")),
     Err(_) => Err("Timeout".to_string()),
@@ -121,7 +175,7 @@ async fn wait_for_connections(
 }
 
 async fn handle_connection_result<M: EmbeddingModel>(
-  connection_result: Result<(tokio::net::UnixStream, tokio::net::unix::SocketAddr), std::io::Error>,
+  connection_result: Result<(BlizzStream, String), std::io::Error>,
   service: &mut EmbeddingService<M>,
 ) -> bool {
   match connection_result {
@@ -139,11 +193,18 @@ async fn handle_connection_result<M: EmbeddingModel>(
 }
 
 pub async fn handle_client<M: EmbeddingModel>(
-  mut stream: UnixStream,
+  mut stream: BlizzStream,
   service: &mut EmbeddingService<M>,
 ) -> Result<()> {
-  let mut reader = BufReader::new(&mut stream);
+  let reader = match &mut stream {
+    #[cfg(unix)]
+    BlizzStream::Unix(stream) => BufReader::new(stream),
+    #[cfg(windows)]
+    BlizzStream::Tcp(stream) => BufReader::new(stream),
+  };
+
   let mut line = String::new();
+  let mut reader = reader;
 
   // Read request line
   reader.read_line(&mut line).await?;
@@ -164,12 +225,26 @@ pub async fn handle_client<M: EmbeddingModel>(
 
 // Shared utility functions
 
+#[cfg(unix)]
 fn cleanup_existing_socket() {
   let _ = std::fs::remove_file(SOCKET_PATH);
 }
 
-async fn setup_listener() -> Result<UnixListener> {
+#[cfg(windows)]
+fn cleanup_existing_socket() {
+  // TCP sockets don't require cleanup
+}
+
+#[cfg(unix)]
+async fn setup_listener() -> Result<BlizzListener> {
   let listener = UnixListener::bind(SOCKET_PATH)?;
   println!("🚀 Blizz daemon listening on {SOCKET_PATH}");
-  Ok(listener)
+  Ok(BlizzListener::Unix(listener))
+}
+
+#[cfg(windows)]
+async fn setup_listener() -> Result<BlizzListener> {
+  let listener = TcpListener::bind(TCP_ADDRESS).await?;
+  println!("🚀 Blizz daemon listening on {TCP_ADDRESS}");
+  Ok(BlizzListener::Tcp(listener))
 }
