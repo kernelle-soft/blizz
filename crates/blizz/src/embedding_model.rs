@@ -151,19 +151,19 @@ pub fn compute_onnx_embeddings(
     return Ok(vec![]);
   }
 
-  validate_input_texts(texts)?;
+  validate_inputs(texts)?;
 
   let encodings = tokenize_texts(&mut model.tokenizer, texts)?;
   let (ids, mask, batch, length) = batch_tokens(&encodings);
 
-  // Create input tensors using the correct API
+  // Create input tensors
   let ids = Tensor::from_array(([batch, length], ids.into_boxed_slice()))?;
   let mask = Tensor::from_array(([batch, length], mask.into_boxed_slice()))?;
 
   // Run inference
   let outputs = model.session.run(ort::inputs!["input_ids" => ids, "attention_mask" => mask])?;
 
-  // Extract embeddings from the output - try common output names first, then fallback to first output
+  // Extract embeddings from the output
   let output = get_session_outputs(&outputs)?;
 
   let (_shape, data) = output.try_extract_tensor::<f32>()?;
@@ -261,7 +261,7 @@ fn normalize_vector(vector: Vec<f32>) -> Vec<f32> {
   }
 }
 
-fn validate_input_texts(texts: &[String]) -> Result<()> {
+fn validate_inputs(texts: &[String]) -> Result<()> {
   if texts.is_empty() {
     return Err(anyhow!("Input texts cannot be empty"));
   }
