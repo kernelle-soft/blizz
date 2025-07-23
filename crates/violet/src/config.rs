@@ -15,10 +15,12 @@ pub struct VioletConfig {
   pub ignore_patterns: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ComplexityConfig {
   #[serde(default)]
   pub thresholds: ThresholdConfig,
+  #[serde(default)]
+  pub penalties: PenaltyConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -31,6 +33,26 @@ pub struct ThresholdConfig {
   pub extensions: HashMap<String, f64>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PenaltyConfig {
+  #[serde(default = "default_depth_penalty")]
+  pub depth: f64,
+  #[serde(default = "default_verbosity_penalty")]
+  pub verbosity: f64,
+  #[serde(default = "default_syntactics_penalty")]
+  pub syntactics: f64,
+}
+
+impl Default for PenaltyConfig {
+  fn default() -> Self {
+    Self {
+      depth: default_depth_penalty(),
+      verbosity: default_verbosity_penalty(),
+      syntactics: default_syntactics_penalty(),
+    }
+  }
+}
+
 impl Default for ThresholdConfig {
   fn default() -> Self {
     Self { default: default_threshold(), extensions: HashMap::new() }
@@ -41,9 +63,24 @@ fn default_threshold() -> f64 {
   6.0
 }
 
+fn default_depth_penalty() -> f64 {
+  2.0
+}
+
+fn default_verbosity_penalty() -> f64 {
+  1.05
+}
+
+fn default_syntactics_penalty() -> f64 {
+  1.15
+}
+
 fn default_global_config() -> VioletConfig {
   VioletConfig {
-    complexity: ComplexityConfig { thresholds: ThresholdConfig::default() },
+    complexity: ComplexityConfig {
+      thresholds: ThresholdConfig::default(),
+      penalties: PenaltyConfig::default(),
+    },
     ignore_files: get_default_ignored_files(),
     ignore_patterns: vec![],
   }
@@ -130,9 +167,10 @@ fn merge(global: VioletConfig, project: Option<VioletConfig>) -> VioletConfig {
   let project = project.unwrap_or_default();
 
   let merged_thresholds = merge_threshold_configs(&global, &project);
+  let merged_penalties = merge_penalty_configs(&global, &project);
   let merged_ignores = merge_ignore_configs(&global, &project);
 
-  build_merged_config(merged_thresholds, merged_ignores)
+  build_merged_config(merged_thresholds, merged_penalties, merged_ignores)
 }
 
 fn merge_threshold_configs(global: &VioletConfig, project: &VioletConfig) -> ThresholdConfig {
@@ -161,6 +199,26 @@ fn merge_extension_thresholds(
   thresholds
 }
 
+fn merge_penalty_configs(global: &VioletConfig, project: &VioletConfig) -> PenaltyConfig {
+  PenaltyConfig {
+    depth: if project.complexity.penalties.depth != default_depth_penalty() {
+      project.complexity.penalties.depth
+    } else {
+      global.complexity.penalties.depth
+    },
+    verbosity: if project.complexity.penalties.verbosity != default_verbosity_penalty() {
+      project.complexity.penalties.verbosity
+    } else {
+      global.complexity.penalties.verbosity
+    },
+    syntactics: if project.complexity.penalties.syntactics != default_syntactics_penalty() {
+      project.complexity.penalties.syntactics
+    } else {
+      global.complexity.penalties.syntactics
+    },
+  }
+}
+
 fn merge_ignore_configs(
   global: &VioletConfig,
   project: &VioletConfig,
@@ -174,9 +232,14 @@ fn merge_ignore_configs(
 
 fn build_merged_config(
   thresholds: ThresholdConfig,
+  penalties: PenaltyConfig,
   (ignore_files, ignore_patterns): (Vec<String>, Vec<String>),
 ) -> VioletConfig {
-  VioletConfig { complexity: ComplexityConfig { thresholds }, ignore_files, ignore_patterns }
+  VioletConfig {
+    complexity: ComplexityConfig { thresholds, penalties },
+    ignore_files,
+    ignore_patterns,
+  }
 }
 
 /// Enhanced glob matching with filename fallback
@@ -301,6 +364,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions: thresholds },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -316,6 +380,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec![
         "target/**".to_string(),
@@ -348,6 +413,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["src/main.rs".to_string()],
       ..Default::default()
@@ -362,6 +428,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 8.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["global_pattern".to_string()],
       ..Default::default()
@@ -382,6 +449,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions: global_thresholds },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["global1".to_string(), "global2".to_string()],
       ..Default::default()
@@ -394,6 +462,7 @@ mod tests {
     let project = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.5, extensions: project_thresholds },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["project1".to_string(), "global1".to_string()],
       ..Default::default()
@@ -418,6 +487,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 8.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -425,6 +495,7 @@ mod tests {
     let project = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -536,6 +607,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -553,6 +625,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec![
         "test*file".to_string(),
@@ -757,6 +830,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 5.0, extensions: thresholds },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -779,6 +853,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec![
         "exact_file.txt".to_string(),
@@ -820,6 +895,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["src/main.rs".to_string(), "tests/integration.rs".to_string()],
       ..Default::default()
@@ -870,6 +946,7 @@ mod tests {
     let empty_config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 10.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec![],
       ..Default::default()
@@ -887,6 +964,7 @@ mod tests {
     let large_config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 15.0, extensions: many_thresholds.clone() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["pattern".to_string(); 100],
       ..Default::default()
@@ -895,5 +973,196 @@ mod tests {
     assert_eq!(large_config.complexity.thresholds.extensions.len(), 19);
     assert_eq!(large_config.ignore_files.len(), 100);
     assert_eq!(large_config.complexity.thresholds.default, 15.0);
+  }
+
+  #[test]
+  fn test_penalty_config_defaults() {
+    let penalty_config = PenaltyConfig::default();
+
+    assert_eq!(penalty_config.depth, 2.0);
+    assert_eq!(penalty_config.verbosity, 1.05);
+    assert_eq!(penalty_config.syntactics, 1.15);
+  }
+
+  #[test]
+  fn test_default_penalty_functions() {
+    assert_eq!(default_depth_penalty(), 2.0);
+    assert_eq!(default_verbosity_penalty(), 1.05);
+    assert_eq!(default_syntactics_penalty(), 1.15);
+  }
+
+  #[test]
+  fn test_merge_penalty_configs_global_wins() {
+    let global = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig { depth: 3.0, verbosity: 1.10, syntactics: 1.20 },
+      },
+      ..Default::default()
+    };
+
+    let project = VioletConfig::default(); // Uses default penalties
+
+    let result = merge(global, Some(project));
+
+    // Global should win when project uses defaults
+    assert_eq!(result.complexity.penalties.depth, 3.0);
+    assert_eq!(result.complexity.penalties.verbosity, 1.10);
+    assert_eq!(result.complexity.penalties.syntactics, 1.20);
+  }
+
+  #[test]
+  fn test_merge_penalty_configs_project_overrides() {
+    let global = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig { depth: 3.0, verbosity: 1.10, syntactics: 1.20 },
+      },
+      ..Default::default()
+    };
+
+    let project = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig {
+          depth: 4.0,       // Override
+          verbosity: 1.05,  // Back to default (should use global)
+          syntactics: 1.30, // Override
+        },
+      },
+      ..Default::default()
+    };
+
+    let result = merge(global, Some(project));
+
+    assert_eq!(result.complexity.penalties.depth, 4.0); // Project override
+    assert_eq!(result.complexity.penalties.verbosity, 1.10); // Global (project was default)
+    assert_eq!(result.complexity.penalties.syntactics, 1.30); // Project override
+  }
+
+  #[test]
+  fn test_merge_penalty_configs_mixed_overrides() {
+    let global = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig { depth: 2.5, verbosity: 1.07, syntactics: 1.18 },
+      },
+      ..Default::default()
+    };
+
+    let project = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig {
+          depth: 2.0,       // Back to default (should use global)
+          verbosity: 1.12,  // Override
+          syntactics: 1.15, // Back to default (should use global)
+        },
+      },
+      ..Default::default()
+    };
+
+    let result = merge(global, Some(project));
+
+    assert_eq!(result.complexity.penalties.depth, 2.5); // Global (project was default)
+    assert_eq!(result.complexity.penalties.verbosity, 1.12); // Project override
+    assert_eq!(result.complexity.penalties.syntactics, 1.18); // Global (project was default)
+  }
+
+  #[test]
+  fn test_penalty_config_creation() {
+    let penalty_config = PenaltyConfig { depth: 2.5, verbosity: 1.08, syntactics: 1.22 };
+
+    assert_eq!(penalty_config.depth, 2.5);
+    assert_eq!(penalty_config.verbosity, 1.08);
+    assert_eq!(penalty_config.syntactics, 1.22);
+  }
+
+  #[test]
+  fn test_full_config_with_custom_penalties() {
+    let mut extensions = HashMap::new();
+    extensions.insert(".rs".to_string(), 8.0);
+
+    let config = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig { default: 7.0, extensions },
+        penalties: PenaltyConfig { depth: 3.0, verbosity: 1.10, syntactics: 1.25 },
+      },
+      ignore_files: vec!["*.test".to_string()],
+      ..Default::default()
+    };
+
+    assert_eq!(config.complexity.thresholds.default, 7.0);
+    assert_eq!(config.complexity.thresholds.extensions.get(".rs"), Some(&8.0));
+    assert_eq!(config.complexity.penalties.depth, 3.0);
+    assert_eq!(config.complexity.penalties.verbosity, 1.10);
+    assert_eq!(config.complexity.penalties.syntactics, 1.25);
+    assert_eq!(config.ignore_files.len(), 1);
+  }
+
+  #[test]
+  fn test_load_config_file_with_penalties() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    let mut temp_file = NamedTempFile::new().unwrap();
+    let config_with_penalties = r#"{
+      complexity: {
+        thresholds: {
+          default: 8.0,
+          ".rs": 10.0,
+          ".js": 6.0
+        },
+        penalties: {
+          depth: 2.5,
+          verbosity: 1.08,
+          syntactics: 1.22
+        }
+      },
+      ignore_files: [
+        "*.test",
+        "temp/**"
+      ]
+    }"#;
+
+    temp_file.write_all(config_with_penalties.as_bytes()).unwrap();
+    let result = load_config_file(temp_file.path());
+
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.complexity.thresholds.default, 8.0);
+    assert_eq!(config.complexity.thresholds.extensions.get(".rs"), Some(&10.0));
+    assert_eq!(config.complexity.thresholds.extensions.get(".js"), Some(&6.0));
+    assert_eq!(config.complexity.penalties.depth, 2.5);
+    assert_eq!(config.complexity.penalties.verbosity, 1.08);
+    assert_eq!(config.complexity.penalties.syntactics, 1.22);
+    assert_eq!(config.ignore_files.len(), 2);
+    assert!(config.ignore_files.contains(&"*.test".to_string()));
+    assert!(config.ignore_files.contains(&"temp/**".to_string()));
+  }
+
+  #[test]
+  fn test_load_config_file_with_partial_penalties() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    let mut temp_file = NamedTempFile::new().unwrap();
+    let config_with_partial_penalties = r#"{
+      complexity: {
+        penalties: {
+          depth: 3.0
+          // verbosity and syntactics should use defaults
+        }
+      }
+    }"#;
+
+    temp_file.write_all(config_with_partial_penalties.as_bytes()).unwrap();
+    let result = load_config_file(temp_file.path());
+
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.complexity.penalties.depth, 3.0);
+    assert_eq!(config.complexity.penalties.verbosity, 1.05); // Default
+    assert_eq!(config.complexity.penalties.syntactics, 1.15); // Default
   }
 }

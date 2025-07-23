@@ -526,6 +526,7 @@ mod tests {
     let config = config::VioletConfig {
       complexity: config::ComplexityConfig {
         thresholds: config::ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: config::PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -551,6 +552,7 @@ mod tests {
     let config = config::VioletConfig {
       complexity: config::ComplexityConfig {
         thresholds: config::ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: config::PenaltyConfig::default(),
       },
       ignore_files: vec!["*.ignored".to_string(), "temp*".to_string()],
       ..Default::default()
@@ -740,6 +742,7 @@ mod tests {
     let config = config::VioletConfig {
       complexity: config::ComplexityConfig {
         thresholds: config::ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: config::PenaltyConfig::default(),
       },
       ..Default::default()
     };
