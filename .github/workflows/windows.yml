@@ -1,30 +1,30 @@
-name: Windows
+# Unfortunate, but Windows CI testing is so slow 
+# that it's not worth the time at the moment.
+# name: Windows
 
-on:
-  push:
-    branches: [dev]
-  pull_request:
-    branches: [dev]
+# on:
+#   push:
+#     branches: [dev]
+#   pull_request:
+#     branches: [dev]
 
-env:
-  CARGO_TERM_COLOR: always
+# env:
+#   CARGO_TERM_COLOR: always
 
-jobs:
-  test-windows:
-    name: Test (Windows)
-    runs-on: windows-latest
+# jobs:
+#   test-windows:
+#     name: Test (Windows)
+#     runs-on: windows-latest
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Setup Kernelle Dependencies
-        uses: ./.github/actions/setup-kernelle
+#       - name: Setup Kernelle Dependencies
+#         uses: ./.github/actions/setup-kernelle
 
-      - name: Build Project
-        run: kernelle do ci:build
+#       - name: Build Project
+#         run: kernelle do ci:build
 
-      # Unfortunate, but Windows CI testing is so slow 
-      # that it's not worth the time at the moment.
-      # - name: Test
-      #   run: kernelle do test 
+#      - name: Test
+#        run: kernelle do test 
