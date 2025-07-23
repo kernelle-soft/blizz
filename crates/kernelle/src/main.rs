@@ -70,6 +70,12 @@ enum Commands {
     #[arg(long)]
     verbose: bool,
   },
+  /// Show version information
+  Version {
+    /// List all available releases
+    #[arg(long)]
+    list: bool,
+  },
 }
 
 #[derive(Subcommand)]
@@ -95,6 +101,7 @@ async fn main() -> Result<()> {
     Commands::Retrieve { key } => commands::retrieve::execute(&key).await,
     Commands::Do { name, args, silent, file } => execute_task(&name, &args, silent, file).await,
     Commands::Tasks { file, verbose } => list_tasks(file, verbose).await,
+    Commands::Version { list } => commands::version::execute(list).await,
   }
 }
 
