@@ -5,6 +5,8 @@ use std::path::Path;
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::{session::SessionOutputs, value::Tensor};
 
+
+
 pub trait EmbeddingModel {
   #[allow(dead_code)]
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
@@ -108,38 +110,13 @@ fn create_model_session() -> Result<Session> {
 #[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
-  let tokenizer_path = get_tokenizer_path()?;
-
-  if tokenizer_path.exists() {
-    tokenizers::Tokenizer::from_file(&tokenizer_path)
-      .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))
-  } else {
-    // If local tokenizer doesn't exist, try to load from embedded data or create a basic one
-    create_default_tokenizer()
-  }
+  // Load tokenizer from embedded data - no files, no downloads, no dependencies!
+  let tokenizer_bytes = include_bytes!("../data/tokenizer.json");
+  tokenizers::Tokenizer::from_bytes(tokenizer_bytes)
+    .map_err(|e| anyhow!("Failed to load embedded tokenizer: {}", e))
 }
 
-#[cfg(feature = "neural")]
-#[allow(dead_code)] // Used by daemon binary
-fn get_tokenizer_path() -> Result<std::path::PathBuf> {
-  let mut path = std::env::current_exe()?;
-  path.pop(); // Remove the executable name
-  path.push("data");
-  path.push("tokenizer.json");
-  Ok(path)
-}
 
-#[cfg(feature = "neural")]
-#[allow(dead_code)] // Used by daemon binary
-fn create_default_tokenizer() -> Result<tokenizers::Tokenizer> {
-  // Create a simple tokenizer from pre-trained model if possible
-  use tokenizers::models::wordpiece::WordPiece;
-
-  let wordpiece = WordPiece::default();
-  let tokenizer = tokenizers::Tokenizer::new(wordpiece);
-
-  Ok(tokenizer)
-}
 
 #[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
