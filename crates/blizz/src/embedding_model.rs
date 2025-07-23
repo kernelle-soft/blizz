@@ -5,8 +5,6 @@ use std::path::Path;
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::{session::SessionOutputs, value::Tensor};
 
-
-
 pub trait EmbeddingModel {
   #[allow(dead_code)]
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
@@ -116,8 +114,6 @@ fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
     .map_err(|e| anyhow!("Failed to load embedded tokenizer: {}", e))
 }
 
-
-
 #[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 pub fn compute_onnx_embeddings(
@@ -140,7 +136,7 @@ pub fn compute_onnx_embeddings(
 
   // Run inference with all required inputs
   let outputs = model.session.run(ort::inputs![
-    "input_ids" => ids, 
+    "input_ids" => ids,
     "attention_mask" => mask,
     "token_type_ids" => token_type_ids
   ])?;
@@ -181,7 +177,9 @@ fn tokenize_texts(
 
 #[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
-fn batch_tokens(encodings: &[tokenizers::Encoding]) -> (Vec<i64>, Vec<i64>, Vec<i64>, usize, usize) {
+fn batch_tokens(
+  encodings: &[tokenizers::Encoding],
+) -> (Vec<i64>, Vec<i64>, Vec<i64>, usize, usize) {
   let batch = encodings.len();
   let length = encodings.iter().map(|e| e.len()).max().unwrap_or(0);
 
