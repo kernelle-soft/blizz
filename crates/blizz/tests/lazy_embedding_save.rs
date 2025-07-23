@@ -1,3 +1,4 @@
+// violet ignore file -- test file for complex lazy embedding recomputation interaction
 use anyhow::Result;
 use blizz::embedding_client::{self, MockEmbeddingService};
 use blizz::insight::{self, Insight};
@@ -28,8 +29,6 @@ fn test_lazy_embedding_save_on_search() -> Result<()> {
 
   // Save it without embeddings
   insight::save(&insight)?;
-
-  // Verify it has no embedding initially
   let loaded_before = insight::load("TestTopic", "TestName")?;
   assert!(loaded_before.embedding.is_none(), "Should have no embedding initially");
   assert!(loaded_before.embedding_version.is_none(), "Should have no embedding version initially");
@@ -46,7 +45,7 @@ fn test_lazy_embedding_save_on_search() -> Result<()> {
     embedding_client: mock_client,
   };
 
-  // Perform a search which should trigger lazy embedding computation and save
+  // Should trigger lazy embedding recomputation
   let results = search::search(&["embedding".to_string()], &search_options)?;
 
   // Verify we got search results
@@ -67,7 +66,6 @@ fn test_lazy_embedding_save_on_search() -> Result<()> {
   assert_eq!(embedding.len(), 384, "Mock embedding should have 384 dimensions");
   assert_eq!(embedding[0], 0.1, "First element should match mock embedding");
 
-  println!("✅ Lazy embedding save functionality working correctly!");
   Ok(())
 }
 
@@ -84,7 +82,6 @@ fn test_existing_embedding_not_overwritten() -> Result<()> {
     "Existing insight details with embedding".to_string(),
   );
 
-  // Set a custom embedding manually
   let original_embedding = embedding_client::Embedding {
     version: "original-version".to_string(),
     created_at: chrono::Utc::now(),
@@ -93,7 +90,6 @@ fn test_existing_embedding_not_overwritten() -> Result<()> {
   insight::set_embedding(&mut insight, original_embedding);
   insight::save(&insight)?;
 
-  // Create search options with mock embedding client
   let mock_client = embedding_client::with_service(Box::new(MockEmbeddingService));
   let search_options = SearchOptions {
     topic: None,
@@ -105,10 +101,8 @@ fn test_existing_embedding_not_overwritten() -> Result<()> {
     embedding_client: mock_client,
   };
 
-  // Perform a search
   let results = search::search(&["embedding".to_string()], &search_options)?;
 
-  // Verify we got search results
   assert!(!results.is_empty(), "Should have found the test insight");
 
   // Verify the original embedding was NOT overwritten
@@ -128,6 +122,5 @@ fn test_existing_embedding_not_overwritten() -> Result<()> {
     "Should keep original embedding, not overwrite with mock"
   );
 
-  println!("✅ Existing embeddings are preserved during search!");
   Ok(())
 }

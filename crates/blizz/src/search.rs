@@ -222,11 +222,11 @@ fn get_embedding_match(
   terms: &[String],
   options: &SearchOptions,
 ) -> f32 {
-  try_daemon_embedding_match(insight, terms, options).unwrap_or(0.0)
+  try_get_embedding(insight, terms, options).unwrap_or(0.0)
 }
 
 #[cfg(feature = "neural")]
-fn try_daemon_embedding_match(
+fn try_get_embedding(
   insight: &insight::Insight,
   terms: &[String],
   options: &SearchOptions,
@@ -248,26 +248,31 @@ fn try_daemon_embedding_match(
   let content_embedding = if let Some(embedding) = insight.embedding.as_ref() {
     embedding.clone()
   } else {
-    let normalized_content = get_normalized_content(insight, options);
-
-    // Create a temporary insight for embedding computation
-    let mut temp_insight = insight::Insight::new(
-      insight.topic.clone(),
-      insight.name.clone(),
-      insight.overview.clone(),
-      normalized_content,
-    );
-
-    let embedding = embedding_client::embed_insight(client, &mut temp_insight);
-
-    // Lazily recompute and save embedding.
-    let mut to_save = insight.clone();
-    insight::set_embedding(&mut to_save, embedding.clone());
-    insight::save_existing(&to_save)?;
-    embedding.embedding
+    recompute_embedding(insight, options)?
   };
 
   Ok(similarity::cosine(&query_embedding, &content_embedding))
+}
+
+/// Recompute the embedding for an insight and save it to the file system.
+fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> Result<Vec<f32>> {
+  let normalized_content = get_normalized_content(insight, options);
+
+  // Create a temporary insight for embedding computation
+  let mut temp_insight = insight::Insight::new(
+    insight.topic.clone(),
+    insight.name.clone(),
+    insight.overview.clone(),
+    normalized_content,
+  );
+
+  let embedding = embedding_client::embed_insight(&options.embedding_client, &mut temp_insight);
+
+  // Lazily recompute and save embedding.
+  let mut to_save = insight.clone();
+  insight::set_embedding(&mut to_save, embedding.clone());
+  insight::save_existing(&to_save)?;
+  Ok(embedding.embedding)
 }
 
 /// Build search paths based on topic filter

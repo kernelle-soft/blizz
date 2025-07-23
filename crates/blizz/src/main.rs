@@ -95,40 +95,32 @@ enum Command {
   },
 }
 
-fn handle(command: Command) {
+fn handle(command: Command) -> Result<()> {
   match command {
     Command::Add { id, overview, details } => {
-      commands::add_insight(&id.topic, &id.name, &overview, &details)?;
+      commands::add_insight(&id.topic, &id.name, &overview, &details)
     }
     Command::Search { options, terms } => {
       let opts = search::SearchOptions::from(&options);
       let results = search::search(&terms, &opts)?;
       search::display_results(&results, &terms, opts.overview_only);
+      Ok(())
     }
-    Command::Get { id, overview } => {
-      commands::get_insight(&id.topic, &id.name, overview)?;
-    }
-    Command::List { topic, verbose } => {
-      commands::list_insights(topic.as_deref(), verbose)?;
-    }
+    Command::Get { id, overview } => commands::get_insight(&id.topic, &id.name, overview),
+    Command::List { topic, verbose } => commands::list_insights(topic.as_deref(), verbose),
     Command::Update { id, overview, details } => {
-      commands::update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())?;
+      commands::update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())
     }
-    Command::Delete { id, force } => {
-      commands::delete_insight(&id.topic, &id.name, force)?;
-    }
-    Command::Topics => {
-      commands::list_topics()?;
-    }
+    Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force),
+    Command::Topics => commands::list_topics(),
     #[cfg(feature = "neural")]
-    Command::Index { force } => {
-      commands::index_insights(force)?;
-    }
+    Command::Index { force } => commands::index_insights(force),
   }
 }
 
 fn main() -> Result<()> {
   let cli = Cli::parse();
-  handle(cli.command);
+
+  handle(cli.command)?;
   Ok(())
 }
