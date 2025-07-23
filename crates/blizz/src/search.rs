@@ -73,7 +73,6 @@ impl SearchOptions {
 pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
 
-  // Run exact search by default unless disabled
   if can_use_exact_search(options) {
     results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
   }
@@ -98,7 +97,6 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
     )?);
   }
 
-  // remove duplicates
   results.sort_by(|a, b| {
     b.score
       .partial_cmp(&a.score)

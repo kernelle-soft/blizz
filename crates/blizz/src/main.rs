@@ -17,7 +17,7 @@ mod similarity;
 #[command(version)]
 struct Cli {
   #[command(subcommand)]
-  command: Commands,
+  command: Command,
 }
 
 /// Common insight identifier arguments
@@ -31,7 +31,7 @@ struct InsightId {
 
 // violet ignore chunk
 #[derive(Subcommand)]
-enum Commands {
+enum Command {
   /// Add a new insight to the knowledge base
   Add {
     #[command(flatten)]
@@ -95,38 +95,40 @@ enum Commands {
   },
 }
 
-fn main() -> Result<()> {
-  let cli = Cli::parse();
-
-  match cli.command {
-    Commands::Add { id, overview, details } => {
+fn handle(command: Command) {
+  match command {
+    Command::Add { id, overview, details } => {
       commands::add_insight(&id.topic, &id.name, &overview, &details)?;
     }
-    Commands::Search { options, terms } => {
-      let search_options = search::SearchOptions::from(&options);
-      let results = search::search(&terms, &search_options)?;
-      search::display_results(&results, &terms, search_options.overview_only);
+    Command::Search { options, terms } => {
+      let opts = search::SearchOptions::from(&options);
+      let results = search::search(&terms, &opts)?;
+      search::display_results(&results, &terms, opts.overview_only);
     }
-    Commands::Get { id, overview } => {
+    Command::Get { id, overview } => {
       commands::get_insight(&id.topic, &id.name, overview)?;
     }
-    Commands::List { topic, verbose } => {
+    Command::List { topic, verbose } => {
       commands::list_insights(topic.as_deref(), verbose)?;
     }
-    Commands::Update { id, overview, details } => {
+    Command::Update { id, overview, details } => {
       commands::update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())?;
     }
-    Commands::Delete { id, force } => {
+    Command::Delete { id, force } => {
       commands::delete_insight(&id.topic, &id.name, force)?;
     }
-    Commands::Topics => {
+    Command::Topics => {
       commands::list_topics()?;
     }
     #[cfg(feature = "neural")]
-    Commands::Index { force } => {
+    Command::Index { force } => {
       commands::index_insights(force)?;
     }
   }
+}
 
+fn main() -> Result<()> {
+  let cli = Cli::parse();
+  handle(cli.command);
   Ok(())
 }
