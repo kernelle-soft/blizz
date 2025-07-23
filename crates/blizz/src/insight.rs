@@ -161,17 +161,17 @@ pub fn update(
   // Gets recomputed lazily on next search.
   clear_embedding(insight);
 
-  // Save updates.
-  write_to_file(insight, &new_file_path)?;
+  // Delete the existing file FIRST to ensure cross-platform compatibility.
+  // Prevents issues on case-insensitive filesystems
+  fs::remove_file(&existing_file_path)?;
 
-  // If we migrated from legacy path to normalized path, clean up the old file
-  if existing_file_path != new_file_path {
-    // Try to clean up empty directories. Ignore errors in cleanup.
-    let _ = fs::remove_file(&existing_file_path);
-    if let Some(parent) = existing_file_path.parent() {
-      let _ = fs::remove_dir(parent);
-    }
+  // Clean up empty directory from old location
+  if let Some(parent) = existing_file_path.parent() {
+    let _ = fs::remove_dir(parent);
   }
+
+  // Now save to the normalized path
+  write_to_file(insight, &new_file_path)?;
 
   Ok(())
 }
