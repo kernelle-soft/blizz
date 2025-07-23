@@ -974,4 +974,215 @@ mod tests {
     assert_eq!(large_config.ignore_files.len(), 100);
     assert_eq!(large_config.complexity.thresholds.default, 15.0);
   }
+
+  #[test]
+  fn test_penalty_config_defaults() {
+    let penalty_config = PenaltyConfig::default();
+    
+    assert_eq!(penalty_config.depth, 2.0);
+    assert_eq!(penalty_config.verbosity, 1.05);
+    assert_eq!(penalty_config.syntactics, 1.15);
+  }
+
+  #[test]
+  fn test_default_penalty_functions() {
+    assert_eq!(default_depth_penalty(), 2.0);
+    assert_eq!(default_verbosity_penalty(), 1.05);
+    assert_eq!(default_syntactics_penalty(), 1.15);
+  }
+
+  #[test]
+  fn test_merge_penalty_configs_global_wins() {
+    let global = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig {
+          depth: 3.0,
+          verbosity: 1.10,
+          syntactics: 1.20,
+        },
+      },
+      ..Default::default()
+    };
+
+    let project = VioletConfig::default(); // Uses default penalties
+
+    let result = merge(global, Some(project));
+
+    // Global should win when project uses defaults
+    assert_eq!(result.complexity.penalties.depth, 3.0);
+    assert_eq!(result.complexity.penalties.verbosity, 1.10);
+    assert_eq!(result.complexity.penalties.syntactics, 1.20);
+  }
+
+  #[test]
+  fn test_merge_penalty_configs_project_overrides() {
+    let global = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig {
+          depth: 3.0,
+          verbosity: 1.10,
+          syntactics: 1.20,
+        },
+      },
+      ..Default::default()
+    };
+
+    let project = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig {
+          depth: 4.0,        // Override
+          verbosity: 1.05,   // Back to default (should use global)
+          syntactics: 1.30,  // Override
+        },
+      },
+      ..Default::default()
+    };
+
+    let result = merge(global, Some(project));
+
+    assert_eq!(result.complexity.penalties.depth, 4.0);        // Project override
+    assert_eq!(result.complexity.penalties.verbosity, 1.10);   // Global (project was default)
+    assert_eq!(result.complexity.penalties.syntactics, 1.30);  // Project override
+  }
+
+  #[test]
+  fn test_merge_penalty_configs_mixed_overrides() {
+    let global = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig {
+          depth: 2.5,
+          verbosity: 1.07,
+          syntactics: 1.18,
+        },
+      },
+      ..Default::default()
+    };
+
+    let project = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig::default(),
+        penalties: PenaltyConfig {
+          depth: 2.0,        // Back to default (should use global)
+          verbosity: 1.12,   // Override
+          syntactics: 1.15,  // Back to default (should use global)
+        },
+      },
+      ..Default::default()
+    };
+
+    let result = merge(global, Some(project));
+
+    assert_eq!(result.complexity.penalties.depth, 2.5);        // Global (project was default)
+    assert_eq!(result.complexity.penalties.verbosity, 1.12);   // Project override
+    assert_eq!(result.complexity.penalties.syntactics, 1.18);  // Global (project was default)
+  }
+
+  #[test]
+  fn test_penalty_config_creation() {
+    let penalty_config = PenaltyConfig {
+      depth: 2.5,
+      verbosity: 1.08,
+      syntactics: 1.22,
+    };
+
+    assert_eq!(penalty_config.depth, 2.5);
+    assert_eq!(penalty_config.verbosity, 1.08);
+    assert_eq!(penalty_config.syntactics, 1.22);
+  }
+
+  #[test]
+  fn test_full_config_with_custom_penalties() {
+    let mut extensions = HashMap::new();
+    extensions.insert(".rs".to_string(), 8.0);
+
+    let config = VioletConfig {
+      complexity: ComplexityConfig {
+        thresholds: ThresholdConfig { default: 7.0, extensions },
+        penalties: PenaltyConfig {
+          depth: 3.0,
+          verbosity: 1.10,
+          syntactics: 1.25,
+        },
+      },
+      ignore_files: vec!["*.test".to_string()],
+      ..Default::default()
+    };
+
+    assert_eq!(config.complexity.thresholds.default, 7.0);
+    assert_eq!(config.complexity.thresholds.extensions.get(".rs"), Some(&8.0));
+    assert_eq!(config.complexity.penalties.depth, 3.0);
+    assert_eq!(config.complexity.penalties.verbosity, 1.10);
+    assert_eq!(config.complexity.penalties.syntactics, 1.25);
+    assert_eq!(config.ignore_files.len(), 1);
+  }
+
+  #[test]
+  fn test_load_config_file_with_penalties() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    let mut temp_file = NamedTempFile::new().unwrap();
+    let config_with_penalties = r#"{
+      complexity: {
+        thresholds: {
+          default: 8.0,
+          ".rs": 10.0,
+          ".js": 6.0
+        },
+        penalties: {
+          depth: 2.5,
+          verbosity: 1.08,
+          syntactics: 1.22
+        }
+      },
+      ignore_files: [
+        "*.test",
+        "temp/**"
+      ]
+    }"#;
+
+    temp_file.write_all(config_with_penalties.as_bytes()).unwrap();
+    let result = load_config_file(temp_file.path());
+
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.complexity.thresholds.default, 8.0);
+    assert_eq!(config.complexity.thresholds.extensions.get(".rs"), Some(&10.0));
+    assert_eq!(config.complexity.thresholds.extensions.get(".js"), Some(&6.0));
+    assert_eq!(config.complexity.penalties.depth, 2.5);
+    assert_eq!(config.complexity.penalties.verbosity, 1.08);
+    assert_eq!(config.complexity.penalties.syntactics, 1.22);
+    assert_eq!(config.ignore_files.len(), 2);
+    assert!(config.ignore_files.contains(&"*.test".to_string()));
+    assert!(config.ignore_files.contains(&"temp/**".to_string()));
+  }
+
+  #[test]
+  fn test_load_config_file_with_partial_penalties() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    let mut temp_file = NamedTempFile::new().unwrap();
+    let config_with_partial_penalties = r#"{
+      complexity: {
+        penalties: {
+          depth: 3.0
+          // verbosity and syntactics should use defaults
+        }
+      }
+    }"#;
+
+    temp_file.write_all(config_with_partial_penalties.as_bytes()).unwrap();
+    let result = load_config_file(temp_file.path());
+
+    assert!(result.is_ok());
+    let config = result.unwrap();
+    assert_eq!(config.complexity.penalties.depth, 3.0);
+    assert_eq!(config.complexity.penalties.verbosity, 1.05); // Default
+    assert_eq!(config.complexity.penalties.syntactics, 1.15); // Default
+  }
 }

@@ -185,6 +185,7 @@ fn create_chunk_preview(lines: &[&str]) -> String {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::collections::HashMap;
 
   fn get_default_penalties() -> config::PenaltyConfig {
     config::PenaltyConfig::default()
@@ -274,5 +275,134 @@ mod tests {
       scoring::complexity(nested_chunk, penalties.depth, penalties.verbosity, penalties.syntactics);
 
     assert!(nested_score > simple_score);
+  }
+
+  #[test]
+  fn test_penalties_affect_depth_scoring() {
+    let nested_code = "fn nested() {\n    if a {\n        if b {\n            if c {\n                return 42;\n            }\n        }\n    }\n}";
+
+    let low_depth_penalty = config::PenaltyConfig {
+      depth: 1.5,
+      verbosity: 1.05,
+      syntactics: 1.15,
+    };
+
+    let high_depth_penalty = config::PenaltyConfig {
+      depth: 3.0,
+      verbosity: 1.05,
+      syntactics: 1.15,
+    };
+
+    let low_score = scoring::complexity(nested_code, low_depth_penalty.depth, low_depth_penalty.verbosity, low_depth_penalty.syntactics);
+    let high_score = scoring::complexity(nested_code, high_depth_penalty.depth, high_depth_penalty.verbosity, high_depth_penalty.syntactics);
+
+    assert!(high_score > low_score, "Higher depth penalty should result in higher complexity score");
+  }
+
+  #[test]
+  fn test_penalties_affect_verbosity_scoring() {
+    let verbose_code = "fn verbose_function_with_very_long_name_and_parameters() {\n    let very_long_variable_name_that_describes_something = 42;\n    println!(\"This is a very long string that adds to verbosity\");\n}";
+
+    let low_verbosity_penalty = config::PenaltyConfig {
+      depth: 2.0,
+      verbosity: 1.01,
+      syntactics: 1.15,
+    };
+
+    let high_verbosity_penalty = config::PenaltyConfig {
+      depth: 2.0,
+      verbosity: 1.20,
+      syntactics: 1.15,
+    };
+
+    let low_score = scoring::complexity(verbose_code, low_verbosity_penalty.depth, low_verbosity_penalty.verbosity, low_verbosity_penalty.syntactics);
+    let high_score = scoring::complexity(verbose_code, high_verbosity_penalty.depth, high_verbosity_penalty.verbosity, high_verbosity_penalty.syntactics);
+
+    assert!(high_score > low_score, "Higher verbosity penalty should result in higher complexity score");
+  }
+
+  #[test]
+  fn test_penalties_affect_syntactics_scoring() {
+    let syntactic_code = "fn syntactic() {\n    let result = match value {\n        Some(x) => x.map(|y| y + 1).unwrap_or(0),\n        None => default_value.clone().unwrap(),\n    };\n}";
+
+    let low_syntactics_penalty = config::PenaltyConfig {
+      depth: 2.0,
+      verbosity: 1.05,
+      syntactics: 1.05,
+    };
+
+    let high_syntactics_penalty = config::PenaltyConfig {
+      depth: 2.0,
+      verbosity: 1.05,
+      syntactics: 1.30,
+    };
+
+    let low_score = scoring::complexity(syntactic_code, low_syntactics_penalty.depth, low_syntactics_penalty.verbosity, low_syntactics_penalty.syntactics);
+    let high_score = scoring::complexity(syntactic_code, high_syntactics_penalty.depth, high_syntactics_penalty.verbosity, high_syntactics_penalty.syntactics);
+
+    assert!(high_score > low_score, "Higher syntactics penalty should result in higher complexity score");
+  }
+
+  #[test]
+  fn test_average_chunk_complexity_with_different_penalties() {
+    let content = "fn one() {\n    if condition {\n        return complex_operation();\n    }\n}\n\nfn two() {\n    match value {\n        Some(x) => process(x),\n        None => default(),\n    }\n}";
+
+    let default_penalties = get_default_penalties();
+    let higher_penalties = config::PenaltyConfig {
+      depth: 3.0,
+      verbosity: 1.10,
+      syntactics: 1.25,
+    };
+
+    let default_score = average_chunk_complexity(content, &default_penalties);
+    let higher_score = average_chunk_complexity(content, &higher_penalties);
+
+    assert!(higher_score > default_score, "Higher penalties should result in higher average complexity");
+    assert!(default_score > 0.0);
+    assert!(higher_score > 0.0);
+  }
+
+  #[test]
+  fn test_analyze_file_uses_config_penalties() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    let content = "fn test() {\n    if deeply {\n        if nested {\n            if very {\n                return complex();\n            }\n        }\n    }\n}";
+
+    let mut temp_file = NamedTempFile::new().unwrap();
+    temp_file.write_all(content.as_bytes()).unwrap();
+
+    let default_config = config::VioletConfig {
+      complexity: config::ComplexityConfig {
+        thresholds: config::ThresholdConfig { default: 5.0, extensions: HashMap::new() },
+        penalties: get_default_penalties(),
+      },
+      ..Default::default()
+    };
+
+    let high_penalty_config = config::VioletConfig {
+      complexity: config::ComplexityConfig {
+        thresholds: config::ThresholdConfig { default: 5.0, extensions: HashMap::new() },
+        penalties: config::PenaltyConfig {
+          depth: 3.0,
+          verbosity: 1.10,
+          syntactics: 1.25,
+        },
+      },
+      ..Default::default()
+    };
+
+    let default_analysis = analyze_file(temp_file.path(), &default_config).unwrap();
+    let high_penalty_analysis = analyze_file(temp_file.path(), &high_penalty_config).unwrap();
+
+    // Both should find issues since threshold is low, but high penalty should have higher scores
+    assert!(!default_analysis.issues.is_empty());
+    assert!(!high_penalty_analysis.issues.is_empty());
+    assert!(high_penalty_analysis.average_score > default_analysis.average_score);
+    
+    // The complexity region scores should also be higher with higher penalties
+    if let (Some(default_issue), Some(high_penalty_issue)) = (default_analysis.issues.first(), high_penalty_analysis.issues.first()) {
+      assert!(high_penalty_issue.score > default_issue.score);
+    }
   }
 }
