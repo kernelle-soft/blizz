@@ -1,7 +1,8 @@
 [package]
 name = "jerrod"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
 description = "GitLab and GitHub merge request review tool - the reliable guardian of code quality"
 
 [[bin]]
