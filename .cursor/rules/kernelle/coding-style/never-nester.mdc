@@ -1,13 +1,16 @@
 ---
-description: 
+description: Never nester principles
 globs: 
 alwaysApply: true
 ---
 When writing functions, use never-nester patterns:
-- prefer many single-purpose reusable functions over a few large multi-purpose functions
-- perform input validation and early returns before getting to the actual logic of the function body
-- early throws, late catches, throw only when necessary
-- inverting if-statements to avoid additional nesting
-- Try to keep function definitions short, around 50-60 lines at most. If that doesn't make sense for the given coding task, up to 
+- Prefer many single-purpose reusable functions over a few large multi-purpose functions
+- Perform input validation and early returns before getting to the actual logic of the function body
+- Early throws, late catches, throw only when necessary
+- Inverting if-statements to avoid additional nesting
+- Keep functions short. around 50-60 lines at most.
+- Avoid classes. Keep state and functions separate. Break classes down to functions when you find them.
 
 This applies when writing code for any language.
+
+You can use `violet` to double check how well you're breaking down complexity with these principles

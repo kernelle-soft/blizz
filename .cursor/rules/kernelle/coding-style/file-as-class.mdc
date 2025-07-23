@@ -1,0 +1,137 @@
+---
+description: The "File as Class" pattern
+globs:
+alwaysApply: true
+---
+# Files are Classes
+
+Always trend towards functional programming patterns. One of the ways to accomplish this is to treat the file itself as the class definition.
+- Define the types and structs that gets used in most operations of the file.
+- Make constructor functions that create the state passed around in the file's functions
+- Use the result of those constructors as the first parameter in most functions
+
+## Real Example
+
+Here's a real example you can use as reference. Try to follow the general pattern regardless of language you're writing in.
+
+```rust
+
+pub struct InsightMetaData {
+  pub overview: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub embedding_version: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub embedding: Option<Vec<f32>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub embedding_text: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub embedding_computed: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Insight {
+  pub topic: String,
+  pub name: String,
+  pub overview: String,
+  pub details: String,
+
+  // Embedding metadata (None if not computed yet)
+  pub embedding_version: Option<String>,
+  pub embedding: Option<Vec<f32>>,
+  pub embedding_text: Option<String>, // The exact text that was embedded
+  pub embedding_computed: Option<DateTime<Utc>>,
+}
+
+impl Insight {
+  pub fn new(topic: String, name: String, overview: String, details: String) -> Self {
+    Self {
+      topic,
+      name,
+      overview,
+      details,
+      embedding_version: None,
+      embedding: None,
+      embedding_text: None,
+      embedding_computed: None,
+    }
+  }
+}
+
+pub fn file_path(insight: &Insight) -> Result<PathBuf> {
+  let insights_root = get_insights_root()?;
+  Ok(insights_root.join(&insight.topic).join(format!("{}.insight.md", insight.name)))
+}
+
+pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
+  insight.embedding_version = Some(embedding.version);
+  insight.embedding = Some(embedding.embedding);
+  insight.embedding_computed = Some(embedding.created_at);
+}
+
+pub fn has_embedding(insight: &Insight) -> bool {
+  insight.embedding.is_some()
+}
+
+pub fn get_embedding_text(insight: &Insight) -> String {
+  format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
+}
+
+pub fn save(insight: &Insight) -> Result<()> {
+  let file_path = file_path(insight)?;
+  ensure_parent_dir_exists(&file_path)?;
+  check_insight_is_new(&file_path, &insight.topic, &insight.name)?;
+  write_to_file(insight, &file_path)
+}
+
+fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
+  let frontmatter = InsightMetaData {
+    overview: insight.overview.clone(),
+    embedding_version: insight.embedding_version.clone(),
+    embedding: insight.embedding.clone(),
+    embedding_text: insight.embedding_text.clone(),
+    embedding_computed: insight.embedding_computed,
+  };
+
+  let yaml_content = serde_yaml::to_string(&frontmatter)?;
+  let content = format!("---\n{}---\n\n# Details\n{}", yaml_content, insight.details);
+  fs::write(file_path, content)?;
+
+  Ok(())
+}
+
+// rest of file...
+```
+
+Then using the crate, module, file, etc becomes just as simple as using a class:
+
+```rust
+// ... other code ...
+
+/// Search a topic for matches based on a search strategy
+fn search_topic(terms: &[String], search_strategy: fn(&str, &[String]) -> f32, threshold: f32, options: &SearchOptions) -> Result<Vec<SearchResult>> {
+  let mut results = Vec::new();
+
+  let insights_dir = insight::get_valid_insights_dir()?;
+  let search_paths = get_search_paths(&insights_dir, options.topic.as_deref())?;
+
+  for topic_path in search_paths {
+    for entry in fs::read_dir(&topic_path)? {
+      let entry = entry?;
+      let path = entry.path();
+
+      if insight::is_insight_file(&path) {
+        let insight = insight::load_from_path(&path)?;
+        if let Ok(Some(result)) = search_insight(&insight, search_strategy, terms, threshold, options) {
+          results.push(result);
+        }
+      }
+    }
+  }
+
+  Ok(results)
+}
+
+// ... other code ...
+```
+
+This pattern also makes files easier to test overall, since this pattern plays nice with dependency injection.

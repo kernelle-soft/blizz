@@ -1,135 +1,38 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use colored::*;
-use std::fs;
-use std::path::Path;
 
-use crate::insight::*;
+use crate::embedding_client::{self, EmbeddingClient};
+use crate::insight::{self, Insight, InsightMetaData};
 
-/// Creates a cross-platform symlink/junction
-fn xplat_symlink(src: &Path, dst: &Path) -> Result<()> {
-  #[cfg(unix)]
-  {
-    std::os::unix::fs::symlink(src, dst).map_err(Into::into)
-  }
-
-  #[cfg(windows)]
-  {
-    // On Windows, try symlink_file first, fall back to copying if it fails
-    // (symlinks require admin privileges on Windows)
-    match std::os::windows::fs::symlink_file(src, dst) {
-      Ok(()) => Ok(()),
-      Err(_) => {
-        // Fall back to copying the file
-        std::fs::copy(src, dst).map(|_| ()).map_err(Into::into)
-      }
-    }
-  }
-}
-
-/// Add a new insight to the knowledge base
-pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
-  let insight =
+/// Add a new insight to the knowledge base (testable version with dependency injection)
+pub fn add_insight_with_client(
+  topic: &str,
+  name: &str,
+  overview: &str,
+  details: &str,
+  client: &EmbeddingClient,
+) -> Result<()> {
+  let mut insight =
     Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
 
-  insight.save()?;
+  // Compute embedding before saving
+  let embedding = embedding_client::embed_insight(client, &mut insight);
+  insight::set_embedding(&mut insight, embedding);
+  insight::save(&insight)?;
 
   println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
   Ok(())
 }
 
-/// Search through all insights for matching content
-pub fn search_insights(
-  query: &str,
-  topic_filter: Option<&str>,
-  case_sensitive: bool,
-  overview_only: bool,
-) -> Result<()> {
-  let insights_root = get_insights_root()?;
-
-  if !insights_root.exists() {
-    println!("No insights directory found");
-    return Ok(());
-  }
-
-  let search_paths = if let Some(topic) = topic_filter {
-    vec![insights_root.join(topic)]
-  } else {
-    get_topics()?.into_iter().map(|topic| insights_root.join(topic)).collect()
-  };
-
-  let mut found_any = false;
-
-  for topic_path in search_paths {
-    if !topic_path.exists() {
-      continue;
-    }
-
-    let topic_name = topic_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
-
-    for entry in fs::read_dir(&topic_path)? {
-      let entry = entry?;
-      let path = entry.path();
-
-      if path.extension().and_then(|s| s.to_str()) == Some("md") {
-        if let Some(file_stem) = path.file_stem().and_then(|s| s.to_str()) {
-          if file_stem.ends_with(".insight") {
-            let insight_name = file_stem.trim_end_matches(".insight");
-
-            // Read and search the file content
-            if let Ok(content) = fs::read_to_string(&path) {
-              let search_content = if overview_only {
-                // Extract just the overview section
-                if let Ok((overview, _)) = parse_insight_content(&content) {
-                  overview
-                } else {
-                  continue;
-                }
-              } else {
-                content
-              };
-
-              // Perform the search
-              let matches = if case_sensitive {
-                search_content.contains(query)
-              } else {
-                search_content.to_lowercase().contains(&query.to_lowercase())
-              };
-
-              if matches {
-                found_any = true;
-                println!("=== {}/{} ===", topic_name.cyan(), insight_name.yellow());
-
-                // Show matching lines
-                for line in search_content.lines() {
-                  let line_matches = if case_sensitive {
-                    line.contains(query)
-                  } else {
-                    line.to_lowercase().contains(&query.to_lowercase())
-                  };
-
-                  if line_matches {
-                    println!("{line}");
-                  }
-                }
-                println!();
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  if !found_any {
-    println!("No matches found for: {}", query.yellow());
-  }
-
-  Ok(())
+/// Add a new insight to the knowledge base (production version)
+pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
+  let client = embedding_client::create();
+  add_insight_with_client(topic, name, overview, details, &client)
 }
 
 /// Get content of a specific insight
 pub fn get_insight(topic: &str, name: &str, overview_only: bool) -> Result<()> {
-  let insight = Insight::load(topic, name)?;
+  let insight = insight::load(topic, name)?;
 
   if overview_only {
     println!("{}", insight.overview);
@@ -140,116 +43,35 @@ pub fn get_insight(topic: &str, name: &str, overview_only: bool) -> Result<()> {
   Ok(())
 }
 
-/// List insights in a topic or all topics
-pub fn list_insights(topic_filter: Option<&str>, verbose: bool) -> Result<()> {
-  let insights = get_insights(topic_filter)?;
+pub fn list_insights(filter: Option<&str>, verbose: bool) -> Result<()> {
+  let insights = insight::get_insights(filter)?;
 
   if insights.is_empty() {
-    if let Some(topic) = topic_filter {
+    if let Some(topic) = filter {
       println!("No insights found in topic: {}", topic.yellow());
     } else {
-      println!("No insights found");
+      println!("No insights found.");
     }
     return Ok(());
   }
 
-  for (topic, name) in insights {
-    if verbose {
-      if let Ok(insight) = Insight::load(&topic, &name) {
-        println!(
-          "{}/{}: {}",
-          topic.cyan(),
-          name.yellow(),
-          insight.overview.trim().replace('\n', " ")
-        );
-      }
+  for insight in insights {
+    let formatted_name = if verbose {
+      format!("{}/{} - {}", insight.topic.cyan(), insight.name.yellow(), insight.overview)
     } else {
-      println!("{}/{}", topic.cyan(), name.yellow());
-    }
+      format!("{}/{}", insight.topic.cyan(), insight.name.yellow())
+    };
+    println!("{formatted_name}");
   }
 
   Ok(())
 }
 
-/// Update an existing insight
-pub fn update_insight(
-  topic: &str,
-  name: &str,
-  new_overview: Option<&str>,
-  new_details: Option<&str>,
-) -> Result<()> {
-  let mut insight = Insight::load(topic, name)?;
-  insight.update(new_overview, new_details)?;
-
-  println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
-  Ok(())
-}
-
-/// Create a link from one insight to another topic
-pub fn link_insight(
-  src_topic: &str,
-  src_name: &str,
-  target_topic: &str,
-  target_name: Option<&str>,
-) -> Result<()> {
-  let insights_root = get_insights_root()?;
-  let target_name = target_name.unwrap_or(src_name);
-
-  let src_path = insights_root.join(src_topic).join(format!("{src_name}.insight.md"));
-  let target_dir = insights_root.join(target_topic);
-  let target_path = target_dir.join(format!("{target_name}.insight.md"));
-
-  // Check if source insight exists
-  if !src_path.exists() {
-    return Err(anyhow!("Source insight {}/{} not found", src_topic, src_name));
-  }
-
-  // Create target directory if it doesn't exist
-  fs::create_dir_all(&target_dir)?;
-
-  // Create the symbolic link (cross-platform)
-  xplat_symlink(&src_path, &target_path)?;
-
-  println!(
-    "{} Created link: {}/{} -> {}/{}",
-    "✓".green(),
-    target_topic.cyan(),
-    target_name.yellow(),
-    src_topic.cyan(),
-    src_name.yellow()
-  );
-
-  Ok(())
-}
-
-/// Delete an insight
-pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
-  let insight = Insight::load(topic, name)?;
-
-  if !force {
-    println!("Are you sure you want to delete {}/{}? [y/N]", topic.cyan(), name.yellow());
-
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
-
-    if !input.trim().to_lowercase().starts_with('y') {
-      println!("Deletion cancelled");
-      return Ok(());
-    }
-  }
-
-  insight.delete()?;
-
-  println!("{} Deleted insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
-  Ok(())
-}
-
-/// List all available topics
 pub fn list_topics() -> Result<()> {
-  let topics = get_topics()?;
+  let topics = insight::get_topics()?;
 
   if topics.is_empty() {
-    println!("No topics found");
+    println!("No topics found.");
     return Ok(());
   }
 
@@ -258,4 +80,154 @@ pub fn list_topics() -> Result<()> {
   }
 
   Ok(())
+}
+
+/// Update an existing insight's overview and/or details
+pub fn update_insight_with_client(
+  topic: &str,
+  name: &str,
+  new_overview: Option<&str>,
+  new_details: Option<&str>,
+  client: &EmbeddingClient,
+) -> Result<()> {
+  let mut insight = insight::load(topic, name)?;
+
+  insight::update(&mut insight, new_overview, new_details)?;
+
+  // Recompute and set embedding after content change
+  let embedding = embedding_client::embed_insight(client, &mut insight);
+  insight::set_embedding(&mut insight, embedding);
+
+  let file_path = insight::file_path(&insight)?;
+  let metadata = InsightMetaData {
+    topic: insight.topic.clone(),
+    name: insight.name.clone(),
+    overview: insight.overview.clone(),
+    embedding_version: insight.embedding_version.clone(),
+    embedding: insight.embedding.clone(),
+    embedding_text: insight.embedding_text.clone(),
+    embedding_computed: insight.embedding_computed,
+  };
+
+  let yaml_content = serde_yaml::to_string(&metadata)?;
+  let content = format!("---\n{}---\n\n{}", yaml_content, insight.details);
+  std::fs::write(&file_path, content)?;
+
+  println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+
+  Ok(())
+}
+
+/// Update an existing insight's overview and/or details
+pub fn update_insight(
+  topic: &str,
+  name: &str,
+  new_overview: Option<&str>,
+  new_details: Option<&str>,
+) -> Result<()> {
+  let client = embedding_client::create();
+  update_insight_with_client(topic, name, new_overview, new_details, &client)
+}
+
+/// Delete an insight
+pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
+  if !force {
+    return Err(anyhow::anyhow!("Delete operation requires --force flag"));
+  }
+
+  let insight = insight::load(topic, name)?;
+  insight::delete(&insight)?;
+
+  println!("{} Deleted insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+
+  Ok(())
+}
+
+fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -> Result<bool> {
+  let should_update = if force { true } else { !insight::has_embedding(insight) };
+
+  if !should_update {
+    return Ok(false);
+  }
+
+  // Recompute embedding.
+  let embedding = embedding_client::embed_insight(client, insight);
+  insight::set_embedding(insight, embedding);
+
+  // Save updates.
+  let file_path = insight::file_path(insight)?;
+  let metadata = InsightMetaData {
+    topic: insight.topic.clone(),
+    name: insight.name.clone(),
+    overview: insight.overview.clone(),
+    embedding_version: insight.embedding_version.clone(),
+    embedding: insight.embedding.clone(),
+    embedding_text: insight.embedding_text.clone(),
+    embedding_computed: insight.embedding_computed,
+  };
+
+  let yaml = serde_yaml::to_string(&metadata)?;
+  let content = format!("---\n{}---\n\n# Details\n{}", yaml, insight.details);
+  std::fs::write(&file_path, content)?;
+
+  println!(
+    "  {} Updated embeddings for {}/{}",
+    "✓".green(),
+    insight.topic.cyan(),
+    insight.name.yellow()
+  );
+
+  Ok(true)
+}
+
+fn index_topics_with_client(
+  topic: &str,
+  force: bool,
+  client: &EmbeddingClient,
+) -> Result<(usize, usize)> {
+  let insights = insight::get_insights(Some(topic))?;
+  let total = insights.len();
+  let mut updated = 0;
+
+  for mut insight in insights {
+    if index_insight(&mut insight, force, client)? {
+      updated += 1;
+    }
+  }
+
+  Ok((updated, total))
+}
+
+/// Recompute embeddings for insights (testable version with dependency injection)
+pub fn index_insights_with_client(force: bool, client: &EmbeddingClient) -> Result<()> {
+  let topics = insight::get_topics()?;
+
+  if topics.is_empty() {
+    println!("No topics found to index.");
+    return Ok(());
+  }
+
+  let mut total_updated = 0;
+  let mut total_processed = 0;
+
+  for topic in topics {
+    let (updated, processed) = index_topics_with_client(&topic, force, client)?;
+    total_updated += updated;
+    total_processed += processed;
+  }
+
+  println!(
+    "{} Indexed {} of {} insights",
+    "✓".green(),
+    total_updated.to_string().yellow(),
+    total_processed.to_string().cyan()
+  );
+
+  Ok(())
+}
+
+/// Recompute embeddings for insights
+pub fn index_insights(force: bool) -> Result<()> {
+  let client = embedding_client::create();
+  index_insights_with_client(force, &client)
 }

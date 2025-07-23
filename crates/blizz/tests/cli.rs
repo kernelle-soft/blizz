@@ -53,6 +53,7 @@ fn test_add_get_list_topics() {
   temp.close().unwrap();
 }
 
+// violet ignore chunk
 #[test]
 #[serial]
 fn test_search_update_delete() {

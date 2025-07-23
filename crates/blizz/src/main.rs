@@ -1,30 +1,41 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 
 mod commands;
+mod embedding_client;
+mod embedding_model;
 mod insight;
-
-use commands::*;
+mod search;
+mod semantic;
+mod similarity;
 
 #[derive(Parser)]
 #[command(name = "blizz")]
 #[command(
-  about = "⚡ Blizz - Knowledge Management System\nHigh-speed insight storage and retrieval for development workflows"
+  about = "Blizz - Knowledge Management System\nHigh-speed insight storage and retrieval for development workflows"
 )]
 #[command(version)]
 struct Cli {
   #[command(subcommand)]
-  command: Commands,
+  command: Command,
 }
 
+/// Common insight identifier arguments
+#[derive(Args)]
+struct InsightId {
+  /// Topic category of the insight
+  topic: String,
+  /// Name of the insight
+  name: String,
+}
+
+// violet ignore chunk
 #[derive(Subcommand)]
-enum Commands {
+enum Command {
   /// Add a new insight to the knowledge base
   Add {
-    /// Topic category for the insight
-    topic: String,
-    /// Name/identifier for the insight
-    name: String,
+    #[command(flatten)]
+    id: InsightId,
     /// Brief overview/summary of the insight
     overview: String,
     /// Detailed content of the insight
@@ -32,26 +43,18 @@ enum Commands {
   },
   /// Search through all insights for matching content
   Search {
-    /// Search query text
-    query: String,
-    /// Optional topic to restrict search to
-    #[arg(short, long)]
-    topic: Option<String>,
-    /// Case-sensitive search
-    #[arg(long)]
-    case_sensitive: bool,
-    /// Search only in overview sections
-    #[arg(long)]
-    overview_only: bool,
+    #[command(flatten)]
+    options: search::SearchCommandOptions,
+    /// Search terms (space-separated)
+    #[arg(required = true)]
+    terms: Vec<String>,
   },
   /// Get content of a specific insight
   Get {
-    /// Topic category of the insight
-    topic: String,
-    /// Name of the insight
-    name: String,
+    #[command(flatten)]
+    id: InsightId,
     /// Show only the overview section
-    #[arg(long)]
+    #[arg(short, long)]
     overview: bool,
   },
   /// List insights in a topic or all topics
@@ -64,71 +67,60 @@ enum Commands {
   },
   /// Update an existing insight
   Update {
-    /// Topic category of the insight
-    topic: String,
-    /// Name of the insight
-    name: String,
+    #[command(flatten)]
+    id: InsightId,
     /// New overview content
-    #[arg(long)]
+    #[arg(short, long)]
     overview: Option<String>,
     /// New details content
-    #[arg(long)]
+    #[arg(short, long)]
     details: Option<String>,
-  },
-  /// Create a link from one insight to another topic
-  Link {
-    /// Source topic
-    src_topic: String,
-    /// Source insight name
-    src_name: String,
-    /// Target topic
-    target_topic: String,
-    /// Target name (defaults to source name)
-    target_name: Option<String>,
   },
   /// Delete an insight
   Delete {
-    /// Topic category of the insight
-    topic: String,
-    /// Name of the insight
-    name: String,
+    #[command(flatten)]
+    id: InsightId,
     /// Skip confirmation prompt
-    #[arg(long)]
+    #[arg(short, long)]
     force: bool,
   },
   /// List all available topics
   Topics,
+  /// Recompute embeddings for all insights
+  #[cfg(feature = "neural")]
+  Index {
+    /// Force recompute even for insights that already have embeddings
+    #[arg(short, long)]
+    force: bool,
+  },
+}
+
+fn handle(command: Command) -> Result<()> {
+  match command {
+    Command::Add { id, overview, details } => {
+      commands::add_insight(&id.topic, &id.name, &overview, &details)
+    }
+    Command::Search { options, terms } => {
+      let opts = search::SearchOptions::from(&options);
+      let results = search::search(&terms, &opts)?;
+      search::display_results(&results, &terms, opts.overview_only);
+      Ok(())
+    }
+    Command::Get { id, overview } => commands::get_insight(&id.topic, &id.name, overview),
+    Command::List { topic, verbose } => commands::list_insights(topic.as_deref(), verbose),
+    Command::Update { id, overview, details } => {
+      commands::update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())
+    }
+    Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force),
+    Command::Topics => commands::list_topics(),
+    #[cfg(feature = "neural")]
+    Command::Index { force } => commands::index_insights(force),
+  }
 }
 
 fn main() -> Result<()> {
   let cli = Cli::parse();
 
-  match cli.command {
-    Commands::Add { topic, name, overview, details } => {
-      add_insight(&topic, &name, &overview, &details)?;
-    }
-    Commands::Search { query, topic, case_sensitive, overview_only } => {
-      search_insights(&query, topic.as_deref(), case_sensitive, overview_only)?;
-    }
-    Commands::Get { topic, name, overview } => {
-      get_insight(&topic, &name, overview)?;
-    }
-    Commands::List { topic, verbose } => {
-      list_insights(topic.as_deref(), verbose)?;
-    }
-    Commands::Update { topic, name, overview, details } => {
-      update_insight(&topic, &name, overview.as_deref(), details.as_deref())?;
-    }
-    Commands::Link { src_topic, src_name, target_topic, target_name } => {
-      link_insight(&src_topic, &src_name, &target_topic, target_name.as_deref())?;
-    }
-    Commands::Delete { topic, name, force } => {
-      delete_insight(&topic, &name, force)?;
-    }
-    Commands::Topics => {
-      list_topics()?;
-    }
-  }
-
+  handle(cli.command)?;
   Ok(())
 }

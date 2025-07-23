@@ -1,0 +1,67 @@
+---
+description: How to pattern function signatures
+globs:
+alwaysApply: true
+---
+
+# Function Signature Design
+
+Here's the basic pattern to use when making function signatures
+
+- Function signatures should have 5 or fewer parameters. Putting in more means you're almost certainly making the function more complex than it needs to be.
+- If a function is principally operating on one major object, that object should be the first parameter
+- Parameters used during the operation on the major object come next
+- If there are a plethora of options needed, especially ones that aren't always defined or that have a default value when not provided, bundle these into a flat options-object as the last parameter.
+
+Please apply this pattern regardless of the language you're writing code in.
+
+## Examples:
+
+```rust
+// - insight is primary object
+// - embedding is a parameter acting on the insight
+pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
+  insight.embedding_version = Some(embedding.version);
+  insight.embedding = Some(embedding.embedding);
+  insight.embedding_computed = Some(embedding.created_at);
+}
+
+```
+
+```rust
+// - insight is primary object
+// - search_strategy, terms, and threshold are operating on the primary object
+// - optional parameters and behaviors are bundled into an options object at the end
+fn search_insight(insight: &insight::Insight, search_strategy: fn(&str, &[String]) -> f32, terms: &[String], threshold: f32, options: &SearchOptions) -> Result<Option<SearchResult>> {
+  let search_content = if options.overview_only {
+    format!("{} {} {}", insight.topic, insight.name, insight.overview)
+  } else {
+    format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
+  };
+
+  let normalized_content = if options.case_sensitive {
+    search_content.to_string()
+  } else {
+    search_content.to_lowercase()
+  };
+
+  let normalized_terms = if options.case_sensitive {
+    terms.to_vec()
+  } else {
+    terms.iter().map(|t| t.to_lowercase()).collect::<Vec<String>>()
+  };
+  
+  let score = search_strategy(&normalized_content, &normalized_terms);
+  if score > threshold {
+    Ok(Some(SearchResult {
+      topic: insight.topic.to_string(),
+      name: insight.name.to_string(),
+      overview: insight.overview.to_string(),
+      details: insight.details.to_string(),
+      score: score,
+    }))
+  } else {
+    Ok(None)
+  }
+}
+```

@@ -1,0 +1,221 @@
+---
+description: Blizz CLI operations for knowledge management
+globs: 
+alwaysApply: true
+---
+# Blizz CLI Operations
+
+## Top Level 
+```
+blizz -h
+Blizz - Knowledge Management System
+High-speed insight storage and retrieval for development workflows
+
+Usage: blizz <COMMAND>
+
+Commands:
+  add     Add a new insight to the knowledge base
+  search  Search through all insights for matching content
+  get     Get content of a specific insight
+  list    List insights in a topic or all topics
+  update  Update an existing insight
+  delete  Delete an insight
+  topics  List all available topics
+  index   Recompute embeddings for all insights
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+## Add
+
+```
+blizz add -h
+Add a new insight to the knowledge base
+
+Usage: blizz add <TOPIC> <NAME> <OVERVIEW> <DETAILS>
+
+Arguments:
+  <TOPIC>     Topic category of the insight
+  <NAME>      Name of the insight
+  <OVERVIEW>  Brief overview/summary of the insight
+  <DETAILS>   Detailed content of the insight
+
+Options:
+  -h, --help  Print help
+```
+
+## Search
+
+```
+blizz search -h
+Search through all insights for matching content
+
+Usage: blizz search [OPTIONS] <TERMS>...
+
+Arguments:
+  <TERMS>...  Search terms (space-separated)
+
+Options:
+  -t, --topic <TOPIC>   Optional topic to restrict search to
+  -c, --case-sensitive  Case-sensitive search
+  -o, --overview-only   Search only in overview sections
+  -s, --semantic        Use semantic + exact search only (drops neural for speed)
+  -e, --exact           Use exact term matching only (fastest, drops neural and semantic)
+  -h, --help            Print help
+```
+
+## Get
+
+```
+blizz get -h
+Get content of a specific insight
+
+Usage: blizz get [OPTIONS] <TOPIC> <NAME>
+
+Arguments:
+  <TOPIC>  Topic category of the insight
+  <NAME>   Name of the insight
+
+Options:
+  -o, --overview  Show only the overview section
+  -h, --help      Print help
+```
+
+## List
+
+```
+blizz list -h
+List insights in a topic or all topics
+
+Usage: blizz list [OPTIONS] [TOPIC]
+
+Arguments:
+  [TOPIC]  Optional topic to filter by
+
+Options:
+  -v, --verbose  Show overview content for each insight
+  -h, --help     Print help
+```
+
+
+## Update
+
+```
+blizz update -h
+Update an existing insight
+
+Usage: blizz update [OPTIONS] <TOPIC> <NAME>
+
+Arguments:
+  <TOPIC>  Topic category of the insight
+  <NAME>   Name of the insight
+
+Options:
+  -o, --overview <OVERVIEW>  New overview content
+  -d, --details <DETAILS>    New details content
+  -h, --help                 Print help
+```
+
+## Delete
+
+```
+blizz delete -h
+Delete an insight
+
+Usage: blizz delete [OPTIONS] <TOPIC> <NAME>
+
+Arguments:
+  <TOPIC>  Topic category of the insight
+  <NAME>   Name of the insight
+
+Options:
+  -f, --force  Skip confirmation prompt
+  -h, --help   Print help
+```
+
+## Topics
+
+```
+blizz topics -h
+List all available topics
+
+Usage: blizz topics
+
+Options:
+  -h, --help  Print help
+```
+## Indexing
+
+```
+blizz index -h
+Recompute embeddings for all insights
+
+Usage: blizz index [OPTIONS]
+
+Options:
+  -f, --force         Force recompute even for insights that already have embeddings
+  -m, --missing-only  Only recompute missing embeddings (default behavior)
+  -h, --help          Print help
+```
+
+## Quality Guidelines
+
+### Insight Criteria
+- **Reusable** - likely to apply to future situations
+- **Non-obvious** - not basic knowledge found in documentation
+- **Contextual** - specific to this codebase/workflow/domain
+- **Actionable** - provide clear guidance for future use
+- **Single-purpose** - focused on one specific point or pattern
+
+### Content Standards
+- **Keep insights focused** - like functions, good insights do one thing well
+- **Details section** should be no more than 1-2 paragraphs
+- **Separate concerns** - if covering multiple unrelated points, create separate insights
+- **Clear overview** - the summary should capture the core insight in one sentence
+
+## Topic Organization
+
+### Flat Structure with Specific Subjects
+Blizz's insights caching system uses `topic/*.insight.md` where topics are **specific subjects** rather than broad categories. This enables precise, targeted searches using standard tools like `grep`, `cat`, and `sed` if `blizz` alone is not enough. 
+
+Blizz' outputs from `list` and `topics` subcommands play particularly nicely with `grep`.
+
+### Design Philosophy
+- **Topics are specific subjects** - not broad categories
+- **One topic per distinct subject** - repository, person, tool, technology, etc.
+- **Link related insights** across topics using the linking system
+- **Avoid hierarchical nesting** - keep everything at one level for searchability
+
+### Example Topic Structure
+
+#### Repository-Specific Topics
+- `frontend-ui` - insights about the frontend-jfe repository
+- `backend-api` - insights about the backend API service
+- `bentley` - insights about this specific repository
+
+#### Team Member Topics  
+- `john-themerman` - insights about John's expertise areas
+- `sarah-frontendly` - frontend expertise and debugging approaches
+
+#### Tool-Specific Topics
+- `cursor-mcp` - Cursor's MCP integration patterns and troubleshooting
+- `gitlab-api` - GitLab API usage patterns and authentication
+
+#### Technology/Pattern Topics
+- `react-hooks` - React hooks debugging patterns and best practices
+- `bash-scripting` - bash scripting patterns used in this project
+- `merge-review-workflow` - MR review process insights and optimizations
+
+### Anti-Pattern: Broad Categories
+❌ **Don't do this:**
+- `team-knowledge/jeff-mr-workflows.insight.md`
+- `repository-knowledge/frontend-jfe-quirks.insight.md`  
+- `tool-knowledge/cursor-mcp-endpoints.insight.md`
+
+✅ **Do this instead:**
+- `jeff-jefferson/mr-workflow-expertise.insight.md`
+- `frontend-ui/architectural-quirks.insight.md`
+- `cursor-mcp/endpoint-configuration.insight.md`

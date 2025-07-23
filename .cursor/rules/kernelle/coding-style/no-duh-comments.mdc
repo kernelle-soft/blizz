@@ -1,18 +1,17 @@
 ---
-description: 
+description: When to write comments
 globs: 
 alwaysApply: true
 ---
-Code should be self-documenting.
 
-Please avoid `no-duh` comments, or comments that explain the next one or two lines of code using pretty much exactly the same terms/names as the code itself.
+Code should be self-documenting. Please avoid writing comments unless the design choices or behavior are subtle.
 
 Comments are appropriate when:
-- functions/classes/data types/enums/structs/etc are public
+- functions/classes/data structure/etc are public. Use a top-level comment in these cases.
 - There's a detail that's not going to be obvious to new readers of the code
   - example: explaining the high level reasoning/behavior of nested ternaries
-  - avoid: explaining every step of execution when it can be inferred from the function name, function call, or variables.
+  - avoid: explaining every step of execution.
 
 Comments are not appropriate when:
-- functions are private (e.x., don't add jsdoc comments on private functions). This applies to all languages.
+- functions are private (e.x., don't add function comments on private functions). This applies to all languages.
 - You're re-explaining something that could easily be inferred from the context (names, vars, etc)

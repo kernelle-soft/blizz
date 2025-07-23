@@ -237,6 +237,7 @@ fn get_default_ignored_files() -> Vec<String> {
     "*.pyz".to_string(),
     "*.pywz".to_string(),
     "*.pyzw".to_string(),
+    "*.profraw".to_string(),
     // Config and documentation
     "*.md".to_string(),
     "*.mdc".to_string(),
