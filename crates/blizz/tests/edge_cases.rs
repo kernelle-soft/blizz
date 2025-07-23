@@ -342,15 +342,21 @@ mod edge_case_tests {
     // This is expected - legacy files must be accessed with exact original case
     // Note: This test only applies to case-sensitive file systems (Linux, not macOS)
     let result_lower = insight::load("legacy-topic", "legacy-name");
-    
+
     // On case-insensitive file systems (macOS), both cases will work
     // On case-sensitive file systems (Linux), only original case should work
     if cfg!(target_os = "macos") {
       // On macOS, the file system is case-insensitive, so this will succeed
-      assert!(result_lower.is_ok(), "On macOS, case variations should work due to case-insensitive filesystem");
+      assert!(
+        result_lower.is_ok(),
+        "On macOS, case variations should work due to case-insensitive filesystem"
+      );
     } else {
       // On Linux and other case-sensitive systems, this should fail
-      assert!(result_lower.is_err(), "Legacy files should only work with original case on case-sensitive filesystems");
+      assert!(
+        result_lower.is_err(),
+        "Legacy files should only work with original case on case-sensitive filesystems"
+      );
     }
 
     // Test 3: Update should migrate to new format
