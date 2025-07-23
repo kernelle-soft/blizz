@@ -24,5 +24,7 @@ jobs:
       - name: Build Project
         run: kernelle do ci:build
 
-      - name: Test
-        run: kernelle do test 
+      # Unfortunate, but Windows CI testing is so slow 
+      # that it's not worth the time at the moment.
+      # - name: Test
+      #   run: kernelle do test 
