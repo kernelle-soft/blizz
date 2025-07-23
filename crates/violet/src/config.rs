@@ -978,7 +978,7 @@ mod tests {
   #[test]
   fn test_penalty_config_defaults() {
     let penalty_config = PenaltyConfig::default();
-    
+
     assert_eq!(penalty_config.depth, 2.0);
     assert_eq!(penalty_config.verbosity, 1.05);
     assert_eq!(penalty_config.syntactics, 1.15);
@@ -996,11 +996,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig::default(),
-        penalties: PenaltyConfig {
-          depth: 3.0,
-          verbosity: 1.10,
-          syntactics: 1.20,
-        },
+        penalties: PenaltyConfig { depth: 3.0, verbosity: 1.10, syntactics: 1.20 },
       },
       ..Default::default()
     };
@@ -1020,11 +1016,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig::default(),
-        penalties: PenaltyConfig {
-          depth: 3.0,
-          verbosity: 1.10,
-          syntactics: 1.20,
-        },
+        penalties: PenaltyConfig { depth: 3.0, verbosity: 1.10, syntactics: 1.20 },
       },
       ..Default::default()
     };
@@ -1033,9 +1025,9 @@ mod tests {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig::default(),
         penalties: PenaltyConfig {
-          depth: 4.0,        // Override
-          verbosity: 1.05,   // Back to default (should use global)
-          syntactics: 1.30,  // Override
+          depth: 4.0,       // Override
+          verbosity: 1.05,  // Back to default (should use global)
+          syntactics: 1.30, // Override
         },
       },
       ..Default::default()
@@ -1043,9 +1035,9 @@ mod tests {
 
     let result = merge(global, Some(project));
 
-    assert_eq!(result.complexity.penalties.depth, 4.0);        // Project override
-    assert_eq!(result.complexity.penalties.verbosity, 1.10);   // Global (project was default)
-    assert_eq!(result.complexity.penalties.syntactics, 1.30);  // Project override
+    assert_eq!(result.complexity.penalties.depth, 4.0); // Project override
+    assert_eq!(result.complexity.penalties.verbosity, 1.10); // Global (project was default)
+    assert_eq!(result.complexity.penalties.syntactics, 1.30); // Project override
   }
 
   #[test]
@@ -1053,11 +1045,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig::default(),
-        penalties: PenaltyConfig {
-          depth: 2.5,
-          verbosity: 1.07,
-          syntactics: 1.18,
-        },
+        penalties: PenaltyConfig { depth: 2.5, verbosity: 1.07, syntactics: 1.18 },
       },
       ..Default::default()
     };
@@ -1066,9 +1054,9 @@ mod tests {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig::default(),
         penalties: PenaltyConfig {
-          depth: 2.0,        // Back to default (should use global)
-          verbosity: 1.12,   // Override
-          syntactics: 1.15,  // Back to default (should use global)
+          depth: 2.0,       // Back to default (should use global)
+          verbosity: 1.12,  // Override
+          syntactics: 1.15, // Back to default (should use global)
         },
       },
       ..Default::default()
@@ -1076,18 +1064,14 @@ mod tests {
 
     let result = merge(global, Some(project));
 
-    assert_eq!(result.complexity.penalties.depth, 2.5);        // Global (project was default)
-    assert_eq!(result.complexity.penalties.verbosity, 1.12);   // Project override
-    assert_eq!(result.complexity.penalties.syntactics, 1.18);  // Global (project was default)
+    assert_eq!(result.complexity.penalties.depth, 2.5); // Global (project was default)
+    assert_eq!(result.complexity.penalties.verbosity, 1.12); // Project override
+    assert_eq!(result.complexity.penalties.syntactics, 1.18); // Global (project was default)
   }
 
   #[test]
   fn test_penalty_config_creation() {
-    let penalty_config = PenaltyConfig {
-      depth: 2.5,
-      verbosity: 1.08,
-      syntactics: 1.22,
-    };
+    let penalty_config = PenaltyConfig { depth: 2.5, verbosity: 1.08, syntactics: 1.22 };
 
     assert_eq!(penalty_config.depth, 2.5);
     assert_eq!(penalty_config.verbosity, 1.08);
@@ -1102,11 +1086,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions },
-        penalties: PenaltyConfig {
-          depth: 3.0,
-          verbosity: 1.10,
-          syntactics: 1.25,
-        },
+        penalties: PenaltyConfig { depth: 3.0, verbosity: 1.10, syntactics: 1.25 },
       },
       ignore_files: vec!["*.test".to_string()],
       ..Default::default()

@@ -40,13 +40,22 @@ pub fn average_chunk_complexity(file_content: &str, penalties: &config::PenaltyC
   chunk_scores.iter().sum::<f64>() / chunks.len() as f64
 }
 
-fn calculate_chunk_scores(file_content: &str, chunks: &[(usize, usize)], penalties: &config::PenaltyConfig) -> Vec<f64> {
+fn calculate_chunk_scores(
+  file_content: &str,
+  chunks: &[(usize, usize)],
+  penalties: &config::PenaltyConfig,
+) -> Vec<f64> {
   let lines: Vec<&str> = file_content.lines().collect();
   chunks
     .iter()
     .map(|chunk| {
       let chunk_content = lines[chunk.0..chunk.1].join("\n");
-      scoring::complexity(&chunk_content, penalties.depth, penalties.verbosity, penalties.syntactics)
+      scoring::complexity(
+        &chunk_content,
+        penalties.depth,
+        penalties.verbosity,
+        penalties.syntactics,
+      )
     })
     .collect()
 }
@@ -93,9 +102,9 @@ fn find_issues(
   threshold: f64,
   config: &config::VioletConfig,
 ) -> Vec<scoring::ComplexityRegion> {
-  let context = ChunkAnalysisContext { 
-    lines, 
-    threshold, 
+  let context = ChunkAnalysisContext {
+    lines,
+    threshold,
     ignore_patterns: &config.ignore_patterns,
     penalties: &config.complexity.penalties,
   };
@@ -118,14 +127,25 @@ fn analyze_chunk(
     return None;
   }
 
-  let raw_score =
-    scoring::complexity(&chunk_content, context.penalties.depth, context.penalties.verbosity, context.penalties.syntactics);
+  let raw_score = scoring::complexity(
+    &chunk_content,
+    context.penalties.depth,
+    context.penalties.verbosity,
+    context.penalties.syntactics,
+  );
 
   // Round to 2 decimal places before threshold comparison to match display precision
   let score = (raw_score * 100.0).round() / 100.0;
 
   if score > context.threshold {
-    Some(create_complexity_region(start, end, score, &chunk_content, &context.lines[start..end], context.penalties))
+    Some(create_complexity_region(
+      start,
+      end,
+      score,
+      &chunk_content,
+      &context.lines[start..end],
+      context.penalties,
+    ))
   } else {
     None
   }
@@ -145,8 +165,16 @@ fn create_complexity_region(
   build_complexity_region(start, end, score, breakdown, preview)
 }
 
-fn calculate_chunk_breakdown(chunk_content: &str, penalties: &config::PenaltyConfig) -> scoring::ComplexityBreakdown {
-  scoring::chunk_breakdown(chunk_content, penalties.depth, penalties.verbosity, penalties.syntactics)
+fn calculate_chunk_breakdown(
+  chunk_content: &str,
+  penalties: &config::PenaltyConfig,
+) -> scoring::ComplexityBreakdown {
+  scoring::chunk_breakdown(
+    chunk_content,
+    penalties.depth,
+    penalties.verbosity,
+    penalties.syntactics,
+  )
 }
 
 fn build_complexity_region(
@@ -225,10 +253,18 @@ mod tests {
     let complex_content = "fn complex() {\n    if condition1 {\n        if condition2 {\n            if condition3 {\n                return nested_result();\n            }\n        }\n    }\n}";
 
     let penalties = get_default_penalties();
-    let simple_score =
-      scoring::complexity(simple_content, penalties.depth, penalties.verbosity, penalties.syntactics);
-    let complex_score =
-      scoring::complexity(complex_content, penalties.depth, penalties.verbosity, penalties.syntactics);
+    let simple_score = scoring::complexity(
+      simple_content,
+      penalties.depth,
+      penalties.verbosity,
+      penalties.syntactics,
+    );
+    let complex_score = scoring::complexity(
+      complex_content,
+      penalties.depth,
+      penalties.verbosity,
+      penalties.syntactics,
+    );
 
     assert!(complex_score > simple_score * 1.5);
   }
@@ -257,7 +293,8 @@ mod tests {
   fn test_chunk_complexity_simple() {
     let chunk = "fn simple() {\n    println!(\"hello\");\n}";
     let penalties = get_default_penalties();
-    let score = scoring::complexity(chunk, penalties.depth, penalties.verbosity, penalties.syntactics);
+    let score =
+      scoring::complexity(chunk, penalties.depth, penalties.verbosity, penalties.syntactics);
 
     assert!(score > 0.0);
     assert!(score < 10000.0);
@@ -281,66 +318,86 @@ mod tests {
   fn test_penalties_affect_depth_scoring() {
     let nested_code = "fn nested() {\n    if a {\n        if b {\n            if c {\n                return 42;\n            }\n        }\n    }\n}";
 
-    let low_depth_penalty = config::PenaltyConfig {
-      depth: 1.5,
-      verbosity: 1.05,
-      syntactics: 1.15,
-    };
+    let low_depth_penalty = config::PenaltyConfig { depth: 1.5, verbosity: 1.05, syntactics: 1.15 };
 
-    let high_depth_penalty = config::PenaltyConfig {
-      depth: 3.0,
-      verbosity: 1.05,
-      syntactics: 1.15,
-    };
+    let high_depth_penalty =
+      config::PenaltyConfig { depth: 3.0, verbosity: 1.05, syntactics: 1.15 };
 
-    let low_score = scoring::complexity(nested_code, low_depth_penalty.depth, low_depth_penalty.verbosity, low_depth_penalty.syntactics);
-    let high_score = scoring::complexity(nested_code, high_depth_penalty.depth, high_depth_penalty.verbosity, high_depth_penalty.syntactics);
+    let low_score = scoring::complexity(
+      nested_code,
+      low_depth_penalty.depth,
+      low_depth_penalty.verbosity,
+      low_depth_penalty.syntactics,
+    );
+    let high_score = scoring::complexity(
+      nested_code,
+      high_depth_penalty.depth,
+      high_depth_penalty.verbosity,
+      high_depth_penalty.syntactics,
+    );
 
-    assert!(high_score > low_score, "Higher depth penalty should result in higher complexity score");
+    assert!(
+      high_score > low_score,
+      "Higher depth penalty should result in higher complexity score"
+    );
   }
 
   #[test]
   fn test_penalties_affect_verbosity_scoring() {
     let verbose_code = "fn verbose_function_with_very_long_name_and_parameters() {\n    let very_long_variable_name_that_describes_something = 42;\n    println!(\"This is a very long string that adds to verbosity\");\n}";
 
-    let low_verbosity_penalty = config::PenaltyConfig {
-      depth: 2.0,
-      verbosity: 1.01,
-      syntactics: 1.15,
-    };
+    let low_verbosity_penalty =
+      config::PenaltyConfig { depth: 2.0, verbosity: 1.01, syntactics: 1.15 };
 
-    let high_verbosity_penalty = config::PenaltyConfig {
-      depth: 2.0,
-      verbosity: 1.20,
-      syntactics: 1.15,
-    };
+    let high_verbosity_penalty =
+      config::PenaltyConfig { depth: 2.0, verbosity: 1.20, syntactics: 1.15 };
 
-    let low_score = scoring::complexity(verbose_code, low_verbosity_penalty.depth, low_verbosity_penalty.verbosity, low_verbosity_penalty.syntactics);
-    let high_score = scoring::complexity(verbose_code, high_verbosity_penalty.depth, high_verbosity_penalty.verbosity, high_verbosity_penalty.syntactics);
+    let low_score = scoring::complexity(
+      verbose_code,
+      low_verbosity_penalty.depth,
+      low_verbosity_penalty.verbosity,
+      low_verbosity_penalty.syntactics,
+    );
+    let high_score = scoring::complexity(
+      verbose_code,
+      high_verbosity_penalty.depth,
+      high_verbosity_penalty.verbosity,
+      high_verbosity_penalty.syntactics,
+    );
 
-    assert!(high_score > low_score, "Higher verbosity penalty should result in higher complexity score");
+    assert!(
+      high_score > low_score,
+      "Higher verbosity penalty should result in higher complexity score"
+    );
   }
 
   #[test]
   fn test_penalties_affect_syntactics_scoring() {
     let syntactic_code = "fn syntactic() {\n    let result = match value {\n        Some(x) => x.map(|y| y + 1).unwrap_or(0),\n        None => default_value.clone().unwrap(),\n    };\n}";
 
-    let low_syntactics_penalty = config::PenaltyConfig {
-      depth: 2.0,
-      verbosity: 1.05,
-      syntactics: 1.05,
-    };
+    let low_syntactics_penalty =
+      config::PenaltyConfig { depth: 2.0, verbosity: 1.05, syntactics: 1.05 };
 
-    let high_syntactics_penalty = config::PenaltyConfig {
-      depth: 2.0,
-      verbosity: 1.05,
-      syntactics: 1.30,
-    };
+    let high_syntactics_penalty =
+      config::PenaltyConfig { depth: 2.0, verbosity: 1.05, syntactics: 1.30 };
 
-    let low_score = scoring::complexity(syntactic_code, low_syntactics_penalty.depth, low_syntactics_penalty.verbosity, low_syntactics_penalty.syntactics);
-    let high_score = scoring::complexity(syntactic_code, high_syntactics_penalty.depth, high_syntactics_penalty.verbosity, high_syntactics_penalty.syntactics);
+    let low_score = scoring::complexity(
+      syntactic_code,
+      low_syntactics_penalty.depth,
+      low_syntactics_penalty.verbosity,
+      low_syntactics_penalty.syntactics,
+    );
+    let high_score = scoring::complexity(
+      syntactic_code,
+      high_syntactics_penalty.depth,
+      high_syntactics_penalty.verbosity,
+      high_syntactics_penalty.syntactics,
+    );
 
-    assert!(high_score > low_score, "Higher syntactics penalty should result in higher complexity score");
+    assert!(
+      high_score > low_score,
+      "Higher syntactics penalty should result in higher complexity score"
+    );
   }
 
   #[test]
@@ -348,16 +405,15 @@ mod tests {
     let content = "fn one() {\n    if condition {\n        return complex_operation();\n    }\n}\n\nfn two() {\n    match value {\n        Some(x) => process(x),\n        None => default(),\n    }\n}";
 
     let default_penalties = get_default_penalties();
-    let higher_penalties = config::PenaltyConfig {
-      depth: 3.0,
-      verbosity: 1.10,
-      syntactics: 1.25,
-    };
+    let higher_penalties = config::PenaltyConfig { depth: 3.0, verbosity: 1.10, syntactics: 1.25 };
 
     let default_score = average_chunk_complexity(content, &default_penalties);
     let higher_score = average_chunk_complexity(content, &higher_penalties);
 
-    assert!(higher_score > default_score, "Higher penalties should result in higher average complexity");
+    assert!(
+      higher_score > default_score,
+      "Higher penalties should result in higher average complexity"
+    );
     assert!(default_score > 0.0);
     assert!(higher_score > 0.0);
   }
@@ -383,11 +439,7 @@ mod tests {
     let high_penalty_config = config::VioletConfig {
       complexity: config::ComplexityConfig {
         thresholds: config::ThresholdConfig { default: 5.0, extensions: HashMap::new() },
-        penalties: config::PenaltyConfig {
-          depth: 3.0,
-          verbosity: 1.10,
-          syntactics: 1.25,
-        },
+        penalties: config::PenaltyConfig { depth: 3.0, verbosity: 1.10, syntactics: 1.25 },
       },
       ..Default::default()
     };
@@ -399,9 +451,11 @@ mod tests {
     assert!(!default_analysis.issues.is_empty());
     assert!(!high_penalty_analysis.issues.is_empty());
     assert!(high_penalty_analysis.average_score > default_analysis.average_score);
-    
+
     // The complexity region scores should also be higher with higher penalties
-    if let (Some(default_issue), Some(high_penalty_issue)) = (default_analysis.issues.first(), high_penalty_analysis.issues.first()) {
+    if let (Some(default_issue), Some(high_penalty_issue)) =
+      (default_analysis.issues.first(), high_penalty_analysis.issues.first())
+    {
       assert!(high_penalty_issue.score > default_issue.score);
     }
   }
