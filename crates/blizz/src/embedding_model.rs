@@ -154,14 +154,19 @@ pub fn compute_onnx_embeddings(
   validate_inputs(texts)?;
 
   let encodings = tokenize_texts(&mut model.tokenizer, texts)?;
-  let (ids, mask, batch, length) = batch_tokens(&encodings);
+  let (ids, mask, token_type_ids, batch, length) = batch_tokens(&encodings);
 
   // Create input tensors
   let ids = Tensor::from_array(([batch, length], ids.into_boxed_slice()))?;
   let mask = Tensor::from_array(([batch, length], mask.into_boxed_slice()))?;
+  let token_type_ids = Tensor::from_array(([batch, length], token_type_ids.into_boxed_slice()))?;
 
-  // Run inference
-  let outputs = model.session.run(ort::inputs!["input_ids" => ids, "attention_mask" => mask])?;
+  // Run inference with all required inputs
+  let outputs = model.session.run(ort::inputs![
+    "input_ids" => ids, 
+    "attention_mask" => mask,
+    "token_type_ids" => token_type_ids
+  ])?;
 
   // Extract embeddings from the output
   let output = get_session_outputs(&outputs)?;
@@ -199,12 +204,13 @@ fn tokenize_texts(
 
 #[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
-fn batch_tokens(encodings: &[tokenizers::Encoding]) -> (Vec<i64>, Vec<i64>, usize, usize) {
+fn batch_tokens(encodings: &[tokenizers::Encoding]) -> (Vec<i64>, Vec<i64>, Vec<i64>, usize, usize) {
   let batch = encodings.len();
   let length = encodings.iter().map(|e| e.len()).max().unwrap_or(0);
 
   let mut ids = Vec::with_capacity(batch * length);
   let mut mask = Vec::with_capacity(batch * length);
+  let mut token_type_ids = Vec::with_capacity(batch * length);
 
   for encoding in encodings {
     let encoding_ids = encoding.get_ids();
@@ -215,14 +221,16 @@ fn batch_tokens(encodings: &[tokenizers::Encoding]) -> (Vec<i64>, Vec<i64>, usiz
       if i < encoding_ids.len() {
         ids.push(encoding_ids[i] as i64);
         mask.push(encoding_mask[i] as i64);
+        token_type_ids.push(0); // All zeros for sentence transformers
       } else {
         ids.push(0); // PAD token
         mask.push(0); // No attention
+        token_type_ids.push(0); // PAD token type
       }
     }
   }
 
-  (ids, mask, batch, length)
+  (ids, mask, token_type_ids, batch, length)
 }
 
 #[cfg(feature = "neural")]
