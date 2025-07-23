@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Args;
 use colored::*;
-use chrono::Utc;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -75,36 +75,27 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
   
   // Run exact search by default unless disabled
   if can_use_exact_search(options) {
-    eprintln!("DEBUG: Running exact search");
     results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
-  } else {
-    eprintln!("DEBUG: Skipping exact search");
   }
 
   #[cfg(feature = "semantic")]
   if can_use_semantic_similarity_search(options) {
-    eprintln!("DEBUG: Running semantic search");
     results.extend(search_topic(
       terms,
       get_semantic_match,
       SEMANTIC_SIMILARITY_THRESHOLD,
       options,
     )?);
-  } else {
-    eprintln!("DEBUG: Skipping semantic search");
   }
 
   #[cfg(feature = "neural")]
   if can_use_embedding_search(options) {
-    eprintln!("DEBUG: Running neural search");
     results.extend(search_topic(
       terms,
       get_embedding_match,
       EMBEDDING_SIMILARITY_THRESHOLD,
       options,
     )?);
-  } else {
-    eprintln!("DEBUG: Skipping neural search");
   }
 
   // remove duplicates
@@ -233,7 +224,6 @@ fn get_embedding_match(
   terms: &[String],
   options: &SearchOptions,
 ) -> f32 {
-  eprintln!("DEBUG: get_embedding_match called for {}/{}", insight.topic, insight.name);
   try_daemon_embedding_match(insight, terms, options).unwrap_or(0.0)
 }
 
@@ -243,30 +233,39 @@ fn try_daemon_embedding_match(
   terms: &[String],
   options: &SearchOptions,
 ) -> Result<f32> {
-  eprintln!("DEBUG: try_daemon_embedding_match called for {}/{}", insight.topic, insight.name);
   let client = &options.embedding_client;
 
   let normalized_terms = get_normalized_terms(terms, options);
 
-  let query_embedding = embedding_client::create_embedding(&client, &normalized_terms.join(" "))?;
+  // Create a temporary insight for query embedding
+  let mut query_insight = insight::Insight::new(
+    "query".to_string(),
+    "search_terms".to_string(),
+    normalized_terms.join(" "),
+    "".to_string(),
+  );
+  
+  let query_embedding_obj = embedding_client::embed_insight(&client, &mut query_insight);
+  let query_embedding = query_embedding_obj.embedding;
   let content_embedding = if let Some(embedding) = insight.embedding.as_ref() {
-    eprintln!("DEBUG: Using existing embedding for {}/{} (len: {})", insight.topic, insight.name, embedding.len());
     embedding.clone()
   } else {
-    eprintln!("DEBUG: No embedding found for {}/{}, computing new one", insight.topic, insight.name);
     let normalized_content = get_normalized_content(insight, options);
-    let embedding = embedding_client::Embedding {
-      version: "all-MiniLM-L6-v2".to_string(),
-      created_at: Utc::now(),
-      embedding: embedding_client::create_embedding(&client, &normalized_content)?,
-    };
+    
+    // Create a temporary insight for embedding computation
+    let mut temp_insight = insight::Insight::new(
+      insight.topic.clone(),
+      insight.name.clone(),
+      insight.overview.clone(),
+      normalized_content,
+    );
+    
+    let embedding = embedding_client::embed_insight(&client, &mut temp_insight);
 
     // Lazily recompute and save embedding.
     let mut to_save = insight.clone();
     insight::set_embedding(&mut to_save, embedding.clone());
-    eprintln!("DEBUG: About to save embedding for {}/{}", to_save.topic, to_save.name);
-    insight::save(&to_save)?;
-    eprintln!("DEBUG: Successfully saved embedding for {}/{}", to_save.topic, to_save.name);
+    insight::save_existing(&to_save)?;
     embedding.embedding
   };
 

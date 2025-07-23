@@ -89,6 +89,12 @@ pub fn save(insight: &Insight) -> Result<()> {
   write_to_file(insight, &file_path)
 }
 
+/// Save an insight, overwriting if it already exists (used for embedding updates)
+pub fn save_existing(insight: &Insight) -> Result<()> {
+  let file_path = file_path(insight)?;
+  write_to_file(insight, &file_path)
+}
+
 fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
   ensure_parent_dir_exists(file_path)?;
 

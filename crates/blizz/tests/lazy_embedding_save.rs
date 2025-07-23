@@ -6,7 +6,7 @@ use serial_test::serial;
 use std::env;
 use tempfile::TempDir;
 
-fn setup_temp_insights_root(test_name: &str) -> TempDir {
+fn setup_temp_insights_root(_test_name: &str) -> TempDir {
   let temp_dir = TempDir::new().unwrap();
   env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
   temp_dir
@@ -48,12 +48,6 @@ fn test_lazy_embedding_save_on_search() -> Result<()> {
   // Perform a search which should trigger lazy embedding computation and save
   let results = search::search(&vec!["embedding".to_string()], &search_options)?;
   
-  // Debug: Print results
-  println!("Search results count: {}", results.len());
-  for result in &results {
-    println!("Result: {}/{} (score: {})", result.topic, result.name, result.score);
-  }
-  
   // Verify we got search results
   assert!(!results.is_empty(), "Should have found the test insight");
   assert_eq!(results[0].topic, "TestTopic");
@@ -61,10 +55,6 @@ fn test_lazy_embedding_save_on_search() -> Result<()> {
   
   // Most importantly: verify embedding was computed and saved to file
   let loaded_after = insight::load("TestTopic", "TestName")?;
-  
-  // Debug: Print embedding info
-  println!("Embedding after search: {:?}", loaded_after.embedding.is_some());
-  println!("Embedding version: {:?}", loaded_after.embedding_version);
   
   assert!(loaded_after.embedding.is_some(), "Should have embedding after search");
   assert!(loaded_after.embedding_version.is_some(), "Should have embedding version");
