@@ -72,7 +72,7 @@ impl SearchOptions {
 
 pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
-  
+
   // Run exact search by default unless disabled
   if can_use_exact_search(options) {
     results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
@@ -244,14 +244,14 @@ fn try_daemon_embedding_match(
     normalized_terms.join(" "),
     "".to_string(),
   );
-  
-  let query_embedding_obj = embedding_client::embed_insight(&client, &mut query_insight);
+
+  let query_embedding_obj = embedding_client::embed_insight(client, &mut query_insight);
   let query_embedding = query_embedding_obj.embedding;
   let content_embedding = if let Some(embedding) = insight.embedding.as_ref() {
     embedding.clone()
   } else {
     let normalized_content = get_normalized_content(insight, options);
-    
+
     // Create a temporary insight for embedding computation
     let mut temp_insight = insight::Insight::new(
       insight.topic.clone(),
@@ -259,8 +259,8 @@ fn try_daemon_embedding_match(
       insight.overview.clone(),
       normalized_content,
     );
-    
-    let embedding = embedding_client::embed_insight(&client, &mut temp_insight);
+
+    let embedding = embedding_client::embed_insight(client, &mut temp_insight);
 
     // Lazily recompute and save embedding.
     let mut to_save = insight.clone();

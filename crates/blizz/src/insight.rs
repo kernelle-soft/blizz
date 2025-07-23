@@ -1,10 +1,10 @@
+use crate::embedding_client::Embedding;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use dirs::home_dir;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use crate::embedding_client::{self, Embedding};
 
 // Frontmatter parsing constants
 const FRONTMATTER_START: &str = "---\n";

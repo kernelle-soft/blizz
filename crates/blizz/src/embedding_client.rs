@@ -95,20 +95,6 @@ pub fn embed_insight(client: &EmbeddingClient, insight: &mut Insight) -> Embeddi
   client.service.embed_insight(insight)
 }
 
-pub fn create_embedding(_client: &EmbeddingClient, text: &str) -> Result<Vec<f32>> {
-  #[cfg(feature = "neural")]
-  {
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async { request_embedding_from_daemon(text).await })
-  }
-
-  #[cfg(not(feature = "neural"))]
-  {
-    let _ = (_client, text);
-    Err(anyhow!("Neural features not enabled"))
-  }
-}
-
 // Service implementations
 pub struct ProductionEmbeddingService;
 
