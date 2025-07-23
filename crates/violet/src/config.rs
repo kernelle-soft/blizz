@@ -33,14 +33,24 @@ pub struct ThresholdConfig {
   pub extensions: HashMap<String, f64>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PenaltyConfig {
-  #[serde(default)]
+  #[serde(default = "default_depth_penalty")]
   pub depth: f64,
-  #[serde(default)]
+  #[serde(default = "default_verbosity_penalty")]
   pub verbosity: f64,
-  #[serde(default)]
+  #[serde(default = "default_syntactics_penalty")]
   pub syntactics: f64,
+}
+
+impl Default for PenaltyConfig {
+  fn default() -> Self {
+    Self {
+      depth: default_depth_penalty(),
+      verbosity: default_verbosity_penalty(),
+      syntactics: default_syntactics_penalty(),
+    }
+  }
 }
 
 impl Default for ThresholdConfig {
@@ -51,6 +61,18 @@ impl Default for ThresholdConfig {
 
 fn default_threshold() -> f64 {
   6.0
+}
+
+fn default_depth_penalty() -> f64 {
+  2.0
+}
+
+fn default_verbosity_penalty() -> f64 {
+  1.05
+}
+
+fn default_syntactics_penalty() -> f64 {
+  1.15
 }
 
 fn default_global_config() -> VioletConfig {
@@ -145,9 +167,10 @@ fn merge(global: VioletConfig, project: Option<VioletConfig>) -> VioletConfig {
   let project = project.unwrap_or_default();
 
   let merged_thresholds = merge_threshold_configs(&global, &project);
+  let merged_penalties = merge_penalty_configs(&global, &project);
   let merged_ignores = merge_ignore_configs(&global, &project);
 
-  build_merged_config(merged_thresholds, merged_ignores)
+  build_merged_config(merged_thresholds, merged_penalties, merged_ignores)
 }
 
 fn merge_threshold_configs(global: &VioletConfig, project: &VioletConfig) -> ThresholdConfig {
@@ -176,6 +199,26 @@ fn merge_extension_thresholds(
   thresholds
 }
 
+fn merge_penalty_configs(global: &VioletConfig, project: &VioletConfig) -> PenaltyConfig {
+  PenaltyConfig {
+    depth: if project.complexity.penalties.depth != default_depth_penalty() {
+      project.complexity.penalties.depth
+    } else {
+      global.complexity.penalties.depth
+    },
+    verbosity: if project.complexity.penalties.verbosity != default_verbosity_penalty() {
+      project.complexity.penalties.verbosity
+    } else {
+      global.complexity.penalties.verbosity
+    },
+    syntactics: if project.complexity.penalties.syntactics != default_syntactics_penalty() {
+      project.complexity.penalties.syntactics
+    } else {
+      global.complexity.penalties.syntactics
+    },
+  }
+}
+
 fn merge_ignore_configs(
   global: &VioletConfig,
   project: &VioletConfig,
@@ -189,10 +232,11 @@ fn merge_ignore_configs(
 
 fn build_merged_config(
   thresholds: ThresholdConfig,
+  penalties: PenaltyConfig,
   (ignore_files, ignore_patterns): (Vec<String>, Vec<String>),
 ) -> VioletConfig {
   VioletConfig {
-    complexity: ComplexityConfig { thresholds, penalties: PenaltyConfig::default() },
+    complexity: ComplexityConfig { thresholds, penalties },
     ignore_files,
     ignore_patterns,
   }
