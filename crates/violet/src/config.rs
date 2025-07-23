@@ -15,10 +15,12 @@ pub struct VioletConfig {
   pub ignore_patterns: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct ComplexityConfig {
   #[serde(default)]
   pub thresholds: ThresholdConfig,
+  #[serde(default)]
+  pub penalties: PenaltyConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -29,6 +31,16 @@ pub struct ThresholdConfig {
   /// Per-extension thresholds (e.g., ".rs": 7.0)
   #[serde(flatten)]
   pub extensions: HashMap<String, f64>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct PenaltyConfig {
+  #[serde(default)]
+  pub depth: f64,
+  #[serde(default)]
+  pub verbosity: f64,
+  #[serde(default)]
+  pub syntactics: f64,
 }
 
 impl Default for ThresholdConfig {
@@ -43,7 +55,10 @@ fn default_threshold() -> f64 {
 
 fn default_global_config() -> VioletConfig {
   VioletConfig {
-    complexity: ComplexityConfig { thresholds: ThresholdConfig::default() },
+    complexity: ComplexityConfig {
+      thresholds: ThresholdConfig::default(),
+      penalties: PenaltyConfig::default(),
+    },
     ignore_files: get_default_ignored_files(),
     ignore_patterns: vec![],
   }
@@ -176,7 +191,11 @@ fn build_merged_config(
   thresholds: ThresholdConfig,
   (ignore_files, ignore_patterns): (Vec<String>, Vec<String>),
 ) -> VioletConfig {
-  VioletConfig { complexity: ComplexityConfig { thresholds }, ignore_files, ignore_patterns }
+  VioletConfig {
+    complexity: ComplexityConfig { thresholds, penalties: PenaltyConfig::default() },
+    ignore_files,
+    ignore_patterns,
+  }
 }
 
 /// Enhanced glob matching with filename fallback
@@ -301,6 +320,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions: thresholds },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -316,6 +336,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec![
         "target/**".to_string(),
@@ -348,6 +369,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["src/main.rs".to_string()],
       ..Default::default()
@@ -362,6 +384,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 8.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["global_pattern".to_string()],
       ..Default::default()
@@ -382,6 +405,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 7.0, extensions: global_thresholds },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["global1".to_string(), "global2".to_string()],
       ..Default::default()
@@ -394,6 +418,7 @@ mod tests {
     let project = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.5, extensions: project_thresholds },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["project1".to_string(), "global1".to_string()],
       ..Default::default()
@@ -418,6 +443,7 @@ mod tests {
     let global = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 8.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -425,6 +451,7 @@ mod tests {
     let project = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -536,6 +563,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -553,6 +581,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec![
         "test*file".to_string(),
@@ -757,6 +786,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 5.0, extensions: thresholds },
+        penalties: PenaltyConfig::default(),
       },
       ..Default::default()
     };
@@ -779,6 +809,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec![
         "exact_file.txt".to_string(),
@@ -820,6 +851,7 @@ mod tests {
     let config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 6.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["src/main.rs".to_string(), "tests/integration.rs".to_string()],
       ..Default::default()
@@ -870,6 +902,7 @@ mod tests {
     let empty_config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 10.0, extensions: HashMap::new() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec![],
       ..Default::default()
@@ -887,6 +920,7 @@ mod tests {
     let large_config = VioletConfig {
       complexity: ComplexityConfig {
         thresholds: ThresholdConfig { default: 15.0, extensions: many_thresholds.clone() },
+        penalties: PenaltyConfig::default(),
       },
       ignore_files: vec!["pattern".to_string(); 100],
       ..Default::default()
