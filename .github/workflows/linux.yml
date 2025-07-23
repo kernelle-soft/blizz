@@ -42,6 +42,13 @@ jobs:
           output: both
           indicators: true
           badge: true
+          
+      - name: List generated files
+        run: |
+          echo "Files in current directory:"
+          ls -la
+          echo "Looking for badge files:"
+          find . -name "*badge*" -o -name "*coverage*" | head -10
 
       - name: Post coverage as PR comment
         if: github.event_name == 'pull_request'
