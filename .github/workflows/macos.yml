@@ -18,11 +18,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Kernelle Dependencies
+      - name: Setup Kernelle & Global Dependencies
         uses: ./.github/actions/setup-kernelle
-
-      - name: Build Project
-        run: kernelle do ci:build
 
       - name: Test
         run: kernelle do test 

@@ -1,0 +1,10 @@
+git:cleanup: 
+  - git checkout dev 
+  - git branch | grep -v \"dev\" | xargs git branch -D
+
+tweak: 
+  - do: tidy 
+  - do: check
+  - git add . 
+  - git commit -m "tweaks" 
+  - git push

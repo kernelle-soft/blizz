@@ -1,0 +1,119 @@
+# --- PR Checks ---
+# 
+
+# Fast Simulated CI pipeline (essential checks that can cause workflow failures)
+check: 
+  - do: check:base 
+  - do: test 
+  - do: check:install
+
+# Thorough Simulated CI pipeline (complete local CI/CD simulation including coverage)
+check:full: 
+  - do: check:base 
+  - do: coverage
+  - do: check:install
+
+# Clean the project and remove all build artifacts
+clean: 
+  - cargo clean
+
+# Lints and formats the project
+tidy: 
+  - do: lint 
+  - do: format
+  - do: newlines
+
+
+# Lint the project
+lint: 
+  - cargo clippy \
+    --workspace \
+    --all-targets \
+    --all-features \
+    --fix \
+    --allow-dirty \
+    --allow-staged
+
+# Ensure final newlines are present
+newlines: 
+  - bash scripts/ensure-final-newlines.sh --fix
+
+# Format the project
+format: 
+  - cargo fmt --all
+
+# Testing
+test: 
+  - cargo test --workspace
+
+# Test + Coverage
+coverage: 
+  - cargo tarpaulin --workspace --timeout 300 --out xml --output-dir coverage
+
+# Security Audit
+audit: 
+  - cargo audit --deny warnings --deny unmaintained
+
+# Check code quality (never-nester principles)  
+complexity: 
+  - violet .
+
+# --- Quality Checks ---
+# These are tasks that are used to check the quality of the code.
+# They are not run 
+# 
+
+
+# Lint & Format (Assert)
+check:lint: 
+  - RUSTFLAGS="-D warnings" cargo clippy \
+    --workspace \
+    --all-targets \
+    --all-features
+check:format: 
+  - cargo fmt --all -- --check
+check:newlines: 
+  - bash scripts/ensure-final-newlines.sh --check
+check:tidy: 
+  - do: complexity 
+  - do: lint:assert 
+  - do: format:assert
+  - do: newlines:assert
+
+# Runs tests on the install/uninstall cycle to check if first-time installation is working
+check:install: 
+  - .github/test/install-uninstall-cycle.sh 
+  - .github/test/install-when-already-installed.sh 
+  - .github/test/uninstall-when-not-installed.sh
+
+
+build: 
+  - cargo build --release
+
+clean: 
+  - cargo clean
+
+rebuild: 
+  - do: clean 
+  - do: build
+
+
+# CI/CD Simulation - run these tasks to check if the CI/CD pipeline would likely pass
+check:tidy: 
+  - do: check:lint 
+  - do: check:format 
+  - do: check:newlines
+check:build: 
+  - do: build
+check:secure: 
+  - do: audit
+check:test: 
+  - do: test
+    env:
+      NO_COLOR: 1
+
+# Base checks to be used in top level suites.
+check:base: 
+  - do: check:tidy 
+  - do: check:build 
+  - do: complexity

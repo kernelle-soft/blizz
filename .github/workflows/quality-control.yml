@@ -19,30 +19,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Kernelle Dependencies
+      - name: Setup Kernelle & Global Dependencies
         uses: ./.github/actions/setup-kernelle
         with:
           rust-components: rustfmt,clippy
 
       - name: Check formatting
-        run: |
-          echo "Checking code formatting..."
-          cargo fmt --all -- --check
+        run: kernelle do check:format
 
       - name: Check final newlines
-        run: |
-          echo "Checking final newlines..."
-          bash scripts/ensure-final-newlines.sh --check
+        run: kernelle do check:newlines
 
-      - name: Run clippy (strict)
-        run: |
-          echo "Running clippy analysis with strict warnings..."
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Run clippy
+        run: kernelle do check:lint
 
-      - name: Run complexity analysis
-        run: |
-          echo "Running code complexity analysis..."
-          kernelle do complexity
-
-      - name: Quality checks complete
-        run: echo "✨ All code quality checks passed! The code is clean and maintainable!" 
+      - name: Run complexity analysis (violet)
+        run: kernelle do complexity

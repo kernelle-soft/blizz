@@ -18,11 +18,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Kernelle Dependencies
+      - name: Setup Kernelle & Global Dependencies
         uses: ./.github/actions/setup-kernelle
-
-      - name: Build Project
-        run: kernelle do ci:build
 
       - name: Generate Coverage Report
         run: kernelle do coverage
@@ -42,8 +39,6 @@ jobs:
           output: both
           indicators: true
           badge: true
-          
-
 
       - name: Post coverage as PR comment
         if: github.event_name == 'pull_request'
@@ -54,21 +49,5 @@ jobs:
           
       - name: Update coverage badge in README
         if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-        run: |
-          # Extract the badge line (first line) from the coverage results
-          NEW_BADGE=$(head -n 1 code-coverage-results.md)
+        run: .github/run/create-coverage-badge.sh
           
-          # Replace the coverage badge line in README.md
-          sed -i "s|^!\[Code Coverage\](https://img\.shields\.io/badge/.*|$NEW_BADGE|" README.md
-          
-          # Check if there were changes
-          if git diff --quiet README.md; then
-            echo "No changes to README.md"
-          else
-            echo "Coverage badge updated in README.md"
-            git config --local user.email "action@github.com"
-            git config --local user.name "GitHub Action"
-            git add README.md
-            git commit -m "Update coverage badge [skip ci]"
-            git push
-          fi
