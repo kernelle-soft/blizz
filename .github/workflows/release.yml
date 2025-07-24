@@ -27,15 +27,7 @@ jobs:
       
       - name: Verify version matches Cargo.toml
         run: |
-          CARGO_VERSION=$(grep '^version = ' Cargo.toml | cut -d'"' -f2)
-          TAG_VERSION="${{ steps.version.outputs.version }}"
-          echo "Cargo.toml version: $CARGO_VERSION"
-          echo "Git tag version: $TAG_VERSION"
-          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
-            echo "❌ Version mismatch: Cargo.toml has $CARGO_VERSION but tag is $TAG_VERSION"
-            exit 1
-          fi
-          echo "✅ Version verified: $CARGO_VERSION"
+          ./.github/workflows/scripts/verify-version.sh "${{ steps.version.outputs.version }}"
       
       - name: Run tests
         run: |
@@ -43,73 +35,13 @@ jobs:
       
       - name: Create source archive
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          ARCHIVE_NAME="kernelle-${TAG}-source"
-          
-          # Create a clean source archive
-          git archive --format=tar.gz --prefix="${ARCHIVE_NAME}/" HEAD > "${ARCHIVE_NAME}.tar.gz"
-          git archive --format=zip --prefix="${ARCHIVE_NAME}/" HEAD > "${ARCHIVE_NAME}.zip"
-          
-          # Verify archives were created
-          ls -la "${ARCHIVE_NAME}".{tar.gz,zip}
+          ./.github/workflows/scripts/create-source-archive.sh "${{ steps.version.outputs.tag }}"
       
       - name: Generate release notes
-        id: release_notes
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          VERSION="${{ steps.version.outputs.version }}"
-          
-          # Get previous tag for changelog
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-          
-          cat > release_notes.md << EOF
-          # Kernelle $VERSION
-          
-          EOF
-          
-          # Add changelog if we have a previous tag
-          if [ ! -z "$PREV_TAG" ]; then
-            echo "## What's Changed" >> release_notes.md
-            echo "" >> release_notes.md
-            git log ${PREV_TAG}..HEAD --oneline --no-merges --pretty=format:"* %s" >> release_notes.md
-            echo "" >> release_notes.md
-            echo "" >> release_notes.md
-          else
-            echo "## What's New" >> release_notes.md
-            echo "" >> release_notes.md  
-            echo "Initial release of the Kernelle toolshed." >> release_notes.md
-            echo "" >> release_notes.md
-          fi
-          
-          cat >> release_notes.md << EOF
-          ## Installation
-          
-          \`\`\`bash
-          # Download and extract source
-          curl -L https://github.com/TravelSizedLions/kernelle/archive/$TAG.tar.gz | tar xz
-          cd kernelle-$TAG-source
-          
-          # Install using included script
-          ./scripts/install.sh
-          \`\`\`
-          
-          ## Tools Included
-          
-          - **kernelle** - Toolshed orchestrator and project manager
-          - **blizz** - Knowledge management and insight storage
-          - **jerrod** - GitLab/GitHub merge request review tool  
-          - **violet** - Code complexity analysis and style enforcement
-          - **adam** - Knowledge insight management and consolidation
-          - **sentinel** - Secure credential storage
-          - **bentley** - Theatrical logging and output formatting library
-          
-          All tools are unified at version $VERSION.
-          
-          **Full Changelog**: https://github.com/TravelSizedLions/kernelle/compare/${PREV_TAG}...$TAG
-          EOF
-          
-          echo "Generated release notes:"
-          cat release_notes.md
+          ./.github/workflows/scripts/generate-release-notes.sh \
+            "${{ steps.version.outputs.tag }}" \
+            "${{ steps.version.outputs.version }}"
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
