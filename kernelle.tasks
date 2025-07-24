@@ -24,7 +24,7 @@
   coverage: "kernelle do rust:coverage",
 
   // Check code quality (never-nester principles)  
-  quality: "violet .",
+  complexity: "violet .",
 
   // Fast Simulated CI pipeline (essential checks that can cause workflow failures)
   checks: '''
@@ -50,9 +50,17 @@
   // ------------------------------------------------------------
   
   // Lint & Format (Fix)
-  "rust:lint": "cargo clippy --workspace --all-targets --all-features --fix --allow-dirty --allow-staged",
   "rust:format": "cargo fmt --all",
   "endlines:fix": "bash scripts/ensure-final-newlines.sh --fix",
+  "rust:lint": '''
+    cargo clippy \
+      --workspace \
+      --all-targets \
+      --all-features \
+      --fix \
+      --allow-dirty \
+      --allow-staged
+  ''',
 
   // Lint & Format (Assert)
   "rust:lint:assert": "RUSTFLAGS=\"-D warnings\" cargo clippy --workspace --all-targets --all-features",
@@ -90,18 +98,11 @@
   // Code Quality tasks
   // ------------------------------------------------------------
   "quality:all": '''
-    kernelle do readability && 
+    kernelle do complexity && 
     kernelle do linting:assert && 
     kernelle do formatting:assert
   ''',
 
   "linting:assert": "cargo clippy --workspace -- -D warnings",
   "formatting:assert": "cargo fmt --all -- --check",
-
-  // ------------------------------------------------------------
-  // Global Installation workflows
-  // ------------------------------------------------------------  
-  install: "scripts/install.sh",
-
-  uninstall: "scripts/uninstall.sh",
 }
