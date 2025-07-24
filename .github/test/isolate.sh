@@ -13,11 +13,14 @@ mkdir -p "$TEST_CARGO_HOME/bin"
 # Store original environment for restoration if needed
 export ORIGINAL_HOME="$HOME"
 export ORIGINAL_CARGO_HOME="${CARGO_HOME:-}"
+export ORIGINAL_RUSTUP_HOME="${RUSTUP_HOME:-}"
 export ORIGINAL_PATH="$PATH"
 
 # Override environment variables to point to our isolated environment
 export HOME="$TEST_HOME"
 export CARGO_HOME="$TEST_CARGO_HOME"
+# Keep the host's Rust toolchain to avoid re-downloading
+export RUSTUP_HOME="${ORIGINAL_RUSTUP_HOME:-$ORIGINAL_HOME/.rustup}"
 export PATH="$TEST_CARGO_HOME/bin:$PATH"
 
 # Cleanup function
@@ -30,6 +33,7 @@ cleanup_test_isolation() {
     # Restore original environment
     export HOME="$ORIGINAL_HOME"
     export CARGO_HOME="$ORIGINAL_CARGO_HOME"
+    export RUSTUP_HOME="$ORIGINAL_RUSTUP_HOME"
     export PATH="$ORIGINAL_PATH"
 }
 
