@@ -14,34 +14,29 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       
-      - name: Get tag version
+      - name: Get Release Version
         id: version
         run: |
           echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
       
-      - name: Verify version matches Cargo.toml
-        run: |
-          ./.github/workflows/scripts/verify-version.sh "${{ steps.version.outputs.version }}"
+      - name: Verify Release Version Matches Cargo.toml
+        run: .github/run/assert-version-match.sh \
+          "${{ steps.version.outputs.version }}"
+     
+      - name: Create Release Archive
+        run: .github/run/create-archive.sh \
+          "${{ steps.version.outputs.tag }}"
       
-      - name: Run tests
-        run: |
-          cargo test --workspace
-      
-      - name: Create source archive
-        run: |
-          ./.github/workflows/scripts/create-source-archive.sh "${{ steps.version.outputs.tag }}"
-      
-      - name: Generate release notes
-        run: |
-          ./.github/workflows/scripts/generate-release-notes.sh \
-            "${{ steps.version.outputs.tag }}" \
-            "${{ steps.version.outputs.version }}"
+      - name: Generate Release Notes
+        run: .github/run/create-release-notes.sh \
+          "${{ steps.version.outputs.tag }}" \
+          "${{ steps.version.outputs.version }}"
       
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
