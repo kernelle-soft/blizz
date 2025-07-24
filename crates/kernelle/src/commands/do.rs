@@ -221,7 +221,7 @@ pub async fn get_tasks_file(tasks_file_path: Option<String>) -> Result<HashMap<S
       TaskDefinition::List(commands) => {
         // Show a summary for list tasks
         let count = commands.len();
-        format!("[{} commands]", count)
+        format!("[{count} commands]")
       }
     };
     legacy_format.insert(name, description);
