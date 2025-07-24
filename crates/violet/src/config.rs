@@ -126,7 +126,7 @@ pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -
 fn load_project_config() -> Result<Option<VioletConfig>> {
   let current_dir = std::env::current_dir().context("Failed to get current working directory")?;
 
-  let project_config_path = current_dir.join(".violet.json5");
+  let project_config_path = current_dir.join("violet.yaml");
 
   if project_config_path.exists() {
     let config = load_config_file(&project_config_path).with_context(|| {
@@ -142,8 +142,8 @@ fn load_config_file(path: &Path) -> Result<VioletConfig> {
   let content = std::fs::read_to_string(path)
     .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-  json5::from_str(&content)
-    .with_context(|| format!("Failed to parse JSON5 config file: {}", path.display()))
+  serde_yaml::from_str(&content)
+    .with_context(|| format!("Failed to parse YAML config file: {}", path.display()))
 }
 
 /// Merge ignore patterns, removing duplicates
@@ -310,7 +310,7 @@ fn get_default_ignored_files() -> Vec<String> {
     "*.xml".to_string(),
     "*.html".to_string(),
     "*.json".to_string(),
-    "*.json5".to_string(),
+    "*.yaml".to_string(),
     "*.toml".to_string(),
     "*.lock".to_string(),
     "*.tasks".to_string(),
@@ -341,7 +341,7 @@ mod tests {
   fn test_matches_pattern_file_extension() {
     assert!(matches_glob("config.json", "*.json"));
     assert!(matches_glob("path/to/config.json", "*.json"));
-    assert!(matches_glob("package.json5", "*.json5"));
+    assert!(matches_glob("package.yaml", "*.yaml"));
     assert!(!matches_glob("config.yaml", "*.json"));
     assert!(!matches_glob("jsonfile", "*.json"));
   }
@@ -711,26 +711,22 @@ mod tests {
   }
 
   #[test]
-  fn test_load_config_file_json5_parsing() {
+  fn test_load_config_file_yaml_parsing() {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
     let mut temp_file = NamedTempFile::new().unwrap();
-    let valid_json5 = r#"{
-      complexity: {
-        thresholds: {
-          default: 8.0,
-          ".rs": 10.0,
-          ".js": 6.0
-        }
-      },
-      ignore_files: [
-        "*.test",
-        "temp/**"
-      ]
-    }"#;
+    let valid_yaml = r#"complexity:
+  thresholds:
+    default: 8.0
+    ".rs": 10.0
+    ".js": 6.0
+ignore_files:
+  - "*.test"
+  - "temp/**"
+"#;
 
-    temp_file.write_all(valid_json5.as_bytes()).unwrap();
+    temp_file.write_all(valid_yaml.as_bytes()).unwrap();
     let result = load_config_file(temp_file.path());
 
     assert!(result.is_ok());
@@ -744,36 +740,33 @@ mod tests {
   }
 
   #[test]
-  fn test_load_config_file_invalid_json5() {
+  fn test_load_config_file_invalid_yaml() {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
     let mut temp_file = NamedTempFile::new().unwrap();
-    let invalid_json5 = r#"{
-      complexity: {
-        thresholds: {
-          default: "not_a_number",
-        }
-      },
-      ignore: [
-        "*.test"
-        "temp/**"
-      ]
-    }"#;
+    let invalid_yaml = r#"complexity:
+  thresholds:
+    default: "not_a_number"
+ignore:
+  - "*.test"
+  - "temp/**"
+  invalid_indentation
+"#;
 
-    temp_file.write_all(invalid_json5.as_bytes()).unwrap();
+    temp_file.write_all(invalid_yaml.as_bytes()).unwrap();
     let result = load_config_file(temp_file.path());
 
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
-    assert!(error_msg.contains("Failed to parse JSON5"));
+    assert!(error_msg.contains("Failed to parse YAML"));
   }
 
   #[test]
   fn test_load_config_file_nonexistent() {
     use std::path::Path;
 
-    let nonexistent_path = Path::new("/this/path/does/not/exist.json5");
+    let nonexistent_path = Path::new("/this/path/does/not/exist.yaml");
     let result = load_config_file(nonexistent_path);
 
     assert!(result.is_err());
@@ -1106,24 +1099,19 @@ mod tests {
     use tempfile::NamedTempFile;
 
     let mut temp_file = NamedTempFile::new().unwrap();
-    let config_with_penalties = r#"{
-      complexity: {
-        thresholds: {
-          default: 8.0,
-          ".rs": 10.0,
-          ".js": 6.0
-        },
-        penalties: {
-          depth: 2.5,
-          verbosity: 1.08,
-          syntactics: 1.22
-        }
-      },
-      ignore_files: [
-        "*.test",
-        "temp/**"
-      ]
-    }"#;
+    let config_with_penalties = r#"complexity:
+  thresholds:
+    default: 8.0
+    ".rs": 10.0
+    ".js": 6.0
+  penalties:
+    depth: 2.5
+    verbosity: 1.08
+    syntactics: 1.22
+ignore_files:
+  - "*.test"
+  - "temp/**"
+"#;
 
     temp_file.write_all(config_with_penalties.as_bytes()).unwrap();
     let result = load_config_file(temp_file.path());
@@ -1147,14 +1135,11 @@ mod tests {
     use tempfile::NamedTempFile;
 
     let mut temp_file = NamedTempFile::new().unwrap();
-    let config_with_partial_penalties = r#"{
-      complexity: {
-        penalties: {
-          depth: 3.0
-          // verbosity and syntactics should use defaults
-        }
-      }
-    }"#;
+    let config_with_partial_penalties = r#"complexity:
+  penalties:
+    depth: 3.0
+    # verbosity and syntactics should use defaults
+"#;
 
     temp_file.write_all(config_with_partial_penalties.as_bytes()).unwrap();
     let result = load_config_file(temp_file.path());
