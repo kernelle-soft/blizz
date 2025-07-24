@@ -126,7 +126,7 @@ pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -
 fn load_project_config() -> Result<Option<VioletConfig>> {
   let current_dir = std::env::current_dir().context("Failed to get current working directory")?;
 
-      let project_config_path = current_dir.join(".violet.json5");
+  let project_config_path = current_dir.join(".violet.json5");
 
   if project_config_path.exists() {
     let config = load_config_file(&project_config_path).with_context(|| {
@@ -142,8 +142,8 @@ fn load_config_file(path: &Path) -> Result<VioletConfig> {
   let content = std::fs::read_to_string(path)
     .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-      json5::from_str(&content)
-      .with_context(|| format!("Failed to parse JSON5 config file: {}", path.display()))
+  json5::from_str(&content)
+    .with_context(|| format!("Failed to parse JSON5 config file: {}", path.display()))
 }
 
 /// Merge ignore patterns, removing duplicates
@@ -310,7 +310,7 @@ fn get_default_ignored_files() -> Vec<String> {
     "*.xml".to_string(),
     "*.html".to_string(),
     "*.json".to_string(),
-            "*.json5".to_string(),
+    "*.json5".to_string(),
     "*.toml".to_string(),
     "*.lock".to_string(),
     "*.tasks".to_string(),
