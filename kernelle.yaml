@@ -1,6 +1,3 @@
-# --- PR Checks ---
-# 
-
 # Fast Simulated CI pipeline (essential checks that can cause workflow failures)
 check: 
   - do: check:base 
@@ -23,15 +20,15 @@ tidy:
   - do: format
   - do: newlines
 
-
 # Lint the project
 lint: 
-  - cargo clippy \
-    --workspace \
-    --all-targets \
-    --all-features \
-    --fix \
-    --allow-dirty \
+  - >
+    cargo clippy
+    --workspace
+    --all-targets
+    --all-features
+    --fix
+    --allow-dirty
     --allow-staged
 
 # Ensure final newlines are present
@@ -48,7 +45,12 @@ test:
 
 # Test + Coverage
 coverage: 
-  - cargo tarpaulin --workspace --timeout 300 --out xml --output-dir coverage
+  - >
+    cargo tarpaulin
+    --workspace
+    --timeout 300
+    --out xml
+    --output-dir coverage
 
 # Security Audit
 audit: 
@@ -63,13 +65,14 @@ complexity:
 # They are not run 
 # 
 
-
 # Lint & Format (Assert)
 check:lint: 
-  - RUSTFLAGS="-D warnings" cargo clippy \
-    --workspace \
-    --all-targets \
+  - > 
+    RUSTFLAGS="-D warnings" cargo clippy
+    --workspace
+    --all-targets
     --all-features
+
 check:format: 
   - cargo fmt --all -- --check
 check:newlines: 
@@ -86,7 +89,6 @@ check:install:
   - .github/test/install-when-already-installed.sh 
   - .github/test/uninstall-when-not-installed.sh
 
-
 build: 
   - cargo build --release
 
@@ -96,7 +98,6 @@ clean:
 rebuild: 
   - do: clean 
   - do: build
-
 
 # CI/CD Simulation - run these tasks to check if the CI/CD pipeline would likely pass
 check:tidy: 
