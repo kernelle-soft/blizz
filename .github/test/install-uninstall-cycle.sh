@@ -28,7 +28,7 @@ echo
 
 # PHASE 2: Uninstall the installed system
 echo "🧹 Phase 2: Uninstalling kernelle..."
-./scripts/cleanup.sh --non-interactive
+./scripts/uninstall.sh --non-interactive
 
 # Verify uninstallation worked
 echo "🔍 Verifying uninstallation..."

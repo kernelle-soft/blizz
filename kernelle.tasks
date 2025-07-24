@@ -87,5 +87,5 @@
   // ------------------------------------------------------------  
   install: "scripts/install.sh",
 
-  uninstall: "scripts/cleanup.sh",
+  uninstall: "scripts/uninstall.sh",
 }
