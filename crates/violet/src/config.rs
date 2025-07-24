@@ -126,7 +126,7 @@ pub fn should_ignore_file<P: AsRef<Path>>(config: &VioletConfig, file_path: P) -
 fn load_project_config() -> Result<Option<VioletConfig>> {
   let current_dir = std::env::current_dir().context("Failed to get current working directory")?;
 
-  let project_config_path = current_dir.join(".violet.json5");
+  let project_config_path = current_dir.join(".violet.hjson");
 
   if project_config_path.exists() {
     let config = load_config_file(&project_config_path).with_context(|| {
@@ -310,7 +310,7 @@ fn get_default_ignored_files() -> Vec<String> {
     "*.xml".to_string(),
     "*.html".to_string(),
     "*.json".to_string(),
-    "*.json5".to_string(),
+    "*.hjson".to_string(),
     "*.toml".to_string(),
     "*.lock".to_string(),
     "*.tasks".to_string(),
@@ -341,7 +341,7 @@ mod tests {
   fn test_matches_pattern_file_extension() {
     assert!(matches_glob("config.json", "*.json"));
     assert!(matches_glob("path/to/config.json", "*.json"));
-    assert!(matches_glob("package.json5", "*.json5"));
+    assert!(matches_glob("package.hjson", "*.hjson"));
     assert!(!matches_glob("config.yaml", "*.json"));
     assert!(!matches_glob("jsonfile", "*.json"));
   }
@@ -773,7 +773,7 @@ mod tests {
   fn test_load_config_file_nonexistent() {
     use std::path::Path;
 
-    let nonexistent_path = Path::new("/this/path/does/not/exist.json5");
+    let nonexistent_path = Path::new("/this/path/does/not/exist.hjson");
     let result = load_config_file(nonexistent_path);
 
     assert!(result.is_err());
