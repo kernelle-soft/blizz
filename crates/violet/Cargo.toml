@@ -14,7 +14,7 @@ path = "src/main.rs"
 [dependencies]
 clap.workspace = true
 colored.workspace = true
-serde-hjson = "1.1"
+json5 = "0.4"
 serde = { workspace = true }
 anyhow.workspace = true
 dirs.workspace = true
