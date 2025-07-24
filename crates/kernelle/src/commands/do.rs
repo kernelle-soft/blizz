@@ -58,8 +58,8 @@ pub async fn run_task(
   args: &[String],
   options: TaskRunnerOptions,
 ) -> Result<TaskResult> {
-  let tasks = match options.tasks_file_path {
-    Some(path) => load_tasks_file(&path)?,
+  let tasks = match &options.tasks_file_path {
+    Some(path) => load_tasks_file(path)?,
     None => load_merged_tasks_file()?,
   };
 
@@ -78,6 +78,9 @@ async fn execute_task_with_queue(
   options: &TaskRunnerOptions,
 ) -> Result<TaskResult> {
   let mut command_queue: VecDeque<QueuedCommand> = VecDeque::new();
+  
+  // Clone options to avoid borrow issues
+  let silent = options.silent;
   
   // Populate initial queue based on task definition
   match definition {
@@ -99,7 +102,7 @@ async fn execute_task_with_queue(
 
   // Process queue iteratively
   while let Some(queued_cmd) = command_queue.pop_front() {
-    let result = execute_single_command(&queued_cmd, tasks, options, &mut command_queue).await?;
+    let result = execute_single_command(&queued_cmd, tasks, silent, &mut command_queue).await?;
     if !result.success {
       return Ok(result);
     }
@@ -111,16 +114,13 @@ async fn execute_task_with_queue(
 async fn execute_single_command(
   queued_cmd: &QueuedCommand,
   tasks: &TasksFile,
-  options: &TaskRunnerOptions,
+  silent: bool,
   command_queue: &mut VecDeque<QueuedCommand>,
 ) -> Result<TaskResult> {
   let (command_type, env_vars) = match &queued_cmd.command {
     TaskCommand::Simple(cmd) => (TaskCommandType::Shell(cmd.clone()), HashMap::new()),
     TaskCommand::WithEnv { command, env } => (command.clone(), env.clone()),
   };
-
-  // Extract fields from options early to avoid borrow issues
-  let silent = options.silent;
 
   match command_type {
     TaskCommandType::Shell(shell_command) => {
