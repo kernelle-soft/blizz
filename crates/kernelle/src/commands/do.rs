@@ -65,7 +65,8 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
   let content =
     fs::read_to_string(path).map_err(|e| anyhow!("Failed to read tasks file '{}': {}", path, e))?;
 
-  serde_hjson::from_str(&content).map_err(|e| anyhow!("Failed to parse tasks file '{}': {}", path, e))
+  serde_hjson::from_str(&content)
+    .map_err(|e| anyhow!("Failed to parse tasks file '{}': {}", path, e))
 }
 
 fn load_merged_tasks_file() -> Result<TasksFile> {
