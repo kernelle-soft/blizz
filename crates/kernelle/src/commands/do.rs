@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, VecDeque};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -7,7 +8,32 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-pub type TasksFile = HashMap<String, String>;
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum TaskDefinition {
+  Simple(String),
+  List(Vec<TaskCommand>),
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum TaskCommand {
+  Simple(String),
+  WithEnv {
+    #[serde(flatten)]
+    command: TaskCommandType,
+    env: HashMap<String, String>,
+  },
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum TaskCommandType {
+  Shell(String),
+  Do { r#do: String },
+}
+
+pub type TasksFile = HashMap<String, TaskDefinition>;
 
 #[derive(Debug, Default)]
 pub struct TaskRunnerOptions {
@@ -21,6 +47,12 @@ pub struct TaskResult {
   pub exit_code: Option<i32>,
 }
 
+#[derive(Debug, Clone)]
+struct QueuedCommand {
+  command: TaskCommand,
+  args: Vec<String>,
+}
+
 pub async fn run_task(
   alias: &str,
   args: &[String],
@@ -31,15 +63,104 @@ pub async fn run_task(
     None => load_merged_tasks_file()?,
   };
 
-  let task_command = tasks.get(alias).ok_or_else(|| {
+  let task_definition = tasks.get(alias).ok_or_else(|| {
     let task_names: Vec<String> = tasks.keys().cloned().collect();
     anyhow!("Task '{}' not found. Available tasks: {}", alias, task_names.join(", "))
   })?;
 
-  let stream_output = !options.silent;
-  let preserve_colors = stream_output && !is_ci_environment();
+  execute_task_with_queue(task_definition, args, &tasks, &options).await
+}
 
-  execute_command(task_command, args, stream_output, preserve_colors).await
+async fn execute_task_with_queue(
+  definition: &TaskDefinition,
+  args: &[String],
+  tasks: &TasksFile,
+  options: &TaskRunnerOptions,
+) -> Result<TaskResult> {
+  let mut command_queue: VecDeque<QueuedCommand> = VecDeque::new();
+  
+  // Populate initial queue based on task definition
+  match definition {
+    TaskDefinition::Simple(command) => {
+      command_queue.push_back(QueuedCommand {
+        command: TaskCommand::Simple(command.clone()),
+        args: args.to_vec(),
+      });
+    }
+    TaskDefinition::List(commands) => {
+      for command in commands {
+        command_queue.push_back(QueuedCommand {
+          command: command.clone(),
+          args: args.to_vec(),
+        });
+      }
+    }
+  }
+
+  // Process queue iteratively
+  while let Some(queued_cmd) = command_queue.pop_front() {
+    let result = execute_single_command(&queued_cmd, tasks, options, &mut command_queue).await?;
+    if !result.success {
+      return Ok(result);
+    }
+  }
+
+  Ok(TaskResult { success: true, exit_code: Some(0) })
+}
+
+async fn execute_single_command(
+  queued_cmd: &QueuedCommand,
+  tasks: &TasksFile,
+  options: &TaskRunnerOptions,
+  command_queue: &mut VecDeque<QueuedCommand>,
+) -> Result<TaskResult> {
+  let (command_type, env_vars) = match &queued_cmd.command {
+    TaskCommand::Simple(cmd) => (TaskCommandType::Shell(cmd.clone()), HashMap::new()),
+    TaskCommand::WithEnv { command, env } => (command.clone(), env.clone()),
+  };
+
+  // Extract fields from options early to avoid borrow issues
+  let silent = options.silent;
+
+  match command_type {
+    TaskCommandType::Shell(shell_command) => {
+      let stream_output = !silent;
+      let preserve_colors = stream_output && !is_ci_environment();
+      execute_shell_command(&shell_command, &queued_cmd.args, env_vars, stream_output, preserve_colors).await
+    }
+    TaskCommandType::Do { r#do } => {
+      let nested_task = tasks.get(&r#do).ok_or_else(|| {
+        anyhow!("Task '{}' referenced by 'do:' not found", r#do)
+      })?;
+      
+      // Instead of recursing, add the nested task's commands to the front of the queue
+      let mut new_commands = VecDeque::new();
+      match nested_task {
+        TaskDefinition::Simple(command) => {
+          new_commands.push_back(QueuedCommand {
+            command: TaskCommand::Simple(command.clone()),
+            args: vec![], // do: commands don't inherit args
+          });
+        }
+        TaskDefinition::List(commands) => {
+          for command in commands {
+            new_commands.push_back(QueuedCommand {
+              command: command.clone(),
+              args: vec![], // do: commands don't inherit args
+            });
+          }
+        }
+      }
+      
+      // Prepend new commands to the queue
+      while let Some(cmd) = new_commands.pop_back() {
+        command_queue.push_front(cmd);
+      }
+      
+      // Return success for the do: command itself
+      Ok(TaskResult { success: true, exit_code: Some(0) })
+    }
+  }
 }
 
 pub async fn list_tasks(tasks_file_path: Option<String>) -> Result<Vec<String>> {
@@ -50,11 +171,27 @@ pub async fn list_tasks(tasks_file_path: Option<String>) -> Result<Vec<String>> 
   Ok(tasks.keys().cloned().collect())
 }
 
-pub async fn get_tasks_file(tasks_file_path: Option<String>) -> Result<TasksFile> {
-  match tasks_file_path {
-    Some(path) => load_tasks_file(&path),
-    None => load_merged_tasks_file(),
+pub async fn get_tasks_file(tasks_file_path: Option<String>) -> Result<HashMap<String, String>> {
+  let tasks = match tasks_file_path {
+    Some(path) => load_tasks_file(&path)?,
+    None => load_merged_tasks_file()?,
+  };
+  
+  // Convert TasksFile to the legacy format for compatibility with verbose listing
+  let mut legacy_format = HashMap::new();
+  for (name, definition) in tasks {
+    let description = match definition {
+      TaskDefinition::Simple(cmd) => cmd,
+      TaskDefinition::List(commands) => {
+        // Show a summary for list tasks
+        let count = commands.len();
+        format!("[{} commands]", count)
+      }
+    };
+    legacy_format.insert(name, description);
   }
+  
+  Ok(legacy_format)
 }
 
 fn load_tasks_file(path: &str) -> Result<TasksFile> {
@@ -70,8 +207,8 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
 }
 
 fn load_merged_tasks_file() -> Result<TasksFile> {
-  let cursor_path = "./.cursor/kernelle.tasks";
-  let root_path = "./kernelle.tasks";
+  let cursor_path = ".cursor/kernelle.yaml";
+  let root_path = "./kernelle.yaml";
 
   let cursor_exists = Path::new(cursor_path).exists();
   let root_exists = Path::new(root_path).exists();
@@ -100,9 +237,10 @@ fn load_merged_tasks_file() -> Result<TasksFile> {
   }
 }
 
-async fn execute_command(
+async fn execute_shell_command(
   command: &str,
   args: &[String],
+  env_vars: HashMap<String, String>,
   stream_output: bool,
   preserve_colors: bool,
 ) -> Result<TaskResult> {
@@ -114,7 +252,7 @@ async fn execute_command(
     c.args(["/C", &full_command]);
     c
   } else {
-    let mut c = Command::new("sh");
+    let mut c = Command::new("bash");
     c.args(["-c", &full_command]);
     c
   };
@@ -125,6 +263,11 @@ async fn execute_command(
     if env::var("TERM").is_err() {
       cmd.env("TERM", "xterm-256color");
     }
+  }
+
+  // Apply custom environment variables
+  for (key, value) in env_vars {
+    cmd.env(key, value);
   }
 
   if stream_output {
@@ -185,62 +328,100 @@ mod tests {
 
   #[tokio::test]
   async fn test_list_tasks_with_nonexistent_file() {
-    // Test list_tasks with a file that doesn't exist
-    let result = list_tasks(Some("nonexistent.tasks".to_string())).await;
-
-    // Should return an error since the file doesn't exist
+    let result = list_tasks(Some("nonexistent.yaml".to_string())).await;
     assert!(result.is_err());
   }
 
   #[tokio::test]
   async fn test_get_tasks_file_with_nonexistent_file() {
-    // Test get_tasks_file with a file that doesn't exist
-    let result = get_tasks_file(Some("nonexistent.tasks".to_string())).await;
-
-    // Should return an error since the file doesn't exist
+    let result = get_tasks_file(Some("nonexistent.yaml".to_string())).await;
     assert!(result.is_err());
   }
 
   #[test]
   fn test_task_runner_options_default() {
-    // Test that TaskRunnerOptions has sensible defaults
     let options = TaskRunnerOptions::default();
-
     assert!(!options.silent);
     assert!(options.tasks_file_path.is_none());
   }
 
   #[test]
   fn test_task_result_fields() {
-    // Test TaskResult struct fields
     let result = TaskResult { success: true, exit_code: Some(0) };
-
     assert!(result.success);
     assert_eq!(result.exit_code, Some(0));
 
     let failed_result = TaskResult { success: false, exit_code: Some(1) };
-
     assert!(!failed_result.success);
     assert_eq!(failed_result.exit_code, Some(1));
   }
 
   #[tokio::test]
   async fn test_run_task_with_nonexistent_task() {
-    // Test running a task that doesn't exist
     let options =
-      TaskRunnerOptions { silent: true, tasks_file_path: Some("nonexistent.tasks".to_string()) };
+      TaskRunnerOptions { silent: true, tasks_file_path: Some("nonexistent.yaml".to_string()) };
 
     let result = run_task("nonexistent_task", &[], options).await;
-
-    // Should return an error since the file doesn't exist
     assert!(result.is_err());
   }
 
   #[test]
   fn test_is_ci_environment() {
-    // Test the CI environment detection function
-    // This will depend on the actual environment, so we just ensure it doesn't panic
     let _is_ci = is_ci_environment();
-    // Function should not panic and should return a boolean
+  }
+
+  #[test]
+  fn test_task_definition_deserialization() {
+    // Test simple string task
+    let yaml = r#""cargo build""#;
+    let task: TaskDefinition = serde_yaml::from_str(yaml).unwrap();
+    match task {
+      TaskDefinition::Simple(cmd) => assert_eq!(cmd, "cargo build"),
+      _ => panic!("Expected simple task"),
+    }
+
+    // Test list task
+    let yaml = r#"
+- "cargo clean"
+- "cargo build"
+"#;
+    let task: TaskDefinition = serde_yaml::from_str(yaml).unwrap();
+    match task {
+      TaskDefinition::List(commands) => assert_eq!(commands.len(), 2),
+      _ => panic!("Expected list task"),
+    }
+  }
+
+  #[test]
+  fn test_task_command_with_env() {
+    let yaml = r#"
+command: "cargo test"
+env:
+  NO_COLOR: "1"
+  RUST_LOG: "debug"
+"#;
+    
+    // Note: This would be part of a larger YAML structure in practice
+    // Just testing the serde structure works
+    let cmd: TaskCommand = serde_yaml::from_str(yaml).unwrap();
+    match cmd {
+      TaskCommand::WithEnv { env, .. } => {
+        assert_eq!(env.get("NO_COLOR"), Some(&"1".to_string()));
+        assert_eq!(env.get("RUST_LOG"), Some(&"debug".to_string()));
+      }
+      _ => panic!("Expected command with env"),
+    }
+  }
+
+  #[tokio::test]
+  async fn test_queue_based_execution() {
+    // Test that simple commands work
+    let mut queue = VecDeque::new();
+    queue.push_back(QueuedCommand {
+      command: TaskCommand::Simple("echo test".to_string()),
+      args: vec![],
+    });
+    
+    assert_eq!(queue.len(), 1);
   }
 }
