@@ -42,7 +42,7 @@ jobs:
       - name: Run complexity analysis
         run: |
           echo "Running code complexity analysis..."
-          kernelle do quality
+          kernelle do complexity
 
       - name: Quality checks complete
         run: echo "✨ All code quality checks passed! The code is clean and maintainable!" 
