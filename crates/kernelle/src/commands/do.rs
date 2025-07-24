@@ -19,18 +19,18 @@ pub enum TaskDefinition {
 #[serde(untagged)]
 pub enum TaskCommand {
   Simple(String),
-  WithEnv {
+  Do {
+    r#do: String,
+  },
+  ShellWithEnv {
     #[serde(flatten)]
-    command: TaskCommandType,
+    command: String,
     env: HashMap<String, String>,
   },
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum TaskCommandType {
-  Shell(String),
-  Do { r#do: String },
+  DoWithEnv {
+    r#do: String,
+    env: HashMap<String, String>,
+  },
 }
 
 pub type TasksFile = HashMap<String, TaskDefinition>;
@@ -78,10 +78,10 @@ async fn execute_task_with_queue(
   options: &TaskRunnerOptions,
 ) -> Result<TaskResult> {
   let mut command_queue: VecDeque<QueuedCommand> = VecDeque::new();
-  
+
   // Clone options to avoid borrow issues
   let silent = options.silent;
-  
+
   // Populate initial queue based on task definition
   match definition {
     TaskDefinition::Simple(command) => {
@@ -92,10 +92,7 @@ async fn execute_task_with_queue(
     }
     TaskDefinition::List(commands) => {
       for command in commands {
-        command_queue.push_back(QueuedCommand {
-          command: command.clone(),
-          args: args.to_vec(),
-        });
+        command_queue.push_back(QueuedCommand { command: command.clone(), args: args.to_vec() });
       }
     }
   }
@@ -117,22 +114,29 @@ async fn execute_single_command(
   silent: bool,
   command_queue: &mut VecDeque<QueuedCommand>,
 ) -> Result<TaskResult> {
-  let (command_type, env_vars) = match &queued_cmd.command {
-    TaskCommand::Simple(cmd) => (TaskCommandType::Shell(cmd.clone()), HashMap::new()),
-    TaskCommand::WithEnv { command, env } => (command.clone(), env.clone()),
-  };
-
-  match command_type {
-    TaskCommandType::Shell(shell_command) => {
+  match &queued_cmd.command {
+    TaskCommand::Simple(shell_command) => {
       let stream_output = !silent;
       let preserve_colors = stream_output && !is_ci_environment();
-      execute_shell_command(&shell_command, &queued_cmd.args, env_vars, stream_output, preserve_colors).await
+      execute_shell_command(
+        shell_command,
+        &queued_cmd.args,
+        HashMap::new(),
+        stream_output,
+        preserve_colors,
+      )
+      .await
     }
-    TaskCommandType::Do { r#do } => {
-      let nested_task = tasks.get(&r#do).ok_or_else(|| {
-        anyhow!("Task '{}' referenced by 'do:' not found", r#do)
-      })?;
-      
+    TaskCommand::ShellWithEnv { command, env } => {
+      let stream_output = !silent;
+      let preserve_colors = stream_output && !is_ci_environment();
+      execute_shell_command(command, &queued_cmd.args, env.clone(), stream_output, preserve_colors)
+        .await
+    }
+    TaskCommand::Do { r#do } => {
+      let nested_task =
+        tasks.get(r#do).ok_or_else(|| anyhow!("Task '{}' referenced by 'do:' not found", r#do))?;
+
       // Instead of recursing, add the nested task's commands to the front of the queue
       let mut new_commands = VecDeque::new();
       match nested_task {
@@ -151,12 +155,44 @@ async fn execute_single_command(
           }
         }
       }
-      
+
       // Prepend new commands to the queue
       while let Some(cmd) = new_commands.pop_back() {
         command_queue.push_front(cmd);
       }
-      
+
+      // Return success for the do: command itself
+      Ok(TaskResult { success: true, exit_code: Some(0) })
+    }
+    TaskCommand::DoWithEnv { r#do, env: _ } => {
+      // For now, treat DoWithEnv the same as Do (env vars don't make sense for do: commands)
+      let nested_task =
+        tasks.get(r#do).ok_or_else(|| anyhow!("Task '{}' referenced by 'do:' not found", r#do))?;
+
+      // Instead of recursing, add the nested task's commands to the front of the queue
+      let mut new_commands = VecDeque::new();
+      match nested_task {
+        TaskDefinition::Simple(command) => {
+          new_commands.push_back(QueuedCommand {
+            command: TaskCommand::Simple(command.clone()),
+            args: vec![], // do: commands don't inherit args
+          });
+        }
+        TaskDefinition::List(commands) => {
+          for command in commands {
+            new_commands.push_back(QueuedCommand {
+              command: command.clone(),
+              args: vec![], // do: commands don't inherit args
+            });
+          }
+        }
+      }
+
+      // Prepend new commands to the queue
+      while let Some(cmd) = new_commands.pop_back() {
+        command_queue.push_front(cmd);
+      }
+
       // Return success for the do: command itself
       Ok(TaskResult { success: true, exit_code: Some(0) })
     }
@@ -176,7 +212,7 @@ pub async fn get_tasks_file(tasks_file_path: Option<String>) -> Result<HashMap<S
     Some(path) => load_tasks_file(&path)?,
     None => load_merged_tasks_file()?,
   };
-  
+
   // Convert TasksFile to the legacy format for compatibility with verbose listing
   let mut legacy_format = HashMap::new();
   for (name, definition) in tasks {
@@ -190,7 +226,7 @@ pub async fn get_tasks_file(tasks_file_path: Option<String>) -> Result<HashMap<S
     };
     legacy_format.insert(name, description);
   }
-  
+
   Ok(legacy_format)
 }
 
@@ -400,12 +436,12 @@ env:
   NO_COLOR: "1"
   RUST_LOG: "debug"
 "#;
-    
+
     // Note: This would be part of a larger YAML structure in practice
     // Just testing the serde structure works
     let cmd: TaskCommand = serde_yaml::from_str(yaml).unwrap();
     match cmd {
-      TaskCommand::WithEnv { env, .. } => {
+      TaskCommand::ShellWithEnv { env, .. } => {
         assert_eq!(env.get("NO_COLOR"), Some(&"1".to_string()));
         assert_eq!(env.get("RUST_LOG"), Some(&"debug".to_string()));
       }
@@ -421,7 +457,7 @@ env:
       command: TaskCommand::Simple("echo test".to_string()),
       args: vec![],
     });
-    
+
     assert_eq!(queue.len(), 1);
   }
 }
