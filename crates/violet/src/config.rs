@@ -142,8 +142,8 @@ fn load_config_file(path: &Path) -> Result<VioletConfig> {
   let content = std::fs::read_to_string(path)
     .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-  json5::from_str(&content)
-    .with_context(|| format!("Failed to parse JSON5 config file: {}", path.display()))
+      serde_hjson::from_str(&content)
+      .with_context(|| format!("Failed to parse HJSON config file: {}", path.display()))
 }
 
 /// Merge ignore patterns, removing duplicates

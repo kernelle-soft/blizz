@@ -24,13 +24,26 @@
   coverage: "kernelle do rust:coverage",
 
   // Check code quality (never-nester principles)  
-  quality: "kernelle do readability",
+  quality: "violet .",
 
   // Fast Simulated CI pipeline (essential checks that can cause workflow failures)
-  checks: "kernelle do ci:base && kernelle do test",
+  checks: '''
+    kernelle do ci:base && 
+    kernelle do test && 
+    kernelle do checks:install
+  ''',
 
   // Thorough Simulated CI pipeline (complete local CI/CD simulation including coverage)
-  "checks:full": "kernelle do ci:base && kernelle do coverage",
+  "checks:full": '''
+    kernelle do ci:base && 
+    kernelle do coverage && 
+  ''',
+
+  "checks:install": '''
+    .github/test/install-uninstall-cycle.sh &&
+    .github/test/install-when-already-installed.sh && 
+    .github/test/uninstall-when-not-installed.sh
+  ''',
 
   // ------------------------------------------------------------
   // Build & Development tasks
@@ -76,9 +89,12 @@
   // ------------------------------------------------------------
   // Code Quality tasks
   // ------------------------------------------------------------
-  "quality:all": "kernelle do readability && kernelle do linting:assert && kernelle do formatting:assert",
+  "quality:all": '''
+    kernelle do readability && 
+    kernelle do linting:assert && 
+    kernelle do formatting:assert
+  ''',
 
-  readability: "violet .",
   "linting:assert": "cargo clippy --workspace -- -D warnings",
   "formatting:assert": "cargo fmt --all -- --check",
 
