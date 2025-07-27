@@ -9,4 +9,5 @@ ignore_files:
   - "crates/kernelle/**"
 
 ignore_patterns:
-  - "#\\[cfg\\(test\\)\\]" # ignore rust inline test code
+  - \[cfg\(test\)\] # ignore rust inline test code
+  - \#\[test\]
