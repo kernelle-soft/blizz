@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -7,7 +8,48 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-pub type TasksFile = HashMap<String, String>;
+#[derive(Debug, Clone, Serialize)]
+pub enum TaskCommand {
+  String(String),
+  Array(Vec<String>),
+}
+
+impl<'de> Deserialize<'de> for TaskCommand {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    use serde::de::Error;
+
+    let value = serde_yaml::Value::deserialize(deserializer)?;
+
+    match value {
+      serde_yaml::Value::String(s) => Ok(TaskCommand::String(s)),
+      serde_yaml::Value::Sequence(seq) => {
+        let strings: Result<Vec<String>, D::Error> = seq
+          .into_iter()
+          .map(|v| match v {
+            serde_yaml::Value::String(s) => Ok(s),
+            _ => Err(D::Error::custom("Array elements must be strings")),
+          })
+          .collect();
+        Ok(TaskCommand::Array(strings?))
+      }
+      _ => Err(D::Error::custom("Task command must be a string or array of strings")),
+    }
+  }
+}
+
+impl TaskCommand {
+  pub fn to_command_string(&self) -> String {
+    match self {
+      TaskCommand::String(s) => s.clone(),
+      TaskCommand::Array(arr) => arr.join(" && "),
+    }
+  }
+}
+
+pub type TasksFile = HashMap<String, TaskCommand>;
 
 #[derive(Debug, Default)]
 pub struct TaskRunnerOptions {
@@ -36,10 +78,11 @@ pub async fn run_task(
     anyhow!("Task '{}' not found. Available tasks: {}", alias, task_names.join(", "))
   })?;
 
+  let command_string = task_command.to_command_string();
   let stream_output = !options.silent;
   let preserve_colors = stream_output && !is_ci_environment();
 
-  execute_command(task_command, args, stream_output, preserve_colors).await
+  execute_command(&command_string, args, stream_output, preserve_colors).await
 }
 
 pub async fn list_tasks(tasks_file_path: Option<String>) -> Result<Vec<String>> {
@@ -65,8 +108,49 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
   let content =
     fs::read_to_string(path).map_err(|e| anyhow!("Failed to read tasks file '{}': {}", path, e))?;
 
-  serde_yaml::from_str(&content)
-    .map_err(|e| anyhow!("Failed to parse tasks file '{}': {}", path, e))
+  // Parse as generic YAML value first
+  let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+    .map_err(|e| anyhow!("Failed to parse YAML in tasks file '{}': {}", path, e))?;
+
+  // Convert to our TasksFile format
+  let mapping = yaml_value
+    .as_mapping()
+    .ok_or_else(|| anyhow!("Tasks file '{}' must contain a YAML mapping at the root", path))?;
+
+  let mut tasks = HashMap::new();
+
+  for (key, value) in mapping {
+    let key_str =
+      key.as_str().ok_or_else(|| anyhow!("Task names must be strings in file '{}'", path))?;
+
+    let task_command = match value {
+      serde_yaml::Value::String(s) => TaskCommand::String(s.clone()),
+      serde_yaml::Value::Sequence(seq) => {
+        let strings: Result<Vec<String>, _> = seq
+          .iter()
+          .map(|v| {
+            v.as_str()
+              .ok_or_else(|| {
+                anyhow!("Array elements must be strings for task '{}' in file '{}'", key_str, path)
+              })
+              .map(|s| s.to_string())
+          })
+          .collect();
+        TaskCommand::Array(strings?)
+      }
+      _ => {
+        return Err(anyhow!(
+          "Task '{}' in file '{}' must be a string or array of strings",
+          key_str,
+          path
+        ))
+      }
+    };
+
+    tasks.insert(key_str.to_string(), task_command);
+  }
+
+  Ok(tasks)
 }
 
 fn load_merged_tasks_file() -> Result<TasksFile> {
@@ -242,5 +326,250 @@ mod tests {
     // This will depend on the actual environment, so we just ensure it doesn't panic
     let _is_ci = is_ci_environment();
     // Function should not panic and should return a boolean
+  }
+
+  #[test]
+  fn test_task_command_string_to_command_string() {
+    // Test TaskCommand::String converts correctly
+    let string_task = TaskCommand::String("echo hello".to_string());
+    assert_eq!(string_task.to_command_string(), "echo hello");
+  }
+
+  #[test]
+  fn test_task_command_array_to_command_string() {
+    // Test TaskCommand::Array converts correctly with && joining
+    let array_task = TaskCommand::Array(vec![
+      "echo first".to_string(),
+      "echo second".to_string(),
+      "echo third".to_string(),
+    ]);
+    assert_eq!(array_task.to_command_string(), "echo first && echo second && echo third");
+  }
+
+  #[test]
+  fn test_task_command_empty_array() {
+    // Test TaskCommand::Array with empty array
+    let empty_array_task = TaskCommand::Array(vec![]);
+    assert_eq!(empty_array_task.to_command_string(), "");
+  }
+
+  #[test]
+  fn test_task_command_single_item_array() {
+    // Test TaskCommand::Array with single item should not add &&
+    let single_array_task = TaskCommand::Array(vec!["echo single".to_string()]);
+    assert_eq!(single_array_task.to_command_string(), "echo single");
+  }
+
+  #[test]
+  fn test_load_tasks_file_with_string_commands() {
+    // Test loading a YAML file with string commands
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    let yaml_content = r#"
+build: "cargo build"
+test: "cargo test"
+clean: "cargo clean"
+"#;
+
+    let temp_file = NamedTempFile::new().unwrap();
+    fs::write(temp_file.path(), yaml_content).unwrap();
+
+    let result = load_tasks_file(temp_file.path().to_str().unwrap());
+    assert!(result.is_ok());
+
+    let tasks = result.unwrap();
+    assert_eq!(tasks.len(), 3);
+
+    // Check that string commands are parsed correctly
+    if let Some(TaskCommand::String(cmd)) = tasks.get("build") {
+      assert_eq!(cmd, "cargo build");
+    } else {
+      panic!("Expected TaskCommand::String for 'build' task");
+    }
+
+    if let Some(TaskCommand::String(cmd)) = tasks.get("test") {
+      assert_eq!(cmd, "cargo test");
+    } else {
+      panic!("Expected TaskCommand::String for 'test' task");
+    }
+  }
+
+  #[test]
+  fn test_load_tasks_file_with_array_commands() {
+    // Test loading a YAML file with array commands
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    let yaml_content = r#"
+tidy:
+  - "cargo fmt"
+  - "cargo clippy"
+checks:
+  - "cargo build"
+  - "cargo test"
+  - "cargo audit"
+"#;
+
+    let temp_file = NamedTempFile::new().unwrap();
+    fs::write(temp_file.path(), yaml_content).unwrap();
+
+    let result = load_tasks_file(temp_file.path().to_str().unwrap());
+    assert!(result.is_ok());
+
+    let tasks = result.unwrap();
+    assert_eq!(tasks.len(), 2);
+
+    // Check that array commands are parsed correctly
+    if let Some(TaskCommand::Array(cmds)) = tasks.get("tidy") {
+      assert_eq!(cmds.len(), 2);
+      assert_eq!(cmds[0], "cargo fmt");
+      assert_eq!(cmds[1], "cargo clippy");
+    } else {
+      panic!("Expected TaskCommand::Array for 'tidy' task");
+    }
+
+    if let Some(TaskCommand::Array(cmds)) = tasks.get("checks") {
+      assert_eq!(cmds.len(), 3);
+      assert_eq!(cmds[0], "cargo build");
+      assert_eq!(cmds[1], "cargo test");
+      assert_eq!(cmds[2], "cargo audit");
+    } else {
+      panic!("Expected TaskCommand::Array for 'checks' task");
+    }
+  }
+
+  #[test]
+  fn test_load_tasks_file_with_mixed_commands() {
+    // Test loading a YAML file with both string and array commands
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    let yaml_content = r#"
+build: "cargo build"
+tidy:
+  - "cargo fmt"
+  - "cargo clippy"
+test: "cargo test"
+full_check:
+  - "cargo build"
+  - "cargo test"
+  - "cargo audit"
+"#;
+
+    let temp_file = NamedTempFile::new().unwrap();
+    fs::write(temp_file.path(), yaml_content).unwrap();
+
+    let result = load_tasks_file(temp_file.path().to_str().unwrap());
+    assert!(result.is_ok());
+
+    let tasks = result.unwrap();
+    assert_eq!(tasks.len(), 4);
+
+    // Check string commands
+    assert!(matches!(tasks.get("build"), Some(TaskCommand::String(_))));
+    assert!(matches!(tasks.get("test"), Some(TaskCommand::String(_))));
+
+    // Check array commands
+    assert!(matches!(tasks.get("tidy"), Some(TaskCommand::Array(_))));
+    assert!(matches!(tasks.get("full_check"), Some(TaskCommand::Array(_))));
+
+    // Verify command string generation works correctly for both types
+    assert_eq!(tasks.get("build").unwrap().to_command_string(), "cargo build");
+    assert_eq!(tasks.get("tidy").unwrap().to_command_string(), "cargo fmt && cargo clippy");
+    assert_eq!(
+      tasks.get("full_check").unwrap().to_command_string(),
+      "cargo build && cargo test && cargo audit"
+    );
+  }
+
+  #[test]
+  fn test_load_tasks_file_with_invalid_yaml() {
+    // Test error handling for invalid YAML
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    let invalid_yaml = r#"
+build: "cargo build"
+invalid:
+  - this
+  - is
+  - 123
+  - valid: but this creates nested structure
+"#;
+
+    let temp_file = NamedTempFile::new().unwrap();
+    fs::write(temp_file.path(), invalid_yaml).unwrap();
+
+    let result = load_tasks_file(temp_file.path().to_str().unwrap());
+    assert!(result.is_err());
+
+    let error_message = result.unwrap_err().to_string();
+    assert!(error_message.contains("Array elements must be strings"));
+  }
+
+  #[test]
+  fn test_load_tasks_file_with_task_names_containing_special_chars() {
+    // Test that task names with colons and other special characters work when quoted properly
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    let yaml_content = r#"
+"task:with:colons": "echo hello"
+"task-with-dashes": "echo world"
+task_with_underscores: "echo test"
+array_task:
+  - "echo first"
+  - "echo second"
+"#;
+
+    let temp_file = NamedTempFile::new().unwrap();
+    fs::write(temp_file.path(), yaml_content).unwrap();
+
+    let result = load_tasks_file(temp_file.path().to_str().unwrap());
+    assert!(result.is_ok());
+
+    let tasks = result.unwrap();
+    assert_eq!(tasks.len(), 4);
+
+    // Check that task names with special characters are preserved
+    assert!(tasks.contains_key("task:with:colons"));
+    assert!(tasks.contains_key("task-with-dashes"));
+    assert!(tasks.contains_key("task_with_underscores"));
+    assert!(tasks.contains_key("array_task"));
+  }
+
+  #[test]
+  fn test_task_command_serialization() {
+    // Test that TaskCommand can be serialized and deserialized correctly
+    use serde_yaml;
+
+    // Test string variant - it serializes as a tagged enum
+    let string_task = TaskCommand::String("echo hello".to_string());
+    let yaml_str = serde_yaml::to_string(&string_task).unwrap();
+    // The actual serialization includes the variant tag
+    assert!(yaml_str.contains("echo hello"));
+
+    // Test array variant
+    let array_task = TaskCommand::Array(vec!["echo first".to_string(), "echo second".to_string()]);
+    let yaml_str = serde_yaml::to_string(&array_task).unwrap();
+    assert!(yaml_str.contains("echo first"));
+    assert!(yaml_str.contains("echo second"));
+
+    // Test round-trip deserialization works correctly
+    let test_yaml = r#"
+build: "cargo build"
+tidy:
+  - "cargo fmt"
+  - "cargo clippy"
+"#;
+
+    let tasks: std::collections::HashMap<String, TaskCommand> =
+      serde_yaml::from_str(test_yaml).unwrap();
+    assert_eq!(tasks.len(), 2);
+
+    // Verify the deserialized commands work correctly
+    assert_eq!(tasks.get("build").unwrap().to_command_string(), "cargo build");
+    assert_eq!(tasks.get("tidy").unwrap().to_command_string(), "cargo fmt && cargo clippy");
   }
 }
