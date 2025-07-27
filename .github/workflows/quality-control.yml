@@ -25,24 +25,16 @@ jobs:
           rust-components: rustfmt,clippy
 
       - name: Check formatting
-        run: |
-          echo "Checking code formatting..."
-          cargo fmt --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: Check final newlines
-        run: |
-          echo "Checking final newlines..."
-          bash scripts/ensure-final-newlines.sh --check
+        run: bash scripts/ensure-final-newlines.sh --check
 
       - name: Run clippy (strict)
-        run: |
-          echo "Running clippy analysis with strict warnings..."
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Run complexity analysis
-        run: |
-          echo "Running code complexity analysis..."
-          kernelle do quality
+        run: kernelle do quality
 
       - name: Quality checks complete
         run: echo "✨ All code quality checks passed! The code is clean and maintainable!" 
