@@ -25,4 +25,4 @@ jobs:
           rust-components: rustfmt,clippy
 
       - name: Check Tidiness
-        run: kernelle do check:tidy
+        run: kernelle do check-tidy

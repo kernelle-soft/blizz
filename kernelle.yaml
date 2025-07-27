@@ -3,27 +3,27 @@
 # ------------------------------------------------------------
 
 # PR Pre-checks
-checks: 
-  - kernelle do checks:base
+checks:
+  - kernelle do checks-base
   - kernelle do test
 
-checks:full: 
-  - kernelle do checks:base 
+checks-full:
+  - kernelle do checks-base
   - kernelle do coverage
 
 # Other Useful Tasks
-build: "kernelle do rust:build"
-clean: "kernelle do rust:clean"
-audit: "kernelle do rust:audit"
-test: "kernelle do rust:test"
-coverage: "kernelle do rust:coverage"
+build: "kernelle do rust-build"
+clean: "kernelle do rust-clean"
+audit: "kernelle do rust-audit"
+test: "kernelle do rust-test"
+coverage: "kernelle do rust-coverage"
 endlines: "bash scripts/ensure-final-newlines.sh --fix"
-lint: "kernelle do rust:lint"
+lint: "kernelle do rust-lint"
 tidy: 
   - kernelle do lint
   - kernelle do format
 format: 
-  - kernelle do rust:format 
+  - kernelle do rust-format
   - kernelle do endlines
 
 # ------------------------------------------------------------
@@ -33,47 +33,47 @@ format:
 # Note: for now, these are mostly just aliases for rust tasks, but eventually python will be added to the mix
 
 # Base pre-checks, built from other checks below
-checks:base: 
-  - kernelle do check:build 
-  - kernelle do check:tidy
+checks-base: 
+  - kernelle do check-build
+  - kernelle do check-tidy
 
-check:build: "kernelle do build"
-check:secure: "kernelle do rust:audit"
-check:test: "NO_COLOR=1 kernelle do rust:test"
+check-build: "kernelle do build"
+check-secure: "kernelle do rust-audit"
+check-test: "NO_COLOR=1 kernelle do rust-test"
 
-check:tidy: 
-  - kernelle do check:lint 
-  - kernelle do check:format 
-  - kernelle do check:endlines 
-  - kernelle do check:reading
+check-tidy: 
+  - kernelle do check-lint 
+  - kernelle do check-format 
+  - kernelle do check-endlines 
+  - kernelle do check-reading
 
-check:reading: "violet ."
-check:lint: "kernelle do rust:lint:assert"
-check:format: "kernelle do rust:format:assert"
-check:endlines: "bash scripts/ensure-final-newlines.sh --check"
+check-reading: "violet ."
+check-lint: "kernelle do rust-lint-assert"
+check-format: "kernelle do rust-format-assert"
+check-endlines: "bash scripts/ensure-final-newlines.sh --check"
 
 # ------------------------------------------------------------
 # Rust Tasks
 # ------------------------------------------------------------
 
 # Lint & Format (Fix)
-rust:lint: "cargo clippy --workspace --all-targets --all-features --fix --allow-dirty --allow-staged"
-rust:format: "cargo fmt --all"
+rust-lint: "cargo clippy --workspace --all-targets --all-features --fix --allow-dirty --allow-staged"
+rust-format: "cargo fmt --all"
 
 # Lint & Format (Assert)
-rust:lint:assert: "RUSTFLAGS=\"-D warnings\" cargo clippy --workspace --all-targets --all-features"
-rust:format:assert: "cargo fmt --all -- --check"
+rust-lint-assert: "RUSTFLAGS=\"-D warnings\" cargo clippy --workspace --all-targets --all-features"
+rust-format-assert: "cargo fmt --all -- --check"
 
 # Build and/or clean the Rust code
-rust:build: "cargo build --release"
-rust:clean: "cargo clean"
-rust:build:clean: 
-  - kernelle do rust:clean 
-  - kernelle do rust:build
+rust-build: "cargo build --release"
+rust-clean: "cargo clean"
+rust-build-clean: 
+  - kernelle do rust-clean
+  - kernelle do rust-build
 
 # Security Audit
-rust:audit: "cargo audit --deny warnings --deny unmaintained"
+rust-audit: "cargo audit --deny warnings --deny unmaintained"
 
 # Testing
-rust:test: "cargo test --workspace"
-rust:coverage: "cargo tarpaulin --workspace --timeout 300 --out xml --output-dir coverage"
+rust-test: "cargo test --workspace"
+rust-coverage: "cargo tarpaulin --workspace --timeout 300 --out xml --output-dir coverage"

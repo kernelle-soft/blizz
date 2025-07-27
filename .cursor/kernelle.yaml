@@ -2,7 +2,7 @@
 # Personal workflow shortcuts and development tasks
 
 # Git Tasks
-git_cleanup: 
+git-cleanup: 
   - git checkout dev 
   - git branch | grep -v \"dev\" | xargs git branch -D
 

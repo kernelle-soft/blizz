@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -7,7 +8,48 @@ use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-pub type TasksFile = HashMap<String, String>;
+#[derive(Debug, Clone, Serialize)]
+pub enum TaskCommand {
+  String(String),
+  Array(Vec<String>),
+}
+
+impl<'de> Deserialize<'de> for TaskCommand {
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+  where
+    D: Deserializer<'de>,
+  {
+    use serde::de::Error;
+    
+    let value = serde_yaml::Value::deserialize(deserializer)?;
+    
+    match value {
+      serde_yaml::Value::String(s) => Ok(TaskCommand::String(s)),
+      serde_yaml::Value::Sequence(seq) => {
+        let strings: Result<Vec<String>, D::Error> = seq
+          .into_iter()
+          .map(|v| match v {
+            serde_yaml::Value::String(s) => Ok(s),
+            _ => Err(D::Error::custom("Array elements must be strings")),
+          })
+          .collect();
+        Ok(TaskCommand::Array(strings?))
+      }
+      _ => Err(D::Error::custom("Task command must be a string or array of strings")),
+    }
+  }
+}
+
+impl TaskCommand {
+  pub fn to_command_string(&self) -> String {
+    match self {
+      TaskCommand::String(s) => s.clone(),
+      TaskCommand::Array(arr) => arr.join(" && "),
+    }
+  }
+}
+
+pub type TasksFile = HashMap<String, TaskCommand>;
 
 #[derive(Debug, Default)]
 pub struct TaskRunnerOptions {
@@ -36,10 +78,11 @@ pub async fn run_task(
     anyhow!("Task '{}' not found. Available tasks: {}", alias, task_names.join(", "))
   })?;
 
+  let command_string = task_command.to_command_string();
   let stream_output = !options.silent;
   let preserve_colors = stream_output && !is_ci_environment();
 
-  execute_command(task_command, args, stream_output, preserve_colors).await
+  execute_command(&command_string, args, stream_output, preserve_colors).await
 }
 
 pub async fn list_tasks(tasks_file_path: Option<String>) -> Result<Vec<String>> {
@@ -65,8 +108,38 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
   let content =
     fs::read_to_string(path).map_err(|e| anyhow!("Failed to read tasks file '{}': {}", path, e))?;
 
-  serde_yaml::from_str(&content)
-    .map_err(|e| anyhow!("Failed to parse tasks file '{}': {}", path, e))
+  // Parse as generic YAML value first
+  let yaml_value: serde_yaml::Value = serde_yaml::from_str(&content)
+    .map_err(|e| anyhow!("Failed to parse YAML in tasks file '{}': {}", path, e))?;
+
+  // Convert to our TasksFile format
+  let mapping = yaml_value.as_mapping()
+    .ok_or_else(|| anyhow!("Tasks file '{}' must contain a YAML mapping at the root", path))?;
+
+  let mut tasks = HashMap::new();
+  
+  for (key, value) in mapping {
+    let key_str = key.as_str()
+      .ok_or_else(|| anyhow!("Task names must be strings in file '{}'", path))?;
+    
+    let task_command = match value {
+      serde_yaml::Value::String(s) => TaskCommand::String(s.clone()),
+      serde_yaml::Value::Sequence(seq) => {
+        let strings: Result<Vec<String>, _> = seq
+          .iter()
+          .map(|v| v.as_str()
+            .ok_or_else(|| anyhow!("Array elements must be strings for task '{}' in file '{}'", key_str, path))
+            .map(|s| s.to_string()))
+          .collect();
+        TaskCommand::Array(strings?)
+      }
+      _ => return Err(anyhow!("Task '{}' in file '{}' must be a string or array of strings", key_str, path)),
+    };
+    
+    tasks.insert(key_str.to_string(), task_command);
+  }
+
+  Ok(tasks)
 }
 
 fn load_merged_tasks_file() -> Result<TasksFile> {

@@ -141,7 +141,8 @@ async fn list_tasks(file: Option<String>, verbose: bool) -> Result<()> {
     for (name, command) in sorted_tasks {
       let dots_count = max_name_length - name.len() + 4; // +4 for some padding
       let dots = "·".repeat(dots_count);
-      println!("• {name} {dots} {command}");
+      let command_display = command.to_command_string();
+      println!("• {name} {dots} {command_display}");
     }
   } else {
     let mut tasks = commands::r#do::list_tasks(file).await?;
