@@ -18,6 +18,24 @@ coverage: "kernelle do rust:coverage"
 endlines: "bash scripts/ensure-final-newlines.sh --fix"
 
 # ------------------------------------------------------------
+# Pre-check Tasks
+# ------------------------------------------------------------
+# These subtasks will be used to orchestrate linting, formatting, and other checks for PRs 
+# Note: for now, these are mostly just aliases for rust tasks, but eventually python will be added to the mix
+
+checks:base: "kernelle do check:build && kernelle do check:tidy" # Base pre-checks, built from other checks below
+
+check:build: "kernelle do build"
+check:secure: "kernelle do rust:audit"
+check:test: "NO_COLOR=1 kernelle do rust:test"
+
+check:tidy: "kernelle do check:lint && kernelle do check:format && kernelle do check:endlines && kernelle do check:reading"
+check:reading: "violet ."
+check:lint: "kernelle do rust:lint:assert"
+check:format: "kernelle do rust:format:assert"
+check:endlines: "bash scripts/ensure-final-newlines.sh --check"
+
+# ------------------------------------------------------------
 # Rust Tasks
 # ------------------------------------------------------------
 
@@ -40,21 +58,3 @@ rust:audit: "cargo audit --deny warnings --deny unmaintained"
 # Testing
 rust:test: "cargo test --workspace"
 rust:coverage: "cargo tarpaulin --workspace --timeout 300 --out xml --output-dir coverage"
-
-# ------------------------------------------------------------
-# Pre-check Tasks
-# ------------------------------------------------------------
-# These subtasks will be used to orchestrate linting, formatting, and other checks for PRs 
-# Note: for now, these are mostly just aliases for rust tasks, but eventually python will be added to the mix
-
-checks:base: "kernelle do check:build && kernelle do check:tidy" # Base pre-checks, built from other checks below
-
-check:build: "kernelle do build"
-check:secure: "kernelle do rust:audit"
-check:test: "NO_COLOR=1 kernelle do rust:test"
-
-check:tidy: "kernelle do check:lint && kernelle do check:format && kernelle do check:endlines && kernelle do check:reading"
-check:reading: "violet ."
-check:lint: "kernelle do rust:lint:assert"
-check:format: "kernelle do rust:format:assert"
-check:endlines: "bash scripts/ensure-final-newlines.sh --check"
