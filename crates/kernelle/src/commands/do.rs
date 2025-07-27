@@ -39,7 +39,7 @@ impl<'de> Deserialize<'de> for TaskCommand {
                   ) = (key, value)
                   {
                     if key_str == "do" {
-                      return Ok(format!("kernelle do {}", value_str));
+                      return Ok(format!("kernelle do {value_str}"));
                     }
                   }
                 }
@@ -158,7 +158,7 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
                   if let Some((key, value)) = map.iter().next() {
                     if let (Some(key_str), Some(value_str)) = (key.as_str(), value.as_str()) {
                       if key_str == "do" {
-                        return Ok(format!("kernelle do {}", value_str));
+                        return Ok(format!("kernelle do {value_str}"));
                       }
                     }
                   }
