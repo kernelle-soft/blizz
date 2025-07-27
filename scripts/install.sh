@@ -159,6 +159,15 @@ install_system_dependencies() {
     local deps=("$@")
     echo "📦 Installing system dependencies: ${deps[*]}"
     
+    # Log for CI/debugging purposes
+    if [ "${CI:-}" = "true" ] || [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        echo "🔍 CI environment detected - logging package manager and OS info"
+        echo "OS: $(uname -a)"
+        if command -v lsb_release >/dev/null 2>&1; then
+            echo "Distribution: $(lsb_release -d)"
+        fi
+    fi
+    
     if command -v apt-get >/dev/null 2>&1; then
         sudo apt update && sudo apt install -y "${deps[@]}"
     elif command -v yum >/dev/null 2>&1; then
