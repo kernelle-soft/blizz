@@ -7,8 +7,8 @@ git-cleanup:
   - git branch | grep -v \"dev\" | xargs git branch -D
 
 tweak: 
-  - kernelle do tidy 
-  - kernelle do checks 
+  - do: tidy 
+  - do: checks 
   - git add . 
   - git commit -m \"tweaks\" 
   - git push
