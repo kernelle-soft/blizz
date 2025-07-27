@@ -1,0 +1,7 @@
+# Kernelle Personal/Development Tasks
+# Personal workflow shortcuts and development tasks
+
+# Git Tasks
+git_cleanup: "git checkout dev && git branch | grep -v \"dev\" | xargs git branch -D"
+
+tweak: "kernelle do tidy && kernelle do checks && git add . && git commit -m \"tweaks\" && git push"
