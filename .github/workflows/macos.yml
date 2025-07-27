@@ -21,8 +21,5 @@ jobs:
       - name: Setup Kernelle Dependencies
         uses: ./.github/actions/setup-kernelle
 
-      - name: Build Project
-        run: kernelle do ci:build
-
       - name: Test
         run: kernelle do test 

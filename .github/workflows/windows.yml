@@ -15,17 +15,5 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # - name: Checkout code
-      #   uses: actions/checkout@v4
-
-      # - name: Setup Kernelle Dependencies
-      #   uses: ./.github/actions/setup-kernelle
-
-      # - name: Build Project
-      #   run: kernelle do ci:build
-
-      # - name: Test
-      #   run: kernelle do test 
-
       - name: Skip
         run: echo "Unfortunate, but Windows CI testing is so slow that it's not worth the time at the moment."
