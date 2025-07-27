@@ -1,9 +1,12 @@
-# Kernelle Task Configuration
-# High-level tasks for the Kernelle project
-
 # ------------------------------------------------------------
 # High level tasks
 # ------------------------------------------------------------
+
+# Fast Simulated CI pipeline (essential checks that can cause workflow failures)
+checks: "kernelle do ci:base && kernelle do test"
+
+# Thorough Simulated CI pipeline (complete local CI/CD simulation including coverage)
+checks:full: "kernelle do ci:base && kernelle do coverage"
 
 # Build the entire project
 build: "kernelle do rust:build"
@@ -27,12 +30,6 @@ coverage: "kernelle do rust:coverage"
 
 # Check code quality (never-nester principles)  
 quality: "kernelle do readability"
-
-# Fast Simulated CI pipeline (essential checks that can cause workflow failures)
-checks: "kernelle do ci:base && kernelle do test"
-
-# Thorough Simulated CI pipeline (complete local CI/CD simulation including coverage)
-checks:full: "kernelle do ci:base && kernelle do coverage"
 
 # ------------------------------------------------------------
 # Build & Development tasks
@@ -83,9 +80,3 @@ quality:all: "kernelle do readability && kernelle do linting:assert && kernelle 
 readability: "violet ."
 linting:assert: "cargo clippy --workspace -- -D warnings"
 formatting:assert: "cargo fmt --all -- --check"
-
-# ------------------------------------------------------------
-# Global Installation workflows
-# ------------------------------------------------------------
-install: "scripts/install.sh"
-uninstall: "scripts/cleanup.sh"
