@@ -30,7 +30,27 @@ impl<'de> Deserialize<'de> for TaskCommand {
           .into_iter()
           .map(|v| match v {
             serde_yaml::Value::String(s) => Ok(s),
-            _ => Err(D::Error::custom("Array elements must be strings")),
+            serde_yaml::Value::Mapping(map) => {
+              if map.len() == 1 {
+                if let Some((key, value)) = map.into_iter().next() {
+                  if let (
+                    serde_yaml::Value::String(key_str),
+                    serde_yaml::Value::String(value_str),
+                  ) = (key, value)
+                  {
+                    if key_str == "do" {
+                      return Ok(format!("kernelle do {}", value_str));
+                    }
+                  }
+                }
+              }
+              Err(D::Error::custom(
+                "Invalid mapping in array. Only 'do: task_name' syntax is supported.",
+              ))
+            }
+            _ => {
+              Err(D::Error::custom("Array elements must be strings or 'do: task_name' mappings"))
+            }
           })
           .collect();
         Ok(TaskCommand::Array(strings?))
@@ -129,11 +149,24 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
         let strings: Result<Vec<String>, _> = seq
           .iter()
           .map(|v| {
-            v.as_str()
-              .ok_or_else(|| {
-                anyhow!("Array elements must be strings for task '{}' in file '{}'", key_str, path)
-              })
-              .map(|s| s.to_string())
+            match v {
+              // Handle string elements
+              serde_yaml::Value::String(s) => Ok(s.clone()),
+              // Handle "do: task_name" syntax
+              serde_yaml::Value::Mapping(map) => {
+                if map.len() == 1 {
+                  if let Some((key, value)) = map.iter().next() {
+                    if let (Some(key_str), Some(value_str)) = (key.as_str(), value.as_str()) {
+                      if key_str == "do" {
+                        return Ok(format!("kernelle do {}", value_str));
+                      }
+                    }
+                  }
+                }
+                Err(anyhow!("Invalid mapping in array for task '{}' in file '{}'. Only 'do: task_name' syntax is supported.", key_str, path))
+              }
+              _ => Err(anyhow!("Array elements must be strings or 'do: task_name' mappings for task '{}' in file '{}'", key_str, path))
+            }
           })
           .collect();
         TaskCommand::Array(strings?)
@@ -571,5 +604,106 @@ tidy:
     // Verify the deserialized commands work correctly
     assert_eq!(tasks.get("build").unwrap().to_command_string(), "cargo build");
     assert_eq!(tasks.get("tidy").unwrap().to_command_string(), "cargo fmt && cargo clippy");
+  }
+
+  #[test]
+  fn test_do_syntax_in_arrays() {
+    // Test the new "do: task_name" syntax
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    let yaml_content = r#"
+basic_task: "echo hello"
+chain_with_do:
+  - do: basic_task
+  - echo "after basic task"
+mixed_commands:
+  - "echo first command"
+  - do: basic_task
+  - "echo third command"
+"#;
+
+    let temp_file = NamedTempFile::new().unwrap();
+    fs::write(temp_file.path(), yaml_content).unwrap();
+
+    let result = load_tasks_file(temp_file.path().to_str().unwrap());
+    assert!(result.is_ok());
+
+    let tasks = result.unwrap();
+    assert_eq!(tasks.len(), 3);
+
+    // Check that "do:" syntax gets converted to "kernelle do"
+    if let Some(TaskCommand::Array(cmds)) = tasks.get("chain_with_do") {
+      assert_eq!(cmds.len(), 2);
+      assert_eq!(cmds[0], "kernelle do basic_task");
+      assert_eq!(cmds[1], "echo \"after basic task\"");
+    } else {
+      panic!("Expected TaskCommand::Array for 'chain_with_do' task");
+    }
+
+    // Check mixed commands
+    if let Some(TaskCommand::Array(cmds)) = tasks.get("mixed_commands") {
+      assert_eq!(cmds.len(), 3);
+      assert_eq!(cmds[0], "echo first command");
+      assert_eq!(cmds[1], "kernelle do basic_task");
+      assert_eq!(cmds[2], "echo third command");
+    } else {
+      panic!("Expected TaskCommand::Array for 'mixed_commands' task");
+    }
+
+    // Verify the command string generation works correctly
+    assert_eq!(
+      tasks.get("chain_with_do").unwrap().to_command_string(),
+      "kernelle do basic_task && echo \"after basic task\""
+    );
+    assert_eq!(
+      tasks.get("mixed_commands").unwrap().to_command_string(),
+      "echo first command && kernelle do basic_task && echo third command"
+    );
+  }
+
+  #[test]
+  fn test_invalid_do_syntax() {
+    // Test that invalid "do:" mappings are handled correctly
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    let yaml_content = r#"
+invalid_do_mapping:
+  - do: valid_task
+  - do:
+      nested: invalid
+"#;
+
+    let temp_file = NamedTempFile::new().unwrap();
+    fs::write(temp_file.path(), yaml_content).unwrap();
+
+    let result = load_tasks_file(temp_file.path().to_str().unwrap());
+    assert!(result.is_err());
+
+    let error_message = result.unwrap_err().to_string();
+    assert!(error_message.contains("Invalid mapping in array"));
+  }
+
+  #[test]
+  fn test_do_syntax_with_multiple_keys() {
+    // Test that mappings with multiple keys are rejected
+    use std::fs;
+    use tempfile::NamedTempFile;
+
+    let yaml_content = r#"
+invalid_task:
+  - do: valid_task
+    other_key: invalid
+"#;
+
+    let temp_file = NamedTempFile::new().unwrap();
+    fs::write(temp_file.path(), yaml_content).unwrap();
+
+    let result = load_tasks_file(temp_file.path().to_str().unwrap());
+    assert!(result.is_err());
+
+    let error_message = result.unwrap_err().to_string();
+    assert!(error_message.contains("Invalid mapping in array"));
   }
 }
