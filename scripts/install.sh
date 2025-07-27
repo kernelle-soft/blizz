@@ -10,16 +10,17 @@ show_install_usage() {
     echo ""
     echo "This script installs Kernelle and its dependencies. It will check for"
     echo "required system packages (OpenSSL development libraries, pkg-config)"
-    echo "and offer to install them automatically."
+    echo "and install them automatically."
     echo ""
     echo "Options:"
-    echo "  --non-interactive    Skip interactive prompts (for CI/automation)"
+    echo "  --non-interactive    Install dependencies automatically without prompts"
+    echo "                       (suitable for CI/automation)"
     echo "  --help, -h          Show this help message"
     echo ""
     echo "System Requirements:"
     echo "  - Rust toolchain (cargo)"
-    echo "  - OpenSSL development libraries"
-    echo "  - pkg-config"
+    echo "  - OpenSSL development libraries (installed automatically)"
+    echo "  - pkg-config (installed automatically)"
 }
 
 # Handle help and unknown options
@@ -92,19 +93,8 @@ check_system_dependencies() {
         echo ""
         
         if [ "$NON_INTERACTIVE" = true ]; then
-            echo "Running in non-interactive mode. Please install the following packages manually:"
-            if command -v apt-get >/dev/null 2>&1; then
-                echo "  sudo apt update && sudo apt install -y ${missing_deps[*]}"
-            elif command -v yum >/dev/null 2>&1; then
-                echo "  sudo yum install -y ${missing_deps[*]}"
-            elif command -v dnf >/dev/null 2>&1; then
-                echo "  sudo dnf install -y ${missing_deps[*]}"
-            elif command -v pacman >/dev/null 2>&1; then
-                echo "  sudo pacman -S ${missing_deps[*]}"
-            elif command -v brew >/dev/null 2>&1; then
-                echo "  brew install ${missing_deps[*]}"
-            fi
-            exit 1
+            echo "Running in non-interactive mode. Installing dependencies automatically..."
+            install_system_dependencies "${missing_deps[@]}"
         else
             echo "Would you like to install these dependencies automatically? (y/N)"
             read -r response
@@ -114,6 +104,19 @@ check_system_dependencies() {
                     ;;
                 *)
                     echo "Please install the dependencies manually and run the install script again."
+                    echo ""
+                    echo "Manual installation commands:"
+                    if command -v apt-get >/dev/null 2>&1; then
+                        echo "  sudo apt update && sudo apt install -y ${missing_deps[*]}"
+                    elif command -v yum >/dev/null 2>&1; then
+                        echo "  sudo yum install -y ${missing_deps[*]}"
+                    elif command -v dnf >/dev/null 2>&1; then
+                        echo "  sudo dnf install -y ${missing_deps[*]}"
+                    elif command -v pacman >/dev/null 2>&1; then
+                        echo "  sudo pacman -S ${missing_deps[*]}"
+                    elif command -v brew >/dev/null 2>&1; then
+                        echo "  brew install ${missing_deps[*]}"
+                    fi
                     exit 1
                     ;;
             esac
