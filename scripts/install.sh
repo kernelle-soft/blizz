@@ -8,9 +8,19 @@ set -euo pipefail
 show_install_usage() {
     echo "Usage: $0 [--non-interactive]"
     echo ""
+    echo "This script installs Kernelle and its dependencies. It will check for"
+    echo "required system packages (OpenSSL development libraries, pkg-config)"
+    echo "and install them automatically."
+    echo ""
     echo "Options:"
-    echo "  --non-interactive    Skip interactive prompts (for CI/automation)"
+    echo "  --non-interactive    Install dependencies automatically without prompts"
+    echo "                       (suitable for CI/automation)"
     echo "  --help, -h          Show this help message"
+    echo ""
+    echo "System Requirements:"
+    echo "  - Rust toolchain (cargo)"
+    echo "  - OpenSSL development libraries (installed automatically)"
+    echo "  - pkg-config (installed automatically)"
 }
 
 # Handle help and unknown options
@@ -49,10 +59,140 @@ parse_install_arguments() {
     done
 }
 
+# Check for required system dependencies
+check_system_dependencies() {
+    echo "🔍 Checking system dependencies..."
+    
+    local missing_deps=()
+    
+    # Check for pkg-config
+    if ! command -v pkg-config >/dev/null 2>&1; then
+        missing_deps+=("pkg-config")
+    fi
+    
+    # Check for OpenSSL development libraries
+    if ! pkg-config --exists openssl 2>/dev/null; then
+        local openssl_pkg
+        openssl_pkg=$(get_openssl_package_name)
+        if [ -n "$openssl_pkg" ]; then
+            missing_deps+=("$openssl_pkg")
+        fi
+    fi
+    
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        handle_missing_dependencies "${missing_deps[@]}"
+    else
+        echo "✅ All system dependencies are satisfied"
+    fi
+}
+
+# Get the appropriate OpenSSL package name for the current system
+get_openssl_package_name() {
+    if command -v apt-get >/dev/null 2>&1; then
+        echo "libssl-dev"
+    elif command -v yum >/dev/null 2>&1; then
+        echo "openssl-devel"
+    elif command -v dnf >/dev/null 2>&1; then
+        echo "openssl-devel"
+    elif command -v pacman >/dev/null 2>&1; then
+        echo "openssl"
+    elif command -v brew >/dev/null 2>&1; then
+        echo "openssl"
+    else
+        echo "⚠️  Could not determine package manager. Please install OpenSSL development libraries manually."
+        return 1
+    fi
+}
+
+# Handle missing dependencies based on interactive/non-interactive mode
+handle_missing_dependencies() {
+    local deps=("$@")
+    echo "❌ Missing required dependencies: ${deps[*]}"
+    echo ""
+    
+    if [ "$NON_INTERACTIVE" = true ]; then
+        echo "Running in non-interactive mode. Installing dependencies automatically..."
+        install_system_dependencies "${deps[@]}"
+    else
+        prompt_for_dependency_installation "${deps[@]}"
+    fi
+}
+
+# Prompt user for dependency installation in interactive mode
+prompt_for_dependency_installation() {
+    local deps=("$@")
+    echo "Would you like to install these dependencies automatically? (y/N)"
+    read -r response
+    case "$response" in
+        [yY][eE][sS]|[yY])
+            install_system_dependencies "${deps[@]}"
+            ;;
+        *)
+            show_manual_installation_commands "${deps[@]}"
+            exit 1
+            ;;
+    esac
+}
+
+# Show manual installation commands for dependencies
+show_manual_installation_commands() {
+    local deps=("$@")
+    echo "Please install the dependencies manually and run the install script again."
+    echo ""
+    echo "Manual installation commands:"
+    
+    if command -v apt-get >/dev/null 2>&1; then
+        echo "  sudo apt update && sudo apt install -y ${deps[*]}"
+    elif command -v yum >/dev/null 2>&1; then
+        echo "  sudo yum install -y ${deps[*]}"
+    elif command -v dnf >/dev/null 2>&1; then
+        echo "  sudo dnf install -y ${deps[*]}"
+    elif command -v pacman >/dev/null 2>&1; then
+        echo "  sudo pacman -S ${deps[*]}"
+    elif command -v brew >/dev/null 2>&1; then
+        echo "  brew install ${deps[*]}"
+    fi
+}
+
+# Install system dependencies based on the detected package manager
+install_system_dependencies() {
+    local deps=("$@")
+    echo "📦 Installing system dependencies: ${deps[*]}"
+    
+    # Log for CI/debugging purposes
+    if [ "${CI:-}" = "true" ] || [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+        echo "🔍 CI environment detected - logging package manager and OS info"
+        echo "OS: $(uname -a)"
+        if command -v lsb_release >/dev/null 2>&1; then
+            echo "Distribution: $(lsb_release -d)"
+        fi
+    fi
+    
+    if command -v apt-get >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y "${deps[@]}"
+    elif command -v yum >/dev/null 2>&1; then
+        sudo yum install -y "${deps[@]}"
+    elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y "${deps[@]}"
+    elif command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S "${deps[@]}"
+    elif command -v brew >/dev/null 2>&1; then
+        brew install "${deps[@]}"
+    else
+        echo "❌ Could not determine package manager. Please install dependencies manually."
+        exit 1
+    fi
+    
+    echo "✅ System dependencies installed successfully"
+}
+
 # Parse arguments
 parse_install_arguments "$@"
 
 echo "🚀 Installing Kernelle..."
+
+# Check system dependencies first
+check_system_dependencies
 
 # Configuration
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"

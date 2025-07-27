@@ -3717,9 +3717,9 @@ dependencies = [
  "colored",
  "dirs",
  "glob",
- "json5",
  "regex",
  "serde",
+ "serde_yaml",
  "tempfile",
 ]
 

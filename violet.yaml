@@ -1,0 +1,13 @@
+complexity:
+  thresholds: 
+    .sh: 6.5
+
+ignore_files:
+  #  [tsl-voxel] - Future cleanup project
+  - "crates/jerrod/**"
+  - "crates/sentinel/**"
+  - "crates/kernelle/**"
+
+ignore_patterns:
+  - \[cfg\(test\)\] # ignore rust inline test code
+  - \#\[test\]
