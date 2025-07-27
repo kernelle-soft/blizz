@@ -21,9 +21,6 @@ jobs:
       - name: Setup Kernelle Dependencies
         uses: ./.github/actions/setup-kernelle
 
-      - name: Build Project
-        run: kernelle do ci:build
-
       - name: Generate Coverage Report
         run: kernelle do coverage
 
@@ -42,8 +39,6 @@ jobs:
           output: both
           indicators: true
           badge: true
-          
-
 
       - name: Post coverage as PR comment
         if: github.event_name == 'pull_request'
