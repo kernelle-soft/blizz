@@ -3,19 +3,28 @@
 # ------------------------------------------------------------
 
 # PR Pre-checks
-checks: "kernelle do checks:base && kernelle do test"
-checks:full: "kernelle do checks:base && kernelle do coverage"
+checks: 
+  - kernelle do checks:base
+  - kernelle do test
+
+checks:full: 
+  - kernelle do checks:base 
+  - kernelle do coverage
 
 # Other Useful Tasks
 build: "kernelle do rust:build"
 clean: "kernelle do rust:clean"
-tidy: "kernelle do lint && kernelle do format"
-lint: "kernelle do rust:lint"
-format: "kernelle do rust:format && kernelle do endlines"
 audit: "kernelle do rust:audit"
 test: "kernelle do rust:test"
 coverage: "kernelle do rust:coverage"
 endlines: "bash scripts/ensure-final-newlines.sh --fix"
+lint: "kernelle do rust:lint"
+tidy: 
+  - kernelle do lint
+  - kernelle do format
+format: 
+  - kernelle do rust:format 
+  - kernelle do endlines
 
 # ------------------------------------------------------------
 # Pre-check Tasks
@@ -23,13 +32,21 @@ endlines: "bash scripts/ensure-final-newlines.sh --fix"
 # These subtasks will be used to orchestrate linting, formatting, and other checks for PRs 
 # Note: for now, these are mostly just aliases for rust tasks, but eventually python will be added to the mix
 
-checks:base: "kernelle do check:build && kernelle do check:tidy" # Base pre-checks, built from other checks below
+# Base pre-checks, built from other checks below
+checks:base: 
+  - kernelle do check:build 
+  - kernelle do check:tidy
 
 check:build: "kernelle do build"
 check:secure: "kernelle do rust:audit"
 check:test: "NO_COLOR=1 kernelle do rust:test"
 
-check:tidy: "kernelle do check:lint && kernelle do check:format && kernelle do check:endlines && kernelle do check:reading"
+check:tidy: 
+  - kernelle do check:lint 
+  - kernelle do check:format 
+  - kernelle do check:endlines 
+  - kernelle do check:reading
+
 check:reading: "violet ."
 check:lint: "kernelle do rust:lint:assert"
 check:format: "kernelle do rust:format:assert"
@@ -50,7 +67,9 @@ rust:format:assert: "cargo fmt --all -- --check"
 # Build and/or clean the Rust code
 rust:build: "cargo build --release"
 rust:clean: "cargo clean"
-rust:build:clean: "kernelle do rust:clean && kernelle do rust:build"
+rust:build:clean: 
+  - kernelle do rust:clean 
+  - kernelle do rust:build
 
 # Security Audit
 rust:audit: "cargo audit --deny warnings --deny unmaintained"
