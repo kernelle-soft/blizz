@@ -8,9 +8,18 @@ set -euo pipefail
 show_install_usage() {
     echo "Usage: $0 [--non-interactive]"
     echo ""
+    echo "This script installs Kernelle and its dependencies. It will check for"
+    echo "required system packages (OpenSSL development libraries, pkg-config)"
+    echo "and offer to install them automatically."
+    echo ""
     echo "Options:"
     echo "  --non-interactive    Skip interactive prompts (for CI/automation)"
     echo "  --help, -h          Show this help message"
+    echo ""
+    echo "System Requirements:"
+    echo "  - Rust toolchain (cargo)"
+    echo "  - OpenSSL development libraries"
+    echo "  - pkg-config"
 }
 
 # Handle help and unknown options
@@ -49,10 +58,101 @@ parse_install_arguments() {
     done
 }
 
+# Check for required system dependencies
+check_system_dependencies() {
+    echo "🔍 Checking system dependencies..."
+    
+    local missing_deps=()
+    
+    # Check for pkg-config
+    if ! command -v pkg-config >/dev/null 2>&1; then
+        missing_deps+=("pkg-config")
+    fi
+    
+    # Check for OpenSSL development libraries
+    if ! pkg-config --exists openssl 2>/dev/null; then
+        # Different package names on different systems
+        if command -v apt-get >/dev/null 2>&1; then
+            missing_deps+=("libssl-dev")
+        elif command -v yum >/dev/null 2>&1; then
+            missing_deps+=("openssl-devel")
+        elif command -v dnf >/dev/null 2>&1; then
+            missing_deps+=("openssl-devel")
+        elif command -v pacman >/dev/null 2>&1; then
+            missing_deps+=("openssl")
+        elif command -v brew >/dev/null 2>&1; then
+            missing_deps+=("openssl")
+        else
+            echo "⚠️  Could not determine package manager. Please install OpenSSL development libraries manually."
+        fi
+    fi
+    
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        echo "❌ Missing required dependencies: ${missing_deps[*]}"
+        echo ""
+        
+        if [ "$NON_INTERACTIVE" = true ]; then
+            echo "Running in non-interactive mode. Please install the following packages manually:"
+            if command -v apt-get >/dev/null 2>&1; then
+                echo "  sudo apt update && sudo apt install -y ${missing_deps[*]}"
+            elif command -v yum >/dev/null 2>&1; then
+                echo "  sudo yum install -y ${missing_deps[*]}"
+            elif command -v dnf >/dev/null 2>&1; then
+                echo "  sudo dnf install -y ${missing_deps[*]}"
+            elif command -v pacman >/dev/null 2>&1; then
+                echo "  sudo pacman -S ${missing_deps[*]}"
+            elif command -v brew >/dev/null 2>&1; then
+                echo "  brew install ${missing_deps[*]}"
+            fi
+            exit 1
+        else
+            echo "Would you like to install these dependencies automatically? (y/N)"
+            read -r response
+            case "$response" in
+                [yY][eE][sS]|[yY])
+                    install_system_dependencies "${missing_deps[@]}"
+                    ;;
+                *)
+                    echo "Please install the dependencies manually and run the install script again."
+                    exit 1
+                    ;;
+            esac
+        fi
+    else
+        echo "✅ All system dependencies are satisfied"
+    fi
+}
+
+# Install system dependencies based on the detected package manager
+install_system_dependencies() {
+    local deps=("$@")
+    echo "📦 Installing system dependencies: ${deps[*]}"
+    
+    if command -v apt-get >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y "${deps[@]}"
+    elif command -v yum >/dev/null 2>&1; then
+        sudo yum install -y "${deps[@]}"
+    elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y "${deps[@]}"
+    elif command -v pacman >/dev/null 2>&1; then
+        sudo pacman -S "${deps[@]}"
+    elif command -v brew >/dev/null 2>&1; then
+        brew install "${deps[@]}"
+    else
+        echo "❌ Could not determine package manager. Please install dependencies manually."
+        exit 1
+    fi
+    
+    echo "✅ System dependencies installed successfully"
+}
+
 # Parse arguments
 parse_install_arguments "$@"
 
 echo "🚀 Installing Kernelle..."
+
+# Check system dependencies first
+check_system_dependencies
 
 # Configuration
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
