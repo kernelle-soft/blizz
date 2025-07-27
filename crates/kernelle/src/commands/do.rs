@@ -65,12 +65,13 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
   let content =
     fs::read_to_string(path).map_err(|e| anyhow!("Failed to read tasks file '{}': {}", path, e))?;
 
-  json5::from_str(&content).map_err(|e| anyhow!("Failed to parse tasks file '{}': {}", path, e))
+  serde_yaml::from_str(&content)
+    .map_err(|e| anyhow!("Failed to parse tasks file '{}': {}", path, e))
 }
 
 fn load_merged_tasks_file() -> Result<TasksFile> {
-  let cursor_path = "./.cursor/kernelle.tasks";
-  let root_path = "./kernelle.tasks";
+  let cursor_path = "./.cursor/kernelle.yaml";
+  let root_path = "./kernelle.yaml";
 
   let cursor_exists = Path::new(cursor_path).exists();
   let root_exists = Path::new(root_path).exists();
