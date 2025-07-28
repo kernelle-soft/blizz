@@ -79,5 +79,5 @@ cargo check --workspace
 
 # Commit the version bump
 echo "Committing version bump to git..."
-git add *
+git add .
 git commit -m "$NEW_VERSION [skip ci]"
