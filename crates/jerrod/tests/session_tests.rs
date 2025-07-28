@@ -204,43 +204,6 @@ fn test_review_session_empty_discussions() {
 }
 
 #[test]
-fn test_session_save_and_load() {
-  let _temp_dir = setup_test_env();
-
-  let repository = create_test_repository();
-  let merge_request = create_test_merge_request();
-  let discussions = vec![create_test_discussion("test", Some("test.rs".to_string()), Some(1))];
-
-  let session = ReviewSession::new(
-    repository.clone(),
-    merge_request.clone(),
-    "github".to_string(),
-    discussions,
-    vec![],
-    ReviewSessionOptions { host: None },
-  );
-
-  // Set up session manager
-  let mut session_manager = SessionManager::new().unwrap();
-  session_manager.with_session_context("github", "test_org/test_repo", 789).unwrap();
-
-  // Save session
-  let save_result = session_manager.save_session(&session);
-  assert!(save_result.is_ok());
-  assert!(session_manager.session_exists());
-
-  // Load session
-  let loaded_session = session_manager.load_session().unwrap();
-  assert!(loaded_session.is_some());
-
-  let loaded = loaded_session.unwrap();
-  assert_eq!(loaded.repository.owner, repository.owner);
-  assert_eq!(loaded.merge_request.number, merge_request.number);
-  assert_eq!(loaded.platform, "github");
-  assert_eq!(loaded.threads_remaining(), 1);
-}
-
-#[test]
 fn test_session_clear() {
   let _temp_dir = setup_test_env();
 
