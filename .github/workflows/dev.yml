@@ -20,7 +20,7 @@ jobs:
         uses: ./.github/actions/setup-kernelle
 
       - name: Test with Coverage and Update Badge
-        uses: ./.github/actions/test-with-coverage
+        uses: ./.github/actions/test
         with:
           report-coverage: 'true'
           update-badge: 'true'
