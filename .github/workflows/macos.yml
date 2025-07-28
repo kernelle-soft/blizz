@@ -22,4 +22,4 @@ jobs:
         uses: ./.github/actions/setup-kernelle
 
       - name: Test
-        uses: ./.github/actions/test-with-coverage
+        uses: ./.github/actions/test
