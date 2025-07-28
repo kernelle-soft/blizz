@@ -9,7 +9,7 @@ env:
 
 jobs:
   coverage-linux:
-    name: Coverage (Linux)
+    name: Validate and Tag
     runs-on: ubuntu-latest
 
     steps:
@@ -24,3 +24,11 @@ jobs:
         with:
           report-coverage: 'true'
           update-badge: 'true'
+
+      - name: Bump and Tag Version
+        run: |
+          .github/run/bump-version.sh
+          .github/run/tag-version.sh
+        
+      - name: Push Changes
+        run: git push origin dev
