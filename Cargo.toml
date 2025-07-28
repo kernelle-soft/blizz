@@ -11,11 +11,11 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
-authors = ["Jeff <jeffhilton.ctr@gmail.com>"]
+authors = ["Voxel <travelsizedlions@gmail.com>"]
 license = "Private"
-repository = "https://github.com/jhilton/bentley"
+repository = "https://github.com/TravelsizedLions/kernelle"
 
 [workspace.dependencies]
 bentley = { path = "crates/bentley" }
