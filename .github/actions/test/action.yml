@@ -2,42 +2,40 @@ name: 'Test with Optional Coverage'
 description: 'Runs Kernelle tests and optionally generates coverage reports with PR comments and badge updates'
 
 inputs:
-  generate-coverage:
+  report-coverage:
     description: 'Whether to generate coverage reports'
     required: false
     default: 'false'
-  upload-coverage:
-    description: 'Whether to upload coverage artifacts'
-    required: false
-    default: 'false'
   post-pr-comment:
-    description: 'Whether to post coverage as PR comment (only effective when generate-coverage is true)'
+    description: 'Whether to post coverage as PR comment (only effective when report-coverage is true)'
     required: false
     default: 'false'
   update-badge:
-    description: 'Whether to update coverage badge in README (only effective when generate-coverage is true and on push to dev)'
+    description: 'Whether to update coverage badge in README (only effective when report-coverage is true and on push to dev)'
     required: false
     default: 'false'
   coverage-artifact-name:
     description: 'Name for the coverage artifact'
     required: false
-    default: 'coverage-report'
+    default: 'coverage'
 
 runs:
   using: 'composite'
   steps:
-    - name: Run Tests (No Coverage)
-      if: inputs.generate-coverage != 'true'
+    # Simple Case: Run tests without coverage
+    - name: Run tests
+      if: inputs.report-coverage != 'true'
       shell: bash
       run: kernelle do test
 
-    - name: Generate Coverage Report
-      if: inputs.generate-coverage == 'true'
+    # Coverage Case: Run tests with coverage reporting
+    - name: Run tests with coverage reporting
+      if: inputs.report-coverage == 'true'
       shell: bash
       run: kernelle do coverage
 
     - name: Upload Coverage Reports
-      if: inputs.generate-coverage == 'true' && inputs.upload-coverage == 'true'
+      if: inputs.report-coverage == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.coverage-artifact-name }}
@@ -45,7 +43,7 @@ runs:
         retention-days: 30
       
     - name: Generate coverage summary
-      if: inputs.generate-coverage == 'true'
+      if: inputs.report-coverage == 'true'
       uses: irongut/CodeCoverageSummary@v1.3.0
       with:
         filename: coverage/cobertura.xml
@@ -55,14 +53,14 @@ runs:
         badge: true
 
     - name: Post coverage as PR comment
-      if: inputs.generate-coverage == 'true' && inputs.post-pr-comment == 'true' && github.event_name == 'pull_request'
+      if: inputs.report-coverage == 'true' && inputs.post-pr-comment == 'true' && github.event_name == 'pull_request'
       uses: marocchino/sticky-pull-request-comment@v2
       with:
         recreate: true
         path: code-coverage-results.md
         
     - name: Update coverage badge in README
-      if: inputs.generate-coverage == 'true' && inputs.update-badge == 'true' && github.ref == 'refs/heads/dev' && github.event_name == 'push'
+      if: inputs.report-coverage == 'true' && inputs.update-badge == 'true' && github.ref == 'refs/heads/dev' && github.event_name == 'push'
       shell: bash
       run: |
         # Extract the badge line (first line) from the coverage results

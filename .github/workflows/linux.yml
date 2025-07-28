@@ -20,9 +20,8 @@ jobs:
         uses: ./.github/actions/setup-kernelle
 
       - name: Test with Coverage
-        uses: ./.github/actions/test-with-coverage
+        uses: ./.github/actions/test
         with:
-          generate-coverage: 'true'
-          upload-coverage: 'true'
+          report-coverage: 'true'
           post-pr-comment: 'true'
-          coverage-artifact-name: 'linux-coverage'
+          coverage-artifact-name: 'pr-coverage'
