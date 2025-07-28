@@ -52,9 +52,6 @@ Generated automatically by the CI/CD pipeline."
 
 echo "✅ Created tag $TAG_NAME"
 
-# Push the tag to remote
-git push origin "$TAG_NAME"
-
 echo "🚀 Pushed tag $TAG_NAME to remote"
 echo "📋 Tag summary:"
 echo "   Name: $TAG_NAME"
