@@ -28,10 +28,6 @@ jobs:
       - name: Verify Release Version Matches Cargo.toml
         run: .github/run/assert-version-match.sh \
           "${{ steps.version.outputs.version }}"
-     
-      - name: Create Release Archive
-        run: .github/run/create-archive.sh \
-          "${{ steps.version.outputs.tag }}"
       
       - name: Generate Release Notes
         run: .github/run/create-release-notes.sh \
@@ -44,9 +40,6 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Kernelle ${{ steps.version.outputs.version }}
           body_path: release_notes.md
-          files: |
-            kernelle-${{ steps.version.outputs.tag }}-source.tar.gz
-            kernelle-${{ steps.version.outputs.tag }}-source.zip
           draft: false
           prerelease: false
         env:
