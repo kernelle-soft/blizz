@@ -1,15 +1,15 @@
-name: Linux
+name: Validate Development Branch
 
 on:
-  pull_request:
+  push:
     branches: [dev]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test-linux:
-    name: Test (Linux)
+  coverage-linux:
+    name: Coverage (Linux)
     runs-on: ubuntu-latest
 
     steps:
@@ -19,10 +19,10 @@ jobs:
       - name: Setup Kernelle Dependencies
         uses: ./.github/actions/setup-kernelle
 
-      - name: Test with Coverage
+      - name: Test with Coverage and Update Badge
         uses: ./.github/actions/test-with-coverage
         with:
           generate-coverage: 'true'
           upload-coverage: 'true'
-          post-pr-comment: 'true'
-          coverage-artifact-name: 'linux-coverage'
+          update-badge: 'true'
+          coverage-artifact-name: 'stable-coverage'
