@@ -27,9 +27,15 @@ aes-gcm = "0.10"
 rand = "0.9"
 base64 = "0.20"
 native-dialog = "0.7"
+sha2 = "0.10"
+argon2 = "0.5"
+hostname = "0.4"
+whoami = "1.4"
+uuid = "1.10"
 
 [dev-dependencies]
 tempfile = "3.20"
+hex = "0.4"
 
 [lib]
 name = "sentinel"
