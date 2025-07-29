@@ -315,3 +315,73 @@ fn test_credential_cache_multiple_services() {
   cache.store("github_token".to_string(), "github_token".to_string());
   cache.store("gitlab_token".to_string(), "gitlab_token".to_string());
 }
+
+#[test]
+fn test_argon2_specific_properties() {
+  let _temp_dir = setup_test_env();
+
+  let machine_key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  let salt = vec![16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
+  // Test that Argon2 is computationally intensive (takes measurable time)
+  let start = std::time::Instant::now();
+  let _key = EncryptionManager::derive_key("password", &machine_key, &salt).unwrap();
+  let duration = start.elapsed();
+  
+  // Argon2 should take at least some time (more than 1ms due to work factor)
+  assert!(duration.as_millis() > 0, "Argon2 should take measurable time");
+  
+  // Test that different salts produce different keys (salt dependency)
+  let salt2 = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  let key1 = EncryptionManager::derive_key("password", &machine_key, &salt).unwrap();
+  let key2 = EncryptionManager::derive_key("password", &machine_key, &salt2).unwrap();
+  assert_ne!(key1, key2, "Different salts should produce different keys");
+  
+  // Test that small password changes produce very different keys (avalanche effect)
+  let key_a = EncryptionManager::derive_key("password", &machine_key, &salt).unwrap();
+  let key_b = EncryptionManager::derive_key("passworD", &machine_key, &salt).unwrap(); // One char different
+  
+  // Count differing bytes - should be significant for good key derivation
+  let differing_bytes = key_a.iter().zip(key_b.iter()).filter(|(a, b)| a != b).count();
+  assert!(differing_bytes > 15, "Single char change should affect many bytes, got {} differing", differing_bytes);
+}
+
+#[test]
+fn test_argon2_salt_padding() {
+  let _temp_dir = setup_test_env();
+
+  let machine_key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  
+  // Test that short salts are handled properly (padded to minimum length)
+  let short_salt = vec![1, 2, 3]; // Only 3 bytes
+  let result = EncryptionManager::derive_key("password", &machine_key, &short_salt);
+  assert!(result.is_ok(), "Short salt should be handled gracefully");
+  assert_eq!(result.unwrap().len(), 32, "Should still produce 32-byte key");
+  
+  // Test that empty salt is handled
+  let empty_salt = vec![];
+  let result = EncryptionManager::derive_key("password", &machine_key, &empty_salt);
+  assert!(result.is_ok(), "Empty salt should be handled gracefully");
+  assert_eq!(result.unwrap().len(), 32, "Should still produce 32-byte key");
+}
+
+#[test]
+fn test_argon2_security_parameters() {
+  let _temp_dir = setup_test_env();
+
+  let machine_key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  let salt = vec![16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  
+  // Test that Argon2 produces consistent results (deterministic)
+  let key1 = EncryptionManager::derive_key("password", &machine_key, &salt).unwrap();
+  let key2 = EncryptionManager::derive_key("password", &machine_key, &salt).unwrap();
+  assert_eq!(key1, key2, "Argon2 should be deterministic");
+  
+  // Test that machine key integration works
+  let machine_key2 = vec![16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  let key_diff_machine = EncryptionManager::derive_key("password", &machine_key2, &salt).unwrap();
+  assert_ne!(key1, key_diff_machine, "Different machine keys should produce different results");
+  
+  // Test that output length is always 32 bytes
+  assert_eq!(key1.len(), 32, "Argon2 should always produce 32-byte key");
+}

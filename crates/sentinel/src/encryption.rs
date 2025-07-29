@@ -3,6 +3,10 @@ use aes_gcm::{
   Aes256Gcm, Key, Nonce,
 };
 use anyhow::{anyhow, Result};
+use argon2::{
+  password_hash::{PasswordHasher, SaltString},
+  Argon2, Params,
+};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -60,8 +64,16 @@ impl Default for CredentialCache {
 
 /// Encryption manager for double-encrypted credentials
 ///
-/// This manager provides secure key derivation and encryption operations using SHA-256
-/// for key derivation and AES-256-GCM for symmetric encryption.
+/// This manager provides secure key derivation and encryption operations using Argon2id
+/// for password-based key derivation and AES-256-GCM for symmetric encryption.
+///
+/// # Security Features
+///
+/// - **Argon2id**: Uses the winner of the Password Hashing Competition for key derivation
+/// - **Memory-hard**: Resistant to specialized hardware attacks (ASICs, GPUs)
+/// - **Time-hard**: Configurable computational cost to resist brute-force attacks
+/// - **Salt-based**: Each encryption uses a unique salt to prevent rainbow table attacks
+/// - **Machine-binding**: Keys are bound to specific machines via hostname+username
 ///
 /// **Note**: This is an internal implementation detail. Services should use the
 /// `CredentialProvider` trait instead of calling these functions directly.
@@ -97,11 +109,12 @@ impl EncryptionManager {
     Ok(hash_result.to_vec())
   }
 
-  /// Derive encryption key from master password and machine key
+  /// Derive encryption key from master password and machine key using Argon2
   ///
-  /// This function combines a master password, machine-specific key, and salt to create
-  /// a secure 32-byte encryption key using SHA-256. The derivation is deterministic,
-  /// meaning the same inputs will always produce the same output.
+  /// This function uses Argon2id (the recommended variant) for password-based key derivation,
+  /// combining a master password, machine-specific key, and salt to create a secure 32-byte
+  /// encryption key. Argon2 provides resistance against timing attacks, side-channel attacks,
+  /// and brute-force attacks through configurable memory and time costs.
   ///
   /// **Note**: This is an internal function. Use the `CredentialProvider` trait instead.
   ///
@@ -109,30 +122,62 @@ impl EncryptionManager {
   ///
   /// * `master_password` - The user's master password
   /// * `machine_key` - Machine-specific key component (from `machine_key()`)
-  /// * `salt` - Random salt data for this specific encryption
+  /// * `salt` - Random salt data for this specific encryption (minimum 8 bytes for Argon2)
   ///
   /// # Returns
   ///
   /// A `Result<Vec<u8>>` containing a 32-byte derived encryption key.
   pub fn derive_key(master_password: &str, machine_key: &[u8], salt: &[u8]) -> Result<Vec<u8>> {
-    // Combine master password, machine key, and salt
-    let mut combined = Vec::new();
-    combined.extend_from_slice(master_password.as_bytes());
-    combined.extend_from_slice(machine_key);
-    combined.extend_from_slice(salt);
+    // Combine master password with machine key to create password input
+    // This ensures that the same password on different machines produces different keys
+    let mut password_input = Vec::new();
+    password_input.extend_from_slice(master_password.as_bytes());
+    password_input.extend_from_slice(machine_key);
 
-    // Use SHA-256 to create encryption key
-    let mut hasher = Sha256::new();
-    hasher.update(&combined);
-    let hash_result = hasher.finalize();
+    // Ensure salt meets Argon2's minimum requirements (8 bytes)
+    // If provided salt is too short, pad it with zeros (for edge case handling)
+    let effective_salt = if salt.len() < 8 {
+      let mut padded_salt = salt.to_vec();
+      padded_salt.resize(8, 0u8);  // Pad with zeros to reach minimum length
+      padded_salt
+    } else {
+      salt.to_vec()
+    };
 
-    // Return the 32-byte SHA-256 hash as the key
-    Ok(hash_result.to_vec())
+    // Configure Argon2 with secure parameters
+    // These parameters balance security with performance:
+    // - memory_cost: 65536 KB (64 MB) - reasonable for desktop use
+    // - time_cost: 3 iterations - good security/performance tradeoff
+    // - parallelism: 4 lanes - leverages multi-core systems
+    let params = Params::new(65536, 3, 4, Some(32))
+      .map_err(|e| anyhow!("Failed to create Argon2 params: {}", e))?;
+    
+    let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
+
+    // Convert salt to the format expected by Argon2
+    let salt_string = SaltString::encode_b64(&effective_salt)
+      .map_err(|e| anyhow!("Failed to encode salt: {}", e))?;
+
+    // Derive key using Argon2
+    let hash = argon2
+      .hash_password(&password_input, &salt_string)
+      .map_err(|e| anyhow!("Argon2 key derivation failed: {}", e))?;
+
+    // Extract the 32-byte key from the hash
+    let hash_output = hash.hash
+      .ok_or_else(|| anyhow!("Argon2 produced no hash output"))?;
+    let key_bytes = hash_output.as_bytes();
+
+    if key_bytes.len() != 32 {
+      return Err(anyhow!("Argon2 produced incorrect key length: expected 32, got {}", key_bytes.len()));
+    }
+
+    Ok(key_bytes.to_vec())
   }
 
   /// Encrypt credentials with double encryption
   pub fn encrypt_credentials(
-    credentials: &HashMap<String, String>,
+    credentials: &HashMap<String, HashMap<String, String>>,
     master_password: &str,
   ) -> Result<EncryptedBlob> {
     // Generate salt and machine key
@@ -163,7 +208,7 @@ impl EncryptionManager {
   pub fn decrypt_credentials(
     blob: &EncryptedBlob,
     master_password: &str,
-  ) -> Result<HashMap<String, String>> {
+  ) -> Result<HashMap<String, HashMap<String, String>>> {
     // Derive the same encryption key
     let machine_key = Self::machine_key()?;
     let encryption_key = Self::derive_key(master_password, &machine_key, &blob.salt)?;
@@ -177,7 +222,7 @@ impl EncryptionManager {
       cipher.decrypt(nonce, blob.data.as_ref()).map_err(|e| anyhow!("Decryption failed: {}", e))?;
 
     // Deserialize credentials
-    let credentials: HashMap<String, String> = serde_json::from_slice(&decrypted_data)?;
+    let credentials: HashMap<String, HashMap<String, String>> = serde_json::from_slice(&decrypted_data)?;
 
     Ok(credentials)
   }
