@@ -284,7 +284,6 @@ Given that `sentinel` already provides a solid foundation with CLI commands and 
   - [ ] Implement Argon2 or PBKDF2 for key derivation
   - [ ] Add user password component to key derivation
   - [ ] Maintain device fingerprint as implicit salt
-  - [ ] Ensure backward compatibility with existing secrets (migration path)
 
 - [ ] **Enhance device fingerprinting**
   - [ ] Make device fingerprint more robust (hardware UUID, OS identifiers)
