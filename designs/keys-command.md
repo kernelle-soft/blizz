@@ -5,12 +5,14 @@ Most Key Management solutions for MCPs kind of suck. They're either not actually
 Ideally, key management for MCPs should:
 - Keep your keys safe
   - Secrets stay local
-  - Secrets stay ephemeral
+  - Secrets stay ephemeral (no persistent in-memory cache)
   - Secrets use second-layer encryption
-  - Second-layer encyption for them should only be decryptable on the system the MCP is running on.
+  - Second-layer encryption for them should only be decryptable on the system the MCP is running on
+  - Device-specific key derivation prevents secrets from being accessible on different machines
 - Just do its thing behind the scenes, just like running the MCP itself
 - Ask for you to provide keys only when actually needed
-- Authenticate ONCE for access to all keys using a non-annoying method (i.e., an environment variable to pass the authentication through to in your bash/zsh configs.)
+- Authenticate ONCE for access to all keys using a non-annoying method (i.e., an environment variable to pass the authentication through to in your bash/zsh configs)
+- Sessionless design: derived keys are stored like SSH keys for service restarts
 
 ## CLI API
 
@@ -40,7 +42,7 @@ usage: KEEPER_AUTH="<your system password>" keeper store [-g <group-name>] <secr
 
 Arguments:
   <secret-name>   The key/name to store the secret as. Good names use-bash-safe-naming patterns.
-  <secret>        The actual secret to save. Once provided, this secret will be encrypted and stored under ~/.kernelle/secrets.json5
+  <secret>        The actual secret to save. Once provided, this secret will be encrypted and stored under ~/.kernelle/secrets.json
 
 Options
   -g, --group <group-name>    The group to store the secret under. Good group names use-bash-safe-naming patterns.
@@ -78,5 +80,112 @@ group-name     ...
 Options:
   -g, --group   Filter the listing by group. If the group does not exist, no output will be provided.
   -h, --help    Displays this help section
+```
+
+## Security Architecture
+
+### Key Derivation
+- Master key is derived from:
+  - User's system password (via `KEEPER_AUTH` environment variable)
+  - Device-specific fingerprint (hardware UUID, OS identifiers - robust against minor upgrades)
+- Uses strong KDF (Argon2 or PBKDF2) to combine these inputs
+- Device fingerprint serves as an implicit salt (prevents rainbow table attacks across devices)
+- Derived key is stored securely in `~/.kernelle/keeper.key` (like SSH private key)
+- Key file has restricted permissions (600) and is reused for service restarts
+
+### Encryption
+- Secrets encrypted with AES-256-GCM at rest
+- No persistent in-memory credential cache - secrets are ephemeral
+- Encrypted blobs stored in `~/.kernelle/secrets.json`
+- Each secret has its own unique nonce (required for AES-GCM security)
+- No separate salt needed (device fingerprint provides uniqueness)
+
+### Device Changes
+- If device password changes, re-derive key and re-encrypt all secrets
+- Migration tool available for device transfers or major hardware changes
+- Device fingerprint designed to be stable across minor system updates
+
+### Memory Security
+- Secrets zeroed from memory immediately after use
+- No long-lived storage of decrypted values
+- Secure memory handling throughout
+
+## Integration Philosophy
+
+### Service-Agnostic API
+`keeper` provides a simple trait-based interface that handles all secret management complexity:
+
+```rust
+pub trait SecretProvider {
+  fn get_secret(&self, group: &str, name: &str) -> Result<String>;
+  fn store_secret(&self, group: &str, name: &str, value: &str) -> Result<()>;
+}
+```
+
+### Transparent Secret Handling
+Services and tools can request secrets without worrying about:
+- **Existence checking** - `keeper` handles missing secrets automatically
+- **User prompting** - If a secret doesn't exist, user is prompted seamlessly
+- **Encryption/decryption** - All cryptographic operations are transparent
+- **Storage management** - File paths, permissions, and persistence handled internally
+- **Device compatibility** - Key derivation and device fingerprinting abstracted away
+
+### Usage Pattern
+```rust
+// Service just asks for what it needs
+let api_key = secret_provider.get_secret("github", "token")?;
+
+// keeper handles:
+// 1. Check if secret exists
+// 2. If not, prompt: "GitHub token not found. Please enter your GitHub token:"
+// 3. Encrypt and store the secret
+// 4. Return the secret value
+// 5. Zero the secret from memory
+```
+
+### Benefits
+- **Zero configuration** - Services work out of the box
+- **User-friendly** - Prompts appear only when actually needed
+- **Secure by default** - All secrets encrypted and ephemeral
+- **Sessionless** - Works across service restarts without re-authentication
+
+### Testing Support
+`keeper` provides a mock implementation for testing scenarios:
+
+```rust
+pub struct MockSecretProvider {
+  secrets: HashMap<(String, String), String>,
+}
+
+impl MockSecretProvider {
+  pub fn new() -> Self { /* ... */ }
+  
+  pub fn with_secret(mut self, group: &str, name: &str, value: &str) -> Self {
+    self.secrets.insert((group.to_string(), name.to_string()), value.to_string());
+    self
+  }
+}
+
+impl SecretProvider for MockSecretProvider {
+  fn get_secret(&self, group: &str, name: &str) -> Result<String> {
+    // Returns pre-configured test secrets, no prompting
+  }
+  
+  fn store_secret(&self, group: &str, name: &str, value: &str) -> Result<()> {
+    // Stores in memory for test verification
+  }
+}
+```
+
+Usage in tests:
+```rust
+#[test]
+fn test_service_functionality() {
+  let mock_secrets = MockSecretProvider::new()
+    .with_secret("github", "token", "test_token_123");
+  
+  let service = MyService::new(Box::new(mock_secrets));
+  // Test service logic without real secrets or user prompts
+}
 ```
 
