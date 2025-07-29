@@ -21,7 +21,7 @@ keeper -h
 
 Secrets management for Kernelle, the AI toolshed.
 
-usage: KEEPER_AUTH="<your system password>" keeper <command>
+usage: keeper <command>
 
 Commands:
   store         Stores a secret
@@ -38,11 +38,11 @@ keeper store -h
 
 Stores a secret
 
-usage: KEEPER_AUTH="<your system password>" keeper store [-g <group-name>] <secret-name> <secret>
+usage: keeper store [-g <group-name>] <secret-name> [<secret>]
 
 Arguments:
   <secret-name>   The key/name to store the secret as. Good names use-bash-safe-naming patterns.
-  <secret>        The actual secret to save. Once provided, this secret will be encrypted and stored under ~/.kernelle/secrets.json
+  <secret>        The actual secret to save. If not provided, will prompt securely.
 
 Options
   -g, --group <group-name>    The group to store the secret under. Good group names use-bash-safe-naming patterns.
@@ -54,7 +54,7 @@ keeper read -h
 
 Retrieves a secret
 
-usage: KEEPER_AUTH="<your system password>" keeper read [-g <group-name>] <secret-name>
+usage: keeper read [-g <group-name>] <secret-name>
 
 Arguments:
   <secret-name>   The key/name of the secret. Good names use-bash-safe-naming patterns.
@@ -86,12 +86,13 @@ Options:
 
 ### Key Derivation
 - Master key is derived from:
-  - User's system password (via `KEEPER_AUTH` environment variable)
+  - User's system password (prompted once, then derived key cached)
   - Device-specific fingerprint (hardware UUID, OS identifiers - robust against minor upgrades)
 - Uses strong KDF (Argon2 or PBKDF2) to combine these inputs
 - Device fingerprint serves as an implicit salt (prevents rainbow table attacks across devices)
 - Derived key is stored securely in `~/.kernelle/keeper.key` (like SSH private key)
 - Key file has restricted permissions (600) and is reused for service restarts
+- User prompted for password only when derived key doesn't exist or is invalid
 
 ### Encryption
 - Secrets encrypted with AES-256-GCM at rest
@@ -109,6 +110,64 @@ Options:
 - Secrets zeroed from memory immediately after use
 - No long-lived storage of decrypted values
 - Secure memory handling throughout
+
+## Keeper Daemon
+
+### Purpose
+The `keeper-daemon` is a minimal background service with a single responsibility: hold the derived master key in memory to eliminate password prompts.
+
+### Responsibilities
+- **Key Storage Only**: Hold the derived master key in secure memory
+- **Simple IPC**: Respond to "get master key" requests via Unix socket
+- **Session Management**: Start on login, cleanup on logout
+- **Memory Security**: Secure memory allocation and cleanup
+
+### What the Daemon Does NOT Do
+- **No secret encryption/decryption** - `keeper` CLI/library handles this
+- **No secret storage** - `keeper` CLI/library reads/writes files directly  
+- **No business logic** - just a secure key container
+
+### Architecture
+```
+┌──────────────────┐                   ┌──────────────────┐
+│   keeper CLI     │ ──get_key()──→    │  keeper-daemon   │
+│                  │ ←─master_key───   │                  │
+│ - Encrypt/decrypt│                   │ - Master Key     │
+│ - File I/O       │                   │ - Unix Socket    │
+│ - User prompts   │                   │ - Memory Mgmt    │
+│ - Business logic │                   └──────────────────┘
+└──────────────────┘                   
+```
+
+### IPC Protocol (Ultra Simple)
+```
+Client Request:  "GET_KEY\n"
+Daemon Response: "<32-byte-key>" | "ERROR: <message>"
+```
+
+### Daemon Commands
+```bash
+# Start daemon (prompts for password once, derives and caches key)
+keeper agent start
+
+# Check if daemon is running and has valid key
+keeper agent status
+
+# Stop daemon (securely clears key from memory)
+keeper agent stop
+
+# Stop, then start the daemon again.
+keeper agent restart
+```
+
+### Fallback Behavior
+If daemon is not running, `keeper` CLI:
+1. Tries to load key from `~/.kernelle/keeper.key`
+2. If missing/invalid, prompts user for password
+3. Derives key, uses it, then discards from memory
+4. Optionally saves derived key to file for next time
+
+This keeps the daemon **dead simple** - it's just a secure memory container for one piece of data.
 
 ## Integration Philosophy
 
