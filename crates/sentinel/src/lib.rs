@@ -685,10 +685,7 @@ mod tests {
     credentials_path.push("credentials.enc");
     let crypto = PasswordBasedCryptoManager { credentials_path };
 
-    Sentinel {
-      service_name: format!("test_kernelle_{unique_id}"),
-      crypto: Box::new(crypto),
-    }
+    Sentinel { service_name: format!("test_kernelle_{unique_id}"), crypto: Box::new(crypto) }
   }
 
   #[test]
