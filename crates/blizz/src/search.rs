@@ -266,7 +266,7 @@ fn try_get_embedding(
     recompute_embedding(insight, options)?
   };
 
-  Ok(crate::similarity::cosine(&query_embedding, &content_embedding))
+  Ok(similarity::cosine(&query_embedding, &content_embedding))
 }
 
 /// Recompute the embedding for an insight and save it to the file system.
