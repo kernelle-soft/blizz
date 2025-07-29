@@ -654,7 +654,6 @@ mod tests {
   fn test_format_chunk_preview_unicode_characters() {
     let prefix = "a".repeat(66);
     let line_with_unicode = format!("{}←rest of the line", prefix);
-    
     let chunk_score = ComplexityRegion {
       score: 5.0,
       start_line: 1,
@@ -671,7 +670,6 @@ mod tests {
     };
 
     let preview = format_chunk_preview(&chunk_score);
-    
     assert!(preview.contains("..."));
     assert!(preview.contains("aaa"));
     assert!(preview.len() > 0);
