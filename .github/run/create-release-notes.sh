@@ -10,7 +10,7 @@ if [ $# -ne 2 ]; then
   exit 1
 fi
 
-TAG="$1"
+TAG="$(echo "$1" | xargs)"
 VERSION="$2"
 OUTPUT_FILE="release_notes.md"
 
@@ -18,7 +18,9 @@ echo "🔍 Generating release notes for $TAG (version $VERSION)"
 
 # Get previous tag for changelog
 # We want the tag before the current one, not HEAD~1
+
 PREV_TAG=$(git tag --sort=-version:refname | grep -v "^$TAG$" | head -1 2>/dev/null || echo "")
+PREV_TAG="$(echo "$PREV_TAG" | xargs)"
 
 if [ ! -z "$PREV_TAG" ]; then
   echo "📝 Found previous tag: $PREV_TAG"
