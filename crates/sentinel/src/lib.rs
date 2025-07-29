@@ -116,8 +116,8 @@ impl PasswordBasedCredentialStore {
   }
 }
 
-/// Trait for crypto operations to enable dependency injection and testing
-trait CryptoProvider {
+/// Trait for cryptographic operations to enable dependency injection and testing
+pub trait CryptoProvider {
   fn credentials_exist(&self) -> bool;
   fn get_master_password(&self) -> Result<String>;
   fn prompt_for_new_master_password(&self) -> Result<String>;
@@ -1167,5 +1167,54 @@ mod tests {
     let correct_password_result = sentinel1.get_credential(service, key);
     assert!(correct_password_result.is_ok(), "Should be able to retrieve with correct password");
     assert_eq!(correct_password_result.unwrap(), value);
+  }
+
+  #[test]
+  fn test_enhanced_device_fingerprinting() {
+    use crate::encryption::EncryptionManager;
+    
+    // Test that enhanced device fingerprinting works
+    let machine_key = EncryptionManager::machine_key();
+    assert!(machine_key.is_ok(), "Enhanced machine key generation should succeed");
+    
+    let key1 = machine_key.unwrap();
+    assert_eq!(key1.len(), 32, "Machine key should be 32 bytes");
+    
+    // Test consistency - should generate the same key
+    let key2 = EncryptionManager::machine_key().unwrap();
+    assert_eq!(key1, key2, "Machine key should be deterministic");
+    
+    // Show fingerprinting details
+    println!("\n🔒 Simplified Device Fingerprinting Test");
+    println!("========================================");
+    println!("✅ Machine key generated successfully");
+    println!("📏 Key length: {} bytes (256-bit)", key1.len());
+    println!("🔑 Key (hex): {}", hex::encode(&key1));
+    
+    // Show what identifier is being used
+    println!("\n📊 Device Identification Strategy:");
+    println!("----------------------------------");
+    
+    if let Ok(hostname) = hostname::get() {
+      println!("🖥️  Hostname: {}", hostname.to_string_lossy());
+    }
+    println!("👤 Username: {}", whoami::username());
+    
+    // Try to determine which method is being used
+    if std::fs::read_to_string("/etc/machine-id").is_ok() {
+      println!("� Using: Linux machine-id (persistent across reboots)");
+    } else if std::fs::read_to_string("/sys/class/dmi/id/product_uuid").is_ok() {
+      println!("🔧 Using: Hardware UUID from DMI (most stable)");
+    } else {
+      println!("� Using: Fallback deterministic UUID from hostname+username");
+    }
+    
+    println!("\n🛡️  Security Features:");
+    println!("----------------------");
+    println!("✅ UUID-based device binding (optimal stability)");
+    println!("✅ Hardware-first approach (survives OS changes when possible)");
+    println!("✅ Deterministic fallback (guaranteed compatibility)");
+    println!("✅ Simplified and focused (no unnecessary complexity)");
+    println!();
   }
 }

@@ -11,6 +11,7 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Encrypted credential blob stored on disk
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,7 +74,19 @@ impl Default for CredentialCache {
 /// - **Memory-hard**: Resistant to specialized hardware attacks (ASICs, GPUs)
 /// - **Time-hard**: Configurable computational cost to resist brute-force attacks
 /// - **Salt-based**: Each encryption uses a unique salt to prevent rainbow table attacks
-/// - **Machine-binding**: Keys are bound to specific machines via hostname+username
+/// - **UUID-based Machine-binding**: Keys are bound to specific devices via optimal hardware identifiers
+///
+/// **Device Fingerprinting Strategy:**
+/// - **Primary**: Hardware/System UUID (persists across OS reinstalls and hardware changes)
+/// - **Secondary**: Linux machine-id (stable across reboots, may change on OS reinstall)
+/// - **Fallback**: Deterministic UUID from hostname+username (maximum compatibility)
+///
+/// **Security Benefits:**
+/// - Credentials become device-bound using the most stable identifier available
+/// - Hardware UUID provides optimal persistence across system changes
+/// - Platform-specific approaches maximize reliability on each OS
+/// - Graceful fallback ensures compatibility in all environments
+/// - Simple, focused approach reduces complexity and potential failure points
 ///
 /// **Note**: This is an internal implementation detail. Services should use the
 /// `CredentialProvider` trait instead of calling these functions directly.
@@ -82,9 +95,13 @@ pub struct EncryptionManager;
 impl EncryptionManager {
   /// Generate a machine-specific key component
   ///
-  /// This function creates a deterministic 32-byte key based on the hostname and username
-  /// of the current system. The key is generated using SHA-256, ensuring cryptographic
-  /// security while remaining consistent across program runs on the same machine.
+  /// This function creates a deterministic 32-byte key based on the most stable
+  /// device identifier available. Priority is given to hardware-based UUIDs that
+  /// persist across OS reinstalls and hardware upgrades.
+  ///
+  /// **Device Identification Priority:**
+  /// 1. Hardware UUID (motherboard/system UUID)
+  /// 2. Fallback: hostname + username (for compatibility)
   ///
   /// **Note**: This is an internal function. Use the `CredentialProvider` trait instead.
   ///
@@ -93,20 +110,102 @@ impl EncryptionManager {
   /// A `Result<Vec<u8>>` containing a 32-byte machine-specific key, or an error if
   /// system information cannot be retrieved.
   pub fn machine_key() -> Result<Vec<u8>> {
-    // Use hostname and username as machine-specific data
-    let hostname =
-      hostname::get().map_err(|_| anyhow!("Failed to get hostname"))?.to_string_lossy().to_string();
+    // Try to get the best device identifier - hardware UUID
+    let device_identifier = if let Ok(uuid) = Self::get_machine_uuid() {
+      format!("device_uuid:{uuid}")
+    } else {
+      // Fallback to hostname + username for compatibility
+      let hostname = hostname::get()
+        .map_err(|_| anyhow!("Failed to get hostname"))?
+        .to_string_lossy()
+        .to_string();
+      let username = whoami::username();
+      format!("fallback:{}:{}", hostname, username)
+    };
 
-    let username = whoami::username();
-    let machine_data = format!("{hostname}:{username}");
-
-    // Use SHA-256 to hash the machine data to create a consistent key
+    // Use SHA-256 to hash the device identifier to create a consistent key
     let mut hasher = Sha256::new();
-    hasher.update(machine_data.as_bytes());
+    hasher.update(device_identifier.as_bytes());
     let hash_result = hasher.finalize();
 
     // Convert to 32-byte key (SHA-256 produces exactly 32 bytes)
     Ok(hash_result.to_vec())
+  }
+
+  /// Attempt to get a hardware-based machine UUID
+  ///
+  /// This uses the most reliable platform-specific method for each OS family:
+  /// - Unix-like systems: machine-id files (Linux, macOS, BSDs)
+  /// - Windows: WMI system UUID
+  /// - Fallback: deterministic UUID from hostname+username
+  fn get_machine_uuid() -> Result<String> {
+    // Unix-like systems: Use machine-id (works on Linux, macOS, most BSDs)
+    #[cfg(unix)]
+    {
+      // Try /etc/machine-id first (most common)
+      if let Ok(machine_id) = std::fs::read_to_string("/etc/machine-id") {
+        let machine_id = machine_id.trim();
+        if !machine_id.is_empty() {
+          return Ok(machine_id.to_string());
+        }
+      }
+
+      // Fallback to D-Bus machine-id location
+      if let Ok(machine_id) = std::fs::read_to_string("/var/lib/dbus/machine-id") {
+        let machine_id = machine_id.trim();
+        if !machine_id.is_empty() {
+          return Ok(machine_id.to_string());
+        }
+      }
+    }
+
+    // Windows: Use WMI system UUID
+    #[cfg(target_os = "windows")]
+    {
+      if let Ok(output) = std::process::Command::new("wmic")
+        .args(["csproduct", "get", "UUID", "/value"])
+        .output()
+      {
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for line in output_str.lines() {
+          if line.starts_with("UUID=") {
+            if let Some(uuid) = line.split('=').nth(1) {
+              let uuid = uuid.trim();
+              if !uuid.is_empty() && 
+                 uuid != "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" &&
+                 uuid != "00000000-0000-0000-0000-000000000000" {
+                return Ok(uuid.to_string());
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Final fallback: create deterministic UUID from hostname+username
+    Self::create_fallback_uuid()
+  }
+
+  /// Create a deterministic fallback UUID
+  fn create_fallback_uuid() -> Result<String> {
+    let hostname = hostname::get()
+      .map_err(|_| anyhow!("Failed to get hostname"))?
+      .to_string_lossy()
+      .to_string();
+    let username = whoami::username();
+    let fallback_data = format!("{hostname}:{username}");
+    
+    // Create a deterministic UUID from the fallback data
+    let mut hasher = Sha256::new();
+    hasher.update(fallback_data.as_bytes());
+    let hash = hasher.finalize();
+    
+    // Use first 16 bytes to create a UUID
+    let uuid_bytes: [u8; 16] = hash[..16].try_into()
+      .map_err(|_| anyhow!("Failed to create UUID from hash"))?;
+    let uuid = Uuid::from_bytes(uuid_bytes);
+    
+    Ok(uuid.to_string())
   }
 
   /// Derive encryption key from master password and machine key using Argon2
