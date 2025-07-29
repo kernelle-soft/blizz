@@ -1,4 +1,4 @@
-name: Gatekeeper
+name: release
 
 on:
   workflow_run:
@@ -78,3 +78,29 @@ jobs:
           else
             echo "ℹ️ No tag found on current commit"
           fi
+      
+      - name: Get Release Version
+        id: version
+        run: |
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Verify Release Version Matches Cargo.toml
+        run: .github/run/assert-version-match.sh \
+          "${{ steps.version.outputs.version }}"
+      
+      - name: Generate Release Notes
+        run: .github/run/create-release-notes.sh \
+          "${{ steps.version.outputs.tag }}" \
+          "${{ steps.version.outputs.version }}"
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Kernelle ${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
