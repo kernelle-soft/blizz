@@ -1,3 +1,4 @@
+#[cfg(feature = "neural")]
 use crate::embedding_client::Embedding;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
@@ -68,6 +69,7 @@ pub fn file_path(insight: &Insight) -> Result<PathBuf> {
   Ok(insights_root.join(&normalized_topic).join(format!("{normalized_name}.insight.md")))
 }
 
+#[cfg(feature = "neural")]
 pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
   insight.embedding_version = Some(embedding.version);
   insight.embedding = Some(embedding.embedding);

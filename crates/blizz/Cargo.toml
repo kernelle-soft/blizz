@@ -18,6 +18,7 @@ path = "src/main.rs"
 [[bin]]
 name = "blizz_embedding_daemon"
 path = "src/bin/blizz_embedding_daemon.rs"
+required-features = ["neural"]
 
 [features]
 default = ["semantic", "neural"]

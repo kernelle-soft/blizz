@@ -5,8 +5,10 @@ use colored::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(feature = "neural")]
 use crate::embedding_client;
 use crate::insight;
+#[cfg(feature = "semantic")]
 use crate::similarity;
 
 // Semantic similarity threshold for meaningful results
@@ -53,6 +55,7 @@ pub struct SearchOptions {
   #[cfg(feature = "semantic")]
   pub semantic: bool,
   pub exact: bool,
+  #[cfg(feature = "neural")]
   pub embedding_client: embedding_client::EmbeddingClient,
 }
 
@@ -65,6 +68,7 @@ impl SearchOptions {
       #[cfg(feature = "semantic")]
       semantic: options.semantic,
       exact: options.exact,
+      #[cfg(feature = "neural")]
       embedding_client: embedding_client::create(),
     }
   }
@@ -112,21 +116,34 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
 /// Check if exact search should be used (default behavior unless explicitly disabled)
 fn can_use_exact_search(options: &SearchOptions) -> bool {
   // Don't run exact search when we want neural-only mode
+  #[cfg(feature = "semantic")]
   if !options.semantic && !options.exact {
     false // Neural-only mode for testing
   } else {
-    !options.semantic // Run exact unless semantic-only mode
+    !get_semantic_flag(options) // Run exact unless semantic-only mode
   }
+  #[cfg(not(feature = "semantic"))]
+  !options.exact
 }
 
 /// Check if embedding search feature can be used
+#[cfg(feature = "neural")]
 fn can_use_embedding_search(options: &SearchOptions) -> bool {
-  !options.semantic && !options.exact
+  !get_semantic_flag(options) && !options.exact
 }
 
 /// Check if semantic search feature can be used
+#[cfg(feature = "semantic")]
 fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
   !options.exact
+}
+
+/// Helper function to get semantic flag value
+fn get_semantic_flag(_options: &SearchOptions) -> bool {
+  #[cfg(feature = "semantic")]
+  return _options.semantic;
+  #[cfg(not(feature = "semantic"))]
+  return false;
 }
 
 /// Search a topic for matches based on a search strategy
@@ -213,7 +230,7 @@ fn get_semantic_match(
   let normalized_content = get_normalized_content(insight, options);
   let normalized_terms = get_normalized_terms(terms, options);
 
-  similarity::semantic(&normalized_terms.into_iter().collect(), &normalized_content)
+  crate::similarity::semantic(&normalized_terms.into_iter().collect(), &normalized_content)
 }
 
 #[cfg(feature = "neural")]
@@ -251,10 +268,11 @@ fn try_get_embedding(
     recompute_embedding(insight, options)?
   };
 
-  Ok(similarity::cosine(&query_embedding, &content_embedding))
+  Ok(crate::similarity::cosine(&query_embedding, &content_embedding))
 }
 
 /// Recompute the embedding for an insight and save it to the file system.
+#[cfg(feature = "neural")]
 fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> Result<Vec<f32>> {
   let normalized_content = get_normalized_content(insight, options);
 
@@ -275,6 +293,50 @@ fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> R
   Ok(embedding.embedding)
 }
 
+/// Highlight search terms in text using colors
+fn highlight_keywords(text: &str, terms: &[String]) -> String {
+  let mut result = text.to_string();
+  
+  // Sort terms by length (longest first) to avoid partial replacements
+  let mut sorted_terms = terms.to_vec();
+  sorted_terms.sort_by(|a, b| b.len().cmp(&a.len()));
+  
+  for term in sorted_terms {
+    if term.is_empty() {
+      continue;
+    }
+    
+    // Use case-insensitive matching for highlighting
+    let term_lower = term.to_lowercase();
+    let mut highlighted = String::new();
+    let mut last_end = 0;
+    
+    // Find all occurrences of the term (case-insensitive)
+    let result_lower = result.to_lowercase();
+    let mut start = 0;
+    
+    while let Some(pos) = result_lower[start..].find(&term_lower) {
+      let absolute_pos = start + pos;
+      
+      // Add the text before the match
+      highlighted.push_str(&result[last_end..absolute_pos]);
+      
+      // Add the highlighted match (preserve original case)
+      let match_text = &result[absolute_pos..absolute_pos + term.len()];
+      highlighted.push_str(&match_text.yellow().bold().to_string());
+      
+      last_end = absolute_pos + term.len();
+      start = last_end;
+    }
+    
+    // Add any remaining text
+    highlighted.push_str(&result[last_end..]);
+    result = highlighted;
+  }
+  
+  result
+}
+
 /// Build search paths based on topic filter
 fn get_search_paths(insights_root: &Path, topic_filter: Option<&str>) -> Result<Vec<PathBuf>> {
   if let Some(topic) = topic_filter {
@@ -290,13 +352,13 @@ pub fn display_results(results: &[SearchResult], terms: &[String], overview_only
     println!("No matches found for: {}", terms.join(" ").yellow());
   } else {
     for result in results {
-      display_single_result(result, overview_only);
+      display_single_result(result, terms, overview_only);
     }
   }
 }
 
-/// Display a single search result
-fn display_single_result(result: &SearchResult, overview_only: bool) {
+/// Display a single search result with keyword highlighting
+fn display_single_result(result: &SearchResult, terms: &[String], overview_only: bool) {
   let header = format!("=== {}/{} ===", result.topic.blue().bold(), result.name.yellow().bold());
 
   println!("{header}");
@@ -310,7 +372,8 @@ fn display_single_result(result: &SearchResult, overview_only: bool) {
     format!("{}\n\n{}", result.overview, result.details)
   };
 
-  let wrapped_lines = wrap_text(&content, wrap_with);
+  let highlighted_content = highlight_keywords(&content, terms);
+  let wrapped_lines = wrap_text(&highlighted_content, wrap_with);
   for line in wrapped_lines {
     println!("{line}");
   }
