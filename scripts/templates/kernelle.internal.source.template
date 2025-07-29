@@ -1,7 +1,5 @@
 #!/bin/sh
 
-# Check if Kernelle home exists
-KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
 
 # Ensure ~/.cargo/bin is in PATH for Kernelle binaries
 if [ -d "$HOME/.cargo/bin" ]; then
