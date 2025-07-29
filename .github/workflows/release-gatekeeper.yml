@@ -82,8 +82,15 @@ jobs:
       - name: Get Release Version
         id: version
         run: |
-          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          # Get the tag that was just created
+          NEW_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
+          if [ ! -z "$NEW_TAG" ]; then
+            echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+            echo "version=${NEW_TAG#v}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No tag found on current commit"
+            exit 1
+          fi
       
       - name: Verify Release Version Matches Cargo.toml
         run: .github/run/assert-version-match.sh \
