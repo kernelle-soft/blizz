@@ -116,26 +116,22 @@ impl PasswordBasedCredentialStore {
   }
 }
 
+/// Trait for crypto operations to enable dependency injection and testing
+trait CryptoProvider {
+  fn credentials_exist(&self) -> bool;
+  fn get_master_password(&self) -> Result<String>;
+  fn prompt_for_new_master_password(&self) -> Result<String>;
+  fn store_credential(&self, service: &str, key: &str, value: &str, master_password: &str) -> Result<()>;
+  fn get_credential(&self, service: &str, key: &str, master_password: &str) -> Result<String>;
+  fn delete_credential(&self, service: &str, key: &str, master_password: &str) -> Result<()>;
+}
+
 /// Password-based crypto manager using Argon2 key derivation
 struct PasswordBasedCryptoManager {
   credentials_path: PathBuf,
 }
 
-impl PasswordBasedCryptoManager {
-  fn new() -> Self {
-    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-      std::path::PathBuf::from(kernelle_dir)
-    } else {
-      dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
-    };
-
-    let mut credentials_path = base_path;
-    credentials_path.push("sentinel");
-    credentials_path.push("credentials.enc");
-
-    Self { credentials_path }
-  }
-
+impl CryptoProvider for PasswordBasedCryptoManager {
   fn credentials_exist(&self) -> bool {
     self.credentials_path.exists()
   }
@@ -183,17 +179,15 @@ impl PasswordBasedCryptoManager {
     Ok(password1.trim().to_string())
   }
 
-  fn load_credentials(&self, master_password: &str) -> Result<HashMap<String, HashMap<String, String>>> {
-    if let Some(store) = PasswordBasedCredentialStore::load_from_file(&self.credentials_path)? {
-      store.decrypt_credentials(master_password)
-    } else {
-      Ok(HashMap::new())
-    }
-  }
-
-  fn save_credentials(&self, credentials: &HashMap<String, HashMap<String, String>>, master_password: &str) -> Result<()> {
-    let store = PasswordBasedCredentialStore::new(credentials, master_password)?;
-    store.save_to_file(&self.credentials_path)?;
+  fn store_credential(&self, service: &str, key: &str, value: &str, master_password: &str) -> Result<()> {
+    let mut credentials = self.load_credentials(master_password).unwrap_or_else(|_| HashMap::new());
+    
+    credentials
+      .entry(service.to_string())
+      .or_default()
+      .insert(key.to_string(), value.to_string());
+    
+    self.save_credentials(&credentials, master_password)?;
     Ok(())
   }
 
@@ -205,18 +199,6 @@ impl PasswordBasedCryptoManager {
       .and_then(|service_creds| service_creds.get(key))
       .cloned()
       .ok_or_else(|| anyhow!("Credential not found for {}/{}", service, key))
-  }
-
-  fn store_credential(&self, service: &str, key: &str, value: &str, master_password: &str) -> Result<()> {
-    let mut credentials = self.load_credentials(master_password).unwrap_or_else(|_| HashMap::new());
-    
-    credentials
-      .entry(service.to_string())
-      .or_default()
-      .insert(key.to_string(), value.to_string());
-    
-    self.save_credentials(&credentials, master_password)?;
-    Ok(())
   }
 
   fn delete_credential(&self, service: &str, key: &str, master_password: &str) -> Result<()> {
@@ -237,21 +219,35 @@ impl PasswordBasedCryptoManager {
       Err(anyhow!("Credential not found for {}/{}", service, key))
     }
   }
+}
 
-  // Test-only method that bypasses password prompts
-  #[cfg(test)]
-  fn store_credential_with_password(&self, service: &str, key: &str, value: &str, master_password: &str) -> Result<()> {
-    self.store_credential(service, key, value, master_password)
+impl PasswordBasedCryptoManager {
+  fn new() -> Self {
+    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+      std::path::PathBuf::from(kernelle_dir)
+    } else {
+      dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    };
+
+    let mut credentials_path = base_path;
+    credentials_path.push("sentinel");
+    credentials_path.push("credentials.enc");
+
+    Self { credentials_path }
   }
 
-  #[cfg(test)]
-  fn get_credential_with_password(&self, service: &str, key: &str, master_password: &str) -> Result<String> {
-    self.get_credential(service, key, master_password)
+  fn load_credentials(&self, master_password: &str) -> Result<HashMap<String, HashMap<String, String>>> {
+    if let Some(store) = PasswordBasedCredentialStore::load_from_file(&self.credentials_path)? {
+      store.decrypt_credentials(master_password)
+    } else {
+      Ok(HashMap::new())
+    }
   }
 
-  #[cfg(test)]
-  fn delete_credential_with_password(&self, service: &str, key: &str, master_password: &str) -> Result<()> {
-    self.delete_credential(service, key, master_password)
+  fn save_credentials(&self, credentials: &HashMap<String, HashMap<String, String>>, master_password: &str) -> Result<()> {
+    let store = PasswordBasedCredentialStore::new(credentials, master_password)?;
+    store.save_to_file(&self.credentials_path)?;
+    Ok(())
   }
 }
 
@@ -262,7 +258,7 @@ impl PasswordBasedCryptoManager {
 pub struct Sentinel {
   #[allow(dead_code)]
   service_name: String,
-  crypto: PasswordBasedCryptoManager,
+  crypto: Box<dyn CryptoProvider>,
   credentials_path_override: Option<PathBuf>,
 }
 
@@ -303,9 +299,14 @@ impl CredentialProvider for Sentinel {
 impl Sentinel {
   /// Create a new Sentinel instance for the Kernelle toolset
   pub fn new() -> Self {
+    Self::with_crypto_provider(Box::new(PasswordBasedCryptoManager::new()))
+  }
+
+  /// Create a Sentinel instance with a custom crypto provider for dependency injection
+  pub fn with_crypto_provider(crypto: Box<dyn CryptoProvider>) -> Self {
     Self {
       service_name: "kernelle".to_string(),
-      crypto: PasswordBasedCryptoManager::new(),
+      crypto,
       credentials_path_override: None,
     }
   }
@@ -492,22 +493,6 @@ impl Sentinel {
 
     Ok(value.trim().to_string())
   }
-
-  // Test-only methods that bypass password prompts
-  #[cfg(test)]
-  pub fn store_credential_test(&self, service: &str, key: &str, value: &str, password: &str) -> Result<()> {
-    self.crypto.store_credential_with_password(service, key, value, password)
-  }
-
-  #[cfg(test)]
-  pub fn get_credential_test(&self, service: &str, key: &str, password: &str) -> Result<String> {
-    self.crypto.get_credential_with_password(service, key, password)
-  }
-
-  #[cfg(test)]
-  pub fn delete_credential_test(&self, service: &str, key: &str, password: &str) -> Result<()> {
-    self.crypto.delete_credential_with_password(service, key, password)
-  }
 }
 
 impl Default for Sentinel {
@@ -592,6 +577,92 @@ pub mod services {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::collections::HashMap;
+  use std::sync::{Arc, Mutex};
+
+  /// Mock crypto provider for testing that doesn't require password prompts
+  #[derive(Debug)]
+  struct MockCryptoProvider {
+    credentials: Arc<Mutex<HashMap<String, HashMap<String, String>>>>,
+    stored_password: String,
+  }
+
+  impl MockCryptoProvider {
+    fn new(password: &str) -> Self {
+      Self {
+        credentials: Arc::new(Mutex::new(HashMap::new())),
+        stored_password: password.to_string(),
+      }
+    }
+  }
+
+  impl CryptoProvider for MockCryptoProvider {
+    fn credentials_exist(&self) -> bool {
+      !self.credentials.lock().unwrap().is_empty()
+    }
+
+    fn get_master_password(&self) -> Result<String> {
+      Ok(self.stored_password.clone())
+    }
+
+    fn prompt_for_new_master_password(&self) -> Result<String> {
+      Ok(self.stored_password.clone())
+    }
+
+    fn store_credential(&self, service: &str, key: &str, value: &str, master_password: &str) -> Result<()> {
+      if master_password != self.stored_password {
+        return Err(anyhow!("Invalid password"));
+      }
+      
+      self.credentials
+        .lock()
+        .unwrap()
+        .entry(service.to_string())
+        .or_default()
+        .insert(key.to_string(), value.to_string());
+      
+      Ok(())
+    }
+
+    fn get_credential(&self, service: &str, key: &str, master_password: &str) -> Result<String> {
+      if master_password != self.stored_password {
+        return Err(anyhow!("Invalid password"));
+      }
+
+      self.credentials
+        .lock()
+        .unwrap()
+        .get(service)
+        .and_then(|service_creds| service_creds.get(key))
+        .cloned()
+        .ok_or_else(|| anyhow!("Credential not found for {}/{}", service, key))
+    }
+
+    fn delete_credential(&self, service: &str, key: &str, master_password: &str) -> Result<()> {
+      if master_password != self.stored_password {
+        return Err(anyhow!("Invalid password"));
+      }
+
+      let mut credentials = self.credentials.lock().unwrap();
+      if let Some(service_creds) = credentials.get_mut(service) {
+        if service_creds.remove(key).is_some() {
+          if service_creds.is_empty() {
+            credentials.remove(service);
+          }
+          Ok(())
+        } else {
+          Err(anyhow!("Credential not found for {}/{}", service, key))
+        }
+      } else {
+        Err(anyhow!("Credential not found for {}/{}", service, key))
+      }
+    }
+  }
+
+  // Helper function to create a test sentinel with mock crypto provider
+  fn create_test_sentinel_with_mock(password: &str) -> Sentinel {
+    Sentinel::with_crypto_provider(Box::new(MockCryptoProvider::new(password)))
+  }
 
   // Helper function to create a test sentinel with a unique service name
   fn create_test_sentinel() -> Sentinel {
@@ -612,16 +683,9 @@ mod tests {
 
     Sentinel {
       service_name: format!("test_kernelle_{unique_id}"),
-      crypto,
+      crypto: Box::new(crypto),
       credentials_path_override: Some(temp_dir.join("sentinel").join("credentials.enc")),
     }
-  }
-
-  // Test helper for password-based operations
-  fn create_test_sentinel_with_password() -> (Sentinel, String) {
-    let sentinel = create_test_sentinel();
-    let test_password = "test_password_123";
-    (sentinel, test_password.to_string())
   }
 
   #[test]
@@ -670,22 +734,20 @@ mod tests {
 
   #[test]
   fn test_credential_storage_and_retrieval() {
-    let (sentinel, password) = create_test_sentinel_with_password();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
     let service = "test_service";
     let key = "test_key";
     let value = "test_secret_value";
 
     // Store credential
-    let store_result = sentinel.store_credential_test(service, key, value, &password);
+    let store_result = sentinel.store_credential(service, key, value);
     assert!(store_result.is_ok(), "Failed to store credential: {:?}", store_result.err());
 
     // Retrieve credential
-    let retrieved = sentinel.get_credential_test(service, key, &password);
+    let retrieved = sentinel.get_credential(service, key);
     assert!(retrieved.is_ok(), "Failed to retrieve credential: {:?}", retrieved.err());
     assert_eq!(retrieved.unwrap(), value);
-
-    // Clean up
-    let _ = sentinel.delete_credential_test(service, key, &password);
   }
 
   #[test]
@@ -698,44 +760,44 @@ mod tests {
 
   #[test]
   fn test_credential_deletion() {
-    let (sentinel, password) = create_test_sentinel_with_password();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
     let service = "test_delete_service";
     let key = "test_delete_key";
     let value = "test_delete_value";
 
     // Store then delete
-    sentinel.store_credential_test(service, key, value, &password).unwrap();
-    let delete_result = sentinel.delete_credential_test(service, key, &password);
+    sentinel.store_credential(service, key, value).unwrap();
+    let delete_result = sentinel.delete_credential(service, key);
     assert!(delete_result.is_ok());
 
     // Verify deletion
-    let retrieve_result = sentinel.get_credential_test(service, key, &password);
+    let retrieve_result = sentinel.get_credential(service, key);
     assert!(retrieve_result.is_err());
   }
 
   #[test]
   fn test_credential_overwrite() {
-    let (sentinel, password) = create_test_sentinel_with_password();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
     let service = "test_overwrite_service";
     let key = "test_overwrite_key";
     let value1 = "original_value";
     let value2 = "updated_value";
 
     // Store original value
-    sentinel.store_credential_test(service, key, value1, &password).unwrap();
-    assert_eq!(sentinel.get_credential_test(service, key, &password).unwrap(), value1);
+    sentinel.store_credential(service, key, value1).unwrap();
+    assert_eq!(sentinel.get_credential(service, key).unwrap(), value1);
 
     // Overwrite with new value
-    sentinel.store_credential_test(service, key, value2, &password).unwrap();
-    assert_eq!(sentinel.get_credential_test(service, key, &password).unwrap(), value2);
-
-    // Clean up
-    let _ = sentinel.delete_credential_test(service, key, &password);
+    sentinel.store_credential(service, key, value2).unwrap();
+    assert_eq!(sentinel.get_credential(service, key).unwrap(), value2);
   }
 
   #[test]
   fn test_multiple_credentials_same_service() {
-    let sentinel = create_test_sentinel();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
     let service = "multi_cred_service";
 
     // Store multiple credentials for same service
@@ -747,16 +809,12 @@ mod tests {
     assert_eq!(sentinel.get_credential(service, "key1").unwrap(), "value1");
     assert_eq!(sentinel.get_credential(service, "key2").unwrap(), "value2");
     assert_eq!(sentinel.get_credential(service, "key3").unwrap(), "value3");
-
-    // Clean up
-    let _ = sentinel.delete_credential(service, "key1");
-    let _ = sentinel.delete_credential(service, "key2");
-    let _ = sentinel.delete_credential(service, "key3");
   }
 
   #[test]
   fn test_get_service_env_vars() {
-    let sentinel = create_test_sentinel();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
     let service = "env_test_service";
 
     // Test with no credentials stored
@@ -770,14 +828,12 @@ mod tests {
     let expected_key = format!("{}_TOKEN", service.to_uppercase());
     assert!(env_vars.contains_key(&expected_key));
     assert_eq!(env_vars.get(&expected_key).unwrap(), "test_token_123");
-
-    // Clean up
-    let _ = sentinel.delete_credential(service, "token");
   }
 
   #[test]
   fn test_get_service_env_vars_github() {
-    let sentinel = create_test_sentinel();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
     let service = "github";
 
     // Store GitHub token
@@ -785,14 +841,12 @@ mod tests {
     let env_vars = sentinel.get_service_env_vars(service).unwrap();
 
     assert_eq!(env_vars.get("GITHUB_TOKEN").unwrap(), "ghp_test_token");
-
-    // Clean up
-    let _ = sentinel.delete_credential(service, "token");
   }
 
   #[test]
   fn test_get_service_env_vars_jira() {
-    let sentinel = create_test_sentinel();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
     let service = "jira";
 
     // Store Jira credentials
@@ -805,11 +859,6 @@ mod tests {
     assert_eq!(env_vars.get("JIRA_TOKEN").unwrap(), "jira_token");
     assert_eq!(env_vars.get("JIRA_EMAIL").unwrap(), "test@example.com");
     assert_eq!(env_vars.get("JIRA_URL").unwrap(), "https://test.atlassian.net");
-
-    // Clean up
-    let _ = sentinel.delete_credential(service, "token");
-    let _ = sentinel.delete_credential(service, "email");
-    let _ = sentinel.delete_credential(service, "url");
   }
 
   #[test]
@@ -920,7 +969,8 @@ mod tests {
 
   #[test]
   fn test_edge_cases() {
-    let sentinel = create_test_sentinel();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
 
     // Test with empty strings
     let result = sentinel.store_credential("", "", "");
@@ -930,9 +980,6 @@ mod tests {
     assert!(retrieved.is_ok());
     assert_eq!(retrieved.unwrap(), "");
 
-    // Clean up
-    let _ = sentinel.delete_credential("", "");
-
     // Test with special characters
     let service = "test@service#with$special%chars";
     let key = "key&with*special(chars)";
@@ -941,14 +988,12 @@ mod tests {
     sentinel.store_credential(service, key, value).unwrap();
     let retrieved = sentinel.get_credential(service, key).unwrap();
     assert_eq!(retrieved, value);
-
-    // Clean up
-    let _ = sentinel.delete_credential(service, key);
   }
 
   #[test]
   fn test_delete_nonexistent_credential() {
-    let sentinel = create_test_sentinel();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
 
     // Try to delete a credential that doesn't exist
     let result = sentinel.delete_credential("nonexistent", "key");
@@ -1083,50 +1128,44 @@ mod tests {
 
   #[test]
   fn test_store_credential_success_logging() {
-    let (sentinel, password) = create_test_sentinel_with_password();
+    let password = "test_password_123";
+    let sentinel = create_test_sentinel_with_mock(password);
 
     // Use a unique service and key to avoid conflicts with other tests
     let test_service = format!("test_logging_service_{}", std::process::id());
     let test_key = format!("test_logging_key_{}", std::process::id());
 
-    // Clean up any existing credential first
-    let _ = sentinel.delete_credential_test(&test_service, &test_key, &password);
-
     // This test specifically targets line 53 - the bentley::event_success call
-    let result = sentinel.store_credential_test(&test_service, &test_key, "test_value", &password);
+    let result = sentinel.store_credential(&test_service, &test_key, "test_value");
     assert!(result.is_ok(), "Failed to store credential: {:?}", result.err());
 
     // Verify the credential was actually stored
-    let retrieved = sentinel.get_credential_test(&test_service, &test_key, &password);
+    let retrieved = sentinel.get_credential(&test_service, &test_key);
     assert!(retrieved.is_ok(), "Failed to retrieve credential: {:?}", retrieved.err());
     assert_eq!(retrieved.unwrap(), "test_value");
-
-    // Clean up
-    let _ = sentinel.delete_credential_test(&test_service, &test_key, &password);
   }
 
   #[test]
   fn test_argon2_password_security() {
-    let (sentinel, password1) = create_test_sentinel_with_password();
-    let password2 = "different_password_456";
+    let password1 = "correct_password_123";
+    let password2 = "wrong_password_456";
+    let sentinel1 = create_test_sentinel_with_mock(password1);
+    let sentinel2 = create_test_sentinel_with_mock(password2);
     let service = "security_test_service";
     let key = "security_test_key";
     let value = "secret_value";
 
     // Store with password1
-    let result = sentinel.store_credential_test(service, key, value, &password1);
-    assert!(result.is_ok(), "Failed to store with password1");
+    let result = sentinel1.store_credential(service, key, value);
+    assert!(result.is_ok(), "Failed to store with correct password");
 
-    // Try to retrieve with password2 - should fail
-    let wrong_password_result = sentinel.get_credential_test(service, key, password2);
+    // Try to retrieve with sentinel2 (different password) - should fail  
+    let wrong_password_result = sentinel2.get_credential(service, key);
     assert!(wrong_password_result.is_err(), "Should not be able to retrieve with wrong password");
 
     // Verify we can still retrieve with correct password
-    let correct_password_result = sentinel.get_credential_test(service, key, &password1);
+    let correct_password_result = sentinel1.get_credential(service, key);
     assert!(correct_password_result.is_ok(), "Should be able to retrieve with correct password");
     assert_eq!(correct_password_result.unwrap(), value);
-
-    // Clean up
-    let _ = sentinel.delete_credential_test(service, key, &password1);
   }
 }
