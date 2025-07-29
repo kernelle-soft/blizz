@@ -27,6 +27,7 @@ aes-gcm = "0.10"
 rand = "0.9"
 base64 = "0.20"
 native-dialog = "0.7"
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3.20"

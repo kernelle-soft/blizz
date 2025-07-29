@@ -5,6 +5,7 @@ use aes_gcm::{
 use anyhow::{anyhow, Result};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
 /// Encrypted credential blob stored on disk
@@ -70,52 +71,30 @@ impl EncryptionManager {
     let username = whoami::username();
     let machine_data = format!("{hostname}:{username}");
 
-    // Hash the machine data to create a consistent key
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
+    // Use SHA-256 to hash the machine data to create a consistent key
+    let mut hasher = Sha256::new();
+    hasher.update(machine_data.as_bytes());
+    let hash_result = hasher.finalize();
 
-    let mut hasher = DefaultHasher::new();
-    machine_data.hash(&mut hasher);
-    let hash = hasher.finish();
-
-    // Convert to 32-byte key
-    let mut key = vec![0u8; 32];
-    key[..8].copy_from_slice(&hash.to_le_bytes());
-
-    // Fill the rest with a deterministic pattern based on the hash
-    for (i, item) in key.iter_mut().enumerate().take(32).skip(8) {
-      *item = ((hash >> (i % 8)) & 0xFF) as u8;
-    }
-
-    Ok(key)
+    // Convert to 32-byte key (SHA-256 produces exactly 32 bytes)
+    Ok(hash_result.to_vec())
   }
 
   /// Derive encryption key from master password and machine key
   pub fn derive_key(master_password: &str, machine_key: &[u8], salt: &[u8]) -> Result<Vec<u8>> {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
     // Combine master password, machine key, and salt
     let mut combined = Vec::new();
     combined.extend_from_slice(master_password.as_bytes());
     combined.extend_from_slice(machine_key);
     combined.extend_from_slice(salt);
 
-    // Hash to create encryption key
-    let mut hasher = DefaultHasher::new();
-    combined.hash(&mut hasher);
-    let hash = hasher.finish();
+    // Use SHA-256 to create encryption key
+    let mut hasher = Sha256::new();
+    hasher.update(&combined);
+    let hash_result = hasher.finalize();
 
-    // Create 32-byte key
-    let mut key = vec![0u8; 32];
-    key[..8].copy_from_slice(&hash.to_le_bytes());
-
-    // Fill the rest with deterministic data
-    for i in 8..32 {
-      key[i] = ((hash >> (i % 8)) ^ combined[i % combined.len()] as u64) as u8;
-    }
-
-    Ok(key)
+    // Return the 32-byte SHA-256 hash as the key
+    Ok(hash_result.to_vec())
   }
 
   /// Encrypt credentials with double encryption
