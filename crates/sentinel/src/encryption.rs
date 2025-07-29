@@ -120,7 +120,7 @@ impl EncryptionManager {
         .to_string_lossy()
         .to_string();
       let username = whoami::username();
-      format!("fallback:{}:{}", hostname, username)
+      format!("fallback:{hostname}:{username}")
     };
 
     // Use SHA-256 to hash the device identifier to create a consistent key
@@ -162,18 +162,18 @@ impl EncryptionManager {
     // Windows: Use WMI system UUID
     #[cfg(target_os = "windows")]
     {
-      if let Ok(output) = std::process::Command::new("wmic")
-        .args(["csproduct", "get", "UUID", "/value"])
-        .output()
+      if let Ok(output) =
+        std::process::Command::new("wmic").args(["csproduct", "get", "UUID", "/value"]).output()
       {
         let output_str = String::from_utf8_lossy(&output.stdout);
         for line in output_str.lines() {
           if line.starts_with("UUID=") {
             if let Some(uuid) = line.split('=').nth(1) {
               let uuid = uuid.trim();
-              if !uuid.is_empty() && 
-                 uuid != "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF" &&
-                 uuid != "00000000-0000-0000-0000-000000000000" {
+              if !uuid.is_empty()
+                && uuid != "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+                && uuid != "00000000-0000-0000-0000-000000000000"
+              {
                 return Ok(uuid.to_string());
               }
             }
@@ -188,23 +188,21 @@ impl EncryptionManager {
 
   /// Create a deterministic fallback UUID
   fn create_fallback_uuid() -> Result<String> {
-    let hostname = hostname::get()
-      .map_err(|_| anyhow!("Failed to get hostname"))?
-      .to_string_lossy()
-      .to_string();
+    let hostname =
+      hostname::get().map_err(|_| anyhow!("Failed to get hostname"))?.to_string_lossy().to_string();
     let username = whoami::username();
     let fallback_data = format!("{hostname}:{username}");
-    
+
     // Create a deterministic UUID from the fallback data
     let mut hasher = Sha256::new();
     hasher.update(fallback_data.as_bytes());
     let hash = hasher.finalize();
-    
+
     // Use first 16 bytes to create a UUID
-    let uuid_bytes: [u8; 16] = hash[..16].try_into()
-      .map_err(|_| anyhow!("Failed to create UUID from hash"))?;
+    let uuid_bytes: [u8; 16] =
+      hash[..16].try_into().map_err(|_| anyhow!("Failed to create UUID from hash"))?;
     let uuid = Uuid::from_bytes(uuid_bytes);
-    
+
     Ok(uuid.to_string())
   }
 
@@ -237,7 +235,7 @@ impl EncryptionManager {
     // If provided salt is too short, pad it with zeros (for edge case handling)
     let effective_salt = if salt.len() < 8 {
       let mut padded_salt = salt.to_vec();
-      padded_salt.resize(8, 0u8);  // Pad with zeros to reach minimum length
+      padded_salt.resize(8, 0u8); // Pad with zeros to reach minimum length
       padded_salt
     } else {
       salt.to_vec()
@@ -250,7 +248,7 @@ impl EncryptionManager {
     // - parallelism: 4 lanes - leverages multi-core systems
     let params = Params::new(65536, 3, 4, Some(32))
       .map_err(|e| anyhow!("Failed to create Argon2 params: {}", e))?;
-    
+
     let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
 
     // Convert salt to the format expected by Argon2
@@ -263,12 +261,14 @@ impl EncryptionManager {
       .map_err(|e| anyhow!("Argon2 key derivation failed: {}", e))?;
 
     // Extract the 32-byte key from the hash
-    let hash_output = hash.hash
-      .ok_or_else(|| anyhow!("Argon2 produced no hash output"))?;
+    let hash_output = hash.hash.ok_or_else(|| anyhow!("Argon2 produced no hash output"))?;
     let key_bytes = hash_output.as_bytes();
 
     if key_bytes.len() != 32 {
-      return Err(anyhow!("Argon2 produced incorrect key length: expected 32, got {}", key_bytes.len()));
+      return Err(anyhow!(
+        "Argon2 produced incorrect key length: expected 32, got {}",
+        key_bytes.len()
+      ));
     }
 
     Ok(key_bytes.to_vec())
@@ -321,7 +321,8 @@ impl EncryptionManager {
       cipher.decrypt(nonce, blob.data.as_ref()).map_err(|e| anyhow!("Decryption failed: {}", e))?;
 
     // Deserialize credentials
-    let credentials: HashMap<String, HashMap<String, String>> = serde_json::from_slice(&decrypted_data)?;
+    let credentials: HashMap<String, HashMap<String, String>> =
+      serde_json::from_slice(&decrypted_data)?;
 
     Ok(credentials)
   }

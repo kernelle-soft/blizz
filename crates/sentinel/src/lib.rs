@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 pub mod encryption;
 
-use encryption::{EncryptionManager, EncryptedBlob};
+use encryption::{EncryptedBlob, EncryptionManager};
 
 /// Trait interface for credential providers
 ///
@@ -74,15 +74,18 @@ struct PasswordBasedCredentialStore {
 }
 
 impl PasswordBasedCredentialStore {
-  fn new(credentials: &HashMap<String, HashMap<String, String>>, master_password: &str) -> Result<Self> {
+  fn new(
+    credentials: &HashMap<String, HashMap<String, String>>,
+    master_password: &str,
+  ) -> Result<Self> {
     let encrypted_data = EncryptionManager::encrypt_credentials(credentials, master_password)?;
-    Ok(Self {
-      encrypted_data,
-      version: "1.0".to_string(),
-    })
+    Ok(Self { encrypted_data, version: "1.0".to_string() })
   }
 
-  fn decrypt_credentials(&self, master_password: &str) -> Result<HashMap<String, HashMap<String, String>>> {
+  fn decrypt_credentials(
+    &self,
+    master_password: &str,
+  ) -> Result<HashMap<String, HashMap<String, String>>> {
     EncryptionManager::decrypt_credentials(&self.encrypted_data, master_password)
   }
 
@@ -121,7 +124,13 @@ pub trait CryptoProvider {
   fn credentials_exist(&self) -> bool;
   fn get_master_password(&self) -> Result<String>;
   fn prompt_for_new_master_password(&self) -> Result<String>;
-  fn store_credential(&self, service: &str, key: &str, value: &str, master_password: &str) -> Result<()>;
+  fn store_credential(
+    &self,
+    service: &str,
+    key: &str,
+    value: &str,
+    master_password: &str,
+  ) -> Result<()>;
   fn get_credential(&self, service: &str, key: &str, master_password: &str) -> Result<String>;
   fn delete_credential(&self, service: &str, key: &str, master_password: &str) -> Result<()>;
 }
@@ -154,7 +163,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
     bentley::announce("🔐 Setting up secure credential storage");
     bentley::info("Please create a master password to protect your credentials.");
     bentley::info("This password will be required to access stored credentials.");
-    
+
     print!("Enter master password: ");
     std::io::stdout().flush()?;
     let password1 = rpassword::read_password()?;
@@ -179,21 +188,24 @@ impl CryptoProvider for PasswordBasedCryptoManager {
     Ok(password1.trim().to_string())
   }
 
-  fn store_credential(&self, service: &str, key: &str, value: &str, master_password: &str) -> Result<()> {
+  fn store_credential(
+    &self,
+    service: &str,
+    key: &str,
+    value: &str,
+    master_password: &str,
+  ) -> Result<()> {
     let mut credentials = self.load_credentials(master_password).unwrap_or_else(|_| HashMap::new());
-    
-    credentials
-      .entry(service.to_string())
-      .or_default()
-      .insert(key.to_string(), value.to_string());
-    
+
+    credentials.entry(service.to_string()).or_default().insert(key.to_string(), value.to_string());
+
     self.save_credentials(&credentials, master_password)?;
     Ok(())
   }
 
   fn get_credential(&self, service: &str, key: &str, master_password: &str) -> Result<String> {
     let credentials = self.load_credentials(master_password)?;
-    
+
     credentials
       .get(service)
       .and_then(|service_creds| service_creds.get(key))
@@ -203,7 +215,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
 
   fn delete_credential(&self, service: &str, key: &str, master_password: &str) -> Result<()> {
     let mut credentials = self.load_credentials(master_password)?;
-    
+
     if let Some(service_creds) = credentials.get_mut(service) {
       if service_creds.remove(key).is_some() {
         // Remove the service entirely if no credentials left
@@ -236,7 +248,10 @@ impl PasswordBasedCryptoManager {
     Self { credentials_path }
   }
 
-  fn load_credentials(&self, master_password: &str) -> Result<HashMap<String, HashMap<String, String>>> {
+  fn load_credentials(
+    &self,
+    master_password: &str,
+  ) -> Result<HashMap<String, HashMap<String, String>>> {
     if let Some(store) = PasswordBasedCredentialStore::load_from_file(&self.credentials_path)? {
       store.decrypt_credentials(master_password)
     } else {
@@ -244,7 +259,11 @@ impl PasswordBasedCryptoManager {
     }
   }
 
-  fn save_credentials(&self, credentials: &HashMap<String, HashMap<String, String>>, master_password: &str) -> Result<()> {
+  fn save_credentials(
+    &self,
+    credentials: &HashMap<String, HashMap<String, String>>,
+    master_password: &str,
+  ) -> Result<()> {
     let store = PasswordBasedCredentialStore::new(credentials, master_password)?;
     store.save_to_file(&self.credentials_path)?;
     Ok(())
@@ -304,11 +323,7 @@ impl Sentinel {
 
   /// Create a Sentinel instance with a custom crypto provider for dependency injection
   pub fn with_crypto_provider(crypto: Box<dyn CryptoProvider>) -> Self {
-    Self {
-      service_name: "kernelle".to_string(),
-      crypto,
-      credentials_path_override: None,
-    }
+    Self { service_name: "kernelle".to_string(), crypto, credentials_path_override: None }
   }
 
   /// Store a credential securely using Argon2-based encryption
@@ -609,18 +624,25 @@ mod tests {
       Ok(self.stored_password.clone())
     }
 
-    fn store_credential(&self, service: &str, key: &str, value: &str, master_password: &str) -> Result<()> {
+    fn store_credential(
+      &self,
+      service: &str,
+      key: &str,
+      value: &str,
+      master_password: &str,
+    ) -> Result<()> {
       if master_password != self.stored_password {
         return Err(anyhow!("Invalid password"));
       }
-      
-      self.credentials
+
+      self
+        .credentials
         .lock()
         .unwrap()
         .entry(service.to_string())
         .or_default()
         .insert(key.to_string(), value.to_string());
-      
+
       Ok(())
     }
 
@@ -629,7 +651,8 @@ mod tests {
         return Err(anyhow!("Invalid password"));
       }
 
-      self.credentials
+      self
+        .credentials
         .lock()
         .unwrap()
         .get(service)
@@ -1159,7 +1182,7 @@ mod tests {
     let result = sentinel1.store_credential(service, key, value);
     assert!(result.is_ok(), "Failed to store with correct password");
 
-    // Try to retrieve with sentinel2 (different password) - should fail  
+    // Try to retrieve with sentinel2 (different password) - should fail
     let wrong_password_result = sentinel2.get_credential(service, key);
     assert!(wrong_password_result.is_err(), "Should not be able to retrieve with wrong password");
 
@@ -1172,34 +1195,34 @@ mod tests {
   #[test]
   fn test_enhanced_device_fingerprinting() {
     use crate::encryption::EncryptionManager;
-    
+
     // Test that enhanced device fingerprinting works
     let machine_key = EncryptionManager::machine_key();
     assert!(machine_key.is_ok(), "Enhanced machine key generation should succeed");
-    
+
     let key1 = machine_key.unwrap();
     assert_eq!(key1.len(), 32, "Machine key should be 32 bytes");
-    
+
     // Test consistency - should generate the same key
     let key2 = EncryptionManager::machine_key().unwrap();
     assert_eq!(key1, key2, "Machine key should be deterministic");
-    
+
     // Show fingerprinting details
     println!("\n🔒 Simplified Device Fingerprinting Test");
     println!("========================================");
     println!("✅ Machine key generated successfully");
     println!("📏 Key length: {} bytes (256-bit)", key1.len());
     println!("🔑 Key (hex): {}", hex::encode(&key1));
-    
+
     // Show what identifier is being used
     println!("\n📊 Device Identification Strategy:");
     println!("----------------------------------");
-    
+
     if let Ok(hostname) = hostname::get() {
       println!("🖥️  Hostname: {}", hostname.to_string_lossy());
     }
     println!("👤 Username: {}", whoami::username());
-    
+
     // Try to determine which method is being used
     if std::fs::read_to_string("/etc/machine-id").is_ok() {
       println!("� Using: Linux machine-id (persistent across reboots)");
@@ -1208,7 +1231,7 @@ mod tests {
     } else {
       println!("� Using: Fallback deterministic UUID from hostname+username");
     }
-    
+
     println!("\n🛡️  Security Features:");
     println!("----------------------");
     println!("✅ UUID-based device binding (optimal stability)");
