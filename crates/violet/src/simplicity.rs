@@ -198,7 +198,6 @@ fn create_chunk_preview(lines: &[&str]) -> String {
     if line.len() <= MAX_LINE_LENGTH {
       preview_lines.push(line.to_string());
     } else {
-      // Use character-based slicing instead of byte-based to handle Unicode safely
       let truncated = format!("{}...", line.chars().take(MAX_LINE_LENGTH.saturating_sub(3)).collect::<String>());
       preview_lines.push(truncated);
     }

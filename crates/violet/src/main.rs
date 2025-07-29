@@ -230,7 +230,6 @@ fn format_chunk_preview(chunk: &scoring::ComplexityRegion) -> String {
 
   for line in preview_lines.iter() {
     if line.len() > 70 {
-      // Use character-based slicing instead of byte-based to handle Unicode safely
       let truncated = format!("{}...", line.chars().take(67).collect::<String>());
       output.push_str(&format!("    {}\n", truncated.dimmed()));
     } else {
@@ -653,12 +652,8 @@ mod tests {
 
   #[test]
   fn test_format_chunk_preview_unicode_characters() {
-    // This test reproduces the issue where multi-byte Unicode characters
-    // would cause a panic due to byte-based string slicing
-    // The specific case: byte index 67 is not a char boundary within '←' (bytes 66..69)
-    // We need a string where the 67th byte falls inside a multi-byte character
-    let prefix = "a".repeat(66); // 66 ASCII characters = 66 bytes
-    let line_with_unicode = format!("{}←rest of the line", prefix); // '←' starts at byte 66, ends at byte 69
+    let prefix = "a".repeat(66);
+    let line_with_unicode = format!("{}←rest of the line", prefix);
     
     let chunk_score = ComplexityRegion {
       score: 5.0,
@@ -675,14 +670,10 @@ mod tests {
       },
     };
 
-    // This should not panic even with multi-byte Unicode characters
     let preview = format_chunk_preview(&chunk_score);
     
-    // Should contain the truncation marker
     assert!(preview.contains("..."));
-    // Should contain some of the original text
     assert!(preview.contains("aaa"));
-    // Should not panic on Unicode characters
     assert!(preview.len() > 0);
   }
 
