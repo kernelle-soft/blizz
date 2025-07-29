@@ -14,7 +14,7 @@ jobs:
   code-quality:
     name: Lint, Format & Quality Analysis
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[skip validation]')"
+    if: "!contains(github.event.head_commit.message, '[validated]')"
 
     steps:
       - name: Checkout code

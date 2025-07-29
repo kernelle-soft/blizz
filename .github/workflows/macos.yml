@@ -13,7 +13,7 @@ jobs:
   test-macos:
     name: Test (macOS)
     runs-on: macos-14
-    if: "!contains(github.event.head_commit.message, '[skip validation]')"
+    if: "!contains(github.event.head_commit.message, '[validated]')"
 
     steps:
       - name: Checkout code
