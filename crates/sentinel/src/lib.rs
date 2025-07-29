@@ -278,7 +278,6 @@ pub struct Sentinel {
   #[allow(dead_code)]
   service_name: String,
   crypto: Box<dyn CryptoProvider>,
-  credentials_path_override: Option<PathBuf>,
 }
 
 /// Configuration for a service that needs credentials
@@ -323,7 +322,7 @@ impl Sentinel {
 
   /// Create a Sentinel instance with a custom crypto provider for dependency injection
   pub fn with_crypto_provider(crypto: Box<dyn CryptoProvider>) -> Self {
-    Self { service_name: "kernelle".to_string(), crypto, credentials_path_override: None }
+    Self { service_name: "kernelle".to_string(), crypto }
   }
 
   /// Store a credential securely using Argon2-based encryption
@@ -386,24 +385,6 @@ impl Sentinel {
 
     let master_password = self.crypto.get_master_password()?;
     self.crypto.get_credential(service, key, &master_password)
-  }
-
-  /// Get the path to the credentials file
-  fn get_credentials_path(&self) -> PathBuf {
-    if let Some(override_path) = &self.credentials_path_override {
-      return override_path.clone();
-    }
-
-    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-      std::path::PathBuf::from(kernelle_dir)
-    } else {
-      dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
-    };
-
-    let mut path = base_path;
-    path.push("sentinel");
-    path.push("credentials.json");
-    path
   }
 
   /// Delete a credential from password-protected storage
@@ -707,7 +688,6 @@ mod tests {
     Sentinel {
       service_name: format!("test_kernelle_{unique_id}"),
       crypto: Box::new(crypto),
-      credentials_path_override: Some(temp_dir.join("sentinel").join("credentials.enc")),
     }
   }
 
