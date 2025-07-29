@@ -1,1 +1,0 @@
-simple_test: "echo \"\\033[31mRed text\\033[0m and \\033[32mGreen text\\033[0m\""

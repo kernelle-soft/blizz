@@ -5,7 +5,6 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Serialize)]
@@ -75,6 +74,8 @@ pub type TasksFile = HashMap<String, TaskCommand>;
 pub struct TaskRunnerOptions {
   pub silent: bool,
   pub tasks_file_path: Option<String>,
+  pub force_color: bool,
+  pub no_color: bool,
 }
 
 #[derive(Debug)]
@@ -100,7 +101,13 @@ pub async fn run_task(
 
   let command_string = task_command.to_command_string();
   let stream_output = !options.silent;
-  let preserve_colors = stream_output && !is_ci_environment();
+  let preserve_colors = if options.no_color {
+    false
+  } else if options.force_color {
+    stream_output
+  } else {
+    stream_output && !is_ci_environment()
+  };
 
   execute_command(&command_string, args, stream_output, preserve_colors).await
 }
@@ -259,21 +266,17 @@ async fn execute_with_streaming(cmd: &mut Command) -> Result<TaskResult> {
   let stdout = child.stdout.take().unwrap();
   let stderr = child.stderr.take().unwrap();
 
-  let stdout_reader = BufReader::new(stdout);
-  let stderr_reader = BufReader::new(stderr);
-
+  // Use tokio::io::copy to preserve ANSI color codes and other control characters
   let stdout_handle = tokio::spawn(async move {
-    let mut lines = stdout_reader.lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-      println!("{line}");
-    }
+    let mut stdout_reader = stdout;
+    let mut stdout_writer = tokio::io::stdout();
+    let _ = tokio::io::copy(&mut stdout_reader, &mut stdout_writer).await;
   });
 
   let stderr_handle = tokio::spawn(async move {
-    let mut lines = stderr_reader.lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-      eprintln!("{line}");
-    }
+    let mut stderr_reader = stderr;
+    let mut stderr_writer = tokio::io::stderr();
+    let _ = tokio::io::copy(&mut stderr_reader, &mut stderr_writer).await;
   });
 
   let status = child.wait().await?;
@@ -325,6 +328,8 @@ mod tests {
 
     assert!(!options.silent);
     assert!(options.tasks_file_path.is_none());
+    assert!(!options.force_color);
+    assert!(!options.no_color);
   }
 
   #[test]
@@ -344,8 +349,12 @@ mod tests {
   #[tokio::test]
   async fn test_run_task_with_nonexistent_task() {
     // Test running a task that doesn't exist
-    let options =
-      TaskRunnerOptions { silent: true, tasks_file_path: Some("nonexistent.tasks".to_string()) };
+    let options = TaskRunnerOptions { 
+      silent: true, 
+      tasks_file_path: Some("nonexistent.tasks".to_string()),
+      force_color: false,
+      no_color: false,
+    };
 
     let result = run_task("nonexistent_task", &[], options).await;
 
