@@ -63,22 +63,8 @@ impl Default for CredentialCache {
 /// This manager provides secure key derivation and encryption operations using SHA-256
 /// for key derivation and AES-256-GCM for symmetric encryption.
 ///
-/// # Example
-///
-/// ```rust
-/// use sentinel::encryption::EncryptionManager;
-/// use std::collections::HashMap;
-///
-/// // Generate a machine-specific key component
-/// let machine_key = EncryptionManager::machine_key().unwrap();
-/// assert_eq!(machine_key.len(), 32);
-///
-/// // Derive an encryption key
-/// let password = "my_secure_password";
-/// let salt = b"random_salt_data";
-/// let derived_key = EncryptionManager::derive_key(password, &machine_key, salt).unwrap();
-/// assert_eq!(derived_key.len(), 32);
-/// ```
+/// **Note**: This is an internal implementation detail. Services should use the
+/// `CredentialProvider` trait instead of calling these functions directly.
 pub struct EncryptionManager;
 
 impl EncryptionManager {
@@ -88,23 +74,12 @@ impl EncryptionManager {
   /// of the current system. The key is generated using SHA-256, ensuring cryptographic
   /// security while remaining consistent across program runs on the same machine.
   ///
+  /// **Note**: This is an internal function. Use the `CredentialProvider` trait instead.
+  ///
   /// # Returns
   ///
   /// A `Result<Vec<u8>>` containing a 32-byte machine-specific key, or an error if
   /// system information cannot be retrieved.
-  ///
-  /// # Example
-  ///
-  /// ```rust
-  /// use sentinel::encryption::EncryptionManager;
-  ///
-  /// let machine_key = EncryptionManager::machine_key().unwrap();
-  /// assert_eq!(machine_key.len(), 32);
-  ///
-  /// // The key should be deterministic
-  /// let machine_key2 = EncryptionManager::machine_key().unwrap();
-  /// assert_eq!(machine_key, machine_key2);
-  /// ```
   pub fn machine_key() -> Result<Vec<u8>> {
     // Use hostname and username as machine-specific data
     let hostname =
@@ -128,6 +103,8 @@ impl EncryptionManager {
   /// a secure 32-byte encryption key using SHA-256. The derivation is deterministic,
   /// meaning the same inputs will always produce the same output.
   ///
+  /// **Note**: This is an internal function. Use the `CredentialProvider` trait instead.
+  ///
   /// # Arguments
   ///
   /// * `master_password` - The user's master password
@@ -137,23 +114,6 @@ impl EncryptionManager {
   /// # Returns
   ///
   /// A `Result<Vec<u8>>` containing a 32-byte derived encryption key.
-  ///
-  /// # Example
-  ///
-  /// ```rust
-  /// use sentinel::encryption::EncryptionManager;
-  ///
-  /// let machine_key = EncryptionManager::machine_key().unwrap();
-  /// let password = "my_secure_password";
-  /// let salt = b"unique_salt_data";
-  ///
-  /// let key = EncryptionManager::derive_key(password, &machine_key, salt).unwrap();
-  /// assert_eq!(key.len(), 32);
-  ///
-  /// // Same inputs produce same key
-  /// let key2 = EncryptionManager::derive_key(password, &machine_key, salt).unwrap();
-  /// assert_eq!(key, key2);
-  /// ```
   pub fn derive_key(master_password: &str, machine_key: &[u8], salt: &[u8]) -> Result<Vec<u8>> {
     // Combine master password, machine key, and salt
     let mut combined = Vec::new();

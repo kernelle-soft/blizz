@@ -14,6 +14,10 @@ use rand::RngCore;
 pub mod encryption;
 
 /// Trait interface for credential providers
+///
+/// This is the main public API that services should use to interact with credential storage.
+/// It provides a simple, secure interface for storing and retrieving credentials.
+///
 pub trait CredentialProvider {
   fn get_credential(&self, service: &str, key: &str) -> Result<String>;
   fn store_credential(&self, service: &str, key: &str, value: &str) -> Result<()>;
