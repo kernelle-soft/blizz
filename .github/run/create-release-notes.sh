@@ -17,7 +17,8 @@ OUTPUT_FILE="release_notes.md"
 echo "🔍 Generating release notes for $TAG (version $VERSION)"
 
 # Get previous tag for changelog
-PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+# We want the tag before the current one, not HEAD~1
+PREV_TAG=$(git tag --sort=-version:refname | grep -v "^$TAG$" | head -1 2>/dev/null || echo "")
 
 if [ ! -z "$PREV_TAG" ]; then
   echo "📝 Found previous tag: $PREV_TAG"
@@ -66,23 +67,15 @@ cd kernelle-$TAG-source
 ./scripts/install.sh
 \`\`\`
 
-## Tools Included
-
-- **kernelle** - Toolshed orchestrator and project manager
-- **blizz** - Knowledge management and insight storage
-- **jerrod** - GitLab/GitHub merge request review tool  
-- **violet** - Code complexity analysis and style enforcement
-- **adam** - Knowledge insight management and consolidation
-- **sentinel** - Secure credential storage
-- **bentley** - Theatrical logging and output formatting library
-
 All tools are unified at version $VERSION.
 EOF
+
+DOT="%2E"
 
 # Add changelog link if we have a previous tag
 if [ ! -z "$PREV_TAG" ]; then
   echo "" >> "$OUTPUT_FILE"
-  echo "**Full Changelog**: https://github.com/TravelSizedLions/kernelle/compare/${PREV_TAG}...$TAG" >> "$OUTPUT_FILE"
+  echo "**Full Changelog**: https://github.com/TravelSizedLions/kernelle/compare/${PREV_TAG}${DOT}${DOT}${DOT}${TAG}" >> "$OUTPUT_FILE"
 fi
 
 echo "✅ Release notes generated: $OUTPUT_FILE"
