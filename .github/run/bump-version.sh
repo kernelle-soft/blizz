@@ -88,4 +88,6 @@ AUTHOR_EMAIL=$(echo "$AUTHOR_LINE" | sed 's/.*<\(.*\)>.*/\1/')
 git config --local user.email "$AUTHOR_EMAIL"
 git config --local user.name "$AUTHOR_NAME"
 git add .
-git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+git commit -m "$NEW_VERSION
+[skip validation]
+"

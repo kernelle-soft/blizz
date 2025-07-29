@@ -1,6 +1,8 @@
-name: Linux
+name: linux
 
 on:
+  push:
+    branches: [dev]
   pull_request:
     branches: [dev]
 
@@ -11,6 +13,7 @@ jobs:
   test-linux:
     name: Test (Linux)
     runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip validation]')"
 
     steps:
       - name: Checkout code
@@ -23,5 +26,6 @@ jobs:
         uses: ./.github/actions/test
         with:
           report-coverage: 'true'
-          post-pr-comment: 'true'
-          coverage-artifact-name: 'pr-coverage'
+          post-pr-comment: ${{ github.event_name == 'pull_request' }}
+          coverage-artifact-name: ${{ github.event_name == 'pull_request' && 'pr-coverage' || '' }}
+          update-badge: ${{ github.event_name == 'push' }}

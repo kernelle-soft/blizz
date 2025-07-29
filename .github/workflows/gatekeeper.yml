@@ -1,0 +1,80 @@
+name: Gatekeeper
+
+on:
+  workflow_run:
+    workflows: ["linux", "mac-os", "windows", "code-quality", "test-install-cleanup"]
+    types: [completed]
+    branches: [dev]
+
+jobs:
+  check-all-workflows:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      should-release: ${{ steps.check.outputs.should-release }}
+    
+    steps:
+      - name: Check if all workflows succeeded
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const workflows = ["linux", "mac-os", "windows", "code-quality", "test-install-cleanup"];
+            const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head_sha: context.payload.workflow_run.head_sha,
+              status: 'completed'
+            });
+
+            const workflowResults = {};
+            for (const run of runs.workflow_runs) {
+              if (workflows.includes(run.name)) {
+                workflowResults[run.name] = run.conclusion;
+              }
+            }
+
+            console.log('Workflow results:', workflowResults);
+
+            const allSucceeded = workflows.every(name => 
+              workflowResults[name] === 'success'
+            );
+
+            if (allSucceeded) {
+              console.log('All workflows succeeded! Ready for release.');
+              core.setOutput('should-release', 'true');
+            } else {
+              console.log('Not all workflows have succeeded yet.');
+              core.setOutput('should-release', 'false');
+            }
+
+  trigger-release:
+    needs: check-all-workflows
+    runs-on: ubuntu-latest
+    if: needs.check-all-workflows.outputs.should-release == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Setup Kernelle Dependencies
+        uses: ./.github/actions/setup-kernelle
+
+      - name: Bump and Tag Version
+        run: |
+          .github/run/bump-version.sh
+          .github/run/tag-version.sh
+        
+      - name: Push Changes
+        run: |
+          git push origin dev
+          # Push the newly created tag (if any) to trigger release workflow
+          NEW_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
+          if [ ! -z "$NEW_TAG" ]; then
+            echo "🏷️ Pushing tag: $NEW_TAG"
+            git push origin "$NEW_TAG"
+          else
+            echo "ℹ️ No tag found on current commit"
+          fi
