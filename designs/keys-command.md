@@ -129,25 +129,38 @@ The `keeper-daemon` is a minimal background service with a single responsibility
 
 ### Architecture
 ```mermaid
-graph LR
+graph TB
     CLI[keeper CLI]
     DAEMON[keeper-daemon]
     
-    CLI -->|get_key| DAEMON
-    DAEMON -->|master_key| CLI
+    CLI <-->|get_key / master_key| DAEMON
     
-    subgraph "CLI Responsibilities"
-        CLI_ENCRYPT[Encrypt/decrypt]
-        CLI_IO[File I/O]
-        CLI_PROMPT[User prompts]
-        CLI_LOGIC[Business logic]
+    subgraph CLI_BOX[" "]
+        direction TB
+        CLI_TITLE[CLI Responsibilities]
+        CLI_ENCRYPT[🔒 encrypt/decrypt]
+        CLI_IO[📁 file I/O]
+        CLI_PROMPT[💬 user prompts]
+        CLI_LOGIC[⚙️ Business logic]
+        
+        CLI_TITLE --- CLI_ENCRYPT
+        CLI_TITLE --- CLI_IO
+        CLI_TITLE --- CLI_PROMPT
+        CLI_TITLE --- CLI_LOGIC
     end
     
-    subgraph "Daemon Responsibilities"
-        DAEMON_KEY[Master Key]
-        DAEMON_SOCKET[Unix Socket]
-        DAEMON_MEMORY[Memory Mgmt]
+    subgraph DAEMON_BOX[" "]
+        direction TB
+        DAEMON_TITLE[Daemon Responsibilities]
+        DAEMON_KEY[🗝️ Master Key Storage]
+        DAEMON_SOCKET[🔌 Unix Socket IPC]
+        
+        DAEMON_TITLE --- DAEMON_KEY
+        DAEMON_TITLE --- DAEMON_SOCKET
     end
+    
+    CLI_BOX -.->|provides| CLI
+    DAEMON_BOX -.->|provides| DAEMON
 ```
 
 ### IPC Protocol (Ultra Simple)
