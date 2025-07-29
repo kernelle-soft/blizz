@@ -22,10 +22,16 @@ jobs:
       - name: Setup Kernelle Dependencies
         uses: ./.github/actions/setup-kernelle
 
-      - name: Test with Coverage
+      - name: Test with Coverage (PR)
+        if: github.event_name == 'pull_request'
         uses: ./.github/actions/test
         with:
           report-coverage: 'true'
-          post-pr-comment: ${{ github.event_name == 'pull_request' }}
-          coverage-artifact-name: ${{ github.event_name == 'pull_request' && 'pr-coverage' || '' }}
-          update-badge: ${{ github.event_name == 'push' }}
+          post-pr-comment: 'true'
+
+      - name: Test with Coverage (Push)
+        if: github.event_name == 'push'
+        uses: ./.github/actions/test
+        with:
+          report-coverage: 'true'
+          update-badge: 'true'
