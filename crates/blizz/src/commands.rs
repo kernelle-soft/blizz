@@ -3,7 +3,7 @@ use colored::*;
 
 #[cfg(feature = "neural")]
 use crate::embedding_client::{self, EmbeddingClient};
-use crate::insight::{self, Insight, InsightMetaData};
+use crate::insight::{self, Insight};
 
 /// Add a new insight to the knowledge base (testable version with dependency injection)
 #[cfg(feature = "neural")]

@@ -120,7 +120,10 @@ fn can_use_exact_search(options: &SearchOptions) -> bool {
   if !options.semantic && !options.exact {
     false // Neural-only mode for testing
   } else {
-    !get_semantic_flag(options) // Run exact unless semantic-only mode
+    #[cfg(feature = "semantic")]
+    { !options.semantic } // Run exact unless semantic-only mode
+    #[cfg(not(feature = "semantic"))]
+    { !options.exact }
   }
   #[cfg(not(feature = "semantic"))]
   !options.exact
@@ -129,21 +132,16 @@ fn can_use_exact_search(options: &SearchOptions) -> bool {
 /// Check if embedding search feature can be used
 #[cfg(feature = "neural")]
 fn can_use_embedding_search(options: &SearchOptions) -> bool {
-  !get_semantic_flag(options) && !options.exact
+  #[cfg(feature = "semantic")]
+  { !options.semantic && !options.exact }
+  #[cfg(not(feature = "semantic"))]
+  { !options.exact }
 }
 
 /// Check if semantic search feature can be used
 #[cfg(feature = "semantic")]
 fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
   !options.exact
-}
-
-/// Helper function to get semantic flag value
-fn get_semantic_flag(_options: &SearchOptions) -> bool {
-  #[cfg(feature = "semantic")]
-  return _options.semantic;
-  #[cfg(not(feature = "semantic"))]
-  return false;
 }
 
 /// Search a topic for matches based on a search strategy
