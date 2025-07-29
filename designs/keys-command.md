@@ -272,3 +272,183 @@ fn test_service_functionality() {
 }
 ```
 
+## Implementation Plan
+
+Given that `sentinel` already provides a solid foundation with CLI commands and 70% of the required functionality, the migration to `keeper` should be done in phases to maintain stability while adding the missing security and daemon features.
+
+### Phase 1: Security Hardening 🔒
+**Goal:** Fix cryptographic weaknesses in current `sentinel` implementation
+
+- [ ] **Replace weak key derivation**
+  - [ ] Remove `DefaultHasher` usage in `encryption.rs`
+  - [ ] Implement Argon2 or PBKDF2 for key derivation
+  - [ ] Add user password component to key derivation
+  - [ ] Maintain device fingerprint as implicit salt
+  - [ ] Ensure backward compatibility with existing secrets (migration path)
+
+- [ ] **Enhance device fingerprinting**
+  - [ ] Make device fingerprint more robust (hardware UUID, OS identifiers)
+  - [ ] Test stability across system updates
+  - [ ] Handle edge cases (VM migrations, hardware changes)
+
+- [ ] **Memory security improvements**
+  - [ ] Implement secure memory zeroing for sensitive data
+  - [ ] Add proper cleanup in error paths
+  - [ ] Audit for memory leaks of sensitive data
+
+**Acceptance Criteria:**
+- All secrets use cryptographically secure key derivation
+- User password required for secret access
+- Device fingerprint remains stable across minor system changes
+- Memory containing secrets is properly zeroed after use
+
+### Phase 2: Rename and API Alignment 🔄
+**Goal:** Rename `sentinel` to `keeper` and align CLI with design
+
+- [ ] **Rename binary and crate**
+  - [ ] Rename `crates/sentinel` to `crates/keeper`
+  - [ ] Update binary name from `sentinel` to `keeper`
+  - [ ] Update all internal references and documentation
+  - [ ] Create alias/symlink for backward compatibility during transition
+
+- [ ] **Align CLI API with design**
+  - [ ] Map existing commands to new structure:
+    - `sentinel store <service> <key> <value>` → `keeper store [-g <service>] <key> [<value>]`
+    - `sentinel get <service> <key>` → `keeper read [-g <service>] <key>`
+    - `sentinel list` → `keeper list [-g <group>]`
+  - [ ] Implement group concept (use service name as default group)
+  - [ ] Add `-g, --group` option support
+  - [ ] Maintain backward compatibility with old command structure
+
+- [ ] **Update trait interface**
+  - [ ] Rename `CredentialProvider` to `SecretProvider`
+  - [ ] Update method signatures: `get_credential()` → `get_secret()`
+  - [ ] Change parameters from `(service, key)` to `(group, name)`
+  - [ ] Provide compatibility wrapper for existing integrations
+
+**Acceptance Criteria:**
+- `keeper` command works with new CLI syntax
+- All existing `sentinel` functionality preserved
+- Backward compatibility maintained for services using old trait
+- Group concept properly implemented
+
+### Phase 3: Daemon Implementation 🔧
+**Goal:** Add minimal daemon for master key caching
+
+- [ ] **Create keeper-daemon binary**
+  - [ ] Implement minimal daemon with single responsibility: key storage
+  - [ ] Unix socket IPC with simple protocol: `"GET_KEY\n"` → `"<32-byte-key>"`
+  - [ ] Secure memory allocation for master key
+  - [ ] Proper daemon lifecycle management (start/stop/restart)
+
+- [ ] **Daemon commands**
+  - [ ] `keeper agent start` - Start daemon, prompt for password once
+  - [ ] `keeper agent status` - Check daemon status and key validity
+  - [ ] `keeper agent stop` - Stop daemon, clear key from memory
+  - [ ] `keeper agent restart` - Restart daemon
+
+- [ ] **Fallback behavior**
+  - [ ] If daemon not running, `keeper` CLI prompts for password
+  - [ ] Load/save derived key from `~/.kernelle/keeper.key`
+  - [ ] Graceful degradation when daemon unavailable
+
+- [ ] **Session management**
+  - [ ] Auto-start daemon on login (optional)
+  - [ ] Cleanup on logout/shutdown
+  - [ ] Handle daemon crashes gracefully
+
+**Acceptance Criteria:**
+- Daemon successfully caches master key in memory
+- IPC communication works reliably
+- CLI falls back gracefully when daemon unavailable
+- No password prompts during normal operation after initial setup
+
+### Phase 4: Integration Updates 🔗
+**Goal:** Update existing services to use new `keeper` instead of `sentinel`
+
+- [ ] **Update service integrations**
+  - [ ] Update `jerrod` to use `SecretProvider` trait
+  - [ ] Update `blizz` credential handling
+  - [ ] Update any other services using `sentinel`
+  - [ ] Test all integrations work with new system
+
+- [ ] **Environment variable support**
+  - [ ] Implement `KEEPER_AUTH` environment variable support
+  - [ ] Allow password to be passed through environment for automation
+  - [ ] Document security implications and best practices
+
+- [ ] **Migration utilities**
+  - [ ] Create migration tool for existing `sentinel` credentials
+  - [ ] Handle file path changes (`sentinel/` → `keeper/`)
+  - [ ] Provide rollback capability during transition
+
+**Acceptance Criteria:**
+- All services work seamlessly with new `keeper` system
+- No functionality lost during migration
+- Environment variable authentication works
+- Migration from old `sentinel` data successful
+
+### Phase 5: Enhanced Features ✨
+**Goal:** Add advanced features and polish
+
+- [ ] **Enhanced CLI features**
+  - [ ] Improve list formatting and filtering
+  - [ ] Add export/import functionality for backup/restore
+  - [ ] Add secret validation and health checks
+  - [ ] Better error messages and user guidance
+
+- [ ] **Advanced security features**
+  - [ ] Key rotation functionality
+  - [ ] Migration tools for device changes
+  - [ ] Optional two-factor authentication
+  - [ ] Audit logging for secret access
+
+- [ ] **Developer experience**
+  - [ ] Comprehensive documentation
+  - [ ] Integration examples and tutorials
+  - [ ] Performance optimization
+  - [ ] Extended test coverage
+
+**Acceptance Criteria:**
+- All advanced features work as designed
+- Documentation is complete and accurate
+- Performance meets requirements
+- Test coverage >90%
+
+### Phase 6: Cleanup and Deprecation 🧹
+**Goal:** Remove old code and finalize migration
+
+- [ ] **Remove deprecated code**
+  - [ ] Remove old `sentinel` crate after all integrations migrated
+  - [ ] Remove compatibility wrappers
+  - [ ] Remove old file paths and configurations
+  - [ ] Clean up documentation references
+
+- [ ] **Final validation**
+  - [ ] Full system testing with all services
+  - [ ] Security audit of final implementation
+  - [ ] Performance benchmarking
+  - [ ] User acceptance testing
+
+**Acceptance Criteria:**
+- No old `sentinel` code remains
+- All functionality working in production
+- Security requirements fully met
+- Performance acceptable for all use cases
+
+---
+
+**Total Estimated Timeline:** 3-4 weeks
+- Phase 1: 1 week (critical security fixes)
+- Phase 2: 3-4 days (renaming and API alignment)
+- Phase 3: 1 week (daemon implementation)
+- Phase 4: 3-4 days (integration updates)
+- Phase 5: 1 week (enhanced features)
+- Phase 6: 2-3 days (cleanup)
+
+**Dependencies:**
+- Phase 2 depends on Phase 1 completion
+- Phase 3 can be developed in parallel with Phase 2
+- Phase 4 depends on Phases 2 and 3
+- Phases 5 and 6 are sequential after Phase 4
+
