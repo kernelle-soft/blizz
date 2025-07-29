@@ -123,6 +123,35 @@ fn test_encryption_manager_machine_key() {
 }
 
 #[test]
+fn test_encryption_manager_machine_key_deterministic() {
+  let _temp_dir = setup_test_env();
+
+  // Machine key should be deterministic - same inputs produce same output
+  let key1 = EncryptionManager::machine_key().unwrap();
+  let key2 = EncryptionManager::machine_key().unwrap();
+  
+  assert_eq!(key1, key2, "Machine key should be deterministic");
+  assert_eq!(key1.len(), 32, "Machine key should be 32 bytes");
+  assert_eq!(key2.len(), 32, "Machine key should be 32 bytes");
+}
+
+#[test]
+fn test_encryption_manager_machine_key_not_empty() {
+  let _temp_dir = setup_test_env();
+
+  let key = EncryptionManager::machine_key().unwrap();
+  
+  // Ensure the key is not all zeros (highly unlikely with SHA-256)
+  let all_zeros = vec![0u8; 32];
+  assert_ne!(key, all_zeros, "Machine key should not be all zeros");
+  
+  // Ensure key has some entropy (not all same byte)
+  let first_byte = key[0];
+  let all_same = key.iter().all(|&b| b == first_byte);
+  assert!(!all_same, "Machine key should have entropy (not all same byte)");
+}
+
+#[test]
 fn test_encryption_manager_key_derivation() {
   let _temp_dir = setup_test_env();
 
@@ -134,6 +163,142 @@ fn test_encryption_manager_key_derivation() {
   assert!(derived_key.is_ok());
   let key = derived_key.unwrap();
   assert_eq!(key.len(), 32); // Should be 32 bytes
+}
+
+#[test]
+fn test_encryption_manager_key_derivation_deterministic() {
+  let _temp_dir = setup_test_env();
+
+  let master_password = "test_password_123";
+  let machine_key = vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160];
+  let salt = vec![255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240];
+
+  // Same inputs should produce same output
+  let key1 = EncryptionManager::derive_key(master_password, &machine_key, &salt).unwrap();
+  let key2 = EncryptionManager::derive_key(master_password, &machine_key, &salt).unwrap();
+  
+  assert_eq!(key1, key2, "Key derivation should be deterministic");
+  assert_eq!(key1.len(), 32, "Derived key should be 32 bytes");
+}
+
+#[test]
+fn test_encryption_manager_key_derivation_different_inputs() {
+  let _temp_dir = setup_test_env();
+
+  let machine_key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  let salt = vec![16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
+  // Different passwords should produce different keys
+  let key1 = EncryptionManager::derive_key("password1", &machine_key, &salt).unwrap();
+  let key2 = EncryptionManager::derive_key("password2", &machine_key, &salt).unwrap();
+  assert_ne!(key1, key2, "Different passwords should produce different keys");
+
+  // Different machine keys should produce different keys
+  let machine_key2 = vec![16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+  let key3 = EncryptionManager::derive_key("password1", &machine_key2, &salt).unwrap();
+  assert_ne!(key1, key3, "Different machine keys should produce different keys");
+
+  // Different salts should produce different keys
+  let salt2 = vec![32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17];
+  let key4 = EncryptionManager::derive_key("password1", &machine_key, &salt2).unwrap();
+  assert_ne!(key1, key4, "Different salts should produce different keys");
+}
+
+#[test]
+fn test_encryption_manager_key_derivation_edge_cases() {
+  let _temp_dir = setup_test_env();
+
+  let machine_key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  let salt = vec![16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
+  // Empty password should work
+  let key_empty = EncryptionManager::derive_key("", &machine_key, &salt);
+  assert!(key_empty.is_ok(), "Empty password should be handled");
+  assert_eq!(key_empty.unwrap().len(), 32);
+
+  // Very long password should work
+  let long_password = "a".repeat(1000);
+  let key_long = EncryptionManager::derive_key(&long_password, &machine_key, &salt);
+  assert!(key_long.is_ok(), "Long password should be handled");
+  assert_eq!(key_long.unwrap().len(), 32);
+
+  // Empty machine key should work
+  let key_empty_machine = EncryptionManager::derive_key("password", &[], &salt);
+  assert!(key_empty_machine.is_ok(), "Empty machine key should be handled");
+  assert_eq!(key_empty_machine.unwrap().len(), 32);
+
+  // Empty salt should work
+  let key_empty_salt = EncryptionManager::derive_key("password", &machine_key, &[]);
+  assert!(key_empty_salt.is_ok(), "Empty salt should be handled");
+  assert_eq!(key_empty_salt.unwrap().len(), 32);
+}
+
+#[test]
+fn test_encryption_manager_sha256_properties() {
+  let _temp_dir = setup_test_env();
+
+  let machine_key = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  let salt = vec![16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+
+  // Test that derived keys have good entropy (not predictable patterns)
+  let key1 = EncryptionManager::derive_key("password1", &machine_key, &salt).unwrap();
+  let key2 = EncryptionManager::derive_key("password2", &machine_key, &salt).unwrap();
+  
+  // Keys should not be identical
+  assert_ne!(key1, key2);
+  
+  // Keys should not have obvious patterns (all same byte)
+  let first_byte = key1[0];
+  let all_same = key1.iter().all(|&b| b == first_byte);
+  assert!(!all_same, "Derived key should have entropy");
+  
+  // Check that changing one character changes many bytes (avalanche effect)
+  let key1_alt = EncryptionManager::derive_key("password1x", &machine_key, &salt).unwrap();
+  let different_bytes = key1.iter().zip(key1_alt.iter()).filter(|(a, b)| a != b).count();
+  
+  // SHA-256 should have good avalanche effect - small input change affects many output bytes
+  assert!(different_bytes > 8, "Small input change should affect many output bytes (avalanche effect)");
+}
+
+#[test]
+fn test_machine_key_components() {
+  let _temp_dir = setup_test_env();
+  
+  // Test that machine key generation includes hostname and username components
+  let key1 = EncryptionManager::machine_key().unwrap();
+  assert_eq!(key1.len(), 32, "Machine key should be 32 bytes");
+  
+  // The key should be consistent across multiple calls
+  let key2 = EncryptionManager::machine_key().unwrap();
+  assert_eq!(key1, key2, "Machine key should be deterministic");
+  
+  // Machine key should be based on actual system information
+  // We can't test the exact values since they depend on the system,
+  // but we can verify it's not a default/empty value
+  let empty_key = vec![0u8; 32];
+  assert_ne!(key1, empty_key, "Machine key should not be all zeros");
+}
+
+#[test]
+fn test_key_derivation_integration() {
+  let _temp_dir = setup_test_env();
+  
+  // Test the full key derivation process with realistic data
+  let password = "MySecurePassword123!";
+  let machine_key = EncryptionManager::machine_key().unwrap();
+  let salt = b"test_salt_16_byt"; // 16 bytes
+  
+  let derived_key = EncryptionManager::derive_key(password, &machine_key, salt).unwrap();
+  
+  assert_eq!(derived_key.len(), 32, "Derived key should be 32 bytes");
+  
+  // Verify the same inputs produce the same key
+  let derived_key2 = EncryptionManager::derive_key(password, &machine_key, salt).unwrap();
+  assert_eq!(derived_key, derived_key2, "Key derivation should be deterministic");
+  
+  // Verify different password produces different key
+  let different_key = EncryptionManager::derive_key("DifferentPassword", &machine_key, salt).unwrap();
+  assert_ne!(derived_key, different_key, "Different password should produce different key");
 }
 
 // Skip tests that would require actual encryption/decryption with master passwords
