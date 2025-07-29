@@ -13,7 +13,7 @@ jobs:
   test-linux:
     name: Test (Linux)
     runs-on: ubuntu-latest
-    if: "!contains(github.event.head_commit.message, '[validated]')"
+    if: "!contains(github.event.head_commit.message, '[validated]') && !contains(github.event.head_commit.body, '[validated]')"
 
     steps:
       - name: Checkout code
