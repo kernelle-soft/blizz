@@ -183,7 +183,7 @@ pub fn clear_embedding(insight: &mut Insight) {
   insight.embedding_computed = None;
 }
 
-pub fn dv/source.ielete(insight: &Insight) -> Result<()> {
+pub fn delete(insight: &Insight) -> Result<()> {
   let file_path = file_path(insight)?;
   check_insight_exists(&file_path, &insight.topic, &insight.name)?;
   fs::remove_file(&file_path)?;
