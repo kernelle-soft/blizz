@@ -21,14 +21,12 @@ pub async fn execute(list: bool) -> Result<()> {
   }
 }
 
-/// Show the current version
 async fn show_current_version<W: Write>(writer: &mut W) -> Result<()> {
   let version = env!("CARGO_PKG_VERSION");
   writeln!(writer, "kernelle {version}")?;
   Ok(())
 }
 
-/// Show all available versions from GitHub releases
 async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
   let current_version = env!("CARGO_PKG_VERSION");
   writeln!(writer, "Current version: kernelle {current_version}")?;
@@ -83,7 +81,6 @@ async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
   Ok(())
 }
 
-/// Fetch releases from GitHub API
 async fn fetch_github_releases() -> Result<Vec<Release>> {
   fetch_releases_from_url(GITHUB_RELEASE_API).await
 }
@@ -109,8 +106,6 @@ async fn fetch_releases_from_url(url: &str) -> Result<Vec<Release>> {
   Ok(releases)
 }
 
-/// Simple version comparison for semantic versions
-/// Returns Ordering for use in sort_by
 fn version_compare(a: &str, b: &str) -> std::cmp::Ordering {
   // Split versions into parts
   let parts_a: Vec<u32> = a.split('.').filter_map(|s| s.parse().ok()).collect();
