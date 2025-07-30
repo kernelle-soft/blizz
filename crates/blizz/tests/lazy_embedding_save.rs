@@ -1,18 +1,27 @@
 // violet ignore file -- test file for complex lazy embedding recomputation interaction
+#[cfg(all(test, feature = "neural"))]
 use anyhow::Result;
+#[cfg(all(test, feature = "neural"))]
 use blizz::embedding_client::{self, MockEmbeddingService};
+#[cfg(all(test, feature = "neural"))]
 use blizz::insight::{self, Insight};
+#[cfg(all(test, feature = "neural"))]
 use blizz::search::{self, SearchOptions};
+#[cfg(all(test, feature = "neural"))]
 use serial_test::serial;
+#[cfg(all(test, feature = "neural"))]
 use std::env;
+#[cfg(all(test, feature = "neural"))]
 use tempfile::TempDir;
 
+#[cfg(all(test, feature = "neural"))]
 fn setup_temp_insights_root(_test_name: &str) -> TempDir {
   let temp_dir = TempDir::new().unwrap();
   env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
   temp_dir
 }
 
+#[cfg(all(test, feature = "neural"))]
 #[test]
 #[serial]
 fn test_lazy_embedding_save_on_search() -> Result<()> {
@@ -69,6 +78,7 @@ fn test_lazy_embedding_save_on_search() -> Result<()> {
   Ok(())
 }
 
+#[cfg(all(test, feature = "neural"))]
 #[test]
 #[serial]
 fn test_existing_embedding_not_overwritten() -> Result<()> {

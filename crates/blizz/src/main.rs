@@ -2,10 +2,13 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 mod commands;
+#[cfg(feature = "neural")]
 mod embedding_client;
+#[cfg(feature = "neural")]
 mod embedding_model;
 mod insight;
 mod search;
+#[cfg(feature = "semantic")]
 mod semantic;
 mod similarity;
 

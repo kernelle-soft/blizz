@@ -1,16 +1,18 @@
-use anyhow::Result;
-use blizz::commands::*;
 #[cfg(feature = "neural")]
 use blizz::embedding_client;
+#[cfg(feature = "neural")]
 use blizz::embedding_client::MockEmbeddingService;
-use blizz::insight::{self};
-use serial_test::serial;
-use std::env;
-use tempfile::TempDir;
 
 #[cfg(test)]
+#[cfg(feature = "neural")]
 mod index_command_tests {
   use super::*;
+  use anyhow::Result;
+  use blizz::commands::*;
+  use blizz::insight::{self};
+  use serial_test::serial;
+  use std::env;
+  use tempfile::TempDir;
 
   fn setup_temp_insights_root(_test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
@@ -220,6 +222,7 @@ mod general_index_tests {
     // This test verifies that when neural features are disabled,
     // the code still compiles but index_insights is not available
     // The test itself doesn't do much, but ensures the conditional compilation works
-    assert!(true);
+
+    // Test passes if compilation succeeds - no assertions needed
   }
 }

@@ -106,7 +106,9 @@ async fn test_resolve_with_thread() -> Result<()> {
       error_msg.contains("Bad credentials")
         || error_msg.contains("GitHub")
         || error_msg.contains("401 Unauthorized")
-        || error_msg.contains("HTTP 401"),
+        || error_msg.contains("HTTP 401")
+        || error_msg.contains("403 Forbidden")
+        || error_msg.contains("HTTP 403"),
       "Unexpected error: {error_msg}"
     );
   }

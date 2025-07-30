@@ -5,8 +5,10 @@ use colored::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(feature = "neural")]
 use crate::embedding_client;
 use crate::insight;
+#[cfg(any(feature = "semantic", feature = "neural"))]
 use crate::similarity;
 
 // Semantic similarity threshold for meaningful results
@@ -53,6 +55,7 @@ pub struct SearchOptions {
   #[cfg(feature = "semantic")]
   pub semantic: bool,
   pub exact: bool,
+  #[cfg(feature = "neural")]
   pub embedding_client: embedding_client::EmbeddingClient,
 }
 
@@ -65,6 +68,7 @@ impl SearchOptions {
       #[cfg(feature = "semantic")]
       semantic: options.semantic,
       exact: options.exact,
+      #[cfg(feature = "neural")]
       embedding_client: embedding_client::create(),
     }
   }
@@ -112,19 +116,38 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
 /// Check if exact search should be used (default behavior unless explicitly disabled)
 fn can_use_exact_search(options: &SearchOptions) -> bool {
   // Don't run exact search when we want neural-only mode
+  #[cfg(feature = "semantic")]
   if !options.semantic && !options.exact {
     false // Neural-only mode for testing
   } else {
-    !options.semantic // Run exact unless semantic-only mode
+    #[cfg(feature = "semantic")]
+    {
+      !options.semantic
+    } // Run exact unless semantic-only mode
+    #[cfg(not(feature = "semantic"))]
+    {
+      !options.exact
+    }
   }
+  #[cfg(not(feature = "semantic"))]
+  !options.exact
 }
 
 /// Check if embedding search feature can be used
+#[cfg(feature = "neural")]
 fn can_use_embedding_search(options: &SearchOptions) -> bool {
-  !options.semantic && !options.exact
+  #[cfg(feature = "semantic")]
+  {
+    !options.semantic && !options.exact
+  }
+  #[cfg(not(feature = "semantic"))]
+  {
+    !options.exact
+  }
 }
 
 /// Check if semantic search feature can be used
+#[cfg(feature = "semantic")]
 fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
   !options.exact
 }
@@ -255,6 +278,7 @@ fn try_get_embedding(
 }
 
 /// Recompute the embedding for an insight and save it to the file system.
+#[cfg(feature = "neural")]
 fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> Result<Vec<f32>> {
   let normalized_content = get_normalized_content(insight, options);
 
@@ -275,6 +299,44 @@ fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> R
   Ok(embedding.embedding)
 }
 
+/// Highlight search terms
+fn highlight_keywords(text: &str, terms: &[String]) -> String {
+  let mut result = text.to_string();
+
+  let mut sorted = terms.to_vec();
+  sorted.sort_by_key(|b| std::cmp::Reverse(b.len()));
+
+  for term in sorted {
+    if term.is_empty() {
+      continue;
+    }
+
+    let term_lower = term.to_lowercase();
+    let mut highlighted = String::new();
+    let mut end = 0;
+
+    let result_lower = result.to_lowercase();
+    let mut start = 0;
+
+    while let Some(pos) = result_lower[start..].find(&term_lower) {
+      let abs_pos = start + pos;
+
+      highlighted.push_str(&result[end..abs_pos]);
+
+      let match_text = &result[abs_pos..abs_pos + term.len()];
+      highlighted.push_str(&match_text.yellow().bold().to_string());
+
+      end = abs_pos + term.len();
+      start = end;
+    }
+
+    highlighted.push_str(&result[end..]);
+    result = highlighted;
+  }
+
+  result
+}
+
 /// Build search paths based on topic filter
 fn get_search_paths(insights_root: &Path, topic_filter: Option<&str>) -> Result<Vec<PathBuf>> {
   if let Some(topic) = topic_filter {
@@ -290,13 +352,13 @@ pub fn display_results(results: &[SearchResult], terms: &[String], overview_only
     println!("No matches found for: {}", terms.join(" ").yellow());
   } else {
     for result in results {
-      display_single_result(result, overview_only);
+      display_single_result(result, terms, overview_only);
     }
   }
 }
 
-/// Display a single search result
-fn display_single_result(result: &SearchResult, overview_only: bool) {
+/// Display a single search result with keyword highlighting
+fn display_single_result(result: &SearchResult, terms: &[String], overview_only: bool) {
   let header = format!("=== {}/{} ===", result.topic.blue().bold(), result.name.yellow().bold());
 
   println!("{header}");
@@ -310,7 +372,8 @@ fn display_single_result(result: &SearchResult, overview_only: bool) {
     format!("{}\n\n{}", result.overview, result.details)
   };
 
-  let wrapped_lines = wrap_text(&content, wrap_with);
+  let highlighted_content = highlight_keywords(&content, terms);
+  let wrapped_lines = wrap_text(&highlighted_content, wrap_with);
   for line in wrapped_lines {
     println!("{line}");
   }

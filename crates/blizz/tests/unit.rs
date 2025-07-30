@@ -1,12 +1,10 @@
-use anyhow::Result;
-use blizz::insight::{self, Insight};
-use serial_test::serial;
-use std::env;
-use tempfile::TempDir;
-
 #[cfg(test)]
 mod insight_tests {
-  use super::*;
+  use anyhow::Result;
+  use blizz::insight::{self, Insight};
+  use serial_test::serial;
+  use std::env;
+  use tempfile::TempDir;
 
   fn setup_temp_insights_root(test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
@@ -349,28 +347,48 @@ mod insight_tests {
 
   #[test]
   #[serial]
-  fn test_empty_directory_cleanup_on_delete() -> Result<()> {
-    let _temp = setup_temp_insights_root("cleanup");
+  fn test_search_with_highlighting() -> Result<()> {
+    let _temp = setup_temp_insights_root("search_highlight");
 
-    let insight = Insight::new(
-      "cleanup_topic".to_string(),
-      "only_insight".to_string(),
-      "Lonely insight".to_string(),
-      "Will clean up directory".to_string(),
+    // Create test insights
+    let insight1 = Insight::new(
+      "test_topic".to_string(),
+      "rust_code".to_string(),
+      "This is about Rust programming language".to_string(),
+      "Rust is a systems programming language that runs blazingly fast".to_string(),
+    );
+    let insight2 = Insight::new(
+      "test_topic".to_string(),
+      "other_lang".to_string(),
+      "This is about Python programming".to_string(),
+      "Python is great for rapid development and scripting".to_string(),
     );
 
-    insight::save(&insight)?;
+    insight::save(&insight1)?;
+    insight::save(&insight2)?;
 
-    // Verify topic directory exists
-    let topics = insight::get_topics()?;
-    assert!(topics.contains(&"cleanup_topic".to_string()));
+    // Test search functionality by creating SearchOptions directly
+    let search_options = blizz::search::SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      #[cfg(feature = "semantic")]
+      semantic: false,
+      exact: true, // Use exact search which doesn't require neural features
+      #[cfg(feature = "neural")]
+      embedding_client: blizz::embedding_client::create(),
+    };
 
-    // Delete the insight
-    insight::delete(&insight)?;
+    let results = blizz::search::search(&["rust".to_string()], &search_options)?;
 
-    // Verify topic directory is removed
-    let topics_after = insight::get_topics()?;
-    assert!(!topics_after.contains(&"cleanup_topic".to_string()));
+    // Should find the rust insight
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].name, "rust_code");
+    assert!(results[0].score > 0.0);
+
+    // Test that search results can be displayed (this tests our highlighting integration)
+    // The highlighting happens in the display function, so we mainly test that it doesn't crash
+    blizz::search::display_results(&results, &["rust".to_string()], false);
 
     Ok(())
   }

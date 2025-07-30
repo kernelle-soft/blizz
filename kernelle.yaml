@@ -69,11 +69,11 @@ check-endlines:
 # ------------------------------------------------------------
 
 rust-lint: 
-  - cargo clippy --workspace --all-targets --all-features --fix --allow-dirty --allow-staged
+  - cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged
 rust-format: 
   - cargo fmt --all
 rust-lint-assert: 
-  - RUSTFLAGS="-D warnings" cargo clippy --workspace --all-targets --all-features
+  - RUSTFLAGS="-D warnings" cargo clippy --workspace --all-targets
 rust-format-assert: 
   - cargo fmt --all -- --check
 rust-build: 

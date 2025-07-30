@@ -1,10 +1,14 @@
 use anyhow::Result;
 use colored::*;
 
+#[cfg(feature = "neural")]
 use crate::embedding_client::{self, EmbeddingClient};
-use crate::insight::{self, Insight, InsightMetaData};
+#[cfg(feature = "neural")]
+use crate::insight::InsightMetaData;
+use crate::insight::{self, Insight};
 
 /// Add a new insight to the knowledge base (testable version with dependency injection)
+#[cfg(feature = "neural")]
 pub fn add_insight_with_client(
   topic: &str,
   name: &str,
@@ -26,8 +30,19 @@ pub fn add_insight_with_client(
 
 /// Add a new insight to the knowledge base (production version)
 pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
-  let client = embedding_client::create();
-  add_insight_with_client(topic, name, overview, details, &client)
+  #[cfg(feature = "neural")]
+  {
+    let client = embedding_client::create();
+    add_insight_with_client(topic, name, overview, details, &client)
+  }
+  #[cfg(not(feature = "neural"))]
+  {
+    let insight =
+      Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
+    insight::save(&insight)?;
+    println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+    Ok(())
+  }
 }
 
 /// Get content of a specific insight
@@ -83,6 +98,7 @@ pub fn list_topics() -> Result<()> {
 }
 
 /// Update an existing insight's overview and/or details
+#[cfg(feature = "neural")]
 pub fn update_insight_with_client(
   topic: &str,
   name: &str,
@@ -125,8 +141,18 @@ pub fn update_insight(
   new_overview: Option<&str>,
   new_details: Option<&str>,
 ) -> Result<()> {
-  let client = embedding_client::create();
-  update_insight_with_client(topic, name, new_overview, new_details, &client)
+  #[cfg(feature = "neural")]
+  {
+    let client = embedding_client::create();
+    update_insight_with_client(topic, name, new_overview, new_details, &client)
+  }
+  #[cfg(not(feature = "neural"))]
+  {
+    let mut insight = insight::load(topic, name)?;
+    insight::update(&mut insight, new_overview, new_details)?;
+    println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+    Ok(())
+  }
 }
 
 /// Delete an insight
@@ -143,6 +169,7 @@ pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
   Ok(())
 }
 
+#[cfg(feature = "neural")]
 fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -> Result<bool> {
   let should_update = if force { true } else { !insight::has_embedding(insight) };
 
@@ -150,11 +177,9 @@ fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -
     return Ok(false);
   }
 
-  // Recompute embedding.
   let embedding = embedding_client::embed_insight(client, insight);
   insight::set_embedding(insight, embedding);
 
-  // Save updates.
   let file_path = insight::file_path(insight)?;
   let metadata = InsightMetaData {
     topic: insight.topic.clone(),
@@ -180,6 +205,7 @@ fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -
   Ok(true)
 }
 
+#[cfg(feature = "neural")]
 fn index_topics_with_client(
   topic: &str,
   force: bool,
@@ -199,6 +225,7 @@ fn index_topics_with_client(
 }
 
 /// Recompute embeddings for insights (testable version with dependency injection)
+#[cfg(feature = "neural")]
 pub fn index_insights_with_client(force: bool, client: &EmbeddingClient) -> Result<()> {
   let topics = insight::get_topics()?;
 
@@ -227,6 +254,7 @@ pub fn index_insights_with_client(force: bool, client: &EmbeddingClient) -> Resu
 }
 
 /// Recompute embeddings for insights
+#[cfg(feature = "neural")]
 pub fn index_insights(force: bool) -> Result<()> {
   let client = embedding_client::create();
   index_insights_with_client(force, &client)
