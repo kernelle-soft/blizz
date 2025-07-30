@@ -43,20 +43,18 @@ async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
       }
 
       writeln!(writer, "Available versions:")?;
-      
+
       // Filter out drafts and prereleases, then sort by version
-      let mut stable_releases: Vec<_> = releases
-        .into_iter()
-        .filter(|r| !r.draft && !r.prerelease)
-        .collect();
-      
+      let mut stable_releases: Vec<_> =
+        releases.into_iter().filter(|r| !r.draft && !r.prerelease).collect();
+
       // Sort releases by version (newest first)
       // Note: This is a simple string sort, which works for semantic versions
       stable_releases.sort_by(|a, b| {
         // Extract version number from tag_name (remove 'v' prefix if present)
         let version_a = a.tag_name.strip_prefix('v').unwrap_or(&a.tag_name);
         let version_b = b.tag_name.strip_prefix('v').unwrap_or(&b.tag_name);
-        
+
         // Sort in descending order (newest first)
         version_compare(version_b, version_a)
       });
@@ -64,19 +62,19 @@ async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
       for release in stable_releases {
         let version = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name);
         let is_current = version == current_version;
-        
+
         if is_current {
-          writeln!(writer, "  {} (current)", version)?;
+          writeln!(writer, "  {version} (current)")?;
         } else {
-          writeln!(writer, "  {}", version)?;
+          writeln!(writer, "  {version}")?;
         }
       }
     }
     Err(e) => {
-      writeln!(writer, "Failed to fetch releases: {}", e)?;
+      writeln!(writer, "Failed to fetch releases: {e}")?;
       writeln!(writer)?;
       writeln!(writer, "Available versions:")?;
-      writeln!(writer, "  {} (current)", current_version)?;
+      writeln!(writer, "  {current_version} (current)")?;
       writeln!(writer)?;
       writeln!(writer, "Note: Unable to fetch remote release information")?;
     }
@@ -92,7 +90,7 @@ async fn fetch_github_releases() -> Result<Vec<Release>> {
 
 /// Fetch releases from a given URL (for testing)
 async fn fetch_releases_from_url(url: &str) -> Result<Vec<Release>> {
-  let client = reqwest::Client::new();  
+  let client = reqwest::Client::new();
   let response = client
     .get(url)
     .header("User-Agent", "kernelle")
@@ -105,10 +103,8 @@ async fn fetch_releases_from_url(url: &str) -> Result<Vec<Release>> {
     return Err(anyhow!("API request failed with status: {}", response.status()));
   }
 
-  let releases: Vec<Release> = response
-    .json()
-    .await
-    .map_err(|e| anyhow!("Failed to parse API response: {}", e))?;
+  let releases: Vec<Release> =
+    response.json().await.map_err(|e| anyhow!("Failed to parse API response: {}", e))?;
 
   Ok(releases)
 }
@@ -119,19 +115,19 @@ fn version_compare(a: &str, b: &str) -> std::cmp::Ordering {
   // Split versions into parts
   let parts_a: Vec<u32> = a.split('.').filter_map(|s| s.parse().ok()).collect();
   let parts_b: Vec<u32> = b.split('.').filter_map(|s| s.parse().ok()).collect();
-  
+
   // Compare each part
   let max_len = parts_a.len().max(parts_b.len());
   for i in 0..max_len {
     let part_a = parts_a.get(i).unwrap_or(&0);
     let part_b = parts_b.get(i).unwrap_or(&0);
-    
+
     match part_a.cmp(part_b) {
       std::cmp::Ordering::Equal => continue,
       other => return other,
     }
   }
-  
+
   std::cmp::Ordering::Equal
 }
 
@@ -185,7 +181,7 @@ mod tests {
   #[test]
   fn test_version_compare() {
     use std::cmp::Ordering;
-    
+
     // Test basic version comparison
     assert_eq!(version_compare("1.0.0", "1.0.0"), Ordering::Equal);
     assert_eq!(version_compare("1.0.1", "1.0.0"), Ordering::Greater);
@@ -197,7 +193,7 @@ mod tests {
   #[tokio::test]
   async fn test_fetch_releases_with_mock_success() {
     use mockito::Server;
-    
+
     let mut server = Server::new_async().await;
     let mock_response = r#"[
       {
@@ -227,7 +223,7 @@ mod tests {
 
     let mock_url = format!("{}/releases", server.url());
     let result = fetch_releases_from_url(&mock_url).await;
-    
+
     assert!(result.is_ok());
     let releases = result.unwrap();
     assert_eq!(releases.len(), 3);
@@ -240,24 +236,20 @@ mod tests {
   #[tokio::test]
   async fn test_fetch_releases_with_mock_error() {
     use mockito::Server;
-    
+
     let mut server = Server::new_async().await;
-    let _mock = server
-      .mock("GET", "/releases")
-      .with_status(404)
-      .create_async()
-      .await;
+    let _mock = server.mock("GET", "/releases").with_status(404).create_async().await;
 
     let mock_url = format!("{}/releases", server.url());
     let result = fetch_releases_from_url(&mock_url).await;
-    
+
     assert!(result.is_err());
   }
 
   #[tokio::test]
   async fn test_show_available_versions_with_mock() {
     use mockito::Server;
-    
+
     let mut server = Server::new_async().await;
     let mock_response = r#"[
       {
@@ -282,16 +274,14 @@ mod tests {
 
     // Test the version display logic without hitting real GitHub
     let mock_url = format!("{}/releases", server.url());
-    
+
     let result = fetch_releases_from_url(&mock_url).await;
     assert!(result.is_ok());
-    
+
     let releases = result.unwrap();
-    let stable_releases: Vec<_> = releases
-      .into_iter()
-      .filter(|r| !r.draft && !r.prerelease)
-      .collect();
-    
+    let stable_releases: Vec<_> =
+      releases.into_iter().filter(|r| !r.draft && !r.prerelease).collect();
+
     assert_eq!(stable_releases.len(), 2);
     assert_eq!(stable_releases[0].tag_name, "v0.3.0");
   }
