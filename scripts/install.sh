@@ -199,7 +199,9 @@ KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
 
 # Create directories
 echo "📁 Creating directories..."
-mkdir -p "$KERNELLE_HOME"
+mkdir -p "$KERNELLE_HOME/persistent/blizz"
+mkdir -p "$KERNELLE_HOME/persistent/keeper" 
+mkdir -p "$KERNELLE_HOME/volatile"
 
 # For Phase 1, we'll assume we're running from the source directory
 # In Phase 2+, this would clone from a repo
@@ -243,9 +245,9 @@ for crate_dir in crates/*/; do
 done
 
 echo "📋 Setting up workflows..."
-# Copy .cursor rules to ~/.kernelle/.cursor
+# Copy .cursor rules to ~/.kernelle/volatile/.cursor
 if [ -d "$REPO_ROOT/.cursor" ]; then
-    cp -r "$REPO_ROOT/.cursor" "$KERNELLE_HOME/"
+    cp -r "$REPO_ROOT/.cursor" "$KERNELLE_HOME/volatile/"
 else
     echo "⚠️  No .cursor directory found - workflows will not be available"
 fi

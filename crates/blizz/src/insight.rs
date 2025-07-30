@@ -203,7 +203,7 @@ pub fn get_insights_root() -> Result<PathBuf> {
   }
 
   let home = home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
-  Ok(home.join(".kernelle").join("insights"))
+  Ok(home.join(".kernelle").join("persistent").join("blizz").join("insights"))
 }
 
 pub fn get_valid_insights_dir() -> Result<std::path::PathBuf> {
