@@ -121,9 +121,13 @@ fn can_use_exact_search(options: &SearchOptions) -> bool {
     false // Neural-only mode for testing
   } else {
     #[cfg(feature = "semantic")]
-    { !options.semantic } // Run exact unless semantic-only mode
+    {
+      !options.semantic
+    } // Run exact unless semantic-only mode
     #[cfg(not(feature = "semantic"))]
-    { !options.exact }
+    {
+      !options.exact
+    }
   }
   #[cfg(not(feature = "semantic"))]
   !options.exact
@@ -133,9 +137,13 @@ fn can_use_exact_search(options: &SearchOptions) -> bool {
 #[cfg(feature = "neural")]
 fn can_use_embedding_search(options: &SearchOptions) -> bool {
   #[cfg(feature = "semantic")]
-  { !options.semantic && !options.exact }
+  {
+    !options.semantic && !options.exact
+  }
   #[cfg(not(feature = "semantic"))]
-  { !options.exact }
+  {
+    !options.exact
+  }
 }
 
 /// Check if semantic search feature can be used
@@ -294,44 +302,44 @@ fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> R
 /// Highlight search terms in text using colors
 fn highlight_keywords(text: &str, terms: &[String]) -> String {
   let mut result = text.to_string();
-  
+
   // Sort terms by length (longest first) to avoid partial replacements
   let mut sorted_terms = terms.to_vec();
   sorted_terms.sort_by_key(|b| std::cmp::Reverse(b.len()));
-  
+
   for term in sorted_terms {
     if term.is_empty() {
       continue;
     }
-    
+
     // Use case-insensitive matching for highlighting
     let term_lower = term.to_lowercase();
     let mut highlighted = String::new();
     let mut last_end = 0;
-    
+
     // Find all occurrences of the term (case-insensitive)
     let result_lower = result.to_lowercase();
     let mut start = 0;
-    
+
     while let Some(pos) = result_lower[start..].find(&term_lower) {
       let absolute_pos = start + pos;
-      
+
       // Add the text before the match
       highlighted.push_str(&result[last_end..absolute_pos]);
-      
+
       // Add the highlighted match (preserve original case)
       let match_text = &result[absolute_pos..absolute_pos + term.len()];
       highlighted.push_str(&match_text.yellow().bold().to_string());
-      
+
       last_end = absolute_pos + term.len();
       start = last_end;
     }
-    
+
     // Add any remaining text
     highlighted.push_str(&result[last_end..]);
     result = highlighted;
   }
-  
+
   result
 }
 

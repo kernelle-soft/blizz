@@ -6,13 +6,13 @@ use blizz::embedding_client::MockEmbeddingService;
 #[cfg(test)]
 #[cfg(feature = "neural")]
 mod edge_case_tests {
+  use super::*;
   use anyhow::Result;
   use blizz::commands::*;
   use blizz::insight::{self};
   use serial_test::serial;
   use std::env;
   use tempfile::TempDir;
-  use super::*;
 
   fn setup_temp_insights_root(_test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
