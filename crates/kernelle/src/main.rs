@@ -60,6 +60,12 @@ enum Commands {
     /// Path to tasks file
     #[arg(long, short = 'f')]
     file: Option<String>,
+    /// Force enable colored output (overrides CI detection)
+    #[arg(long)]
+    color: bool,
+    /// Force disable colored output
+    #[arg(long)]
+    no_color: bool,
   },
   /// List available tasks
   Tasks {
@@ -99,7 +105,9 @@ async fn main() -> Result<()> {
     },
     Commands::Store { key, value } => commands::store::execute(&key, value.as_deref()).await,
     Commands::Retrieve { key } => commands::retrieve::execute(&key).await,
-    Commands::Do { name, args, silent, file } => execute_task(&name, &args, silent, file).await,
+    Commands::Do { name, args, silent, file, color, no_color } => {
+      execute_task(&name, &args, silent, file, color, no_color).await
+    }
     Commands::Tasks { file, verbose } => list_tasks(file, verbose).await,
     Commands::Version { list } => commands::version::execute(list).await,
   }
@@ -110,8 +118,15 @@ async fn execute_task(
   args: &[String],
   silent: bool,
   file: Option<String>,
+  color: bool,
+  no_color: bool,
 ) -> Result<()> {
-  let options = commands::r#do::TaskRunnerOptions { silent, tasks_file_path: file };
+  let options = commands::r#do::TaskRunnerOptions {
+    silent,
+    tasks_file_path: file,
+    force_color: color,
+    no_color,
+  };
 
   let result = commands::r#do::run_task(name, args, options).await?;
 
