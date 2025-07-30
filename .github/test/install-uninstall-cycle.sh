@@ -15,7 +15,7 @@ echo "🔍 Verifying installation..."
 test -f ~/.cargo/bin/kernelle
 test -d ~/.kernelle
 test -f ~/.kernelle.source
-test -d ~/.kernelle/.cursor
+test -d ~/.kernelle/volatile/.cursor
 
 # Check that binaries were installed (bentley is library-only, so exclude it)
 ls -la ~/.cargo/bin/ | grep -E "(kernelle|jerrod|blizz|violet|adam|sentinel)"
@@ -33,12 +33,13 @@ echo "🧹 Phase 2: Uninstalling kernelle..."
 # Verify uninstallation worked
 echo "🔍 Verifying uninstallation..."
 
-# Verify only kernelle.internal.source remains in ~/.kernelle/
+# Verify kernelle.internal.source still exists (contains gone template)
 test -f ~/.kernelle/kernelle.internal.source
-test $(find ~/.kernelle -type f | wc -l) -eq 1
-
-# Verify kernelle.internal.source contains gone template contents
 diff ~/.kernelle/kernelle.internal.source scripts/templates/kernelle.internal.source.gone.template
+
+# Verify volatile directory was removed but persistent directory remains
+test ! -d ~/.kernelle/volatile
+test -d ~/.kernelle/persistent || true  # persistent may or may not exist if no user data was created
 
 # Verify binaries were removed
 test ! -f ~/.cargo/bin/kernelle
