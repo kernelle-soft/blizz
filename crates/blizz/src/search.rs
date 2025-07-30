@@ -299,44 +299,38 @@ fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> R
   Ok(embedding.embedding)
 }
 
-/// Highlight search terms in text using colors
+/// Highlight search terms
 fn highlight_keywords(text: &str, terms: &[String]) -> String {
   let mut result = text.to_string();
 
-  // Sort terms by length (longest first) to avoid partial replacements
-  let mut sorted_terms = terms.to_vec();
-  sorted_terms.sort_by_key(|b| std::cmp::Reverse(b.len()));
+  let mut sorted = terms.to_vec();
+  sorted.sort_by_key(|b| std::cmp::Reverse(b.len()));
 
-  for term in sorted_terms {
+  for term in sorted {
     if term.is_empty() {
       continue;
     }
 
-    // Use case-insensitive matching for highlighting
     let term_lower = term.to_lowercase();
     let mut highlighted = String::new();
-    let mut last_end = 0;
+    let mut end = 0;
 
-    // Find all occurrences of the term (case-insensitive)
     let result_lower = result.to_lowercase();
     let mut start = 0;
 
     while let Some(pos) = result_lower[start..].find(&term_lower) {
-      let absolute_pos = start + pos;
+      let abs_pos = start + pos;
 
-      // Add the text before the match
-      highlighted.push_str(&result[last_end..absolute_pos]);
+      highlighted.push_str(&result[end..abs_pos]);
 
-      // Add the highlighted match (preserve original case)
-      let match_text = &result[absolute_pos..absolute_pos + term.len()];
+      let match_text = &result[abs_pos..abs_pos + term.len()];
       highlighted.push_str(&match_text.yellow().bold().to_string());
 
-      last_end = absolute_pos + term.len();
-      start = last_end;
+      end = abs_pos + term.len();
+      start = end;
     }
 
-    // Add any remaining text
-    highlighted.push_str(&result[last_end..]);
+    highlighted.push_str(&result[end..]);
     result = highlighted;
   }
 
