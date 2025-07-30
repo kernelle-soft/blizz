@@ -1,12 +1,18 @@
+#[cfg(feature = "neural")]
 use anyhow::Result;
+#[cfg(feature = "neural")]
 use blizz::commands::*;
 #[cfg(feature = "neural")]
 use blizz::embedding_client;
 #[cfg(feature = "neural")]
 use blizz::embedding_client::MockEmbeddingService;
-use blizz::insight::{self};
+#[cfg(feature = "neural")]
+use blizz::insight;
+#[cfg(feature = "neural")]
 use serial_test::serial;
+#[cfg(feature = "neural")]
 use std::env;
+#[cfg(feature = "neural")]
 use tempfile::TempDir;
 
 #[cfg(test)]

@@ -297,7 +297,7 @@ fn highlight_keywords(text: &str, terms: &[String]) -> String {
   
   // Sort terms by length (longest first) to avoid partial replacements
   let mut sorted_terms = terms.to_vec();
-  sorted_terms.sort_by(|a, b| b.len().cmp(&a.len()));
+  sorted_terms.sort_by_key(|b| std::cmp::Reverse(b.len()));
   
   for term in sorted_terms {
     if term.is_empty() {
