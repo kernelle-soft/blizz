@@ -45,6 +45,7 @@ checks-base:
   - do: check-tidy
 
 check-build: 
+  - do: clean
   - do: build
 check-secure: 
   - do: rust-audit
