@@ -193,8 +193,8 @@ fi
 
 if [ "$keep_insights" = true ]; then
     echo "💾 Preserving insights..."
-    if [ -d "$KERNELLE_HOME/insights" ]; then
-        mv "$KERNELLE_HOME/insights" "$HOME/.kernelle-insights-backup" || true
+    if [ -d "$KERNELLE_HOME/persistent/blizz/insights" ]; then
+        mv "$KERNELLE_HOME/persistent/blizz/insights" "$HOME/.kernelle-insights-backup" || true
         echo "✓ Insights backed up to ~/.kernelle-insights-backup"
     fi
 fi
@@ -203,8 +203,8 @@ echo "🗑️  Removing global insights..."
 rm -rf "$KERNELLE_HOME/global-insights" 2>/dev/null || true
 
 echo "🔗 Removing cursor workflow symlinks..."
-# Find all symlinks that point to ~/.kernelle/.cursor (much more efficient!)
-find . -type l -lname "$KERNELLE_HOME/.cursor" 2>/dev/null | while read -r link; do
+# Find all symlinks that point to ~/.kernelle/volatile/.cursor (updated path)
+find . -type l -lname "$KERNELLE_HOME/volatile/.cursor" 2>/dev/null | while read -r link; do
     rm -f "$link"
     echo "  Removed: $link"
     
@@ -216,25 +216,27 @@ find . -type l -lname "$KERNELLE_HOME/.cursor" 2>/dev/null | while read -r link;
 done || true
 
 # Ask about preserving tweaks
-if [ -d "$KERNELLE_HOME/.cursor/tweaks" ]; then
+if [ -d "$KERNELLE_HOME/volatile/.cursor/tweaks" ]; then
     echo ""
-    echo "📁 Found custom tweaks directory: $KERNELLE_HOME/.cursor/tweaks"
+    echo "📁 Found custom tweaks directory: $KERNELLE_HOME/volatile/.cursor/tweaks"
     if [ "$NON_INTERACTIVE" = true ]; then
         # Non-interactive: always preserve tweaks (safer default)
-        mv "$KERNELLE_HOME/.cursor/tweaks" "$HOME/.kernelle-tweaks-backup"
+        mv "$KERNELLE_HOME/volatile/.cursor/tweaks" "$HOME/.kernelle-tweaks-backup"
         echo "🤖 Non-interactive mode: Tweaks backed up to ~/.kernelle-tweaks-backup"
     else
         if ask_yes_no "Do you want to preserve your custom tweaks?"; then
-            mv "$KERNELLE_HOME/.cursor/tweaks" "$HOME/.kernelle-tweaks-backup"
+            mv "$KERNELLE_HOME/volatile/.cursor/tweaks" "$HOME/.kernelle-tweaks-backup"
             echo "✓ Tweaks backed up to ~/.kernelle-tweaks-backup"
         fi
     fi
 fi
 
-echo "🗂️  Cleaning ~/.kernelle directory (keeping warning file)..."
-# Remove everything except the kernelle.internal.source warning file
+echo "🗂️  Cleaning ~/.kernelle directory (keeping persistent data)..."
+# Remove only volatile data and recreatable files - persistent/ is untouched!
 if [ -d "$KERNELLE_HOME" ]; then
-    find "$KERNELLE_HOME" -mindepth 1 ! -name "kernelle.internal.source" -exec rm -rf {} + 2>/dev/null || true
+    rm -rf "$KERNELLE_HOME/volatile" 2>/dev/null || true
+    rm -f "$KERNELLE_HOME/kernelle.internal.source" 2>/dev/null || true
+    # persistent/ directory is completely safe!
 fi
 
 echo "🗑️  Removing binaries from $INSTALL_DIR..."

@@ -17,10 +17,14 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
   // Check for the kernelle symlink in .cursor/rules/
   let kernelle_link = rules_dir.join("kernelle");
-  let kernelle_cursor_path = kernelle_home.join(".cursor").join("rules").join("kernelle");
+  let kernelle_cursor_path = kernelle_home
+    .join("volatile")
+    .join(".cursor")
+    .join("rules")
+    .join("kernelle");
 
   if kernelle_link.exists() && kernelle_link.is_symlink() {
-    // Check if it points to ~/.kernelle/.cursor/rules/kernelle
+    // Check if it points to ~/.kernelle/volatile/.cursor/rules/kernelle
     if let Ok(target) = fs::read_link(&kernelle_link) {
       if target == kernelle_cursor_path {
         fs::remove_file(&kernelle_link)

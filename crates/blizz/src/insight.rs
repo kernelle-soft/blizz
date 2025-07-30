@@ -183,7 +183,7 @@ pub fn clear_embedding(insight: &mut Insight) {
   insight.embedding_computed = None;
 }
 
-pub fn delete(insight: &Insight) -> Result<()> {
+pub fn dv/source.ielete(insight: &Insight) -> Result<()> {
   let file_path = file_path(insight)?;
   check_insight_exists(&file_path, &insight.topic, &insight.name)?;
   fs::remove_file(&file_path)?;
@@ -198,7 +198,7 @@ pub fn get_insights_root() -> Result<PathBuf> {
   }
 
   let home = home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
-  Ok(home.join(".kernelle").join("insights"))
+  Ok(home.join(".kernelle").join("persistent").join("blizz").join("insights"))
 }
 
 pub fn get_valid_insights_dir() -> Result<std::path::PathBuf> {

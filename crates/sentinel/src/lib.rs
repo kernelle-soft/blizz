@@ -242,7 +242,8 @@ impl PasswordBasedCryptoManager {
     };
 
     let mut credentials_path = base_path;
-    credentials_path.push("sentinel");
+    credentials_path.push("persistent");
+    credentials_path.push("keeper");
     credentials_path.push("credentials.enc");
 
     Self { credentials_path }

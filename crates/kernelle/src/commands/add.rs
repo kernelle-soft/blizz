@@ -48,11 +48,11 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 pub async fn execute(target_dir: &str) -> Result<()> {
   let target_path = Path::new(target_dir);
   let kernelle_home = get_kernelle_home()?;
-  let cursor_source = kernelle_home.join(".cursor").join("rules").join("kernelle");
+  let cursor_source = kernelle_home.join("volatile").join(".cursor").join("rules").join("kernelle");
 
   if !cursor_source.exists() {
     anyhow::bail!(
-            "Kernelle cursor workflows not found at {}/.cursor/rules/kernelle\nPlease run the Kernelle setup script first.",
+            "Kernelle cursor workflows not found at {}/volatile/.cursor/rules/kernelle\nPlease run the Kernelle setup script first.",
             kernelle_home.display()
         );
   }
@@ -65,7 +65,7 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
   println!("Adding Kernelle cursor workflows to {}...", target_path.display());
 
-  // Create single symlink: .cursor/rules/kernelle/ -> ~/.kernelle/.cursor/rules/kernelle/
+  // Create single symlink: .cursor/rules/kernelle/ -> ~/.kernelle/volatile/.cursor/rules/kernelle/
   let kernelle_link = rules_target.join("kernelle");
 
   // Remove existing kernelle symlink/directory if it exists
