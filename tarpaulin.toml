@@ -5,18 +5,22 @@ output-dir = "target/coverage/"
 fail-under = 40.0  
 ignore-panics = true
 
-skip-clean = false
+skip-clean = true
 count = true
 line = true
 branch = true
 forward = true
 
 exclude = [
+  # WIP packages that are unused and will be (re-)implemented in the future
+  "jerrod", 
+  "adam",
+  
+  # File-level excludes
   "*/tests/*",
   "*/examples/*", 
   "*/target/*",
-  # Exclude main.rs files since they're just CLI entry points
-  "*/src/main.rs",
+
   # Auth module uses external credentials - hard to test
   "*/auth.rs",
 ]
@@ -24,8 +28,8 @@ exclude = [
 timeout = "120s"
 
 run-types = ["Tests"]
+release = true
 
 all-features = true
 workspace = true
-
 engine = "Llvm" 

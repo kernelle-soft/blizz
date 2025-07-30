@@ -88,4 +88,4 @@ rust-audit:
 rust-test: 
   - cargo test --workspace
 rust-coverage: 
-  - cargo tarpaulin --workspace --timeout 300 --out xml --output-dir coverage
+  - cargo tarpaulin --workspace --timeout 300 --out xml --output-dir coverage --jobs $(nproc)
