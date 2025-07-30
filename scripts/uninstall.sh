@@ -14,32 +14,6 @@ show_cleanup_usage() {
     echo "Note: insights and credentials are preserved by default."
 }
 
-# Handle help and unknown options
-handle_cleanup_help_and_errors() {
-    local option="$1"
-    
-    if [[ "$option" == "--help" || "$option" == "-h" ]]; then
-        show_cleanup_usage
-        exit 0
-    else
-        echo "Unknown option: $option"
-        show_cleanup_usage
-        exit 1
-    fi
-}
-
-# Process a single command line option
-process_cleanup_option() {
-    case $1 in
-        --help|-h|*)
-            handle_cleanup_help_and_errors "$1"
-            ;;
-    esac
-}
-
-# Parse arguments
-parse_cleanup_arguments "$@"
-
 echo "🧹 Kernelle Cleanup..."
 
 # Configuration
