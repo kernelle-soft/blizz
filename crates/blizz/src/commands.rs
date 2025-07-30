@@ -171,11 +171,7 @@ pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
 
 #[cfg(feature = "neural")]
 fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -> Result<bool> {
-  let should_update = if force {
-    true
-  } else {
-    !insight::has_embedding(insight)
-  };
+  let should_update = if force { true } else { !insight::has_embedding(insight) };
 
   if !should_update {
     return Ok(false);
