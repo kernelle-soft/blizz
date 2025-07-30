@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "neural")]
 use crate::embedding_client;
 use crate::insight;
-#[cfg(feature = "semantic")]
+#[cfg(any(feature = "semantic", feature = "neural"))]
 use crate::similarity;
 
 // Semantic similarity threshold for meaningful results
@@ -228,7 +228,7 @@ fn get_semantic_match(
   let normalized_content = get_normalized_content(insight, options);
   let normalized_terms = get_normalized_terms(terms, options);
 
-  crate::similarity::semantic(&normalized_terms.into_iter().collect(), &normalized_content)
+  similarity::semantic(&normalized_terms.into_iter().collect(), &normalized_content)
 }
 
 #[cfg(feature = "neural")]

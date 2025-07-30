@@ -1,6 +1,8 @@
 use anyhow::Result;
 use blizz::commands::*;
+#[cfg(feature = "neural")]
 use blizz::embedding_client;
+#[cfg(feature = "neural")]
 use blizz::embedding_client::MockEmbeddingService;
 use blizz::insight::{self};
 use serial_test::serial;
@@ -8,6 +10,7 @@ use std::env;
 use tempfile::TempDir;
 
 #[cfg(test)]
+#[cfg(feature = "neural")]
 mod cli_enhancement_tests {
   use super::*;
 

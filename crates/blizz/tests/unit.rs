@@ -369,16 +369,17 @@ mod insight_tests {
     insight::save(&insight1)?;
     insight::save(&insight2)?;
 
-    // Test search functionality using the command options approach
-    let search_command_options = blizz::search::SearchCommandOptions {
+    // Test search functionality by creating SearchOptions directly
+    let search_options = blizz::search::SearchOptions {
       topic: None,
       case_sensitive: false,
       overview_only: false,
       #[cfg(feature = "semantic")]
       semantic: false,
-      exact: false,
+      exact: true, // Use exact search which doesn't require neural features
+      #[cfg(feature = "neural")]
+      embedding_client: blizz::embedding_client::create(),
     };
-    let search_options = blizz::search::SearchOptions::from(&search_command_options);
 
     let results = blizz::search::search(&["rust".to_string()], &search_options)?;
     
