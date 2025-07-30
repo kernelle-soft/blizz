@@ -37,17 +37,6 @@ process_cleanup_option() {
     esac
 }
 
-# Parse command line arguments
-parse_cleanup_arguments() {
-    NON_INTERACTIVE=false
-    KEEP_INSIGHTS=""
-    
-    while [[ $# -gt 0 ]]; do
-        process_cleanup_option "$1"
-        shift
-    done
-}
-
 # Parse arguments
 parse_cleanup_arguments "$@"
 
@@ -64,11 +53,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -d "$KERNELLE_HOME" ]; then
     # Copy gone template to internal source location
     cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source" || true
-fi
-
-if [ "$keep_insights" = true ]; then
-    echo "💾 Preserving insights..."
-    echo "✓ Insights will remain in ~/.kernelle/persistent/ (no backup needed)"
 fi
 
 echo "🔗 Removing cursor workflow symlinks..."
