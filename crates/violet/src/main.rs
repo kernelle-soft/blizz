@@ -230,7 +230,7 @@ fn format_chunk_preview(chunk: &scoring::ComplexityRegion) -> String {
 
   for line in preview_lines.iter() {
     if line.len() > 70 {
-      let truncated = format!("{}...", &line[..67]);
+      let truncated = format!("{}...", line.chars().take(67).collect::<String>());
       output.push_str(&format!("    {}\n", truncated.dimmed()));
     } else {
       output.push_str(&format!("    {line}\n"));
@@ -648,6 +648,31 @@ mod tests {
     assert!(preview.contains("line 5"));
     assert!(preview.contains("line 9"));
     assert!(!preview.contains("..."));
+  }
+
+  #[test]
+  fn test_format_chunk_preview_unicode_characters() {
+    let prefix = "a".repeat(66);
+    let line_with_unicode = format!("{prefix}←rest of the line");
+    let chunk_score = ComplexityRegion {
+      score: 5.0,
+      start_line: 1,
+      end_line: 1,
+      preview: line_with_unicode,
+      breakdown: ComplexityBreakdown {
+        depth_score: 1.0,
+        depth_percent: 100.0,
+        verbosity_score: 0.0,
+        verbosity_percent: 0.0,
+        syntactic_score: 0.0,
+        syntactic_percent: 0.0,
+      },
+    };
+
+    let preview = format_chunk_preview(&chunk_score);
+    assert!(preview.contains("..."));
+    assert!(preview.contains("aaa"));
+    assert!(!preview.is_empty());
   }
 
   #[test]
