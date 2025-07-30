@@ -2,9 +2,10 @@ use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::io::Write;
 
-/// GitHub release information
+const GITHUB_RELEASE_API: &str = "https://api.github.com/repos/TravelSizedLions/kernelle/releases";
+
 #[derive(Debug, Deserialize)]
-struct GitHubRelease {
+struct Release {
   tag_name: String,
   prerelease: bool,
   draft: bool,
@@ -85,10 +86,13 @@ async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
 }
 
 /// Fetch releases from GitHub API
-async fn fetch_github_releases() -> Result<Vec<GitHubRelease>> {
-  let client = reqwest::Client::new();
-  let url = "https://api.github.com/repos/TravelSizedLions/kernelle/releases";
-  
+async fn fetch_github_releases() -> Result<Vec<Release>> {
+  fetch_releases_from_url(GITHUB_RELEASE_API).await
+}
+
+/// Fetch releases from a given URL (for testing)
+async fn fetch_releases_from_url(url: &str) -> Result<Vec<Release>> {
+  let client = reqwest::Client::new();  
   let response = client
     .get(url)
     .header("User-Agent", "kernelle")
@@ -101,7 +105,7 @@ async fn fetch_github_releases() -> Result<Vec<GitHubRelease>> {
     return Err(anyhow!("API request failed with status: {}", response.status()));
   }
 
-  let releases: Vec<GitHubRelease> = response
+  let releases: Vec<Release> = response
     .json()
     .await
     .map_err(|e| anyhow!("Failed to parse API response: {}", e))?;
@@ -191,22 +195,104 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_fetch_github_releases_handles_errors() {
-    // This test verifies that the function handles errors gracefully
-    // We can't easily mock the HTTP client in this simple test, but we can
-    // verify that the function signature is correct and returns a Result
-    let result = fetch_github_releases().await;
-    // Result should be Ok (if network available) or Err (if no network)
-    // Either is fine for this test - we just want to ensure it compiles and runs
-    match result {
-      Ok(releases) => {
-        // If successful, releases should be a vector
-        assert!(releases.iter().all(|r| !r.tag_name.is_empty()));
+  async fn test_fetch_releases_with_mock_success() {
+    use mockito::Server;
+    
+    let mut server = Server::new_async().await;
+    let mock_response = r#"[
+      {
+        "tag_name": "v1.2.0",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v1.1.0",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v1.0.0-beta.1",
+        "prerelease": true,
+        "draft": false
       }
-      Err(_) => {
-        // If it fails (e.g., no network), that's also acceptable for this test
-        // The important thing is that it doesn't panic
+    ]"#;
+
+    let _mock = server
+      .mock("GET", "/releases")
+      .with_status(200)
+      .with_header("content-type", "application/json")
+      .with_body(mock_response)
+      .create_async()
+      .await;
+
+    let mock_url = format!("{}/releases", server.url());
+    let result = fetch_releases_from_url(&mock_url).await;
+    
+    assert!(result.is_ok());
+    let releases = result.unwrap();
+    assert_eq!(releases.len(), 3);
+    assert_eq!(releases[0].tag_name, "v1.2.0");
+    assert!(!releases[0].prerelease);
+    assert!(!releases[0].draft);
+    assert!(releases[2].prerelease); // The beta version
+  }
+
+  #[tokio::test]
+  async fn test_fetch_releases_with_mock_error() {
+    use mockito::Server;
+    
+    let mut server = Server::new_async().await;
+    let _mock = server
+      .mock("GET", "/releases")
+      .with_status(404)
+      .create_async()
+      .await;
+
+    let mock_url = format!("{}/releases", server.url());
+    let result = fetch_releases_from_url(&mock_url).await;
+    
+    assert!(result.is_err());
+  }
+
+  #[tokio::test]
+  async fn test_show_available_versions_with_mock() {
+    use mockito::Server;
+    
+    let mut server = Server::new_async().await;
+    let mock_response = r#"[
+      {
+        "tag_name": "v0.3.0",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.9",
+        "prerelease": false,
+        "draft": false
       }
-    }
+    ]"#;
+
+    let _mock = server
+      .mock("GET", "/releases")
+      .with_status(200)
+      .with_header("content-type", "application/json")
+      .with_body(mock_response)
+      .create_async()
+      .await;
+
+    // Test the version display logic without hitting real GitHub
+    let mock_url = format!("{}/releases", server.url());
+    
+    let result = fetch_releases_from_url(&mock_url).await;
+    assert!(result.is_ok());
+    
+    let releases = result.unwrap();
+    let stable_releases: Vec<_> = releases
+      .into_iter()
+      .filter(|r| !r.draft && !r.prerelease)
+      .collect();
+    
+    assert_eq!(stable_releases.len(), 2);
+    assert_eq!(stable_releases[0].tag_name, "v0.3.0");
   }
 }
