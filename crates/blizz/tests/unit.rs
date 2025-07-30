@@ -1,12 +1,10 @@
-use anyhow::Result;
-use blizz::insight::{self, Insight};
-use serial_test::serial;
-use std::env;
-use tempfile::TempDir;
-
 #[cfg(test)]
 mod insight_tests {
-  use super::*;
+  use anyhow::Result;
+  use blizz::insight::{self, Insight};
+  use serial_test::serial;
+  use std::env;
+  use tempfile::TempDir;
 
   fn setup_temp_insights_root(test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();

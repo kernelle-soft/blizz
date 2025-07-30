@@ -1,17 +1,17 @@
-use anyhow::Result;
-use blizz::commands::*;
 #[cfg(feature = "neural")]
 use blizz::embedding_client;
 #[cfg(feature = "neural")]
 use blizz::embedding_client::MockEmbeddingService;
-use blizz::insight;
-use serial_test::serial;
-use std::env;
-use tempfile::TempDir;
 
 #[cfg(test)]
 #[cfg(feature = "neural")]
 mod command_tests {
+  use anyhow::Result;
+  use blizz::commands::*;
+  use blizz::insight;
+  use serial_test::serial;
+  use std::env;
+  use tempfile::TempDir;
   use super::*;
 
   fn setup_temp_insights_root(_test_name: &str) -> TempDir {
