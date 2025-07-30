@@ -10,6 +10,7 @@ pub const STOP_WORDS: &[&str] = &[
 ];
 
 /// Calculate cosine similarity between two embeddings
+#[cfg(feature = "neural")]
 pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
   if a.len() != b.len() {
     return 0.0;

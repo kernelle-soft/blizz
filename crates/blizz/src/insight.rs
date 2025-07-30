@@ -76,10 +76,12 @@ pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
   insight.embedding_computed = Some(embedding.created_at);
 }
 
+#[cfg(feature = "neural")]
 pub fn has_embedding(insight: &Insight) -> bool {
   insight.embedding.is_some()
 }
 
+#[cfg(feature = "neural")]
 pub fn get_embedding_text(insight: &Insight) -> String {
   format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
 }
@@ -92,6 +94,7 @@ pub fn save(insight: &Insight) -> Result<()> {
 }
 
 /// Save an insight, overwriting if it already exists (used for embedding updates)
+#[cfg(feature = "neural")]
 pub fn save_existing(insight: &Insight) -> Result<()> {
   let file_path = file_path(insight)?;
   write_to_file(insight, &file_path)
