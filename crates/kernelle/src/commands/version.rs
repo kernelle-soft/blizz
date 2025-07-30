@@ -37,7 +37,7 @@ async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
   match fetch_github_releases().await {
     Ok(releases) => {
       if releases.is_empty() {
-        writeln!(writer, "No releases found on GitHub")?;
+        writeln!(writer, "No releases found")?;
         return Ok(());
       }
 
@@ -72,7 +72,7 @@ async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
       }
     }
     Err(e) => {
-      writeln!(writer, "Failed to fetch releases from GitHub: {}", e)?;
+      writeln!(writer, "Failed to fetch releases: {}", e)?;
       writeln!(writer)?;
       writeln!(writer, "Available versions:")?;
       writeln!(writer, "  {} (current)", current_version)?;
@@ -98,13 +98,13 @@ async fn fetch_github_releases() -> Result<Vec<GitHubRelease>> {
     .map_err(|e| anyhow!("Failed to fetch releases: {}", e))?;
 
   if !response.status().is_success() {
-    return Err(anyhow!("GitHub API request failed with status: {}", response.status()));
+    return Err(anyhow!("API request failed with status: {}", response.status()));
   }
 
   let releases: Vec<GitHubRelease> = response
     .json()
     .await
-    .map_err(|e| anyhow!("Failed to parse GitHub API response: {}", e))?;
+    .map_err(|e| anyhow!("Failed to parse API response: {}", e))?;
 
   Ok(releases)
 }
