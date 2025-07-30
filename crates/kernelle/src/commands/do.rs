@@ -349,8 +349,8 @@ mod tests {
   #[tokio::test]
   async fn test_run_task_with_nonexistent_task() {
     // Test running a task that doesn't exist
-    let options = TaskRunnerOptions { 
-      silent: true, 
+    let options = TaskRunnerOptions {
+      silent: true,
       tasks_file_path: Some("nonexistent.tasks".to_string()),
       force_color: false,
       no_color: false,

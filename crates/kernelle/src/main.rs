@@ -121,8 +121,8 @@ async fn execute_task(
   color: bool,
   no_color: bool,
 ) -> Result<()> {
-  let options = commands::r#do::TaskRunnerOptions { 
-    silent, 
+  let options = commands::r#do::TaskRunnerOptions {
+    silent,
     tasks_file_path: file,
     force_color: color,
     no_color,
