@@ -200,7 +200,7 @@ async fn download_and_extract_from_api(
   // Extract tarball
   println!("📦 Extracting tarball...");
   let output = Command::new("tar")
-    .args(["-xzf", tarball_path.to_str().unwrap()])
+    .args(["-xzf", &tarball_path.to_string_lossy()])
     .current_dir(staging_path)
     .output()
     .context("Failed to execute tar command")?;
