@@ -279,9 +279,9 @@ async fn test_build_in_staging(
 
 async fn create_snapshot() -> Result<std::path::PathBuf> {
   let kernelle_home = env::var("KERNELLE_HOME")
-    .unwrap_or_else(|_| format!("{}/.kernelle", env::var("HOME").unwrap_or_default()));
+    .unwrap_or_else(|_| format!("{}/.kernelle", dirs::home_dir().unwrap_or_default().to_string_lossy()));
   let install_dir = env::var("INSTALL_DIR")
-    .unwrap_or_else(|_| format!("{}/.cargo/bin", env::var("HOME").unwrap_or_default()));
+    .unwrap_or_else(|_| format!("{}/.cargo/bin", dirs::home_dir().unwrap_or_default().to_string_lossy()));
 
   let snapshot_base = Path::new(&kernelle_home).join("snapshots");
   fs::create_dir_all(&snapshot_base).context("Failed to create snapshots directory")?;
