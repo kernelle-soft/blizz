@@ -6,6 +6,66 @@ Traditional code complexity metrics focus on structural analysis (cyclomatic com
 
 Our empirical analysis reveals elegant mathematical properties that align with practical expectation: exponential penalty functions for syntactic density incidentally encourage code patterns that cognitive science identifies as more readable. The algorithm demonstrates superior correlation with human readability assessments compared to traditional structural metrics, while remaining completely language-agnostic.
 
+## Quick Start
+
+### Basic Usage
+
+```bash
+# Analyze complexity in a single file
+violet src/main.rs
+
+# Analyze all files in a directory
+violet src/
+
+# Enable comment checking for obvious/redundant comments
+violet --check-comments src/main.rs
+```
+
+### Configuration
+
+Create a `violet.yaml` file in your project root:
+
+```yaml
+# Complexity thresholds
+complexity:
+  thresholds:
+    default: 6.0
+    extensions:
+      .rs: 7.0
+      .js: 5.0
+
+# Comment analysis (disabled by default)
+comments:
+  enabled: true
+
+# Files to ignore
+ignore_files:
+  - "*/target/*"
+  - "*/node_modules/*"
+```
+
+### Comment Checking
+
+Violet can detect "no-duh" comments that state the obvious without adding value:
+
+```rust
+// Set x to 5 <- flagged as obvious
+let x = 5;
+
+// Initialize counter <- flagged as obvious  
+let count = 0;
+
+// This calculates compound interest using the standard formula <- good comment
+let interest = principal * rate * time;
+```
+
+The comment checker identifies several patterns:
+- Comments that just translate code to English
+- Obvious return statements ("Return true")
+- Variable initialization comments without context
+- Loop descriptions that add no information
+- Assignment descriptions that mirror the code
+
 ## 1. Introduction
 
 ### 1.1 Motivation

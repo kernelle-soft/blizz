@@ -23,6 +23,10 @@ struct Cli {
   /// Only show files with violations
   #[arg(short, long)]
   quiet: bool,
+
+  /// Enable no-duh comment checking
+  #[arg(long)]
+  check_comments: bool,
 }
 
 /// Map file extensions to human-readable language names
@@ -183,7 +187,13 @@ fn main() {
     process::exit(1);
   }
 
-  let config = load_config_or_exit();
+  let mut config = load_config_or_exit();
+  
+  // Override comment checking from CLI if specified
+  if cli.check_comments {
+    config.comments.enabled = true;
+  }
+  
   let mut _total_files = 0;
   let mut violating_chunks = 0;
   let mut violation_output = Vec::new();
