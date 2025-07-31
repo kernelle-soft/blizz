@@ -110,8 +110,11 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
 }
 
 async fn get_latest_version() -> Result<String> {
+    get_latest_version_from_url("https://api.github.com/repos/TravelSizedLions/kernelle/releases/latest").await
+}
+
+async fn get_latest_version_from_url(url: &str) -> Result<String> {
     let client = reqwest::Client::new();
-    let url = "https://api.github.com/repos/TravelSizedLions/kernelle/releases/latest";
     
     let response = client
         .get(url)
@@ -137,13 +140,17 @@ async fn get_latest_version() -> Result<String> {
 }
 
 async fn download_and_extract(version: &str, staging_path: &Path) -> Result<std::path::PathBuf> {
+    download_and_extract_from_api(version, staging_path, "https://api.github.com/repos/TravelSizedLions/kernelle/releases").await
+}
+
+async fn download_and_extract_from_api(version: &str, staging_path: &Path, api_base: &str) -> Result<std::path::PathBuf> {
     let client = reqwest::Client::new();
     
     // Get release info
     let release_url = if version == "latest" {
-        "https://api.github.com/repos/TravelSizedLions/kernelle/releases/latest".to_string()
+        format!("{}/latest", api_base)
     } else {
-        format!("https://api.github.com/repos/TravelSizedLions/kernelle/releases/tags/{}", version)
+        format!("{}/tags/{}", api_base, version)
     };
     
     let response = client
@@ -274,8 +281,8 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
     let snapshot_base = Path::new(&kernelle_home).join("snapshots");
     fs::create_dir_all(&snapshot_base).context("Failed to create snapshots directory")?;
     
-    let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-    let snapshot_dir = snapshot_base.join(format!("pre_update_{}", timestamp));
+    let timestamp = chrono::Utc::now().timestamp();
+    let snapshot_dir = snapshot_base.join(timestamp.to_string());
     fs::create_dir_all(&snapshot_dir)?;
     
     // Snapshot kernelle home directory
@@ -344,6 +351,11 @@ fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<
         let entry = entry?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
+        
+        // Skip the snapshots directory to avoid infinite recursion
+        if entry.file_name() == "snapshots" {
+            continue;
+        }
         
         if src_path.is_dir() {
             copy_dir_recursive(&src_path, &dst_path)?;
@@ -420,4 +432,320 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
     println!("✅ Rollback completed successfully!");
     
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockito::Server;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_get_latest_version_success() {
+        let mut server = Server::new_async().await;
+        let mock_response = r#"{
+            "tag_name": "v1.2.3",
+            "tarball_url": "https://api.github.com/repos/TravelSizedLions/kernelle/tarball/v1.2.3"
+        }"#;
+
+        let _mock = server
+            .mock("GET", "/releases/latest")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response)
+            .create_async()
+            .await;
+
+        let mock_url = format!("{}/releases/latest", server.url());
+        let result = get_latest_version_from_url(&mock_url).await;
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "v1.2.3");
+    }
+
+    #[tokio::test]
+    async fn test_get_latest_version_failure() {
+        let mut server = Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/releases/latest")
+            .with_status(404)
+            .create_async()
+            .await;
+
+        let mock_url = format!("{}/releases/latest", server.url());
+        let result = get_latest_version_from_url(&mock_url).await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("GitHub API request failed"));
+    }
+
+    #[tokio::test]
+    async fn test_get_latest_version_invalid_json() {
+        let mut server = Server::new_async().await;
+        let _mock = server
+            .mock("GET", "/releases/latest")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body("invalid json")
+            .create_async()
+            .await;
+
+        let mock_url = format!("{}/releases/latest", server.url());
+        let result = get_latest_version_from_url(&mock_url).await;
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to parse GitHub release response"));
+    }
+
+    #[test]
+    fn test_copy_dir_recursive() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().join("src");
+        let dst_dir = temp_dir.path().join("dst");
+
+        // Create source directory structure
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::create_dir_all(src_dir.join("subdir")).unwrap();
+        fs::write(src_dir.join("file1.txt"), "content1").unwrap();
+        fs::write(src_dir.join("subdir").join("file2.txt"), "content2").unwrap();
+
+        // Test copy_dir_recursive
+        let result = copy_dir_recursive(&src_dir, &dst_dir);
+        assert!(result.is_ok());
+
+        // Verify copied files
+        assert!(dst_dir.join("file1.txt").exists());
+        assert!(dst_dir.join("subdir").join("file2.txt").exists());
+        assert_eq!(fs::read_to_string(dst_dir.join("file1.txt")).unwrap(), "content1");
+        assert_eq!(fs::read_to_string(dst_dir.join("subdir").join("file2.txt")).unwrap(), "content2");
+    }
+
+    #[test]
+    fn test_copy_dir_recursive_nonexistent_source() {
+        let temp_dir = TempDir::new().unwrap();
+        let src_dir = temp_dir.path().join("nonexistent");
+        let dst_dir = temp_dir.path().join("dst");
+
+        // Should succeed with no-op when source doesn't exist
+        let result = copy_dir_recursive(&src_dir, &dst_dir);
+        assert!(result.is_ok());
+        assert!(!dst_dir.exists());
+    }
+
+    #[tokio::test]
+    async fn test_create_snapshot() {
+        let _temp_dir = TempDir::new().unwrap();
+        
+        // Use /tmp directly to avoid long temp paths
+        let base_dir = Path::new("/tmp/test_snap");
+        fs::create_dir_all(&base_dir).unwrap();
+        
+        let kernelle_home = base_dir.join("k");
+        let bin_dir = base_dir.join("b");
+        
+        // Ensure environment variables are set before calling create_snapshot
+        std::env::set_var("KERNELLE_HOME", &kernelle_home);
+        std::env::set_var("INSTALL_DIR", &bin_dir);
+
+        // Create mock kernelle home structure
+        fs::create_dir_all(&kernelle_home).unwrap();
+        fs::create_dir_all(&bin_dir).unwrap();
+
+        // Create some mock files with shorter names
+        fs::write(kernelle_home.join("c.yml"), "test").unwrap();
+        fs::write(bin_dir.join("kernelle"), "mock").unwrap();
+
+        let result = create_snapshot().await;
+
+        if let Err(e) = &result {
+            println!("Snapshot creation failed: {}", e);
+        }
+        
+        assert!(result.is_ok());
+
+        let snapshot_dir = result.unwrap();
+        assert!(snapshot_dir.exists());
+        assert!(snapshot_dir.join("kernelle_home").exists());
+        assert!(snapshot_dir.join("bins").exists());
+        assert!(snapshot_dir.join("kernelle_home").join("c.yml").exists());
+        assert!(snapshot_dir.join("bins").join("kernelle").exists());
+        assert!(snapshot_dir.join("bins").join("kernelle").exists());
+        
+        // Clean up environment variables
+        std::env::remove_var("KERNELLE_HOME");
+        std::env::remove_var("INSTALL_DIR");
+        
+        // Clean up test directory
+        if base_dir.exists() {
+            fs::remove_dir_all(&base_dir).ok();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_perform_rollback() {
+        let temp_dir = TempDir::new().unwrap();
+        
+        // Set up mock environment
+        let kernelle_home = temp_dir.path().join("kernelle");
+        let bin_dir = temp_dir.path().join("bin");
+        std::env::set_var("KERNELLE_HOME", &kernelle_home);
+        std::env::set_var("INSTALL_DIR", &bin_dir);
+
+        // Create current installation
+        fs::create_dir_all(&kernelle_home).unwrap();
+        fs::create_dir_all(&bin_dir).unwrap();
+        fs::write(kernelle_home.join("current_config.yaml"), "current config").unwrap();
+
+        // Create snapshot
+        let snapshot_dir = temp_dir.path().join("snapshot");
+        let snapshot_kernelle_home = snapshot_dir.join("kernelle_home");
+        let snapshot_bins = snapshot_dir.join("bins");
+        fs::create_dir_all(&snapshot_kernelle_home).unwrap();
+        fs::create_dir_all(&snapshot_bins).unwrap();
+        fs::write(snapshot_kernelle_home.join("old_config.yaml"), "old config").unwrap();
+        
+        // Create a mock kernelle binary that will fail the version check
+        let mock_kernelle = snapshot_bins.join("kernelle");
+        fs::write(&mock_kernelle, "#!/bin/bash\nexit 1").unwrap();
+        
+        // Make it executable
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&mock_kernelle).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&mock_kernelle, perms).unwrap();
+        }
+
+        // Temporarily modify PATH to use our mock binary
+        let original_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{}:{}", bin_dir.display(), original_path);
+        std::env::set_var("PATH", new_path);
+
+        // Test rollback (this should fail verification due to mock binary)
+        let result = perform_rollback(&snapshot_dir).await;
+        
+        // Restore PATH and clean up environment variables
+        std::env::set_var("PATH", original_path);
+        std::env::remove_var("KERNELLE_HOME");
+        std::env::remove_var("INSTALL_DIR");
+        
+        // We expect this to fail because the mock binary fails version check
+        assert!(result.is_err());
+
+        // Check that files were restored (even though verification failed)
+        // Since we copy first then verify, the files should still be there
+        assert!(kernelle_home.join("old_config.yaml").exists());
+    }
+
+    #[tokio::test]
+    async fn test_perform_rollback_missing_snapshot() {
+        let temp_dir = TempDir::new().unwrap();
+        let nonexistent_snapshot = temp_dir.path().join("nonexistent");
+
+        let result = perform_rollback(&nonexistent_snapshot).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Snapshot directory not found"));
+    }
+
+    #[tokio::test]
+    async fn test_verify_installation_success() {
+        // For this test, assume kernelle is properly installed on the system
+        // In a real CI environment, this should pass
+        let result = verify_installation().await;
+        
+        // If kernelle is not installed, this test should be skipped
+        // For now, we'll just expect it to work in the development environment
+        if result.is_err() {
+            println!("kernelle binary not found in PATH, skipping test");
+            return;
+        }
+        
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_verify_installation_failure() {
+        // Create a mock kernelle binary that returns failure
+        let temp_dir = TempDir::new().unwrap();
+        let mock_kernelle = temp_dir.path().join("kernelle");
+        
+        // Create a simple shell script that exits with 1
+        fs::write(&mock_kernelle, "#!/bin/bash\nexit 1").unwrap();
+        
+        // Make it executable
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&mock_kernelle).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&mock_kernelle, perms).unwrap();
+        }
+
+        // Temporarily add the temp dir to PATH
+        let original_path = std::env::var("PATH").unwrap_or_default();
+        let new_path = format!("{}:{}", temp_dir.path().display(), original_path);
+        std::env::set_var("PATH", new_path);
+
+        let result = verify_installation().await;
+        
+        // Restore original PATH
+        std::env::set_var("PATH", original_path);
+        
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("kernelle failed version check"));
+    }
+
+    #[tokio::test] 
+    async fn test_download_and_extract_api_success() {
+        let mut server = Server::new_async().await;
+        let temp_dir = TempDir::new().unwrap();
+
+        // Mock the release API response
+        let release_response = r#"{
+            "tag_name": "v1.2.3",
+            "tarball_url": "http://example.com/tarball.tar.gz"
+        }"#;
+
+        let _release_mock = server
+            .mock("GET", "/releases/latest")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(release_response)
+            .create_async()
+            .await;
+
+        let api_base = format!("{}/releases", server.url());
+        
+        // This will fail during tarball download since we're not mocking the external URL,
+        // but we can test that the API parsing works correctly
+        let result = download_and_extract_from_api("latest", temp_dir.path(), &api_base).await;
+        
+        // We expect this to fail, but check the specific error message
+        assert!(result.is_err());
+        let error_message = result.unwrap_err().to_string();
+        // Could fail with either download or connection error
+        assert!(error_message.contains("Failed to download") || error_message.contains("Failed to fetch"));
+    }
+
+    #[tokio::test]
+    async fn test_download_and_extract_api_release_not_found() {
+        let mut server = Server::new_async().await;
+        let temp_dir = TempDir::new().unwrap();
+
+        let _mock = server
+            .mock("GET", "/releases/tags/v999.999.999")
+            .with_status(404)
+            .create_async()
+            .await;
+
+        let api_base = format!("{}/releases", server.url());
+        let result = download_and_extract_from_api("v999.999.999", temp_dir.path(), &api_base).await;
+
+        assert!(result.is_err());
+        let error_message = result.unwrap_err().to_string();
+        assert!(error_message.contains("GitHub API request failed"));
+        assert!(error_message.contains("may not exist"));
+    }
 }

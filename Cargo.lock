@@ -1635,11 +1635,13 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
+ "flate2",
  "mockito",
  "reqwest",
  "serde",
  "serde_json",
  "serde_yaml",
+ "tar",
  "tempfile",
  "tokio",
 ]
