@@ -216,7 +216,10 @@ async fn download_and_extract_from_api(
     let entry = entry?;
     let path = entry.path();
     if path.is_dir()
-      && path.file_name().unwrap().to_str().unwrap().contains("kernelle")
+      && path.file_name()
+        .and_then(|name| name.to_str())
+        .map(|name_str| name_str.contains("kernelle"))
+        .unwrap_or(false)
       && path != tarball_path.parent().unwrap()
     {
       return Ok(path);
