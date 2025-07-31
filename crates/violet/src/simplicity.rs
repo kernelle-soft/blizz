@@ -1,6 +1,7 @@
 //! Information-theoretic complexity scoring based on indentation, syntax, and verbosity
 
 use crate::chunking;
+use crate::comments;
 use crate::config;
 use crate::directives;
 use crate::scoring;
@@ -22,11 +23,18 @@ pub struct FileAnalysis {
   pub file_path: std::path::PathBuf,
   pub average_score: f64,
   pub issues: Vec<scoring::ComplexityRegion>,
+  pub comment_issues: Vec<comments::ObviousComment>,
   pub ignored: bool,
 }
 
 fn ignored_file_analysis(path: &Path) -> FileAnalysis {
-  FileAnalysis { file_path: path.to_path_buf(), average_score: 0.0, issues: vec![], ignored: true }
+  FileAnalysis { 
+    file_path: path.to_path_buf(), 
+    average_score: 0.0, 
+    issues: vec![], 
+    comment_issues: vec![],
+    ignored: true 
+  }
 }
 
 /// Average complexity across all chunks in file
@@ -84,16 +92,34 @@ pub fn analyze_file<P: AsRef<Path>>(
   let issues = find_issues(chunks, &lines, threshold, config);
   let file_average_score = average_chunk_complexity(&preprocessed, &config.complexity.penalties);
 
+  // Analyze comments if enabled
+  let comment_issues = if config.comments.enabled {
+    find_comment_issues(&preprocessed)
+  } else {
+    vec![]
+  };
+
   Ok(FileAnalysis {
     file_path: path.to_path_buf(),
     average_score: file_average_score,
     issues,
+    comment_issues,
     ignored: false,
   })
 }
 
 fn empty_file_analysis(path: &Path) -> FileAnalysis {
-  FileAnalysis { file_path: path.to_path_buf(), average_score: 0.0, issues: vec![], ignored: false }
+  FileAnalysis { 
+    file_path: path.to_path_buf(), 
+    average_score: 0.0, 
+    issues: vec![], 
+    comment_issues: vec![],
+    ignored: false 
+  }
+}
+
+fn find_comment_issues(content: &str) -> Vec<comments::ObviousComment> {
+  comments::analyze_comments(content).obvious_comments
 }
 
 fn find_issues(

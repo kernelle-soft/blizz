@@ -10,6 +10,8 @@ pub struct VioletConfig {
   #[serde(default)]
   pub complexity: ComplexityConfig,
   #[serde(default)]
+  pub comments: CommentConfig,
+  #[serde(default)]
   pub ignore_files: Vec<String>,
   #[serde(default)]
   pub ignore_patterns: Vec<String>,
@@ -21,6 +23,20 @@ pub struct ComplexityConfig {
   pub thresholds: ThresholdConfig,
   #[serde(default)]
   pub penalties: PenaltyConfig,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CommentConfig {
+  #[serde(default = "default_check_comments")]
+  pub enabled: bool,
+}
+
+impl Default for CommentConfig {
+  fn default() -> Self {
+    Self {
+      enabled: default_check_comments(),
+    }
+  }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -75,12 +91,17 @@ fn default_syntactics_penalty() -> f64 {
   1.15
 }
 
+fn default_check_comments() -> bool {
+  false // Disabled by default to avoid disruption
+}
+
 fn default_global_config() -> VioletConfig {
   VioletConfig {
     complexity: ComplexityConfig {
       thresholds: ThresholdConfig::default(),
       penalties: PenaltyConfig::default(),
     },
+    comments: CommentConfig::default(),
     ignore_files: get_default_ignored_files(),
     ignore_patterns: vec![],
   }
@@ -168,9 +189,10 @@ fn merge(global: VioletConfig, project: Option<VioletConfig>) -> VioletConfig {
 
   let merged_thresholds = merge_threshold_configs(&global, &project);
   let merged_penalties = merge_penalty_configs(&global, &project);
+  let merged_comments = merge_comment_configs(&global, &project);
   let merged_ignores = merge_ignore_configs(&global, &project);
 
-  build_merged_config(merged_thresholds, merged_penalties, merged_ignores)
+  build_merged_config(merged_thresholds, merged_penalties, merged_comments, merged_ignores)
 }
 
 fn merge_threshold_configs(global: &VioletConfig, project: &VioletConfig) -> ThresholdConfig {
@@ -219,6 +241,16 @@ fn merge_penalty_configs(global: &VioletConfig, project: &VioletConfig) -> Penal
   }
 }
 
+fn merge_comment_configs(global: &VioletConfig, project: &VioletConfig) -> CommentConfig {
+  CommentConfig {
+    enabled: if project.comments.enabled != default_check_comments() {
+      project.comments.enabled
+    } else {
+      global.comments.enabled
+    },
+  }
+}
+
 fn merge_ignore_configs(
   global: &VioletConfig,
   project: &VioletConfig,
@@ -233,10 +265,12 @@ fn merge_ignore_configs(
 fn build_merged_config(
   thresholds: ThresholdConfig,
   penalties: PenaltyConfig,
+  comments: CommentConfig,
   (ignore_files, ignore_patterns): (Vec<String>, Vec<String>),
 ) -> VioletConfig {
   VioletConfig {
     complexity: ComplexityConfig { thresholds, penalties },
+    comments,
     ignore_files,
     ignore_patterns,
   }

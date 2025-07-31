@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process;
 use std::sync::OnceLock;
 use violet::config;
+use violet::comments;
 use violet::scoring;
 use violet::simplicity;
 
@@ -104,8 +105,13 @@ fn process_single_file(
       if let Some(output) = process_file_analysis(&analysis, config, cli, threshold) {
         let chunk_violations =
           analysis.issues.iter().filter(|region| region.score > threshold).count();
+        let comment_violations = if config.comments.enabled {
+          analysis.comment_issues.len()
+        } else {
+          0
+        };
         violation_output.push(output);
-        chunk_violations
+        chunk_violations + comment_violations
       } else {
         0
       }
@@ -276,6 +282,27 @@ fn format_violating_chunk(chunk: &scoring::ComplexityRegion) -> String {
   output
 }
 
+fn format_comment_issue(comment: &comments::ObviousComment) -> String {
+  let mut output = String::new();
+
+  let comment_display = format!("- line {} (comment)", comment.line_number);
+  let issue_str = "obvious";
+  output.push_str(&format_aligned_row(&comment_display, issue_str, true, false));
+
+  // Show the comment
+  output.push_str(&format!("    \"{}\"\n", comment.comment_text.dimmed()));
+  
+  // Show the reason
+  output.push_str(&format!("    {}\n", comment.reason.dimmed()));
+  
+  // Show the associated code line if available
+  if let Some(code) = &comment.code_line {
+    output.push_str(&format!("    Next line: {}\n", code.dimmed()));
+  }
+
+  output
+}
+
 fn handle_ignored_file(analysis: &simplicity::FileAnalysis, cli: &Cli) -> Option<String> {
   if !cli.quiet {
     let mut output = String::new();
@@ -293,7 +320,7 @@ fn handle_ignored_file(analysis: &simplicity::FileAnalysis, cli: &Cli) -> Option
 
 fn process_file_analysis(
   analysis: &simplicity::FileAnalysis,
-  _config: &config::VioletConfig,
+  config: &config::VioletConfig,
   cli: &Cli,
   threshold: f64,
 ) -> Option<String> {
@@ -304,15 +331,26 @@ fn process_file_analysis(
   let complex_chunks: Vec<&scoring::ComplexityRegion> =
     analysis.issues.iter().filter(|chunk| chunk.score > threshold).collect();
 
-  if complex_chunks.is_empty() {
+  let has_complexity_issues = !complex_chunks.is_empty();
+  let has_comment_issues = config.comments.enabled && !analysis.comment_issues.is_empty();
+
+  if !has_complexity_issues && !has_comment_issues {
     return None;
   }
 
   let mut output = String::new();
   output.push_str(&format_file_header(&analysis.file_path.display().to_string()));
 
+  // Show complexity issues
   for chunk in complex_chunks {
     output.push_str(&format_violating_chunk(chunk));
+  }
+
+  // Show comment issues if enabled
+  if has_comment_issues {
+    for comment in &analysis.comment_issues {
+      output.push_str(&format_comment_issue(comment));
+    }
   }
 
   Some(output)
@@ -834,5 +872,45 @@ mod tests {
     assert_eq!(extension_to_language(".py"), "python");
     assert_eq!(extension_to_language(".pyw"), "windows python");
     assert_eq!(extension_to_language(".pyc"), "compiled python");
+  }
+
+  #[test]
+  fn test_format_comment_issue() {
+    use violet::comments::ObviousComment;
+
+    let comment = ObviousComment {
+      line_number: 5,
+      comment_text: "Set x to 5".to_string(),
+      reason: "Comment obviously describes assignment".to_string(),
+      code_line: Some("let x = 5;".to_string()),
+    };
+
+    let formatted = format_comment_issue(&comment);
+
+    assert!(formatted.contains("line 5 (comment)"));
+    assert!(formatted.contains("obvious"));
+    assert!(formatted.contains("Set x to 5"));
+    assert!(formatted.contains("Comment obviously describes assignment"));
+    assert!(formatted.contains("let x = 5;"));
+  }
+
+  #[test]
+  fn test_format_comment_issue_no_code_line() {
+    use violet::comments::ObviousComment;
+
+    let comment = ObviousComment {
+      line_number: 10,
+      comment_text: "Return true".to_string(),
+      reason: "Comment obviously states what return statement does".to_string(),
+      code_line: None,
+    };
+
+    let formatted = format_comment_issue(&comment);
+
+    assert!(formatted.contains("line 10 (comment)"));
+    assert!(formatted.contains("obvious"));
+    assert!(formatted.contains("Return true"));
+    assert!(formatted.contains("Comment obviously states what return statement does"));
+    assert!(!formatted.contains("Next line:"));
   }
 }
