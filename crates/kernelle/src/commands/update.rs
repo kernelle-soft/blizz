@@ -18,7 +18,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     // Determine target version
     let target_version = match version {
         Some(v) => {
-            println!("📌 Updating to version: {}", v);
+            println!("📌 Updating to version: {v}");
             v.to_string()
         }
         None => {
@@ -38,7 +38,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     println!("📁 Staging in: {}", staging_dir.path().display());
     
     // Download and extract
-    println!("⬇️  Downloading kernelle {}...", target_version);
+    println!("⬇️  Downloading kernelle {target_version}...");
     let extracted_dir = download_and_extract(&target_version, staging_dir.path()).await?;
     
     // Test build in staging environment
@@ -67,7 +67,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
                     Ok(())
                 }
                 Err(e) => {
-                    println!("❌ Verification failed: {}", e);
+                    println!("❌ Verification failed: {e}");
                     println!("🔄 Automatically rolling back to previous version...");
                     
                     match perform_rollback(&snapshot_dir).await {
@@ -76,7 +76,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
                             Err(anyhow::anyhow!("Update failed and was rolled back: {}", e))
                         }
                         Err(rollback_err) => {
-                            println!("💥 CRITICAL: Rollback also failed: {}", rollback_err);
+                            println!("💥 CRITICAL: Rollback also failed: {rollback_err}");
                             Err(anyhow::anyhow!(
                                 "Update failed: {}. Rollback also failed: {}. Manual recovery may be needed.",
                                 e,
@@ -88,7 +88,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
             }
         }
         Err(e) => {
-            println!("❌ Installation failed: {}", e);
+            println!("❌ Installation failed: {e}");
             println!("🔄 Automatically rolling back to previous version...");
             
             match perform_rollback(&snapshot_dir).await {
@@ -97,7 +97,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
                     Err(anyhow::anyhow!("Update failed and was rolled back: {}", e))
                 }
                 Err(rollback_err) => {
-                    println!("💥 CRITICAL: Rollback also failed: {}", rollback_err);
+                    println!("💥 CRITICAL: Rollback also failed: {rollback_err}");
                     Err(anyhow::anyhow!(
                         "Update failed: {}. Rollback also failed: {}. Manual recovery may be needed.",
                         e,
@@ -148,9 +148,9 @@ async fn download_and_extract_from_api(version: &str, staging_path: &Path, api_b
     
     // Get release info
     let release_url = if version == "latest" {
-        format!("{}/latest", api_base)
+        format!("{api_base}/latest")
     } else {
-        format!("{}/tags/{}", api_base, version)
+        format!("{api_base}/tags/{version}")
     };
     
     let response = client
@@ -202,7 +202,7 @@ async fn download_and_extract_from_api(version: &str, staging_path: &Path, api_b
     // Extract tarball
     println!("📦 Extracting tarball...");
     let output = Command::new("tar")
-        .args(&["-xzf", tarball_path.to_str().unwrap()])
+        .args(["-xzf", tarball_path.to_str().unwrap()])
         .current_dir(staging_path)
         .output()
         .context("Failed to execute tar command")?;
@@ -217,11 +217,10 @@ async fn download_and_extract_from_api(version: &str, staging_path: &Path, api_b
     for entry in entries {
         let entry = entry?;
         let path = entry.path();
-        if path.is_dir() && path.file_name().unwrap().to_str().unwrap().contains("kernelle") {
-            if path != tarball_path.parent().unwrap() {
+        if path.is_dir() && path.file_name().unwrap().to_str().unwrap().contains("kernelle")
+            && path != tarball_path.parent().unwrap() {
                 return Ok(path);
             }
-        }
     }
     
     Err(anyhow::anyhow!("Could not find extracted kernelle directory"))
@@ -244,6 +243,9 @@ async fn test_build_in_staging(
         .arg("--non-interactive")
         .env("KERNELLE_HOME", kernelle_home)
         .env("INSTALL_DIR", install_dir)
+        .env("RUST_MIN_STACK", "33554432") // Increase stack size even more (32MB)
+        .env("CARGO_NET_RETRY", "3") // Retry network operations to handle temporary failures
+        .env("RUSTFLAGS", "-C opt-level=1 -C codegen-units=16") // Use lower optimization to avoid SIGSEGV
         .output()
         .context("Failed to run install.sh in staging")?;
     
@@ -298,7 +300,7 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
         let src = Path::new(&install_dir).join(binary);
         if src.exists() {
             let dst = bins_snapshot.join(binary);
-            fs::copy(&src, &dst).context(format!("Failed to backup {}", binary))?;
+            fs::copy(&src, &dst).context(format!("Failed to backup {binary}"))?;
         }
     }
     
@@ -311,6 +313,9 @@ async fn install_new_version(source_dir: &Path) -> Result<()> {
     let output = Command::new("bash")
         .arg(&install_script)
         .arg("--non-interactive")
+        .env("RUST_MIN_STACK", "33554432") // Increase stack size even more (32MB)
+        .env("CARGO_NET_RETRY", "3") // Retry network operations to handle temporary failures
+        .env("RUSTFLAGS", "-C opt-level=1 -C codegen-units=16") // Use lower optimization to avoid SIGSEGV
         .output()
         .context("Failed to run install.sh for new version")?;
     
@@ -419,8 +424,8 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
                     fs::remove_file(&install_bin)?;
                 }
                 fs::copy(&backup_bin, &install_bin)
-                    .context(format!("Failed to restore {}", binary))?;
-                println!("✅ Restored {}", binary);
+                    .context(format!("Failed to restore {binary}"))?;
+                println!("✅ Restored {binary}");
             }
         }
     }
@@ -539,7 +544,7 @@ mod tests {
         
         // Use /tmp directly to avoid long temp paths
         let base_dir = Path::new("/tmp/test_snap");
-        fs::create_dir_all(&base_dir).unwrap();
+        fs::create_dir_all(base_dir).unwrap();
         
         let kernelle_home = base_dir.join("k");
         let bin_dir = base_dir.join("b");
@@ -559,7 +564,7 @@ mod tests {
         let result = create_snapshot().await;
 
         if let Err(e) = &result {
-            println!("Snapshot creation failed: {}", e);
+            println!("Snapshot creation failed: {e}");
         }
         
         assert!(result.is_ok());
@@ -578,7 +583,7 @@ mod tests {
         
         // Clean up test directory
         if base_dir.exists() {
-            fs::remove_dir_all(&base_dir).ok();
+            fs::remove_dir_all(base_dir).ok();
         }
     }
 
