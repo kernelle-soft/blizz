@@ -30,83 +30,107 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
   // Create staging areas
   let staging_dir = TempDir::new().context("Failed to create staging directory")?;
   let kernelle_staging = staging_dir.path().join("kernelle_home");
-  let bins_staging = staging_dir.path().join("bins");
-
   fs::create_dir_all(&kernelle_staging)?;
-  fs::create_dir_all(&bins_staging)?;
-
   println!("📁 Staging in: {}", staging_dir.path().display());
 
   // Download and extract
   println!("⬇️  Downloading kernelle {target_version}...");
   let extracted_dir = download_and_extract(&target_version, staging_dir.path()).await?;
 
-  // Test build in staging environment
-  println!("🔨 Building and testing in staging environment...");
-  test_build_in_staging(&extracted_dir, &kernelle_staging, &bins_staging).await?;
-
   // Create snapshot of current installation
   println!("📸 Creating snapshot of current installation...");
   let snapshot_dir = create_snapshot().await?;
 
-  // Attempt to install new version - if this fails, automatically rollback
-  println!("⚡ Installing new version...");
-  match install_new_version(&extracted_dir).await {
-    Ok(()) => {
-      // Verify installation
-      println!("✅ Verifying installation...");
-      match verify_installation().await {
-        Ok(()) => {
-          // Success! Clean up staging
-          drop(staging_dir);
+  // Install new version to default cargo location, but with temp KERNELLE_HOME
+  println!("⚡ Installing new version to default cargo location with temp KERNELLE_HOME...");
+  let install_script = extracted_dir.join("scripts").join("install.sh");
+  let output = Command::new("bash")
+    .arg(&install_script)
+    .arg("--non-interactive")
+    .env("KERNELLE_HOME", &kernelle_staging)
+    .env("RUST_MIN_STACK", "33554432")
+    .env("CARGO_NET_RETRY", "3")
+    .env("RUSTFLAGS", "-C opt-level=1 -C codegen-units=16")
+    .output()
+    .context("Failed to run install.sh for new version")?;
 
-          println!("🎉 Update completed successfully!");
-          println!("📝 Snapshot saved at: {}", snapshot_dir.display());
-          println!("💡 Snapshot will be automatically cleaned up in 24 hours");
-
-          Ok(())
-        }
-        Err(e) => {
-          println!("❌ Verification failed: {e}");
-          println!("🔄 Automatically rolling back to previous version...");
-
-          match perform_rollback(&snapshot_dir).await {
-            Ok(()) => {
-              println!("✅ Rollback completed successfully");
-              Err(anyhow::anyhow!("Update failed and was rolled back: {}", e))
-            }
-            Err(rollback_err) => {
-              println!("💥 CRITICAL: Rollback also failed: {rollback_err}");
-              Err(anyhow::anyhow!(
-                "Update failed: {}. Rollback also failed: {}. Manual recovery may be needed.",
-                e,
-                rollback_err
-              ))
-            }
-          }
-        }
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    println!("❌ Installation failed: {stderr}");
+    println!("🔄 Automatically rolling back to previous version...");
+    match perform_rollback(&snapshot_dir).await {
+      Ok(()) => {
+        println!("✅ Rollback completed successfully");
+        return Err(anyhow::anyhow!("Update failed and was rolled back: {stderr}"));
       }
-    }
-    Err(e) => {
-      println!("❌ Installation failed: {e}");
-      println!("🔄 Automatically rolling back to previous version...");
-
-      match perform_rollback(&snapshot_dir).await {
-        Ok(()) => {
-          println!("✅ Rollback completed successfully");
-          Err(anyhow::anyhow!("Update failed and was rolled back: {}", e))
-        }
-        Err(rollback_err) => {
-          println!("💥 CRITICAL: Rollback also failed: {rollback_err}");
-          Err(anyhow::anyhow!(
-            "Update failed: {}. Rollback also failed: {}. Manual recovery may be needed.",
-            e,
-            rollback_err
-          ))
-        }
+      Err(rollback_err) => {
+        println!("💥 CRITICAL: Rollback also failed: {rollback_err}");
+        return Err(anyhow::anyhow!(
+          "Update failed: {stderr}. Rollback also failed: {rollback_err}. Manual recovery may be needed."
+        ));
       }
     }
   }
+
+  // Verify installation using the temp KERNELLE_HOME
+  println!("✅ Verifying installation with temp KERNELLE_HOME...");
+  let verify_output = Command::new("kernelle")
+    .arg("--version")
+    .env("KERNELLE_HOME", &kernelle_staging)
+    .output()
+    .context("Failed to test kernelle after installation")?;
+
+  if !verify_output.status.success() {
+    let stderr = String::from_utf8_lossy(&verify_output.stderr);
+    println!("❌ Verification failed: {stderr}");
+    println!("🔄 Automatically rolling back to previous version...");
+    match perform_rollback(&snapshot_dir).await {
+      Ok(()) => {
+        println!("✅ Rollback completed successfully");
+        return Err(anyhow::anyhow!("Update failed and was rolled back: {stderr}"));
+      }
+      Err(rollback_err) => {
+        println!("💥 CRITICAL: Rollback also failed: {rollback_err}");
+        return Err(anyhow::anyhow!(
+          "Update failed: {stderr}. Rollback also failed: {rollback_err}. Manual recovery may be needed."
+        ));
+      }
+    }
+  }
+
+  // Promote the new KERNELLE_HOME
+  let real_kernelle_home = env::var("KERNELLE_HOME").unwrap_or_else(|_| {
+    format!("{}/.kernelle", dirs::home_dir().unwrap_or_default().to_string_lossy())
+  });
+  let real_kernelle_home = Path::new(&real_kernelle_home);
+  let new_kernelle_home = &kernelle_staging;
+
+  // Remove old volatile and .source, if they exist
+  let volatile_path = real_kernelle_home.join("volatile");
+  if volatile_path.exists() {
+    fs::remove_dir_all(&volatile_path)?;
+  }
+  let source_path = real_kernelle_home.join("kernelle.internal.source");
+  if source_path.exists() {
+    fs::remove_file(&source_path)?;
+  }
+
+  // Copy new volatile
+  let new_volatile = new_kernelle_home.join("volatile");
+  if new_volatile.exists() {
+    copy_dir_recursive(&new_volatile, &volatile_path)?;
+  }
+
+  // Copy new kernelle.internal.source
+  let new_source = new_kernelle_home.join("kernelle.internal.source");
+  if new_source.exists() {
+    fs::copy(&new_source, &source_path)?;
+  }
+
+  println!("🎉 Update completed successfully!");
+  println!("📝 Snapshot saved at: {}", snapshot_dir.display());
+  println!("💡 Snapshot will be automatically cleaned up in 24 hours");
+  Ok(())
 }
 
 async fn get_latest_version() -> Result<String> {
@@ -230,54 +254,6 @@ async fn download_and_extract_from_api(
   Err(anyhow::anyhow!("Could not find extracted kernelle directory"))
 }
 
-async fn test_build_in_staging(
-  source_dir: &Path,
-  kernelle_home: &Path,
-  install_dir: &Path,
-) -> Result<()> {
-  let install_script = source_dir.join("scripts").join("install.sh");
-
-  if !install_script.exists() {
-    return Err(anyhow::anyhow!("install.sh not found in extracted archive"));
-  }
-
-  // Run install.sh with staging environment variables
-  let output = Command::new("bash")
-    .arg(&install_script)
-    .arg("--non-interactive")
-    .env("KERNELLE_HOME", kernelle_home)
-    .env("INSTALL_DIR", install_dir)
-    .env("RUST_MIN_STACK", "33554432") // Increase stack size even more (32MB)
-    .env("CARGO_NET_RETRY", "3") // Retry network operations to handle temporary failures
-    .env("RUSTFLAGS", "-C opt-level=1 -C codegen-units=16") // Use lower optimization to avoid SIGSEGV
-    .output()
-    .context("Failed to run install.sh in staging")?;
-
-  if !output.status.success() {
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    return Err(anyhow::anyhow!("Staging installation failed: {}", stderr));
-  }
-
-  // Quick smoke test of staged binaries
-  let kernelle_bin = install_dir.join("kernelle");
-  if !kernelle_bin.exists() {
-    return Err(anyhow::anyhow!("kernelle binary not found in staging installation"));
-  }
-
-  let version_output = Command::new(&kernelle_bin)
-    .arg("--version")
-    .env("KERNELLE_HOME", kernelle_home)
-    .output()
-    .context("Failed to test staged kernelle binary")?;
-
-  if !version_output.status.success() {
-    return Err(anyhow::anyhow!("Staged kernelle binary failed version check"));
-  }
-
-  println!("✅ Staging installation successful");
-  Ok(())
-}
-
 async fn create_snapshot() -> Result<std::path::PathBuf> {
   let kernelle_home = env::var("KERNELLE_HOME").unwrap_or_else(|_| {
     format!("{}/.kernelle", dirs::home_dir().unwrap_or_default().to_string_lossy())
@@ -311,26 +287,6 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
   }
 
   Ok(snapshot_dir)
-}
-
-async fn install_new_version(source_dir: &Path) -> Result<()> {
-  let install_script = source_dir.join("scripts").join("install.sh");
-
-  let output = Command::new("bash")
-    .arg(&install_script)
-    .arg("--non-interactive")
-    .env("RUST_MIN_STACK", "33554432") // Increase stack size even more (32MB)
-    .env("CARGO_NET_RETRY", "3") // Retry network operations to handle temporary failures
-    .env("RUSTFLAGS", "-C opt-level=1 -C codegen-units=16") // Use lower optimization to avoid SIGSEGV
-    .output()
-    .context("Failed to run install.sh for new version")?;
-
-  if !output.status.success() {
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    return Err(anyhow::anyhow!("Installation failed: {}", stderr));
-  }
-
-  Ok(())
 }
 
 async fn verify_installation() -> Result<()> {
