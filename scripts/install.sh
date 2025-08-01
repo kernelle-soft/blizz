@@ -196,6 +196,7 @@ check_system_dependencies
 
 # Configuration
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo}"
 
 # Create directories
 echo "📁 Creating directories..."
@@ -230,6 +231,7 @@ fi
 cd "$REPO_ROOT"
 
 echo "📦 Installing binaries..."
+
 # Install all binary crates using cargo install --path
 for crate_dir in crates/*/; do
     if [ -d "$crate_dir" ]; then
@@ -237,7 +239,7 @@ for crate_dir in crates/*/; do
         # Check if this crate has binary targets by looking for [[bin]] in Cargo.toml
         if grep -q '\[\[bin\]\]' "$crate_dir/Cargo.toml"; then
             echo "  Installing: $crate"
-            cargo install --path "$crate_dir" --force
+            cargo install --path "$crate_dir" --force --root "$INSTALL_DIR"
         else
             echo "  Skipped: $crate (library only)"
         fi
