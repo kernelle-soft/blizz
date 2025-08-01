@@ -111,7 +111,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     .arg(&install_script)
     .arg("--non-interactive")
     .env("KERNELLE_HOME", &kernelle_staging)
-    .env("RUST_MIN_STACK", "33554432")
+    .env("RUST_MIN_STACK", "1000000000")
     .env("CARGO_NET_RETRY", "3")
     .env("RUSTFLAGS", "-C opt-level=1 -C codegen-units=16")
     .output()
