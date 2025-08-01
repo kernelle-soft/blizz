@@ -13,36 +13,31 @@ struct GitHubRelease {
 }
 
 pub async fn execute(version: Option<&str>) -> Result<()> {
-  println!("🚀 Starting kernelle update...");
+  println!("starting update...");
 
-  // Determine target version
   let target_version = match version {
     Some(v) => {
-      println!("📌 Updating to version: {v}");
+      println!("updating to {v}");
       v.to_string()
     }
     None => {
-      println!("🔍 Fetching latest version...");
+      println!("fetching latest version...");
       get_latest_version().await?
     }
   };
 
-  // Create staging areas
   let staging_dir = TempDir::new().context("Failed to create staging directory")?;
   let kernelle_staging = staging_dir.path().join("kernelle_home");
   fs::create_dir_all(&kernelle_staging)?;
-  println!("📁 Staging in: {}", staging_dir.path().display());
+  println!("staging in: {}", staging_dir.path().display());
 
-  // Download and extract
-  println!("⬇️  Downloading kernelle {target_version}...");
+  println!("downloading {target_version}...");
   let extracted_dir = download_and_extract(&target_version, staging_dir.path()).await?;
 
-  // Create snapshot of current installation
-  println!("📸 Creating snapshot of current installation...");
+  println!("creating snapshot of current installation...");
   let snapshot_dir = create_snapshot().await?;
 
-  // Install new version to default cargo location, but with temp KERNELLE_HOME
-  println!("⚡ Installing new version to default cargo location with temp KERNELLE_HOME...");
+  println!("installing...");
   let install_script = extracted_dir.join("scripts").join("install.sh");
   let output = Command::new("bash")
     .arg(&install_script)
@@ -56,41 +51,41 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
 
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    println!("❌ Installation failed: {stderr}");
-    println!("🔄 Automatically rolling back to previous version...");
+    println!("❌ installation failed: {stderr}");
+    println!("automatically rolling back to previous version...");
     match perform_rollback(&snapshot_dir).await {
       Ok(()) => {
-        println!("✅ Rollback completed successfully");
-        return Err(anyhow::anyhow!("Update failed and was rolled back: {stderr}"));
+        println!("rollback completed successfully");
+        return Err(anyhow::anyhow!("Update FAILED and was rolled back: {stderr}"));
       }
       Err(rollback_err) => {
-        println!("💥 CRITICAL: Rollback also failed: {rollback_err}");
+        println!("❌ CRITICAL: rollback also FAILED: {rollback_err}");
         return Err(anyhow::anyhow!(
-          "Update failed: {stderr}. Rollback also failed: {rollback_err}. Manual recovery may be needed."
+          "Update FAILED: {stderr}. Rollback also FAILED: {rollback_err}. Manual recovery may be needed."
         ));
       }
     }
   }
 
   // Verify installation using the temp KERNELLE_HOME
-  println!("✅ Verifying installation with temp KERNELLE_HOME...");
+  println!("verifying installation with temp KERNELLE_HOME...");
   let verify_output = Command::new("kernelle")
     .arg("--version")
     .env("KERNELLE_HOME", &kernelle_staging)
     .output()
-    .context("Failed to test kernelle after installation")?;
+    .context("failed to test kernelle after installation")?;
 
   if !verify_output.status.success() {
     let stderr = String::from_utf8_lossy(&verify_output.stderr);
-    println!("❌ Verification failed: {stderr}");
-    println!("🔄 Automatically rolling back to previous version...");
+    println!("❌ verification failed: {stderr}");
+    println!("automatically rolling back to previous version...");
     match perform_rollback(&snapshot_dir).await {
       Ok(()) => {
-        println!("✅ Rollback completed successfully");
+        println!("rollback completed successfully");
         return Err(anyhow::anyhow!("Update failed and was rolled back: {stderr}"));
       }
       Err(rollback_err) => {
-        println!("💥 CRITICAL: Rollback also failed: {rollback_err}");
+        println!("❌ CRITICAL: rollback also failed: {rollback_err}");
         return Err(anyhow::anyhow!(
           "Update failed: {stderr}. Rollback also failed: {rollback_err}. Manual recovery may be needed."
         ));
@@ -98,14 +93,12 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     }
   }
 
-  // Promote the new KERNELLE_HOME
   let real_kernelle_home = env::var("KERNELLE_HOME").unwrap_or_else(|_| {
     format!("{}/.kernelle", dirs::home_dir().unwrap_or_default().to_string_lossy())
   });
   let real_kernelle_home = Path::new(&real_kernelle_home);
   let new_kernelle_home = &kernelle_staging;
 
-  // Remove old volatile and .source, if they exist
   let volatile_path = real_kernelle_home.join("volatile");
   if volatile_path.exists() {
     fs::remove_dir_all(&volatile_path)?;
@@ -115,21 +108,19 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     fs::remove_file(&source_path)?;
   }
 
-  // Copy new volatile
   let new_volatile = new_kernelle_home.join("volatile");
   if new_volatile.exists() {
     copy_dir_recursive(&new_volatile, &volatile_path)?;
   }
 
-  // Copy new kernelle.internal.source
   let new_source = new_kernelle_home.join("kernelle.internal.source");
   if new_source.exists() {
     fs::copy(&new_source, &source_path)?;
   }
 
-  println!("🎉 Update completed successfully!");
-  println!("📝 Snapshot saved at: {}", snapshot_dir.display());
-  println!("💡 Snapshot will be automatically cleaned up in 24 hours");
+  println!("update complete!");
+  println!("snapshot saved at: {}", snapshot_dir.display());
+  println!("snapshot will be automatically cleaned up in 24 hours");
   Ok(())
 }
 
@@ -148,16 +139,16 @@ async fn get_latest_version_from_url(url: &str) -> Result<String> {
     .header("User-Agent", "kernelle-updater")
     .send()
     .await
-    .context("Failed to fetch latest release from GitHub")?;
+    .context("failed to fetch latest release from GitHub")?;
 
   if !response.status().is_success() {
-    return Err(anyhow::anyhow!("GitHub API request failed with status: {}", response.status()));
+    return Err(anyhow::anyhow!("request failed with status: {}", response.status()));
   }
 
   let release: GitHubRelease =
-    response.json().await.context("Failed to parse GitHub release response")?;
+    response.json().await.context("failed to parse release response")?;
 
-  println!("📌 Latest version: {}", release.tag_name);
+  println!("latest version: {}", release.tag_name);
   Ok(release.tag_name)
 }
 
@@ -189,11 +180,11 @@ async fn download_and_extract_from_api(
     .header("User-Agent", "kernelle-updater")
     .send()
     .await
-    .context("Failed to fetch release info from GitHub")?;
+    .context("failed to fetch release info")?;
 
   if !response.status().is_success() {
     return Err(anyhow::anyhow!(
-      "GitHub API request failed with status: {}. Version '{}' may not exist.",
+      "request failed with status: {}. Version '{}' may not exist.",
       response.status(),
       version
     ));
@@ -202,39 +193,35 @@ async fn download_and_extract_from_api(
   let release: GitHubRelease =
     response.json().await.context("Failed to parse GitHub release response")?;
 
-  // Download tarball
-  println!("⬇️  Downloading from: {}", release.tarball_url);
+  println!("downloading from: {}", release.tarball_url);
   let tarball_response = client
     .get(&release.tarball_url)
     .header("User-Agent", "kernelle-updater")
     .send()
     .await
-    .context("Failed to download release tarball")?;
+    .context("failed to download release tarball")?;
 
   if !tarball_response.status().is_success() {
-    return Err(anyhow::anyhow!("Failed to download tarball: HTTP {}", tarball_response.status()));
+    return Err(anyhow::anyhow!("failed to download tarball: HTTP {}", tarball_response.status()));
   }
 
-  // Save tarball to staging area
   let tarball_path = staging_path.join("kernelle.tar.gz");
   let tarball_bytes = tarball_response.bytes().await.context("Failed to read tarball content")?;
 
   fs::write(&tarball_path, &tarball_bytes).context("Failed to write tarball to disk")?;
 
-  // Extract tarball
-  println!("📦 Extracting tarball...");
+  println!("extracting...");
   let output = Command::new("tar")
     .args(["-xzf", &tarball_path.to_string_lossy()])
     .current_dir(staging_path)
     .output()
-    .context("Failed to execute tar command")?;
+    .context("failed to execute tar command")?;
 
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    return Err(anyhow::anyhow!("Failed to extract tarball: {}", stderr));
+    return Err(anyhow::anyhow!("failed to extract tarball: {}", stderr));
   }
 
-  // Find the extracted directory (GitHub creates a directory like TravelSizedLions-kernelle-abc123)
   let entries = fs::read_dir(staging_path)?;
   for entry in entries {
     let entry = entry?;
@@ -251,7 +238,7 @@ async fn download_and_extract_from_api(
     }
   }
 
-  Err(anyhow::anyhow!("Could not find extracted kernelle directory"))
+  Err(anyhow::anyhow!("could not find extracted directory"))
 }
 
 async fn create_snapshot() -> Result<std::path::PathBuf> {
@@ -300,7 +287,7 @@ async fn verify_installation() -> Result<()> {
     return Err(anyhow::anyhow!("kernelle failed version check after installation"));
   }
 
-  println!("✅ Installation verified");
+  println!("installation verified");
   Ok(())
 }
 
@@ -364,13 +351,12 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
     // Restore from backup
     copy_dir_recursive(&kernelle_backup, &kernelle_home)?;
 
-    // Restore the snapshots directory
     if Path::new(&kernelle_home).join("snapshots").exists() {
       fs::remove_dir_all(Path::new(&kernelle_home).join("snapshots"))?;
     }
     copy_dir_recursive(temp_snapshots.path().join("snapshots"), &snapshots_dir)?;
 
-    println!("✅ Restored kernelle home directory");
+    println!("restored .kernelle/");
   }
 
   // Restore binaries
@@ -386,16 +372,14 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
           fs::remove_file(&install_bin)?;
         }
         fs::copy(&backup_bin, &install_bin).context(format!("Failed to restore {binary}"))?;
-        println!("✅ Restored {binary}");
+        println!("restored {binary}");
       }
     }
   }
 
-  // Verify rollback
-  println!("🔍 Verifying rollback...");
+  println!("verifying rollback...");
   verify_installation().await?;
-
-  println!("✅ Rollback completed successfully!");
+  println!("rollback completed successfully!");
 
   Ok(())
 }
