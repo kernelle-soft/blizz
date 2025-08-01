@@ -145,8 +145,7 @@ async fn get_latest_version_from_url(url: &str) -> Result<String> {
     return Err(anyhow::anyhow!("request failed with status: {}", response.status()));
   }
 
-  let release: GitHubRelease =
-    response.json().await.context("failed to parse release response")?;
+  let release: GitHubRelease = response.json().await.context("failed to parse release response")?;
 
   println!("latest version: {}", release.tag_name);
   Ok(release.tag_name)
