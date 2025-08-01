@@ -17,6 +17,10 @@ authors = ["Voxel <travelsizedlions@gmail.com>"]
 license = "Private"
 repository = "https://github.com/TravelsizedLions/kernelle"
 
+[workspace.metadata]
+updates_api_base = "https://api.github.com/repos/TravelSizedLions/kernelle"
+
+
 [workspace.dependencies]
 bentley = { path = "crates/bentley" }
 gitlab = "0.1800"

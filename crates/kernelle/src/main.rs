@@ -82,6 +82,12 @@ enum Commands {
     #[arg(long)]
     list: bool,
   },
+  /// Update kernelle to the latest or specified version
+  Update {
+    /// Specific version to update to (defaults to latest)
+    #[arg(long, short)]
+    version: Option<String>,
+  },
 }
 
 #[derive(Subcommand)]
@@ -110,6 +116,7 @@ async fn main() -> Result<()> {
     }
     Commands::Tasks { file, verbose } => list_tasks(file, verbose).await,
     Commands::Version { list } => commands::version::execute(list).await,
+    Commands::Update { version } => commands::update::execute(version.as_deref()).await,
   }
 }
 

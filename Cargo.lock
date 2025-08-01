@@ -1632,6 +1632,7 @@ name = "kernelle"
 version = "0.2.18"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "dirs",
  "mockito",
