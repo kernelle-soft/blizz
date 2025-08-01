@@ -5,6 +5,74 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use tempfile::TempDir;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum UpdateError {
+  #[error("Failed to fetch GitHub release: {message}")]
+  GitHubApiFailed { message: String },
+
+  #[error("Failed to parse GitHub release response: {message}")]
+  GitHubParseError { message: String },
+
+  #[error("Version '{version}' not found")]
+  VersionNotFound { version: String },
+
+  #[error("Update failed and was rolled back: {stderr}")]
+  UpdateFailedRolledBack { stderr: String },
+
+  #[error("Update failed: {update_error}. Rollback also failed: {rollback_error}. Manual recovery may be needed.")]
+  UpdateAndRollbackFailed { update_error: String, rollback_error: String },
+
+  #[error("Rollback failed: {message}")]
+  RollbackFailed { message: String },
+
+  #[error("Download failed: {message}")]
+  DownloadFailed { message: String },
+
+  #[error("Extraction failed: {message}")]
+  ExtractionFailed { message: String },
+}
+
+impl UpdateError {
+  pub fn github_api_failed(message: impl Into<String>) -> Self {
+    Self::GitHubApiFailed { message: message.into() }
+  }
+
+  pub fn github_parse_error(message: impl Into<String>) -> Self {
+    Self::GitHubParseError { message: message.into() }
+  }
+
+  pub fn version_not_found(version: impl Into<String>) -> Self {
+    Self::VersionNotFound { version: version.into() }
+  }
+
+  pub fn update_failed_rolled_back(stderr: impl Into<String>) -> Self {
+    Self::UpdateFailedRolledBack { stderr: stderr.into() }
+  }
+
+  pub fn update_and_rollback_failed(
+    update_error: impl Into<String>,
+    rollback_error: impl Into<String>,
+  ) -> Self {
+    Self::UpdateAndRollbackFailed {
+      update_error: update_error.into(),
+      rollback_error: rollback_error.into(),
+    }
+  }
+
+  pub fn rollback_failed(message: impl Into<String>) -> Self {
+    Self::RollbackFailed { message: message.into() }
+  }
+
+  pub fn download_failed(message: impl Into<String>) -> Self {
+    Self::DownloadFailed { message: message.into() }
+  }
+
+  pub fn extraction_failed(message: impl Into<String>) -> Self {
+    Self::ExtractionFailed { message: message.into() }
+  }
+}
 
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
@@ -56,13 +124,14 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     match perform_rollback(&snapshot_dir).await {
       Ok(()) => {
         println!("rollback completed successfully");
-        return Err(anyhow::anyhow!("Update FAILED and was rolled back: {stderr}"));
+        return Err(UpdateError::update_failed_rolled_back(stderr.to_string()).into());
       }
       Err(rollback_err) => {
         println!("❌ CRITICAL: rollback also FAILED: {rollback_err}");
-        return Err(anyhow::anyhow!(
-          "Update FAILED: {stderr}. Rollback also FAILED: {rollback_err}. Manual recovery may be needed."
-        ));
+        return Err(
+          UpdateError::update_and_rollback_failed(stderr.to_string(), rollback_err.to_string())
+            .into(),
+        );
       }
     }
   }
@@ -82,13 +151,14 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     match perform_rollback(&snapshot_dir).await {
       Ok(()) => {
         println!("rollback completed successfully");
-        return Err(anyhow::anyhow!("Update failed and was rolled back: {stderr}"));
+        return Err(UpdateError::update_failed_rolled_back(stderr.to_string()).into());
       }
       Err(rollback_err) => {
         println!("❌ CRITICAL: rollback also failed: {rollback_err}");
-        return Err(anyhow::anyhow!(
-          "Update failed: {stderr}. Rollback also failed: {rollback_err}. Manual recovery may be needed."
-        ));
+        return Err(
+          UpdateError::update_and_rollback_failed(stderr.to_string(), rollback_err.to_string())
+            .into(),
+        );
       }
     }
   }
@@ -142,10 +212,15 @@ async fn get_latest_version_from_url(url: &str) -> Result<String> {
     .context("failed to fetch latest release from GitHub")?;
 
   if !response.status().is_success() {
-    return Err(anyhow::anyhow!("request failed with status: {}", response.status()));
+    return Err(
+      UpdateError::github_api_failed(format!("request failed with status: {}", response.status()))
+        .into(),
+    );
   }
 
-  let release: GitHubRelease = response.json().await.context("failed to parse release response")?;
+  let release: GitHubRelease = response.json().await.map_err(|e| {
+    UpdateError::github_parse_error(format!("failed to parse release response: {e}"))
+  })?;
 
   println!("latest version: {}", release.tag_name);
   Ok(release.tag_name)
@@ -182,15 +257,12 @@ async fn download_and_extract_from_api(
     .context("failed to fetch release info")?;
 
   if !response.status().is_success() {
-    return Err(anyhow::anyhow!(
-      "request failed with status: {}. Version '{}' may not exist.",
-      response.status(),
-      version
-    ));
+    return Err(UpdateError::version_not_found(version.to_string()).into());
   }
 
-  let release: GitHubRelease =
-    response.json().await.context("Failed to parse GitHub release response")?;
+  let release: GitHubRelease = response.json().await.map_err(|e| {
+    UpdateError::github_parse_error(format!("Failed to parse GitHub release response: {e}"))
+  })?;
 
   println!("downloading from: {}", release.tarball_url);
   let tarball_response = client
@@ -201,7 +273,13 @@ async fn download_and_extract_from_api(
     .context("failed to download release tarball")?;
 
   if !tarball_response.status().is_success() {
-    return Err(anyhow::anyhow!("failed to download tarball: HTTP {}", tarball_response.status()));
+    return Err(
+      UpdateError::download_failed(format!(
+        "failed to download tarball: HTTP {}",
+        tarball_response.status()
+      ))
+      .into(),
+    );
   }
 
   let tarball_path = staging_path.join("kernelle.tar.gz");
@@ -218,7 +296,9 @@ async fn download_and_extract_from_api(
 
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    return Err(anyhow::anyhow!("failed to extract tarball: {}", stderr));
+    return Err(
+      UpdateError::extraction_failed(format!("failed to extract tarball: {stderr}")).into(),
+    );
   }
 
   let entries = fs::read_dir(staging_path)?;
@@ -237,7 +317,7 @@ async fn download_and_extract_from_api(
     }
   }
 
-  Err(anyhow::anyhow!("could not find extracted directory"))
+  Err(UpdateError::extraction_failed("could not find extracted directory").into())
 }
 
 async fn create_snapshot() -> Result<std::path::PathBuf> {
@@ -329,7 +409,13 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
     .unwrap_or_else(|_| format!("{}/.cargo/bin", env::var("HOME").unwrap_or_default()));
 
   if !snapshot_path.exists() {
-    return Err(anyhow::anyhow!("Snapshot directory not found: {}", snapshot_path.display()));
+    return Err(
+      UpdateError::rollback_failed(format!(
+        "Snapshot directory not found: {}",
+        snapshot_path.display()
+      ))
+      .into(),
+    );
   }
 
   // Restore kernelle home (excluding the snapshots directory itself)
@@ -422,7 +508,14 @@ mod tests {
     let result = get_latest_version_from_url(&mock_url).await;
 
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("GitHub API request failed"));
+    let error = result.unwrap_err();
+    let update_error = error.downcast_ref::<UpdateError>().unwrap();
+    match update_error {
+      UpdateError::GitHubApiFailed { .. } => {
+        // Expected error type
+      }
+      _ => panic!("Expected GitHubApiFailed error, got: {update_error:?}"),
+    }
   }
 
   #[tokio::test]
@@ -440,7 +533,34 @@ mod tests {
     let result = get_latest_version_from_url(&mock_url).await;
 
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Failed to parse GitHub release response"));
+    let error = result.unwrap_err();
+    let update_error = error.downcast_ref::<UpdateError>().unwrap();
+    match update_error {
+      UpdateError::GitHubParseError { .. } => {
+        // Expected error type
+      }
+      _ => panic!("Expected GitHubParseError error, got: {update_error:?}"),
+    }
+  }
+
+  #[tokio::test]
+  async fn test_download_version_not_found() {
+    let mut server = Server::new_async().await;
+    let _mock = server.mock("GET", "/tags/v99.99.99").with_status(404).create_async().await;
+
+    let temp_dir = TempDir::new().unwrap();
+    let mock_url = server.url();
+    let result = download_and_extract_from_api("v99.99.99", temp_dir.path(), &mock_url).await;
+
+    assert!(result.is_err());
+    let error = result.unwrap_err();
+    let update_error = error.downcast_ref::<UpdateError>().unwrap();
+    match update_error {
+      UpdateError::VersionNotFound { version } => {
+        assert_eq!(version, "v99.99.99");
+      }
+      _ => panic!("Expected VersionNotFound error, got: {update_error:?}"),
+    }
   }
 
   #[test]
