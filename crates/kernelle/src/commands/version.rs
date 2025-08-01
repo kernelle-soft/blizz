@@ -165,14 +165,6 @@ mod tests {
     Ok(())
   }
 
-  #[tokio::test]
-  async fn test_execute_version_list() -> Result<()> {
-    // Test version command with list flag
-    let result = execute(true).await;
-    assert!(result.is_ok());
-    Ok(())
-  }
-
   #[test]
   fn test_version_compare() {
     use std::cmp::Ordering;

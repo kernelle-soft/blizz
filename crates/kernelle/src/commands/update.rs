@@ -216,7 +216,8 @@ async fn download_and_extract_from_api(
     let entry = entry?;
     let path = entry.path();
     if path.is_dir()
-      && path.file_name()
+      && path
+        .file_name()
         .and_then(|name| name.to_str())
         .map(|name_str| name_str.contains("kernelle"))
         .unwrap_or(false)
@@ -278,10 +279,12 @@ async fn test_build_in_staging(
 }
 
 async fn create_snapshot() -> Result<std::path::PathBuf> {
-  let kernelle_home = env::var("KERNELLE_HOME")
-    .unwrap_or_else(|_| format!("{}/.kernelle", dirs::home_dir().unwrap_or_default().to_string_lossy()));
-  let install_dir = env::var("INSTALL_DIR")
-    .unwrap_or_else(|_| format!("{}/.cargo/bin", dirs::home_dir().unwrap_or_default().to_string_lossy()));
+  let kernelle_home = env::var("KERNELLE_HOME").unwrap_or_else(|_| {
+    format!("{}/.kernelle", dirs::home_dir().unwrap_or_default().to_string_lossy())
+  });
+  let install_dir = env::var("INSTALL_DIR").unwrap_or_else(|_| {
+    format!("{}/.cargo/bin", dirs::home_dir().unwrap_or_default().to_string_lossy())
+  });
 
   let snapshot_base = Path::new(&kernelle_home).join("snapshots");
   fs::create_dir_all(&snapshot_base).context("Failed to create snapshots directory")?;
@@ -705,11 +708,14 @@ mod tests {
     let mut server = Server::new_async().await;
     let temp_dir = TempDir::new().unwrap();
 
-    // Mock the release API response
-    let release_response = r#"{
+    // Create a proper tarball URL that points to our mock server
+    let tarball_url = format!("{}/tarball.tar.gz", server.url());
+    
+    // Mock the release API response with our mock server URL
+    let release_response = format!(r#"{{
             "tag_name": "v1.2.3",
-            "tarball_url": "http://example.com/tarball.tar.gz"
-        }"#;
+            "tarball_url": "{}"
+        }}"#, tarball_url);
 
     let _release_mock = server
       .mock("GET", "/releases/latest")
@@ -719,19 +725,63 @@ mod tests {
       .create_async()
       .await;
 
+    // Create a minimal valid gzipped tar file using binary data
+    // This is a real tar.gz file containing a test_kernelle directory with README.md
+    let valid_targz: Vec<u8> = vec![
+      0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0xed, 0xd2,
+      0xbd, 0x0a, 0xc2, 0x30, 0x14, 0x86, 0xe1, 0xcc, 0x5e, 0x45, 0xc0, 0x5d,
+      0xf3, 0xd3, 0xb4, 0xb3, 0x60, 0x47, 0x17, 0x6f, 0x40, 0x44, 0xd3, 0xa1,
+      0x56, 0x2d, 0x6d, 0x1c, 0xbc, 0x7b, 0xed, 0x50, 0xb0, 0x42, 0xed, 0xd2,
+      0x22, 0xe2, 0xfb, 0x2c, 0x67, 0x38, 0x81, 0x7c, 0xf0, 0x9d, 0xe0, 0xeb,
+      0xb0, 0x3b, 0xf9, 0xea, 0xe2, 0x8b, 0xc2, 0x2f, 0xc5, 0x24, 0xd4, 0x53,
+      0x92, 0xb8, 0x66, 0xea, 0xc4, 0xa9, 0xd7, 0xd9, 0x12, 0xda, 0xa9, 0xc8,
+      0x6a, 0x13, 0x5b, 0x65, 0x84, 0xd2, 0xc6, 0x1a, 0x23, 0xa4, 0x9b, 0x26,
+      0x4e, 0xd7, 0xad, 0x0e, 0xfb, 0x4a, 0x4a, 0x91, 0xfb, 0x2c, 0xfb, 0xf4,
+      0x6e, 0x68, 0xff, 0xa3, 0x42, 0xa7, 0xff, 0x6d, 0xba, 0x5a, 0x6f, 0xd2,
+      0xc5, 0xf9, 0x38, 0xea, 0x1f, 0x4d, 0xc1, 0x71, 0x1c, 0xf5, 0xf7, 0x6f,
+      0xf5, 0x5b, 0xff, 0xd6, 0x25, 0x56, 0x48, 0x35, 0x6a, 0x8a, 0x1e, 0x7f,
+      0xde, 0xff, 0x5c, 0xa6, 0xe7, 0x32, 0xdc, 0x65, 0x7b, 0x02, 0xb2, 0xac,
+      0xae, 0xb9, 0x3f, 0x84, 0xd9, 0xb7, 0x83, 0x01, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0xf4, 0x00, 0xc1,
+      0xcf, 0xa1, 0x7f, 0x00, 0x28, 0x00, 0x00
+    ];
+    
+    // Mock the tarball download
+    let _tarball_mock = server
+      .mock("GET", "/tarball.tar.gz")
+      .with_status(200)
+      .with_header("content-type", "application/gzip")
+      .with_body(valid_targz)
+      .create_async()
+      .await;
+
     let api_base = format!("{}/releases", server.url());
 
-    // This will fail during tarball download since we're not mocking the external URL,
-    // but we can test that the API parsing works correctly
+    // This should now succeed with extraction and directory finding since 
+    // the tar contains "test_kernelle" which contains "kernelle" in the name
     let result = download_and_extract_from_api("latest", temp_dir.path(), &api_base).await;
 
-    // We expect this to fail, but check the specific error message
-    assert!(result.is_err());
-    let error_message = result.unwrap_err().to_string();
-    // Could fail with either download or connection error
-    assert!(
-      error_message.contains("Failed to download") || error_message.contains("Failed to fetch")
-    );
+    // The mocking should work and we should successfully extract and find the directory
+    match result {
+      Ok(extracted_path) => {
+        // Verify that we got the correct extracted directory
+        assert!(extracted_path.exists());
+        assert!(extracted_path.is_dir());
+        
+        // Check that it contains our test file
+        let readme_path = extracted_path.join("README.md");
+        assert!(readme_path.exists());
+        
+        // Verify the content
+        let content = fs::read_to_string(&readme_path).unwrap();
+        assert!(content.contains("Empty kernelle project"));
+        
+        println!("✅ Test passed: Successfully mocked and extracted tarball");
+      },
+      Err(e) => {
+        panic!("Expected test to succeed, but it failed with: {}", e);
+      }
+    }
   }
 
   #[tokio::test]
