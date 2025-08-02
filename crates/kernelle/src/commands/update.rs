@@ -98,7 +98,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
   let current_version = get_current_version();
   let target_version_clean = target_version.strip_prefix('v').unwrap_or(&target_version);
   if current_version == target_version_clean {
-    println!("You're already on the latest version (v{current_version})");
+    println!("you're already up to date!");
     return Ok(());
   }
 
