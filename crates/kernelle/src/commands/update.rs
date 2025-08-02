@@ -206,7 +206,7 @@ fn get_current_version() -> String {
   env!("CARGO_PKG_VERSION").to_string()
 }
 
-async fn get_latest_version() -> Result<String> {  
+async fn get_latest_version() -> Result<String> {
   get_latest_version_from_url(
     "https://api.github.com/repos/TravelSizedLions/kernelle/releases/latest",
   )
@@ -621,28 +621,32 @@ mod tests {
   async fn test_execute_already_up_to_date() {
     // Test the version comparison logic directly
     let current_version = env!("CARGO_PKG_VERSION");
-    
+
     // Test with 'v' prefix (common GitHub tag format)
     let target_version_with_v = format!("v{current_version}");
-    let target_version_clean = target_version_with_v.strip_prefix('v').unwrap_or(&target_version_with_v);
+    let target_version_clean =
+      target_version_with_v.strip_prefix('v').unwrap_or(&target_version_with_v);
     assert_eq!(current_version, target_version_clean);
-    
-    // Test without 'v' prefix 
+
+    // Test without 'v' prefix
     let target_version_without_v = current_version.to_string();
-    let target_version_clean = target_version_without_v.strip_prefix('v').unwrap_or(&target_version_without_v);
+    let target_version_clean =
+      target_version_without_v.strip_prefix('v').unwrap_or(&target_version_without_v);
     assert_eq!(current_version, target_version_clean);
   }
 
   #[tokio::test]
   async fn test_get_latest_version_mock_up_to_date() {
     let mut server = Server::new_async().await;
-    
-    // Mock the GitHub API to return the current version as the latest  
+
+    // Mock the GitHub API to return the current version as the latest
     let current_version = env!("CARGO_PKG_VERSION");
-    let mock_response = format!(r#"{{
+    let mock_response = format!(
+      r#"{{
       "tag_name": "v{current_version}",
       "tarball_url": "https://api.github.com/repos/TravelSizedLions/kernelle/tarball/v{current_version}"
-    }}"#);
+    }}"#
+    );
 
     let _mock = server
       .mock("GET", "/releases/latest")
@@ -654,11 +658,11 @@ mod tests {
 
     let mock_url = format!("{}/releases/latest", server.url());
     let result = get_latest_version_from_url(&mock_url).await;
-    
+
     assert!(result.is_ok());
     let latest_version = result.unwrap();
     assert_eq!(latest_version, format!("v{current_version}"));
-    
+
     // Test the version comparison logic
     let latest_version_clean = latest_version.strip_prefix('v').unwrap_or(&latest_version);
     assert_eq!(current_version, latest_version_clean);
@@ -667,16 +671,16 @@ mod tests {
   #[test]
   fn test_version_comparison_edge_cases() {
     let current_version = env!("CARGO_PKG_VERSION");
-    
+
     // Test when specified version matches current version
     let target_version_clean = current_version.strip_prefix('v').unwrap_or(current_version);
     assert_eq!(current_version, target_version_clean);
-    
+
     // Test when specified version has v prefix and matches current version
     let target_with_v = format!("v{current_version}");
     let target_version_clean = target_with_v.strip_prefix('v').unwrap_or(&target_with_v);
     assert_eq!(current_version, target_version_clean);
-    
+
     // Test when versions don't match (simulated)
     let different_version = "99.99.99";
     let target_version_clean = different_version.strip_prefix('v').unwrap_or(different_version);
