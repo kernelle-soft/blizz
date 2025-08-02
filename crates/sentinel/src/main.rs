@@ -8,6 +8,7 @@ use std::env;
 #[command(
   about = "Secure credential storage for Kernelle tools - the watchful guardian of secrets"
 )]
+#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
 struct Cli {
   #[command(subcommand)]
   command: Commands,

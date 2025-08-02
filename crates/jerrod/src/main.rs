@@ -12,6 +12,7 @@ mod session;
 #[command(
   about = "GitLab and GitHub merge request review tool - the reliable guardian of code quality"
 )]
+#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
 struct Cli {
   /// GitHub personal access token (or use GITHUB_TOKEN env var)
   #[arg(long, env = "GITHUB_TOKEN")]
