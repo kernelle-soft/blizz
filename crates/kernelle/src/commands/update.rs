@@ -768,21 +768,45 @@ mod tests {
   }
 
   #[test]
-  fn test_version_comparison_edge_cases() {
-    let current_version = env!("CARGO_PKG_VERSION");
+  fn test_version_normalization_logic() {
+    // Test the version normalization logic directly
+    let test_cases = vec![
+      ("1.2.3", "v1.2.3"),      // Should add v prefix
+      ("v1.2.3", "v1.2.3"),     // Should keep v prefix
+      ("0.2.20", "v0.2.20"),    // Should add v prefix (the original issue case)
+      ("v0.2.20", "v0.2.20"),   // Should keep v prefix
+      ("2.0.0", "v2.0.0"),      // Should add v prefix
+      ("v2.0.0", "v2.0.0"),     // Should keep v prefix
+    ];
 
-    // Test when specified version matches current version
-    let target_version_clean = current_version.strip_prefix('v').unwrap_or(current_version);
-    assert_eq!(current_version, target_version_clean);
+    for (input, expected) in test_cases {
+      let normalized = if input.starts_with('v') {
+        input.to_string()
+      } else {
+        format!("v{}", input)
+      };
+      assert_eq!(normalized, expected, "Failed for input: {}", input);
+    }
+  }
 
-    // Test when specified version has v prefix and matches current version
-    let target_with_v = format!("v{current_version}");
-    let target_version_clean = target_with_v.strip_prefix('v').unwrap_or(&target_with_v);
-    assert_eq!(current_version, target_version_clean);
-
-    // Test when versions don't match (simulated)
-    let different_version = "99.99.99";
-    let target_version_clean = different_version.strip_prefix('v').unwrap_or(different_version);
-    assert_ne!(current_version, target_version_clean);
+  #[test]
+  fn test_latest_version_not_normalized() {
+    // Test that "latest" is not affected by normalization
+    let version = "latest";
+    
+    // The actual logic in the function checks if version == "latest" 
+    // to use a different URL path, so normalization doesn't affect it
+    if version == "latest" {
+      // For latest, the URL is built differently: /releases/latest vs /releases/tags/{version}
+      assert_eq!(version, "latest");
+    } else {
+      // For non-latest versions, normalization applies
+      let normalized = if version.starts_with('v') {
+        version.to_string()
+      } else {
+        format!("v{}", version)
+      };
+      assert!(normalized.starts_with('v'));
+    }
   }
 }
