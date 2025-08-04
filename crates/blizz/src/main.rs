@@ -17,7 +17,7 @@ mod similarity;
 #[command(
   about = "Blizz - Knowledge Management System\nHigh-speed insight storage and retrieval for development workflows"
 )]
-#[command(version)]
+#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
 struct Cli {
   #[command(subcommand)]
   command: Command,
