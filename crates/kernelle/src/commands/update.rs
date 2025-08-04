@@ -254,11 +254,18 @@ async fn download_and_extract_from_api(
 ) -> Result<std::path::PathBuf> {
   let client = reqwest::Client::new();
 
+  // Normalize version for GitHub API - ensure it has 'v' prefix
+  let normalized_version = if version.starts_with('v') {
+    version.to_string()
+  } else {
+    format!("v{}", version)
+  };
+
   // Get release info
   let release_url = if version == "latest" {
     format!("{api_base}/latest")
   } else {
-    format!("{api_base}/tags/{version}")
+    format!("{api_base}/tags/{normalized_version}")
   };
 
   let response = client
@@ -572,6 +579,98 @@ mod tests {
         assert_eq!(version, "v99.99.99");
       }
       _ => panic!("Expected VersionNotFound error, got: {update_error:?}"),
+    }
+  }
+
+  #[tokio::test]
+  async fn test_download_version_without_v_prefix_should_work() {
+    let mut server = Server::new_async().await;
+    
+    // Mock the release API response for version v1.2.3
+    let mock_response = r#"{
+      "tag_name": "v1.2.3",
+      "tarball_url": "https://api.github.com/repos/test/test/tarball/v1.2.3"
+    }"#;
+
+    // Only /tags/v1.2.3 exists (like real GitHub), /tags/1.2.3 returns 404
+    let _mock_v_version = server
+      .mock("GET", "/tags/v1.2.3")
+      .with_status(200)
+      .with_header("content-type", "application/json")
+      .with_body(mock_response)
+      .create_async()
+      .await;
+
+    let _mock_no_v_version = server
+      .mock("GET", "/tags/1.2.3")
+      .with_status(404)
+      .create_async()
+      .await;
+
+    let temp_dir = TempDir::new().unwrap();
+    let mock_url = server.url();
+
+    // Test with v prefix - should work
+    let result_with_v = download_and_extract_from_api("v1.2.3", temp_dir.path(), &mock_url).await;
+    
+    // Test without v prefix - should now work after fix (internally normalizes to v1.2.3)
+    let result_without_v = download_and_extract_from_api("1.2.3", temp_dir.path(), &mock_url).await;
+
+    // Both should succeed at least to download step, but fail at extraction (fake content)
+    assert!(result_with_v.is_err());
+    assert!(result_without_v.is_err());
+    
+    // Verify both fail at extraction/download, not version lookup
+    let error_with_v = result_with_v.unwrap_err();
+    let error_without_v = result_without_v.unwrap_err();
+    
+    let update_error_with_v = error_with_v.downcast_ref::<UpdateError>().unwrap();
+    let update_error_without_v = error_without_v.downcast_ref::<UpdateError>().unwrap();
+    
+    match update_error_with_v {
+      UpdateError::VersionNotFound { .. } => panic!("Should not be VersionNotFound for v1.2.3"),
+      _ => {} // Expected - should be a download/extraction error
+    }
+    
+    match update_error_without_v {
+      UpdateError::VersionNotFound { .. } => panic!("Should not be VersionNotFound for 1.2.3 after fix"),
+      _ => {} // Expected - should be a download/extraction error after our fix
+    }
+  }
+
+  #[tokio::test]
+  async fn test_download_latest_version_still_works() {
+    let mut server = Server::new_async().await;
+    
+    // Mock the latest release API response
+    let mock_response = r#"{
+      "tag_name": "v2.0.0",
+      "tarball_url": "https://api.github.com/repos/test/test/tarball/v2.0.0"
+    }"#;
+
+    // Latest endpoint should still work without v prefix normalization
+    let _mock_latest = server
+      .mock("GET", "/latest")
+      .with_status(200)
+      .with_header("content-type", "application/json")
+      .with_body(mock_response)
+      .create_async()
+      .await;
+
+    let temp_dir = TempDir::new().unwrap();
+    let mock_url = server.url();
+
+    // Test latest - should work and not be affected by v prefix logic
+    let result_latest = download_and_extract_from_api("latest", temp_dir.path(), &mock_url).await;
+
+    // Should fail at extraction/download, not version lookup
+    assert!(result_latest.is_err());
+    let error_latest = result_latest.unwrap_err();
+    let update_error_latest = error_latest.downcast_ref::<UpdateError>().unwrap();
+    
+    match update_error_latest {
+      UpdateError::VersionNotFound { .. } => panic!("Should not be VersionNotFound for latest"),
+      _ => {} // Expected - should be a download/extraction error
     }
   }
 
