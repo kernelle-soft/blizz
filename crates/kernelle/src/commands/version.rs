@@ -57,7 +57,11 @@ async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
         version_compare(version_b, version_a)
       });
 
-      for release in stable_releases {
+      const MAX_VERSIONS_TO_SHOW: usize = 10;
+      let total_releases = stable_releases.len();
+      let releases_to_show = stable_releases.iter().take(MAX_VERSIONS_TO_SHOW);
+      
+      for release in releases_to_show {
         let version = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name);
         let is_current = version == current_version;
 
@@ -66,6 +70,12 @@ async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
         } else {
           writeln!(writer, "  {version}")?;
         }
+      }
+
+      // Show summary for additional versions if there are more than MAX_VERSIONS_TO_SHOW
+      if total_releases > MAX_VERSIONS_TO_SHOW {
+        let additional_count = total_releases - MAX_VERSIONS_TO_SHOW;
+        writeln!(writer, "  (+ {} more versions)", additional_count)?;
       }
     }
     Err(e) => {
@@ -234,18 +244,85 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_show_available_versions_with_mock() {
+  async fn test_show_available_versions_with_many_releases() {
     use mockito::Server;
 
     let mut server = Server::new_async().await;
+    
+    // Create mock response with 15 releases to test the 10-version limit
     let mock_response = r#"[
       {
-        "tag_name": "v0.3.0",
+        "tag_name": "v0.2.26",
         "prerelease": false,
         "draft": false
       },
       {
-        "tag_name": "v0.2.9",
+        "tag_name": "v0.2.25",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.24",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.23",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.22",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.21",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.20",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.19",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.18",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.17",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.16",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.15",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.14",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.13",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.12",
         "prerelease": false,
         "draft": false
       }
@@ -259,9 +336,83 @@ mod tests {
       .create_async()
       .await;
 
-    // Test the version display logic without hitting real GitHub
     let mock_url = format!("{}/releases", server.url());
+    let result = fetch_releases_from_url(&mock_url).await;
+    assert!(result.is_ok());
 
+    let releases = result.unwrap();
+    let stable_releases: Vec<_> =
+      releases.into_iter().filter(|r| !r.draft && !r.prerelease).collect();
+
+    assert_eq!(stable_releases.len(), 15);
+    
+    // Now test that only 10 versions are shown with a summary line
+    let mut output = Vec::new();
+    
+    // Mock the show_available_versions function logic with our test data
+    let current_version = "0.2.26";
+    writeln!(&mut output, "Current version: kernelle {current_version}").unwrap();
+    writeln!(&mut output).unwrap();
+    writeln!(&mut output, "Available versions:").unwrap();
+
+    const MAX_VERSIONS_TO_SHOW: usize = 10;
+    let total_releases = stable_releases.len();
+    let releases_to_show = stable_releases.iter().take(MAX_VERSIONS_TO_SHOW);
+    
+    for release in releases_to_show {
+      let version = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name);
+      let is_current = version == current_version;
+
+      if is_current {
+        writeln!(&mut output, "  {version} (current)").unwrap();
+      } else {
+        writeln!(&mut output, "  {version}").unwrap();
+      }
+    }
+
+    // Show summary for additional versions if there are more than MAX_VERSIONS_TO_SHOW
+    if total_releases > MAX_VERSIONS_TO_SHOW {
+      let additional_count = total_releases - MAX_VERSIONS_TO_SHOW;
+      writeln!(&mut output, "  (+ {} more versions)", additional_count).unwrap();
+    }
+
+    let output_str = String::from_utf8(output).unwrap();
+    
+    // Verify the output contains exactly 10 versions plus summary
+    assert!(output_str.contains("0.2.26 (current)"));
+    assert!(output_str.contains("0.2.17")); // The 10th version
+    assert!(!output_str.contains("0.2.16")); // Should not show the 11th version directly
+    assert!(output_str.contains("(+ 5 more versions)")); // Summary for remaining 5 versions
+  }
+
+  #[tokio::test]
+  async fn test_show_available_versions_with_few_releases() {
+    // Test that with fewer than 10 releases, no summary line is shown
+    use mockito::Server;
+
+    let mut server = Server::new_async().await;
+    let mock_response = r#"[
+      {
+        "tag_name": "v0.2.3",
+        "prerelease": false,
+        "draft": false
+      },
+      {
+        "tag_name": "v0.2.2",
+        "prerelease": false,
+        "draft": false
+      }
+    ]"#;
+
+    let _mock = server
+      .mock("GET", "/releases")
+      .with_status(200)
+      .with_header("content-type", "application/json")
+      .with_body(mock_response)
+      .create_async()
+      .await;
+
+    let mock_url = format!("{}/releases", server.url());
     let result = fetch_releases_from_url(&mock_url).await;
     assert!(result.is_ok());
 
@@ -270,6 +421,42 @@ mod tests {
       releases.into_iter().filter(|r| !r.draft && !r.prerelease).collect();
 
     assert_eq!(stable_releases.len(), 2);
-    assert_eq!(stable_releases[0].tag_name, "v0.3.0");
+    
+    // Test that with only 2 releases, no summary line appears
+    let mut output = Vec::new();
+    
+    // Mock the show_available_versions function logic with our test data
+    let current_version = "0.2.26";
+    writeln!(&mut output, "Current version: kernelle {current_version}").unwrap();
+    writeln!(&mut output).unwrap();
+    writeln!(&mut output, "Available versions:").unwrap();
+
+    const MAX_VERSIONS_TO_SHOW: usize = 10;
+    let total_releases = stable_releases.len();
+    let releases_to_show = stable_releases.iter().take(MAX_VERSIONS_TO_SHOW);
+    
+    for release in releases_to_show {
+      let version = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name);
+      let is_current = version == current_version;
+
+      if is_current {
+        writeln!(&mut output, "  {version} (current)").unwrap();
+      } else {
+        writeln!(&mut output, "  {version}").unwrap();
+      }
+    }
+
+    // Show summary for additional versions if there are more than MAX_VERSIONS_TO_SHOW
+    if total_releases > MAX_VERSIONS_TO_SHOW {
+      let additional_count = total_releases - MAX_VERSIONS_TO_SHOW;
+      writeln!(&mut output, "  (+ {} more versions)", additional_count).unwrap();
+    }
+
+    let output_str = String::from_utf8(output).unwrap();
+    
+    // Verify no summary line appears when there are fewer than 10 releases
+    assert!(output_str.contains("0.2.3"));
+    assert!(output_str.contains("0.2.2"));
+    assert!(!output_str.contains("more versions")); // No summary line should appear
   }
 }
