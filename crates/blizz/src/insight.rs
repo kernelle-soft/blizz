@@ -216,16 +216,13 @@ pub fn get_valid_insights_dir() -> Result<std::path::PathBuf> {
 }
 
 pub fn parse_insight_with_metadata(content: &str) -> Result<(InsightMetaData, String)> {
-  // Try to split frontmatter content
   if let Ok((frontmatter_section, body)) = split_frontmatter_content(content) {
-    // Try YAML format first, fall back to legacy format with frontmatter
     if let Ok(result) = parse_yaml_format(frontmatter_section, body) {
       Ok(result)
     } else {
       Ok(parse_legacy_format(frontmatter_section, body))
     }
   } else {
-    // Handle legacy format without frontmatter - treat entire content as legacy
     Ok(parse_legacy_format_no_frontmatter(content))
   }
 }
