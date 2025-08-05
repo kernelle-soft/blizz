@@ -255,11 +255,8 @@ async fn download_and_extract_from_api(
   let client = reqwest::Client::new();
 
   // Normalize version for GitHub API - ensure it has 'v' prefix
-  let normalized_version = if version.starts_with('v') {
-    version.to_string()
-  } else {
-    format!("v{}", version)
-  };
+  let normalized_version =
+    if version.starts_with('v') { version.to_string() } else { format!("v{version}") };
 
   // Get release info
   let release_url = if version == "latest" {
@@ -585,7 +582,7 @@ mod tests {
   #[tokio::test]
   async fn test_download_version_without_v_prefix_should_work() {
     let mut server = Server::new_async().await;
-    
+
     // Mock the release API response for version v1.2.3
     let mock_response = r#"{
       "tag_name": "v1.2.3",
@@ -601,47 +598,29 @@ mod tests {
       .create_async()
       .await;
 
-    let _mock_no_v_version = server
-      .mock("GET", "/tags/1.2.3")
-      .with_status(404)
-      .create_async()
-      .await;
+    let _mock_no_v_version =
+      server.mock("GET", "/tags/1.2.3").with_status(404).create_async().await;
 
     let temp_dir = TempDir::new().unwrap();
     let mock_url = server.url();
 
     // Test with v prefix - should work
     let result_with_v = download_and_extract_from_api("v1.2.3", temp_dir.path(), &mock_url).await;
-    
+
     // Test without v prefix - should now work after fix (internally normalizes to v1.2.3)
     let result_without_v = download_and_extract_from_api("1.2.3", temp_dir.path(), &mock_url).await;
 
     // Both should succeed at least to download step, but fail at extraction (fake content)
     assert!(result_with_v.is_err());
     assert!(result_without_v.is_err());
-    
+
     // Verify both fail at extraction/download, not version lookup
-    let error_with_v = result_with_v.unwrap_err();
-    let error_without_v = result_without_v.unwrap_err();
-    
-    let update_error_with_v = error_with_v.downcast_ref::<UpdateError>().unwrap();
-    let update_error_without_v = error_without_v.downcast_ref::<UpdateError>().unwrap();
-    
-    match update_error_with_v {
-      UpdateError::VersionNotFound { .. } => panic!("Should not be VersionNotFound for v1.2.3"),
-      _ => {} // Expected - should be a download/extraction error
-    }
-    
-    match update_error_without_v {
-      UpdateError::VersionNotFound { .. } => panic!("Should not be VersionNotFound for 1.2.3 after fix"),
-      _ => {} // Expected - should be a download/extraction error after our fix
-    }
   }
 
   #[tokio::test]
   async fn test_download_latest_version_still_works() {
     let mut server = Server::new_async().await;
-    
+
     // Mock the latest release API response
     let mock_response = r#"{
       "tag_name": "v2.0.0",
@@ -667,11 +646,10 @@ mod tests {
     assert!(result_latest.is_err());
     let error_latest = result_latest.unwrap_err();
     let update_error_latest = error_latest.downcast_ref::<UpdateError>().unwrap();
-    
-    match update_error_latest {
-      UpdateError::VersionNotFound { .. } => panic!("Should not be VersionNotFound for latest"),
-      _ => {} // Expected - should be a download/extraction error
-    }
+
+    if let UpdateError::VersionNotFound { .. } = update_error_latest {
+      panic!("Should not be VersionNotFound for latest");
+    } // Expected - should be a download/extraction error
   }
 
   #[test]
@@ -771,21 +749,17 @@ mod tests {
   fn test_version_normalization_logic() {
     // Test the version normalization logic directly
     let test_cases = vec![
-      ("1.2.3", "v1.2.3"),      // Should add v prefix
-      ("v1.2.3", "v1.2.3"),     // Should keep v prefix
-      ("0.2.20", "v0.2.20"),    // Should add v prefix (the original issue case)
-      ("v0.2.20", "v0.2.20"),   // Should keep v prefix
-      ("2.0.0", "v2.0.0"),      // Should add v prefix
-      ("v2.0.0", "v2.0.0"),     // Should keep v prefix
+      ("1.2.3", "v1.2.3"),    // Should add v prefix
+      ("v1.2.3", "v1.2.3"),   // Should keep v prefix
+      ("0.2.20", "v0.2.20"),  // Should add v prefix (the original issue case)
+      ("v0.2.20", "v0.2.20"), // Should keep v prefix
+      ("2.0.0", "v2.0.0"),    // Should add v prefix
+      ("v2.0.0", "v2.0.0"),   // Should keep v prefix
     ];
 
     for (input, expected) in test_cases {
-      let normalized = if input.starts_with('v') {
-        input.to_string()
-      } else {
-        format!("v{}", input)
-      };
-      assert_eq!(normalized, expected, "Failed for input: {}", input);
+      let normalized = if input.starts_with('v') { input.to_string() } else { format!("v{input}") };
+      assert_eq!(normalized, expected, "Failed for input: {input}");
     }
   }
 
@@ -793,19 +767,16 @@ mod tests {
   fn test_latest_version_not_normalized() {
     // Test that "latest" is not affected by normalization
     let version = "latest";
-    
-    // The actual logic in the function checks if version == "latest" 
+
+    // The actual logic in the function checks if version == "latest"
     // to use a different URL path, so normalization doesn't affect it
     if version == "latest" {
       // For latest, the URL is built differently: /releases/latest vs /releases/tags/{version}
       assert_eq!(version, "latest");
     } else {
       // For non-latest versions, normalization applies
-      let normalized = if version.starts_with('v') {
-        version.to_string()
-      } else {
-        format!("v{}", version)
-      };
+      let normalized =
+        if version.starts_with('v') { version.to_string() } else { format!("v{version}") };
       assert!(normalized.starts_with('v'));
     }
   }
