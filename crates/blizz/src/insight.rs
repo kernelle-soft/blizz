@@ -250,7 +250,7 @@ fn parse_yaml_format(frontmatter_section: &str, body: &str) -> Result<(InsightMe
 
 fn parse_legacy_format_no_frontmatter(content: &str) -> (InsightMetaData, String) {
   let content = content.trim();
-  
+
   // For legacy files without frontmatter, use the first line as overview
   // and the rest as details (if there are multiple lines)
   let lines: Vec<&str> = content.lines().collect();
