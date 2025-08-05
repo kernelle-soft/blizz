@@ -216,13 +216,14 @@ pub fn get_valid_insights_dir() -> Result<std::path::PathBuf> {
 }
 
 pub fn parse_insight_with_metadata(content: &str) -> Result<(InsightMetaData, String)> {
-  let (frontmatter_section, body) = split_frontmatter_content(content)?;
-
-  // Try YAML format first, fall back to legacy format
-  if let Ok(result) = parse_yaml_format(frontmatter_section, body) {
-    Ok(result)
+  if let Ok((frontmatter_section, body)) = split_frontmatter_content(content) {
+    if let Ok(result) = parse_yaml_format(frontmatter_section, body) {
+      Ok(result)
+    } else {
+      Ok(parse_legacy_format(frontmatter_section, body))
+    }
   } else {
-    Ok(parse_legacy_format(frontmatter_section, body))
+    Ok(parse_legacy_format_no_frontmatter(content))
   }
 }
 
@@ -245,6 +246,31 @@ fn parse_yaml_format(frontmatter_section: &str, body: &str) -> Result<(InsightMe
   let frontmatter = serde_yaml::from_str::<InsightMetaData>(frontmatter_section)?;
   let details = clean_body_content(body);
   Ok((frontmatter, details))
+}
+
+fn parse_legacy_format_no_frontmatter(content: &str) -> (InsightMetaData, String) {
+  let content = content.trim();
+
+  // For legacy files without frontmatter, use the first line as overview
+  // and the rest as details (if there are multiple lines)
+  let lines: Vec<&str> = content.lines().collect();
+  let (overview, details) = if lines.len() > 1 {
+    (lines[0].to_string(), lines[1..].join("\n").trim().to_string())
+  } else {
+    (content.to_string(), String::new())
+  };
+
+  let frontmatter = InsightMetaData {
+    topic: "".to_string(),
+    name: "".to_string(),
+    overview,
+    embedding_version: None,
+    embedding: None,
+    embedding_text: None,
+    embedding_computed: None,
+  };
+
+  (frontmatter, details)
 }
 
 fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (InsightMetaData, String) {
