@@ -219,12 +219,26 @@ mod insight_tests {
 
   #[test]
   #[serial]
-  fn test_parse_insight_content_invalid() {
+  fn test_parse_insight_content_legacy_no_frontmatter() {
     let content = "This is not valid format";
 
     let result = insight::parse_insight_with_metadata(content);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Invalid insight format"));
+    assert!(result.is_ok());
+    let (metadata, details) = result.unwrap();
+    assert_eq!(metadata.overview, "This is not valid format");
+    assert_eq!(details, "");
+  }
+
+  #[test]
+  #[serial]
+  fn test_parse_insight_content_legacy_multiline_no_frontmatter() {
+    let content = "Overview line\nThis is details\nMore details";
+
+    let result = insight::parse_insight_with_metadata(content);
+    assert!(result.is_ok());
+    let (metadata, details) = result.unwrap();
+    assert_eq!(metadata.overview, "Overview line");
+    assert_eq!(details, "This is details\nMore details");
   }
 
   #[test]
