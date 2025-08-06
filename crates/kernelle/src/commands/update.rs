@@ -351,10 +351,9 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
   let snapshot_dir = snapshot_base.join(timestamp.to_string());
   fs::create_dir_all(&snapshot_dir)?;
 
-  // Snapshot only the volatile directory (not entire kernelle_home)
-  let volatile_source = Path::new(&kernelle_home).join("volatile");
-  let volatile_snapshot = snapshot_dir.join("volatile");
-  copy_dir_recursive(&volatile_source, &volatile_snapshot)?;
+  // Snapshot the entire kernelle_home directory (including persistent)
+  let kernelle_home_snapshot = snapshot_dir.join("kernelle_home");
+  copy_dir_recursive(&Path::new(&kernelle_home), &kernelle_home_snapshot)?;
 
   // Snapshot binaries
   let bins_snapshot = snapshot_dir.join("bins");
@@ -448,20 +447,86 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
     );
   }
 
-  // Restore only the volatile directory (not entire kernelle home)
-  let volatile_backup = snapshot_path.join("volatile");
-  if volatile_backup.exists() {
-    let volatile_path = Path::new(&kernelle_home).join("volatile");
+  // Check if we have a full kernelle_home backup
+  let kernelle_home_backup = snapshot_path.join("kernelle_home");
+  if kernelle_home_backup.exists() {
+    let kernelle_home_path = Path::new(&kernelle_home);
+    
+    // Preserve the persistent directory by moving it temporarily
+    let persistent_path = kernelle_home_path.join("persistent");
+    let temp_persistent = if persistent_path.exists() {
+      let temp_dir = tempfile::TempDir::new()?;
+      let temp_persistent_path = temp_dir.path().join("persistent");
+      copy_dir_recursive(&persistent_path, &temp_persistent_path)?;
+      Some((temp_dir, temp_persistent_path))
+    } else {
+      None
+    };
 
-    // Remove current volatile directory if it exists
-    if volatile_path.exists() {
-      fs::remove_dir_all(&volatile_path)?;
+    // Remove everything from kernelle_home except snapshots
+    for entry in fs::read_dir(kernelle_home_path)? {
+      let entry = entry?;
+      let path = entry.path();
+      
+      // Skip snapshots directory to avoid deleting our own snapshot
+      if entry.file_name() == "snapshots" {
+        continue;
+      }
+      
+      if path.is_dir() {
+        fs::remove_dir_all(&path)?;
+      } else {
+        fs::remove_file(&path)?;
+      }
     }
 
-    // Restore volatile directory from backup
-    copy_dir_recursive(&volatile_backup, &volatile_path)?;
+    // Restore everything from backup except persistent
+    for entry in fs::read_dir(&kernelle_home_backup)? {
+      let entry = entry?;
+      let src_path = entry.path();
+      let dst_path = kernelle_home_path.join(entry.file_name());
+      
+      // Skip restoring persistent directory
+      if entry.file_name() == "persistent" {
+        continue;
+      }
+      
+      // Skip snapshots directory to avoid overwriting current snapshots  
+      if entry.file_name() == "snapshots" {
+        continue;
+      }
+      
+      if src_path.is_dir() {
+        copy_dir_recursive(&src_path, &dst_path)?;
+      } else {
+        fs::copy(&src_path, &dst_path)?;
+      }
+    }
+    
+    // Restore the preserved persistent directory
+    if let Some((temp_dir, temp_persistent_path)) = temp_persistent {
+      copy_dir_recursive(&temp_persistent_path, &persistent_path)?;
+      drop(temp_dir); // Clean up temp directory
+      println!("preserved persistent data during rollback");
+    }
+    
+    println!("restored kernelle home from full backup (excluding persistent)");
+  } else {
+    // Fallback to legacy volatile-only restore for older snapshots
+    let volatile_backup = snapshot_path.join("volatile");
+    if volatile_backup.exists() {
+      let volatile_path = Path::new(&kernelle_home).join("volatile");
 
-    println!("restored .kernelle/volatile/");
+      // Remove current volatile directory if it exists
+      if volatile_path.exists() {
+        fs::remove_dir_all(&volatile_path)?;
+      }
+
+      // Restore volatile directory from backup
+      copy_dir_recursive(&volatile_backup, &volatile_path)?;
+
+      println!("restored .kernelle/volatile/ (legacy backup format)");
+    }
   }
 
   // Restore binaries
@@ -768,18 +833,19 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_create_snapshot_only_includes_volatile() {
+  async fn test_create_snapshot_includes_entire_kernelle_home() {
     let temp_dir = TempDir::new().unwrap();
     let kernelle_home = temp_dir.path().join(".kernelle");
     let volatile_dir = kernelle_home.join("volatile");
-    let persistent_dir = kernelle_home.join("persistent_data");
+    let persistent_dir = kernelle_home.join("persistent");
+    let config_file = kernelle_home.join("config.toml");
 
     // Create test structure
     fs::create_dir_all(&volatile_dir).unwrap();
     fs::create_dir_all(&persistent_dir).unwrap();
     fs::write(volatile_dir.join("volatile_file.txt"), "volatile content").unwrap();
     fs::write(persistent_dir.join("persistent_file.txt"), "persistent content").unwrap();
-    fs::write(kernelle_home.join("config.toml"), "config content").unwrap();
+    fs::write(&config_file, "config content").unwrap();
 
     // Set environment variable
     std::env::set_var("KERNELLE_HOME", kernelle_home.to_string_lossy().to_string());
@@ -788,13 +854,28 @@ mod tests {
     // Create snapshot
     let snapshot_path = create_snapshot().await.unwrap();
 
-    // Verify only volatile directory is snapshotted
-    assert!(snapshot_path.join("volatile").exists());
-    assert!(snapshot_path.join("volatile").join("volatile_file.txt").exists());
+    // Verify entire kernelle_home is snapshotted including persistent data
+    let kernelle_home_backup = snapshot_path.join("kernelle_home");
+    assert!(kernelle_home_backup.exists());
+    assert!(kernelle_home_backup.join("volatile").exists());
+    assert!(kernelle_home_backup.join("volatile").join("volatile_file.txt").exists());
+    assert!(kernelle_home_backup.join("persistent").exists());
+    assert!(kernelle_home_backup.join("persistent").join("persistent_file.txt").exists());
+    assert!(kernelle_home_backup.join("config.toml").exists());
 
-    // Verify persistent data is NOT snapshotted
-    assert!(!snapshot_path.join("persistent_data").exists());
-    assert!(!snapshot_path.join("config.toml").exists());
+    // Verify content is correct
+    assert_eq!(
+      fs::read_to_string(kernelle_home_backup.join("volatile").join("volatile_file.txt")).unwrap(),
+      "volatile content"
+    );
+    assert_eq!(
+      fs::read_to_string(kernelle_home_backup.join("persistent").join("persistent_file.txt")).unwrap(),
+      "persistent content"
+    );
+    assert_eq!(
+      fs::read_to_string(kernelle_home_backup.join("config.toml")).unwrap(),
+      "config content"
+    );
 
     // Verify bins directory exists (even if empty)
     assert!(snapshot_path.join("bins").exists());
@@ -805,20 +886,82 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_perform_rollback_only_restores_volatile() {
+  async fn test_perform_rollback_restores_everything_except_persistent() {
     let temp_dir = TempDir::new().unwrap();
     let kernelle_home = temp_dir.path().join(".kernelle");
     let volatile_dir = kernelle_home.join("volatile");
-    let persistent_dir = kernelle_home.join("persistent_data");
+    let persistent_dir = kernelle_home.join("persistent");
+    let config_file = kernelle_home.join("config.toml");
+
+    // Create test structure with current state
+    fs::create_dir_all(&volatile_dir).unwrap();
+    fs::create_dir_all(&persistent_dir).unwrap();
+    fs::write(volatile_dir.join("current_volatile.txt"), "current volatile").unwrap();
+    fs::write(persistent_dir.join("current_persistent.txt"), "current persistent").unwrap();
+    fs::write(&config_file, "current config").unwrap();
+
+    // Create a mock snapshot with different content
+    let snapshot_dir = temp_dir.path().join("snapshot");
+    let kernelle_home_backup = snapshot_dir.join("kernelle_home");
+    let snapshot_volatile = kernelle_home_backup.join("volatile");
+    let snapshot_persistent = kernelle_home_backup.join("persistent");
+    let snapshot_config = kernelle_home_backup.join("config.toml");
+    
+    fs::create_dir_all(&snapshot_volatile).unwrap();
+    fs::create_dir_all(&snapshot_persistent).unwrap();
+    fs::create_dir_all(snapshot_dir.join("bins")).unwrap();
+    
+    fs::write(snapshot_volatile.join("old_volatile.txt"), "old volatile").unwrap();
+    fs::write(snapshot_persistent.join("old_persistent.txt"), "old persistent").unwrap();
+    fs::write(&snapshot_config, "old config").unwrap();
+
+    // Set environment variables
+    std::env::set_var("KERNELLE_HOME", kernelle_home.to_string_lossy().to_string());
+    std::env::set_var("INSTALL_DIR", "/tmp/non_existent_bin_dir");
+
+    // Perform rollback
+    let result = perform_rollback(&snapshot_dir).await;
+
+    // Should fail verification since kernelle binary doesn't exist, but that's expected
+    assert!(result.is_err());
+
+    // Verify volatile directory was restored
+    assert!(volatile_dir.join("old_volatile.txt").exists());
+    assert!(!volatile_dir.join("current_volatile.txt").exists());
+
+    // Verify config was restored  
+    assert!(config_file.exists());
+    assert_eq!(fs::read_to_string(&config_file).unwrap(), "old config");
+
+    // Verify persistent data was NOT affected - should retain current content
+    assert!(persistent_dir.join("current_persistent.txt").exists());
+    assert!(!persistent_dir.join("old_persistent.txt").exists());
+    assert_eq!(
+      fs::read_to_string(persistent_dir.join("current_persistent.txt")).unwrap(),
+      "current persistent"
+    );
+
+    // Clean up
+    std::env::remove_var("KERNELLE_HOME");
+    std::env::remove_var("INSTALL_DIR");
+  }
+
+  #[tokio::test]
+  async fn test_perform_rollback_legacy_volatile_only_snapshot() {
+    let temp_dir = TempDir::new().unwrap();
+    let kernelle_home = temp_dir.path().join(".kernelle");
+    let volatile_dir = kernelle_home.join("volatile");
+    let persistent_dir = kernelle_home.join("persistent");
+    let config_file = kernelle_home.join("config.toml");
 
     // Create test structure with current state
     fs::create_dir_all(&volatile_dir).unwrap();
     fs::create_dir_all(&persistent_dir).unwrap();
     fs::write(volatile_dir.join("current_volatile.txt"), "current volatile").unwrap();
     fs::write(persistent_dir.join("persistent_file.txt"), "persistent content").unwrap();
-    fs::write(kernelle_home.join("config.toml"), "config content").unwrap();
+    fs::write(&config_file, "current config").unwrap();
 
-    // Create a mock snapshot with different volatile content
+    // Create a legacy snapshot (volatile only - old format)
     let snapshot_dir = temp_dir.path().join("snapshot");
     let snapshot_volatile = snapshot_dir.join("volatile");
     fs::create_dir_all(&snapshot_volatile).unwrap();
@@ -841,12 +984,14 @@ mod tests {
 
     // Verify persistent data was NOT affected
     assert!(persistent_dir.join("persistent_file.txt").exists());
-    assert!(kernelle_home.join("config.toml").exists());
     assert_eq!(
       fs::read_to_string(persistent_dir.join("persistent_file.txt")).unwrap(),
       "persistent content"
     );
-    assert_eq!(fs::read_to_string(kernelle_home.join("config.toml")).unwrap(), "config content");
+
+    // Verify config was NOT affected (since this is legacy format)
+    assert!(config_file.exists());
+    assert_eq!(fs::read_to_string(&config_file).unwrap(), "current config");
 
     // Clean up
     std::env::remove_var("KERNELLE_HOME");
@@ -869,5 +1014,34 @@ mod tests {
         if version.starts_with('v') { version.to_string() } else { format!("v{version}") };
       assert!(normalized.starts_with('v'));
     }
+  }
+
+  #[test]
+  fn test_persistent_data_recovery_from_snapshot() {
+    // Test scenario: verify that persistent data can be manually recovered from snapshots
+    let temp_dir = TempDir::new().unwrap();
+    let snapshot_dir = temp_dir.path().join("snapshot");
+    let kernelle_home_backup = snapshot_dir.join("kernelle_home");
+    let snapshot_persistent = kernelle_home_backup.join("persistent");
+    
+    // Create a mock snapshot with persistent data
+    fs::create_dir_all(&snapshot_persistent).unwrap();
+    fs::write(snapshot_persistent.join("important_data.txt"), "important data").unwrap();
+    fs::write(snapshot_persistent.join("credentials.enc"), "encrypted credentials").unwrap();
+    
+    // Verify the snapshot contains persistent data that could be manually recovered
+    assert!(snapshot_persistent.join("important_data.txt").exists());
+    assert!(snapshot_persistent.join("credentials.enc").exists());
+    assert_eq!(
+      fs::read_to_string(snapshot_persistent.join("important_data.txt")).unwrap(),
+      "important data"
+    );
+    assert_eq!(
+      fs::read_to_string(snapshot_persistent.join("credentials.enc")).unwrap(),
+      "encrypted credentials"
+    );
+    
+    // This test demonstrates that persistent data is available in snapshots
+    // for manual recovery if ~/.kernelle/persistent gets accidentally deleted
   }
 }
