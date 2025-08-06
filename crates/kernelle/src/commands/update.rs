@@ -439,7 +439,7 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
   let volatile_backup = snapshot_path.join("volatile");
   if volatile_backup.exists() {
     let volatile_path = Path::new(&kernelle_home).join("volatile");
-    
+
     // Remove current volatile directory if it exists
     if volatile_path.exists() {
       fs::remove_dir_all(&volatile_path)?;
@@ -760,7 +760,7 @@ mod tests {
     let kernelle_home = temp_dir.path().join(".kernelle");
     let volatile_dir = kernelle_home.join("volatile");
     let persistent_dir = kernelle_home.join("persistent_data");
-    
+
     // Create test structure
     fs::create_dir_all(&volatile_dir).unwrap();
     fs::create_dir_all(&persistent_dir).unwrap();
@@ -778,11 +778,11 @@ mod tests {
     // Verify only volatile directory is snapshotted
     assert!(snapshot_path.join("volatile").exists());
     assert!(snapshot_path.join("volatile").join("volatile_file.txt").exists());
-    
+
     // Verify persistent data is NOT snapshotted
     assert!(!snapshot_path.join("persistent_data").exists());
     assert!(!snapshot_path.join("config.toml").exists());
-    
+
     // Verify bins directory exists (even if empty)
     assert!(snapshot_path.join("bins").exists());
 
@@ -797,7 +797,7 @@ mod tests {
     let kernelle_home = temp_dir.path().join(".kernelle");
     let volatile_dir = kernelle_home.join("volatile");
     let persistent_dir = kernelle_home.join("persistent_data");
-    
+
     // Create test structure with current state
     fs::create_dir_all(&volatile_dir).unwrap();
     fs::create_dir_all(&persistent_dir).unwrap();
@@ -818,14 +818,14 @@ mod tests {
 
     // Perform rollback
     let result = perform_rollback(&snapshot_dir).await;
-    
+
     // Should fail verification since kernelle binary doesn't exist, but that's expected
     assert!(result.is_err());
 
     // Verify volatile directory was restored
     assert!(volatile_dir.join("old_volatile.txt").exists());
     assert!(!volatile_dir.join("current_volatile.txt").exists());
-    
+
     // Verify persistent data was NOT affected
     assert!(persistent_dir.join("persistent_file.txt").exists());
     assert!(kernelle_home.join("config.toml").exists());
@@ -833,10 +833,7 @@ mod tests {
       fs::read_to_string(persistent_dir.join("persistent_file.txt")).unwrap(),
       "persistent content"
     );
-    assert_eq!(
-      fs::read_to_string(kernelle_home.join("config.toml")).unwrap(),
-      "config content"
-    );
+    assert_eq!(fs::read_to_string(kernelle_home.join("config.toml")).unwrap(), "config content");
 
     // Clean up
     std::env::remove_var("KERNELLE_HOME");
