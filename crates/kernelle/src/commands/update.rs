@@ -373,8 +373,21 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
 }
 
 async fn verify_installation() -> Result<()> {
+  // Get the install directory and verify kernelle binary exists there
+  let install_dir = env::var("INSTALL_DIR")
+    .unwrap_or_else(|_| format!("{}/.cargo/bin", env::var("HOME").unwrap_or_default()));
+
+  let kernelle_path = Path::new(&install_dir).join("kernelle");
+
+  if !kernelle_path.exists() {
+    return Err(anyhow::anyhow!(
+      "kernelle binary not found at expected location: {}",
+      kernelle_path.display()
+    ));
+  }
+
   // Test that kernelle works
-  let output = Command::new("kernelle")
+  let output = Command::new(&kernelle_path)
     .arg("--version")
     .output()
     .context("Failed to test kernelle after installation")?;
