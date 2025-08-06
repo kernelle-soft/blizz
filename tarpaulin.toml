@@ -23,6 +23,9 @@ exclude = [
 
   # Auth module uses external credentials - hard to test
   "*/auth.rs",
+  
+  # Update module relies heavily on APIs and the file system - hard to test
+  "*/kernelle/src/update.rs",
 ]
 
 timeout = "120s"
