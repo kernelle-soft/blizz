@@ -46,7 +46,7 @@ serde_json.workspace = true
 serde_yaml = "0.9"
 
 # Async runtime for daemon IPC
-tokio = { version = "1.0", features = ["full"], optional = true }
+tokio = { version = "1.47", features = ["full"], optional = true }
 uuid = { version = "1.0", features = ["v4"], optional = true }
 
 # Neural embeddings via ONNX (v2 API!)
