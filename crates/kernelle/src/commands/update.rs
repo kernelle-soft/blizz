@@ -351,7 +351,7 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
   let snapshot_dir = snapshot_base.join(timestamp.to_string());
   fs::create_dir_all(&snapshot_dir)?;
 
-  // Snapshot the kernelle_home directory (excluding persistent and snapshots)
+  // Snapshot the entire kernelle_home directory (including persistent for backup purposes)
   let kernelle_home_snapshot = snapshot_dir.join("kernelle_home");
   copy_dir_recursive(Path::new(&kernelle_home), &kernelle_home_snapshot)?;
 
@@ -416,11 +416,6 @@ fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<
 
     // Skip the snapshots directory to avoid infinite recursion
     if entry.file_name() == "snapshots" {
-      continue;
-    }
-
-    // Skip the persistent directory - it should never be copied/backed up
-    if entry.file_name() == "persistent" {
       continue;
     }
 
