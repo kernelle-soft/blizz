@@ -215,7 +215,7 @@ fn get_current_version() -> String {
 
 async fn get_latest_version() -> Result<String> {
   let base = updates_api_base();
-  let url = format!("{}/releases/latest", base);
+  let url = format!("{base}/releases/latest");
   get_latest_version_from_url(&url).await
 }
 
@@ -246,7 +246,7 @@ async fn get_latest_version_from_url(url: &str) -> Result<String> {
 
 async fn download_and_extract(version: &str, staging_path: &Path) -> Result<std::path::PathBuf> {
   let base = updates_api_base();
-  download_and_extract_from_api(version, staging_path, &format!("{}/releases", base)).await
+  download_and_extract_from_api(version, staging_path, &format!("{base}/releases")).await
 }
 
 async fn download_and_extract_from_api(
