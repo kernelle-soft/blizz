@@ -336,7 +336,7 @@ async fn download_and_extract_from_api(
   }
 
   // Expect exactly one directory from the tarball; error otherwise to remain deterministic
-  if dirs.len() >= 1 {
+  if !dirs.is_empty() {
     dirs.sort();
     return Ok(dirs.remove(0));
   }
