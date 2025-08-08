@@ -48,7 +48,7 @@ if [ -d "$KERNELLE_HOME" ]; then
 fi
 
 echo "🗑️  Removing binaries from $INSTALL_DIR..."
-for tool in kernelle jerrod blizz violet adam sentinel; do
+for tool in kernelle blizz violet adam sentinel; do
     if [ -f "$INSTALL_DIR/$tool" ]; then
         rm -f "$INSTALL_DIR/$tool"
         echo "  Removed: $tool"

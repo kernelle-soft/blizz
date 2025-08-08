@@ -8,7 +8,6 @@
 //! ## The Town Crier's Role
 //!
 //! Bentley doesn't perform on his own - he amplifies the voices of others:
-//! - **Jerrod** uses Bentley to announce MR review progress
 //! - **Violet** calls upon Bentley to report code quality findings  
 //! - **Blizz** has Bentley spotlight important insights
 //!
