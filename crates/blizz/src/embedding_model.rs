@@ -23,12 +23,14 @@ impl EmbeddingModel for OnnxEmbeddingModel {
   }
 }
 
+#[allow(dead_code)]
 pub struct MockEmbeddingModel {
   pub fail_on_texts: Vec<String>,
   pub response_embeddings: Vec<Vec<f32>>,
 }
 
 impl MockEmbeddingModel {
+  #[allow(dead_code)]
   pub fn new() -> Self {
     Self {
       fail_on_texts: vec![],

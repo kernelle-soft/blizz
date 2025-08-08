@@ -104,6 +104,7 @@ impl EmbeddingService for ProductionEmbeddingService {
   }
 }
 
+#[allow(dead_code)]
 pub struct MockEmbeddingService;
 
 impl EmbeddingService for MockEmbeddingService {
