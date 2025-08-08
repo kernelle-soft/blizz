@@ -306,8 +306,14 @@ async fn download_and_extract_from_api(
   fs::write(&tarball_path, &tarball_bytes).context("Failed to write tarball to disk")?;
 
   println!("extracting...");
+  let extracted_root = staging_path.join("extracted");
+  fs::create_dir_all(&extracted_root)?;
+
   let output = Command::new("tar")
-    .args(["-xzf", &tarball_path.to_string_lossy()])
+    .arg("-xzf")
+    .arg(&tarball_path)
+    .arg("-C")
+    .arg(&extracted_root)
     .current_dir(staging_path)
     .output()
     .context("failed to execute tar command")?;
@@ -319,20 +325,20 @@ async fn download_and_extract_from_api(
     );
   }
 
-  let entries = fs::read_dir(staging_path)?;
-  for entry in entries {
+  // Determine the single top-level directory created by extraction
+  let mut dirs: Vec<std::path::PathBuf> = vec![];
+  for entry in fs::read_dir(&extracted_root)? {
     let entry = entry?;
     let path = entry.path();
-    if path.is_dir()
-      && path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .map(|name_str| name_str.contains("kernelle"))
-        .unwrap_or(false)
-      && path != tarball_path.parent().unwrap()
-    {
-      return Ok(path);
+    if path.is_dir() {
+      dirs.push(path);
     }
+  }
+
+  // Expect exactly one directory from the tarball; error otherwise to remain deterministic
+  if dirs.len() >= 1 {
+    dirs.sort();
+    return Ok(dirs.remove(0));
   }
 
   Err(UpdateError::extraction_failed("could not find extracted directory").into())
