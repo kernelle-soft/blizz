@@ -118,15 +118,17 @@ async fn main() -> Result<()> {
     Commands::Version { list } => commands::version::execute(list).await,
     Commands::Update { version } => {
       if let Err(err) = commands::update::execute(version.as_deref()).await {
-        // Check if this is a "Version not found" error and handle it gracefully
+        // Print nice message for VersionNotFound
         if let Some(commands::update::UpdateError::VersionNotFound { version }) =
           err.downcast_ref::<commands::update::UpdateError>()
         {
           eprintln!("Error: Version '{version}' not found");
           process::exit(1);
-        } else if err.downcast_ref::<commands::update::UpdateError>().is_some() {
-          return Err(err); // Let other UpdateErrors show the stack trace
         }
+
+        // For all other errors (typed or not), print the error and exit non-zero
+        eprintln!("{err}");
+        process::exit(1);
       }
       Ok(())
     }
