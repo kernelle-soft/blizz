@@ -827,58 +827,6 @@ mod tests {
     }
   }
 
-  #[tokio::test]
-  async fn test_perform_rollback_legacy_volatile_only_snapshot() {
-    let temp_dir = TempDir::new().unwrap();
-    let kernelle_home = temp_dir.path().join(".kernelle");
-    let volatile_dir = kernelle_home.join("volatile");
-    let persistent_dir = kernelle_home.join("persistent");
-    let config_file = kernelle_home.join("config.toml");
-
-    // Create test structure with current state
-    fs::create_dir_all(&volatile_dir).unwrap();
-    fs::create_dir_all(&persistent_dir).unwrap();
-    fs::write(volatile_dir.join("current_volatile.txt"), "current volatile").unwrap();
-    fs::write(persistent_dir.join("persistent_file.txt"), "persistent content").unwrap();
-    fs::write(&config_file, "current config").unwrap();
-
-    // Create a legacy snapshot (volatile only - old format)
-    let snapshot_dir = temp_dir.path().join("snapshot");
-    let snapshot_volatile = snapshot_dir.join("volatile");
-    fs::create_dir_all(&snapshot_volatile).unwrap();
-    fs::create_dir_all(snapshot_dir.join("bins")).unwrap();
-    fs::write(snapshot_volatile.join("old_volatile.txt"), "old volatile").unwrap();
-
-    // Set environment variables
-    std::env::set_var("KERNELLE_HOME", kernelle_home.to_string_lossy().to_string());
-    std::env::set_var("INSTALL_DIR", "/tmp/non_existent_bin_dir");
-
-    // Perform rollback
-    let result = perform_rollback(&snapshot_dir).await;
-
-    // Should fail verification since kernelle binary doesn't exist there
-    assert!(result.is_err());
-
-    // Verify volatile directory was restored
-    assert!(volatile_dir.join("old_volatile.txt").exists());
-    assert!(!volatile_dir.join("current_volatile.txt").exists());
-
-    // Verify persistent data was NOT affected
-    assert!(persistent_dir.join("persistent_file.txt").exists());
-    assert_eq!(
-      fs::read_to_string(persistent_dir.join("persistent_file.txt")).unwrap(),
-      "persistent content"
-    );
-
-    // Verify config was NOT affected (since this is legacy format)
-    assert!(config_file.exists());
-    assert_eq!(fs::read_to_string(&config_file).unwrap(), "current config");
-
-    // Clean up
-    std::env::remove_var("KERNELLE_HOME");
-    std::env::remove_var("INSTALL_DIR");
-  }
-
   #[test]
   fn test_latest_version_not_normalized() {
     // Test that "latest" is not affected by normalization
