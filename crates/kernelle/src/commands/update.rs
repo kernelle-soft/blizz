@@ -80,6 +80,13 @@ struct GitHubRelease {
   tarball_url: String,
 }
 
+fn updates_api_base() -> String {
+  // Allow overriding the releases API base for testing via env var
+  // Default to GitHub repo API
+  env::var("KERNELLE_UPDATES_API_BASE")
+    .unwrap_or_else(|_| "https://api.github.com/repos/TravelSizedLions/kernelle".to_string())
+}
+
 pub async fn execute(version: Option<&str>) -> Result<()> {
   println!("starting update...");
 
@@ -207,10 +214,9 @@ fn get_current_version() -> String {
 }
 
 async fn get_latest_version() -> Result<String> {
-  get_latest_version_from_url(
-    "https://api.github.com/repos/TravelSizedLions/kernelle/releases/latest",
-  )
-  .await
+  let base = updates_api_base();
+  let url = format!("{base}/releases/latest");
+  get_latest_version_from_url(&url).await
 }
 
 async fn get_latest_version_from_url(url: &str) -> Result<String> {
@@ -239,12 +245,8 @@ async fn get_latest_version_from_url(url: &str) -> Result<String> {
 }
 
 async fn download_and_extract(version: &str, staging_path: &Path) -> Result<std::path::PathBuf> {
-  download_and_extract_from_api(
-    version,
-    staging_path,
-    "https://api.github.com/repos/TravelSizedLions/kernelle/releases",
-  )
-  .await
+  let base = updates_api_base();
+  download_and_extract_from_api(version, staging_path, &format!("{base}/releases")).await
 }
 
 async fn download_and_extract_from_api(
@@ -304,8 +306,14 @@ async fn download_and_extract_from_api(
   fs::write(&tarball_path, &tarball_bytes).context("Failed to write tarball to disk")?;
 
   println!("extracting...");
+  let extracted_root = staging_path.join("extracted");
+  fs::create_dir_all(&extracted_root)?;
+
   let output = Command::new("tar")
-    .args(["-xzf", &tarball_path.to_string_lossy()])
+    .arg("-xzf")
+    .arg(&tarball_path)
+    .arg("-C")
+    .arg(&extracted_root)
     .current_dir(staging_path)
     .output()
     .context("failed to execute tar command")?;
@@ -317,20 +325,20 @@ async fn download_and_extract_from_api(
     );
   }
 
-  let entries = fs::read_dir(staging_path)?;
-  for entry in entries {
+  // Determine the single top-level directory created by extraction
+  let mut dirs: Vec<std::path::PathBuf> = vec![];
+  for entry in fs::read_dir(&extracted_root)? {
     let entry = entry?;
     let path = entry.path();
-    if path.is_dir()
-      && path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .map(|name_str| name_str.contains("kernelle"))
-        .unwrap_or(false)
-      && path != tarball_path.parent().unwrap()
-    {
-      return Ok(path);
+    if path.is_dir() {
+      dirs.push(path);
     }
+  }
+
+  // Expect exactly one directory from the tarball; error otherwise to remain deterministic
+  if !dirs.is_empty() {
+    dirs.sort();
+    return Ok(dirs.remove(0));
   }
 
   Err(UpdateError::extraction_failed("could not find extracted directory").into())
@@ -848,7 +856,7 @@ mod tests {
     // Perform rollback
     let result = perform_rollback(&snapshot_dir).await;
 
-    // Should fail verification since kernelle binary doesn't exist, but that's expected
+    // Should fail verification since kernelle binary doesn't exist there
     assert!(result.is_err());
 
     // Verify volatile directory was restored
