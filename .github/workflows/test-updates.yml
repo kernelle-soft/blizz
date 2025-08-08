@@ -11,13 +11,22 @@ env:
 
 jobs:
   updates-e2e:
-    name: Update E2E (${{ matrix.os }})
+    name: Update E2E (${{ matrix.os }} - ${{ matrix.test.name }})
     runs-on: ${{ matrix.os }}
     if: "!contains(github.event.head_commit.message, '[validated]') && !contains(github.event.head_commit.body, '[validated]')"
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-15]
+        test:
+          - name: "Updating to the same version does nothing"
+            script: .github/test/updates/update-to-same-version-does-nothing.sh
+          - name: "Persistent data isn't touched after update"
+            script: .github/test/updates/persistence-respected-after-update.sh
+          - name: "Rolls back after a failed update"
+            script: .github/test/updates/rolls-back-after-failed-update.sh
+          - name: "Persistent data isn't touched after rollback"
+            script: .github/test/updates/persistence-respected-after-rollback.sh
 
     steps:
       - name: Checkout code
@@ -30,18 +39,6 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Updating to the same version does nothing
+      - name: ${{ matrix.test.name }}
         shell: bash
-        run: .github/test/updates/update-to-same-version-does-nothing.sh
-
-      - name: Persistent data isn't touched after update
-        shell: bash
-        run: .github/test/updates/persistence-respected-after-update.sh
-
-      - name: Rolls back after a failed update
-        shell: bash
-        run: .github/test/updates/rolls-back-after-failed-update.sh
-
-      - name: Persistent data isn't touched after rollback
-        shell: bash
-        run: .github/test/updates/persistence-respected-after-rollback.sh
+        run: ${{ matrix.test.script }}
