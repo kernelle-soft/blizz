@@ -2,9 +2,17 @@ name: release
 
 on:
   workflow_run:
-    workflows: ["linux", "mac-os", "windows", "code-quality", "test-install-cleanup"]
-    types: [completed]
-    branches: [dev]
+    workflows:
+      - linux
+      - mac-os
+      - windows
+      - code-quality
+      - test-install-cleanup
+      - test-updates
+    types:
+      - completed
+    branches:
+      - dev
 
 jobs:
   check-all-workflows:
@@ -19,7 +27,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const workflows = ["linux", "mac-os", "windows", "code-quality", "test-install-cleanup"];
+            const workflows = ["linux", "mac-os", "windows", "code-quality", "test-install-cleanup", "test-updates"];
             const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
