@@ -23,6 +23,9 @@ export HOME="$TEST_HOME"
 export RUSTUP_HOME="${ORIGINAL_RUSTUP_HOME:-$ORIGINAL_HOME/.rustup}"
 export PATH="$TEST_CARGO_HOME/bin:$PATH"
 
+# Helper function to print error messages and exit
+fail() { echo "❌ $1" >&2; exit 1; }
+
 # Cleanup function
 cleanup_test_isolation() {
     if [ -n "${TEST_HOME:-}" ] && [ -d "$TEST_HOME" ]; then

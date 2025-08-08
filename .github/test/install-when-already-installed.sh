@@ -4,8 +4,6 @@
 set -euo pipefail
 set -x
 
-fail() { echo "❌ $1" >&2; exit 1; }
-
 # Isolate the test
 source "$(dirname "$0")/isolate.sh"
 

@@ -80,6 +80,13 @@ struct GitHubRelease {
   tarball_url: String,
 }
 
+fn updates_api_base() -> String {
+  // Allow overriding the releases API base for testing via env var
+  // Default to GitHub repo API
+  env::var("KERNELLE_UPDATES_API_BASE")
+    .unwrap_or_else(|_| "https://api.github.com/repos/TravelSizedLions/kernelle".to_string())
+}
+
 pub async fn execute(version: Option<&str>) -> Result<()> {
   println!("starting update...");
 
@@ -207,10 +214,9 @@ fn get_current_version() -> String {
 }
 
 async fn get_latest_version() -> Result<String> {
-  get_latest_version_from_url(
-    "https://api.github.com/repos/TravelSizedLions/kernelle/releases/latest",
-  )
-  .await
+  let base = updates_api_base();
+  let url = format!("{}/releases/latest", base);
+  get_latest_version_from_url(&url).await
 }
 
 async fn get_latest_version_from_url(url: &str) -> Result<String> {
@@ -239,12 +245,8 @@ async fn get_latest_version_from_url(url: &str) -> Result<String> {
 }
 
 async fn download_and_extract(version: &str, staging_path: &Path) -> Result<std::path::PathBuf> {
-  download_and_extract_from_api(
-    version,
-    staging_path,
-    "https://api.github.com/repos/TravelSizedLions/kernelle/releases",
-  )
-  .await
+  let base = updates_api_base();
+  download_and_extract_from_api(version, staging_path, &format!("{}/releases", base)).await
 }
 
 async fn download_and_extract_from_api(
@@ -848,7 +850,7 @@ mod tests {
     // Perform rollback
     let result = perform_rollback(&snapshot_dir).await;
 
-    // Should fail verification since kernelle binary doesn't exist, but that's expected
+    // Should fail verification since kernelle binary doesn't exist there
     assert!(result.is_err());
 
     // Verify volatile directory was restored
