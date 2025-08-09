@@ -37,7 +37,7 @@
                           | |_) | |      | |    / /   / / 
                           |  _ <| |      | |   / /   / /  
                           | |_) | |____ _| |_ / /__ / /__ 
-                          |____/|______|_____/_____/_____|                                                        
+                          |____/|______|_____/_____/_____|
 ```
 ![Code Coverage](https://img.shields.io/badge/Code%20Coverage-50%25-yellow?style=flat)
 ![Linux](https://github.com/TravelSizedLions/kernelle/actions/workflows/linux.yml/badge.svg?branch=dev)
