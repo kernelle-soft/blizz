@@ -1,13 +1,13 @@
 #[cfg(feature = "neural")]
 use anyhow::Result;
 #[cfg(feature = "neural")]
-use blizz::commands::*;
+use insights::commands::*;
 #[cfg(feature = "neural")]
-use blizz::embedding_client;
+use insights::embedding_client;
 #[cfg(feature = "neural")]
-use blizz::embedding_client::MockEmbeddingService;
+use insights::embedding_client::MockEmbeddingService;
 #[cfg(feature = "neural")]
-use blizz::insight;
+use insights::insight;
 #[cfg(feature = "neural")]
 use serial_test::serial;
 #[cfg(feature = "neural")]
@@ -22,7 +22,7 @@ mod cli_enhancement_tests {
 
   fn setup_temp_insights_root(_test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
-    env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
+    env::set_var("INSIGHTS_ROOT", temp_dir.path());
     temp_dir
   }
 

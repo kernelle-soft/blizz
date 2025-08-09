@@ -7,12 +7,12 @@ name = "adam"
 version = "0.2.34"
 dependencies = [
  "anyhow",
- "blizz",
  "chrono",
  "clap",
  "colored",
  "console",
  "dirs",
+ "insights",
  "serde",
  "serde_json",
  "tempfile",
@@ -304,34 +304,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
 dependencies = [
  "digest",
-]
-
-[[package]]
-name = "blizz"
-version = "0.2.34"
-dependencies = [
- "anyhow",
- "assert_cmd",
- "assert_fs",
- "chrono",
- "clap",
- "colored",
- "console",
- "dirs",
- "ndarray",
- "ort",
- "predicates",
- "serde",
- "serde_json",
- "serde_yaml",
- "serial_test",
- "tempfile",
- "thiserror 2.0.12",
- "tokenizers",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
@@ -1472,6 +1444,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "insights"
+version = "0.2.34"
+dependencies = [
+ "anyhow",
+ "assert_cmd",
+ "assert_fs",
+ "chrono",
+ "clap",
+ "colored",
+ "console",
+ "dirs",
+ "ndarray",
+ "ort",
+ "predicates",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "serial_test",
+ "tempfile",
+ "thiserror 2.0.12",
+ "tokenizers",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

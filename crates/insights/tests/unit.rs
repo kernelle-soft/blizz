@@ -1,15 +1,15 @@
 #[cfg(test)]
 mod insight_tests {
   use anyhow::Result;
-  use blizz::insight::{self, Insight};
+  use insights::insight::{self, Insight};
   use serial_test::serial;
   use std::env;
   use tempfile::TempDir;
 
   fn setup_temp_insights_root(test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
-    let _unique_var = format!("BLIZZ_INSIGHTS_ROOT_{}", test_name.to_uppercase());
-    env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
+    let _unique_var = format!("INSIGHTS_ROOT_{}", test_name.to_uppercase());
+    env::set_var("INSIGHTS_ROOT", temp_dir.path());
     temp_dir
   }
 
@@ -382,7 +382,7 @@ mod insight_tests {
     insight::save(&insight2)?;
 
     // Test search functionality by creating SearchOptions directly
-    let search_options = blizz::search::SearchOptions {
+    let search_options = insights::search::SearchOptions {
       topic: None,
       case_sensitive: false,
       overview_only: false,
@@ -390,10 +390,10 @@ mod insight_tests {
       semantic: false,
       exact: true, // Use exact search which doesn't require neural features
       #[cfg(feature = "neural")]
-      embedding_client: blizz::embedding_client::create(),
+      embedding_client: insights::embedding_client::create(),
     };
 
-    let results = blizz::search::search(&["rust".to_string()], &search_options)?;
+    let results = insights::search::search(&["rust".to_string()], &search_options)?;
 
     // Should find the rust insight
     assert_eq!(results.len(), 1);
@@ -402,7 +402,7 @@ mod insight_tests {
 
     // Test that search results can be displayed (this tests our highlighting integration)
     // The highlighting happens in the display function, so we mainly test that it doesn't crash
-    blizz::search::display_results(&results, &["rust".to_string()], false);
+    insights::search::display_results(&results, &["rust".to_string()], false);
 
     Ok(())
   }

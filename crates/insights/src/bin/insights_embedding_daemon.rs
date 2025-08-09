@@ -10,21 +10,21 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::net::{UnixListener, UnixStream};
 
 #[cfg(feature = "neural")]
-use blizz::embedding_model::{create_production_model, EmbeddingModel};
+use insights::embedding_model::{create_production_model, EmbeddingModel};
 
 #[cfg(not(feature = "neural"))]
-use blizz::embedding_model::MockEmbeddingModel;
+use insights::embedding_model::MockEmbeddingModel;
 
 // Platform-specific constants
 #[cfg(unix)]
-const SOCKET_PATH: &str = "/tmp/blizz_embeddings.sock";
+const SOCKET_PATH: &str = "/tmp/insights_embeddings.sock";
 #[cfg(windows)]
 const TCP_ADDRESS: &str = "127.0.0.1:47291";
 
 const INACTIVITY_TIMEOUT_SECS: u64 = 300;
 
 // Cross-platform listener abstraction
-pub enum BlizzListener {
+pub enum InsightsListener {
   #[cfg(unix)]
   Unix(UnixListener),
   #[cfg(windows)]
@@ -39,16 +39,16 @@ pub enum BlizzStream {
   Tcp(TcpStream),
 }
 
-impl BlizzListener {
+impl InsightsListener {
   async fn accept(&self) -> std::io::Result<(BlizzStream, String)> {
     match self {
       #[cfg(unix)]
-      BlizzListener::Unix(listener) => {
+      InsightsListener::Unix(listener) => {
         let (stream, addr) = listener.accept().await?;
         Ok((BlizzStream::Unix(stream), format!("{addr:?}")))
       }
       #[cfg(windows)]
-      BlizzListener::Tcp(listener) => {
+      InsightsListener::Tcp(listener) => {
         let (stream, addr) = listener.accept().await?;
         Ok((BlizzStream::Tcp(stream), addr.to_string()))
       }
@@ -104,7 +104,7 @@ impl<M: EmbeddingModel> EmbeddingService<M> {
 
 #[cfg(feature = "neural")]
 async fn create_embedding_service(
-) -> Result<EmbeddingService<blizz::embedding_model::OnnxEmbeddingModel>> {
+) -> Result<EmbeddingService<insights::embedding_model::OnnxEmbeddingModel>> {
   let model = create_production_model().await?;
   Ok(EmbeddingService::new(model))
 }
@@ -129,7 +129,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run_server_loop<M: EmbeddingModel>(
-  listener: BlizzListener,
+  listener: InsightsListener,
   mut service: EmbeddingService<M>,
 ) -> Result<()> {
   let timeout = Duration::from_secs(INACTIVITY_TIMEOUT_SECS);
@@ -145,8 +145,8 @@ async fn run_server_loop<M: EmbeddingModel>(
   Ok(())
 }
 
-async fn handle_single_connection<M: blizz::embedding_model::EmbeddingModel>(
-  listener: &BlizzListener,
+async fn handle_single_connection<M: insights::embedding_model::EmbeddingModel>(
+  listener: &InsightsListener,
   service: &mut EmbeddingService<M>,
   timeout_duration: Duration,
 ) -> Result<bool, ()> {
@@ -165,7 +165,7 @@ async fn handle_single_connection<M: blizz::embedding_model::EmbeddingModel>(
 }
 
 async fn wait_for_connections(
-  listener: &BlizzListener,
+  listener: &InsightsListener,
   timeout_duration: Duration,
 ) -> Result<(BlizzStream, String), String> {
   match timeout(timeout_duration, listener.accept()).await {
@@ -236,15 +236,15 @@ fn cleanup_existing_socket() {
 }
 
 #[cfg(unix)]
-async fn setup_listener() -> Result<BlizzListener> {
+async fn setup_listener() -> Result<InsightsListener> {
   let listener = UnixListener::bind(SOCKET_PATH)?;
   println!("🚀 Blizz daemon listening on {SOCKET_PATH}");
-  Ok(BlizzListener::Unix(listener))
+  Ok(InsightsListener::Unix(listener))
 }
 
 #[cfg(windows)]
-async fn setup_listener() -> Result<BlizzListener> {
+async fn setup_listener() -> Result<InsightsListener> {
   let listener = TcpListener::bind(TCP_ADDRESS).await?;
   println!("🚀 Blizz daemon listening on {TCP_ADDRESS}");
-  Ok(BlizzListener::Tcp(listener))
+  Ok(InsightsListener::Tcp(listener))
 }

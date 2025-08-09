@@ -198,12 +198,12 @@ pub fn delete(insight: &Insight) -> Result<()> {
 
 pub fn get_insights_root() -> Result<PathBuf> {
   // Allow tests or callers to override the root directory via env var
-  if let Ok(custom_root) = std::env::var("BLIZZ_INSIGHTS_ROOT") {
+  if let Ok(custom_root) = std::env::var("INSIGHTS_ROOT") {
     return Ok(PathBuf::from(custom_root));
   }
 
   let home = home_dir().ok_or_else(|| anyhow!("Could not find home directory"))?;
-  Ok(home.join(".kernelle").join("persistent").join("blizz").join("insights"))
+  Ok(home.join(".kernelle").join("persistent").join("insights"))
 }
 
 pub fn get_valid_insights_dir() -> Result<std::path::PathBuf> {

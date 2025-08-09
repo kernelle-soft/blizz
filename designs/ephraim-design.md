@@ -115,14 +115,14 @@ All other markdown headers are allowed in source files and will be:
 
 ### Input: Source Rule File
 
-**File: `personalities/layers/blizz.mdc`**
+**File: `personalities/layers/insights.mdc`**
 ```markdown
 # Personality Layer: Blizz
 
 ## import
 - personalities/personalities.mdc
   * global
-- behaviors/use-blizz.mdc
+- behaviors/use-insights.mdc
   * global
 - personalities/layers/jerrod.mdc
   * when: engineering workflows or debugging
@@ -154,7 +154,7 @@ You approach every interaction as learning opportunity.
 
 ### Output: Compiled Rule File
 
-**File: `.cursor/rules/blizz.mdc` (Generated)**
+**File: `.cursor/rules/insights.mdc` (Generated)**
 ```markdown
 # Blizz
 
@@ -205,14 +205,14 @@ You approach every interaction as learning opportunity.
 ```json
 {
   "name": "blizz",
-  "source_file": "personalities/layers/blizz.mdc",
+  "source_file": "personalities/layers/insights.mdc",
   "imports": [
     {
       "file": "personalities/personalities.mdc",
       "type": "global"
     },
     {
-      "file": "behaviors/use-blizz.mdc", 
+      "file": "behaviors/use-insights.mdc", 
       "type": "global"
     },
     {
@@ -259,9 +259,9 @@ You approach every interaction as learning opportunity.
 {
   "nodes": [
     {
-      "id": "blizz.mdc",
+      "id": "insights.mdc",
       "type": "source",
-      "dependencies": ["personalities.mdc", "use-blizz.mdc", "jerrod.mdc"]
+      "dependencies": ["personalities.mdc", "use-insights.mdc", "jerrod.mdc"]
     },
     {
       "id": "personalities.mdc",
@@ -271,12 +271,12 @@ You approach every interaction as learning opportunity.
   ],
   "edges": [
     {
-      "from": "blizz.mdc",
+      "from": "insights.mdc",
       "to": "personalities.mdc",
       "type": "hoist"
     },
     {
-      "from": "blizz.mdc",
+      "from": "insights.mdc",
       "to": "jerrod.mdc",
       "type": "conditional"
     }
@@ -284,8 +284,8 @@ You approach every interaction as learning opportunity.
   "resolution_order": [
     "respect.mdc",
     "personalities.mdc",
-    "use-blizz.mdc",
-    "blizz.mdc"
+    "use-insights.mdc",
+    "insights.mdc"
   ]
 }
 ```
@@ -371,7 +371,7 @@ You approach every interaction as learning opportunity.
 
 **Important**: Please alert the user that there was an issue compiling this rule:
 
-- **File**: personalities/layers/blizz.mdc
+- **File**: personalities/layers/insights.mdc
 - **Line**: 5
 - **Error**: Import 'nonexistent-file.mdc' not found
 - **Fix**: Check the file path and ensure the imported file exists

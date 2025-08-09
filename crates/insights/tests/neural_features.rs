@@ -1,9 +1,9 @@
 #[cfg(all(test, feature = "neural"))]
 use anyhow::Result;
 #[cfg(all(test, feature = "neural"))]
-use blizz::embedding_client::Embedding;
+use insights::embedding_client::Embedding;
 #[cfg(all(test, feature = "neural"))]
-use blizz::insight::{self, Insight};
+use insights::insight::{self, Insight};
 #[cfg(all(test, feature = "neural"))]
 use chrono::Utc;
 #[cfg(all(test, feature = "neural"))]
@@ -19,7 +19,7 @@ mod neural_feature_tests {
 
   fn setup_temp_insights_root(_test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
-    env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
+    env::set_var("INSIGHTS_ROOT", temp_dir.path());
     temp_dir
   }
 

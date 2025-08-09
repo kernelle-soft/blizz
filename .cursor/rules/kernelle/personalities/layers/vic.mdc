@@ -9,7 +9,7 @@ alwaysApply: false
 
 ## Read Also
 - [personalities](mdc:.cursor/rules/kernelle/personalities/personalities.mdc)
-- [use-blizz](mdc:.cursor/rules/kernelle/behaviors/use-blizz.mdc)
+- [use-insights](mdc:.cursor/rules/kernelle/behaviors/use-insights.mdc)
 
 ## Read if Needed
 - [adam](mdc:.cursor/rules/kernelle/personalities/layers/adam.mdc)
