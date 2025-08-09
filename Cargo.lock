@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adam"
-version = "0.2.34"
+version = "0.2.35"
 dependencies = [
  "anyhow",
  "chrono",
@@ -271,7 +271,7 @@ checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 
 [[package]]
 name = "bentley"
-version = "0.2.34"
+version = "0.2.35"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1543,7 +1543,7 @@ dependencies = [
 
 [[package]]
 name = "kernelle"
-version = "0.2.34"
+version = "0.2.35"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2639,7 +2639,7 @@ dependencies = [
 
 [[package]]
 name = "sentinel"
-version = "0.2.34"
+version = "0.2.35"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3401,7 +3401,7 @@ dependencies = [
 
 [[package]]
 name = "violet"
-version = "0.2.34"
+version = "0.2.35"
 dependencies = [
  "anyhow",
  "clap",
