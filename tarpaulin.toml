@@ -13,7 +13,6 @@ forward = true
 
 exclude = [
   # WIP packages that are unused and will be (re-)implemented in the future
-  "jerrod", 
   "adam",
   
   # File-level excludes

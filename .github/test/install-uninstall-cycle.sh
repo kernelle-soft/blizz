@@ -22,7 +22,7 @@ test -d ~/.kernelle/volatile/.cursor || fail "~/.kernelle/volatile/.cursor not f
 
 
 # Check that binaries were installed (bentley is library-only, so exclude it)
-ls -la "$HOME/.cargo/bin/" | grep -E "(kernelle|jerrod|blizz|violet|adam|sentinel)" || fail "Expected binaries not found in ~/.cargo/bin"
+ls -la "$HOME/.cargo/bin/" | grep -E "(kernelle|blizz|violet|adam|sentinel)" || fail "Expected binaries not found in ~/.cargo/bin"
 
 
 # Test that kernelle binary works
@@ -49,7 +49,7 @@ test -d ~/.kernelle/persistent || true  # persistent may or may not exist if no 
 
 # Verify binaries were removed
 test ! -f "$HOME/.cargo/bin/kernelle" || fail "kernelle binary still exists after uninstall"
-test ! -f "$HOME/.cargo/bin/jerrod" || fail "jerrod binary still exists after uninstall"
+
 test ! -f "$HOME/.cargo/bin/blizz" || fail "blizz binary still exists after uninstall"
 test ! -f "$HOME/.cargo/bin/violet" || fail "violet binary still exists after uninstall"
 test ! -f "$HOME/.cargo/bin/adam" || fail "adam binary still exists after uninstall"

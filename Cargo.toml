@@ -4,7 +4,6 @@ members = [
     "crates/adam",
     "crates/bentley", 
     "crates/blizz",
-    "crates/jerrod",
     "crates/kernelle",
     "crates/sentinel",
     "crates/violet"

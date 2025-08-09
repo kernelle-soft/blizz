@@ -4,7 +4,6 @@ complexity:
 
 ignore_files:
   #  [tsl-voxel] - Future cleanup project
-  - "crates/jerrod/**"
   - "crates/sentinel/**"
   - "crates/kernelle/**"
 
