@@ -1,5 +1,5 @@
 [package]
-name = "blizz"
+name = "insights"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,16 +8,16 @@ repository.workspace = true
 description = "Knowledge management and insight storage system"
 
 [lib]
-name = "blizz"
+name = "insights"
 path = "src/lib.rs"
 
 [[bin]]
-name = "blizz"
+name = "insights"
 path = "src/main.rs"
 
 [[bin]]
-name = "blizz_embedding_daemon"
-path = "src/bin/blizz_embedding_daemon.rs"
+name = "insights_embedding_daemon"
+path = "src/bin/insights_embedding_daemon.rs"
 required-features = ["neural"]
 
 [features]

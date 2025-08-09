@@ -1,22 +1,22 @@
 #[cfg(feature = "neural")]
-use blizz::embedding_client;
+use insights::embedding_client;
 #[cfg(feature = "neural")]
-use blizz::embedding_client::MockEmbeddingService;
+use insights::embedding_client::MockEmbeddingService;
 
 #[cfg(test)]
 #[cfg(feature = "neural")]
 mod index_command_tests {
   use super::*;
   use anyhow::Result;
-  use blizz::commands::*;
-  use blizz::insight::{self};
+  use insights::commands::*;
+  use insights::insight::{self};
   use serial_test::serial;
   use std::env;
   use tempfile::TempDir;
 
   fn setup_temp_insights_root(_test_name: &str) -> TempDir {
     let temp_dir = TempDir::new().unwrap();
-    env::set_var("BLIZZ_INSIGHTS_ROOT", temp_dir.path());
+    env::set_var("INSIGHTS_ROOT", temp_dir.path());
     temp_dir
   }
 
@@ -207,7 +207,7 @@ mod index_command_tests {
   fn create_test_insights_dir() -> Result<()> {
     use std::fs;
 
-    let insights_dir = std::env::var("BLIZZ_INSIGHTS_ROOT")?;
+    let insights_dir = std::env::var("INSIGHTS_ROOT")?;
     fs::create_dir_all(&insights_dir)?;
     Ok(())
   }

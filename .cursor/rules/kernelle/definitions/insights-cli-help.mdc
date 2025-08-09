@@ -1,17 +1,17 @@
 ---
-description: Blizz CLI operations for knowledge management
+description: Insights CLI operations for knowledge management
 globs: 
 alwaysApply: true
 ---
-# Blizz CLI Operations
+# Insights CLI Operations
 
 ## Top Level 
 ```
-blizz -h
-Blizz - Knowledge Management System
+insights -h
+Insights - Knowledge Management System
 High-speed insight storage and retrieval for development workflows
 
-Usage: blizz <COMMAND>
+Usage: insights <COMMAND>
 
 Commands:
   add     Add a new insight to the knowledge base
@@ -32,10 +32,10 @@ Options:
 ## Add
 
 ```
-blizz add -h
+insights add -h
 Add a new insight to the knowledge base
 
-Usage: blizz add <TOPIC> <NAME> <OVERVIEW> <DETAILS>
+Usage: insights add <TOPIC> <NAME> <OVERVIEW> <DETAILS>
 
 Arguments:
   <TOPIC>     Topic category of the insight
@@ -50,10 +50,10 @@ Options:
 ## Search
 
 ```
-blizz search -h
+insights search -h
 Search through all insights for matching content
 
-Usage: blizz search [OPTIONS] <TERMS>...
+Usage: insights search [OPTIONS] <TERMS>...
 
 Arguments:
   <TERMS>...  Search terms (space-separated)
@@ -70,10 +70,10 @@ Options:
 ## Get
 
 ```
-blizz get -h
+insights get -h
 Get content of a specific insight
 
-Usage: blizz get [OPTIONS] <TOPIC> <NAME>
+Usage: insights get [OPTIONS] <TOPIC> <NAME>
 
 Arguments:
   <TOPIC>  Topic category of the insight
@@ -87,10 +87,10 @@ Options:
 ## List
 
 ```
-blizz list -h
+insights list -h
 List insights in a topic or all topics
 
-Usage: blizz list [OPTIONS] [TOPIC]
+Usage: insights list [OPTIONS] [TOPIC]
 
 Arguments:
   [TOPIC]  Optional topic to filter by
@@ -104,10 +104,10 @@ Options:
 ## Update
 
 ```
-blizz update -h
+insights update -h
 Update an existing insight
 
-Usage: blizz update [OPTIONS] <TOPIC> <NAME>
+Usage: insights update [OPTIONS] <TOPIC> <NAME>
 
 Arguments:
   <TOPIC>  Topic category of the insight
@@ -122,10 +122,10 @@ Options:
 ## Delete
 
 ```
-blizz delete -h
+insights delete -h
 Delete an insight
 
-Usage: blizz delete [OPTIONS] <TOPIC> <NAME>
+Usage: insights delete [OPTIONS] <TOPIC> <NAME>
 
 Arguments:
   <TOPIC>  Topic category of the insight
@@ -139,10 +139,10 @@ Options:
 ## Topics
 
 ```
-blizz topics -h
+insights topics -h
 List all available topics
 
-Usage: blizz topics
+Usage: insights topics
 
 Options:
   -h, --help  Print help
@@ -150,10 +150,10 @@ Options:
 ## Indexing
 
 ```
-blizz index -h
+insights index -h
 Recompute embeddings for all insights
 
-Usage: blizz index [OPTIONS]
+Usage: insights index [OPTIONS]
 
 Options:
   -f, --force         Force recompute even for insights that already have embeddings
@@ -179,9 +179,9 @@ Options:
 ## Topic Organization
 
 ### Flat Structure with Specific Subjects
-Blizz's insights caching system uses `topic/*.insight.md` where topics are **specific subjects** rather than broad categories. This enables precise, targeted searches using standard tools like `grep`, `cat`, and `sed` if `blizz` alone is not enough. 
+Insights's insights caching system uses `topic/*.insight.md` where topics are **specific subjects** rather than broad categories. This enables precise, targeted searches using standard tools like `grep`, `cat`, and `sed` if `insights` alone is not enough. 
 
-Blizz' outputs from `list` and `topics` subcommands play particularly nicely with `grep`.
+Insights' outputs from `list` and `topics` subcommands play particularly nicely with `grep`.
 
 ### Design Philosophy
 - **Topics are specific subjects** - not broad categories

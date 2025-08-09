@@ -46,7 +46,7 @@ runs:
       with:
         path: |
           ~/.cargo/bin/kernelle
-          ~/.cargo/bin/blizz
+          ~/.cargo/bin/insights
           ~/.cargo/bin/violet
           ~/.cargo/bin/adam
           ~/.cargo/bin/sentinel
@@ -81,6 +81,6 @@ runs:
     - name: Verify kernelle installation
       run: |
         kernelle --help
-        blizz --help
+        insights --help
         violet --help
       shell: bash 

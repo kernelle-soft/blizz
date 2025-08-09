@@ -12,7 +12,7 @@ name = "adam"
 path = "src/main.rs"
 
 [dependencies]
-blizz = { path = "../blizz" }
+insights = { path = "../insights" }
 
 clap.workspace = true
 

@@ -87,7 +87,7 @@ bacon [crate name]
 
 # Example
 bacon kernelle  # watches kernelle crate
-bacon blizz     # watches blizz crate
+bacon insights   # watches insights crate
 bacon violet    # etc
 ```
 

@@ -367,7 +367,7 @@ Given that `sentinel` already provides a solid foundation with CLI commands and 
 
 - [ ] **Update service integrations**
   - [ ] Update `jerrod` to use `SecretProvider` trait
-  - [ ] Update `blizz` credential handling
+  - [ ] Update `insights` credential handling
   - [ ] Update any other services using `sentinel`
   - [ ] Test all integrations work with new system
 

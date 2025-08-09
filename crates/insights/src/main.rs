@@ -13,9 +13,9 @@ mod semantic;
 mod similarity;
 
 #[derive(Parser)]
-#[command(name = "blizz")]
+#[command(name = "insights")]
 #[command(
-  about = "Blizz - Knowledge Management System\nHigh-speed insight storage and retrieval for development workflows"
+  about = "Insights - Knowledge Management System\nHigh-speed insight storage and retrieval for development workflows"
 )]
 #[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
 struct Cli {

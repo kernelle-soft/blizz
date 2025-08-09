@@ -79,7 +79,7 @@ pub async fn create_production_model() -> Result<OnnxEmbeddingModel> {
 #[allow(dead_code)] // Used by daemon binary
 fn initialize_onnx_runtime() -> Result<()> {
   ort::init()
-    .with_name("blizz-model")
+    .with_name("insights-model")
     .commit()
     .map_err(|e| anyhow!("Failed to initialize ONNX Runtime: {}", e))
     .map(|_| ())

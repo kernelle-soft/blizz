@@ -1,7 +1,7 @@
 // TODO: Fix daemon tests after refactoring - daemon types moved to binary
 /*
 use anyhow::Result;
-use blizz::embedding_model::MockEmbeddingModel;
+use insights::embedding_model::MockEmbeddingModel;
 
 #[cfg(test)]
 mod daemon_tests {
