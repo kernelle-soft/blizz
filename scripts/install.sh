@@ -269,6 +269,14 @@ echo ""
 
 cp "$SCRIPT_DIR/templates/kernelle.internal.source.template" "$KERNELLE_HOME/kernelle.internal.source"
 
+echo "📝 Setting up uninstaller..."
+# Copy uninstaller script to KERNELLE_HOME
+cp "$SCRIPT_DIR/uninstall.sh" "$KERNELLE_HOME/uninstall.sh"
+chmod +x "$KERNELLE_HOME/uninstall.sh"
+
+# Copy required template for uninstaller
+cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source.gone.template"
+
 echo "✅ Kernelle installed successfully!"
 echo ""
 echo "📝 Next steps:"
@@ -280,5 +288,8 @@ echo ""
 echo "3. Test the installation:"
 echo "   kernelle --help"
 echo "   kernelle add .  # (in a project directory)"
+echo ""
+echo "4. To uninstall later, run:"
+echo "   ~/.kernelle/uninstall.sh"
 echo ""
 echo "🎉 Enjoy your time using Kernelle!"

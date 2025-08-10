@@ -22,11 +22,30 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo/bin}"
 
 echo ""
 echo "Soft deleting kernelle shell source files..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Replace internal source with gone template, keep directory structure
 if [ -d "$KERNELLE_HOME" ]; then
-    # Copy gone template to internal source location
-    cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source" || true
+    # Try to use gone template from KERNELLE_HOME first (new installs)
+    if [ -f "$KERNELLE_HOME/kernelle.internal.source.gone.template" ]; then
+        cp "$KERNELLE_HOME/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source" || true
+    else
+        # Fall back to original location for backwards compatibility
+        # Look for the template in common possible locations
+        template_found=false
+        for template_path in \
+            "$(dirname "$PWD")/scripts/templates/kernelle.internal.source.gone.template" \
+            "./scripts/templates/kernelle.internal.source.gone.template" \
+            "../scripts/templates/kernelle.internal.source.gone.template" \
+            "../../scripts/templates/kernelle.internal.source.gone.template"; do
+            if [ -f "$template_path" ]; then
+                cp "$template_path" "$KERNELLE_HOME/kernelle.internal.source" || true
+                template_found=true
+                break
+            fi
+        done
+        if [ "$template_found" = false ]; then
+            echo "⚠️  Could not find gone template - kernelle.internal.source not updated"
+        fi
+    fi
 fi
 
 echo "🔗 Removing cursor workflow symlinks..."
@@ -45,6 +64,9 @@ done || true
 echo "🗂️  Cleaning ~/.kernelle directory..."
 if [ -d "$KERNELLE_HOME" ]; then
     rm -rf "$KERNELLE_HOME/volatile" 2>/dev/null || true
+    # Clean up uninstaller files (but keep persistent data)
+    rm -f "$KERNELLE_HOME/uninstall.sh" 2>/dev/null || true
+    rm -f "$KERNELLE_HOME/kernelle.internal.source.gone.template" 2>/dev/null || true
 fi
 
 echo "🗑️  Removing binaries from $INSTALL_DIR..."
