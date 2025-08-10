@@ -4,7 +4,7 @@ complexity:
 
 ignore_files:
   #  [tsl-voxel] - Future cleanup project
-  - "crates/sentinel/**"
+  - "crates/secrets/**"
   - "crates/kernelle/**"
 
 ignore_patterns:

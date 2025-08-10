@@ -1,10 +1,10 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use sentinel::{services, Sentinel};
+use secrets::{services, Secrets};
 use std::env;
 
 #[derive(Parser)]
-#[command(name = "sentinel")]
+#[command(name = "secrets")]
 #[command(
   about = "Secure credential storage for Kernelle tools - the watchful guardian of secrets"
 )]
@@ -105,32 +105,32 @@ async fn main() -> Result<()> {
     bentley::spotlight("Sentinel - The Watchful Guardian of Secrets");
   }
 
-  let sentinel = Sentinel::new();
+  let secrets = Secrets::new();
 
   match cli.command {
     Commands::Setup { service, force } => {
-      handle_setup(&sentinel, &service, force, quiet_mode).await?;
+      handle_setup(&secrets, &service, force, quiet_mode).await?;
     }
     Commands::Store { service, key, value, force } => {
-      handle_store(&sentinel, &service, &key, value, force).await?;
+      handle_store(&secrets, &service, &key, value, force).await?;
     }
     Commands::Get { service, key, show } => {
-      handle_get(&sentinel, &service, &key, show).await?;
+      handle_get(&secrets, &service, &key, show).await?;
     }
     Commands::Update { service, key, value, force } => {
-      handle_update(&sentinel, &service, &key, value, force).await?;
+      handle_update(&secrets, &service, &key, value, force).await?;
     }
     Commands::Delete { service, key, force } => {
-      handle_delete(&sentinel, &service, key, force).await?;
+      handle_delete(&secrets, &service, key, force).await?;
     }
     Commands::List { service, keys } => {
-      handle_list(&sentinel, service, keys, quiet_mode).await?;
+      handle_list(&secrets, service, keys, quiet_mode).await?;
     }
     Commands::Clear { force } => {
-      handle_clear(&sentinel, force, quiet_mode).await?;
+      handle_clear(&secrets, force, quiet_mode).await?;
     }
     Commands::Verify { service } => {
-      handle_verify(&sentinel, &service).await?;
+      handle_verify(&secrets, &service).await?;
     }
   }
 
@@ -145,7 +145,7 @@ fn is_subprocess() -> bool {
 }
 
 async fn handle_setup(
-  sentinel: &Sentinel,
+  secrets: &Secrets,
   service_name: &str,
   force: bool,
   quiet: bool,
@@ -159,13 +159,13 @@ async fn handle_setup(
       bentley::error(&format!(
         "Unsupported service: {service_name}. Supported services: github, gitlab, jira, notion"
       ));
-      bentley::info("Use 'sentinel store' for arbitrary credential storage");
+      bentley::info("Use 'secrets store' for arbitrary credential storage");
       return Ok(());
     }
   };
 
   // Check if credentials already exist
-  let missing = sentinel.verify_service_credentials(&service_config)?;
+  let missing = secrets.verify_service_credentials(&service_config)?;
 
   if missing.is_empty() && !force {
     bentley::success(&format!(
@@ -197,7 +197,7 @@ async fn handle_setup(
         continue;
       }
 
-      sentinel.store_credential_raw(&service_config.name, &cred_spec.key, value.trim())?;
+      secrets.store_credential_raw(&service_config.name, &cred_spec.key, value.trim())?;
     }
   }
 
@@ -210,14 +210,14 @@ async fn handle_setup(
 }
 
 async fn handle_store(
-  sentinel: &Sentinel,
+  secrets: &Secrets,
   service: &str,
   key: &str,
   value: Option<String>,
   force: bool,
 ) -> Result<()> {
   // Check if credential already exists
-  if !force && sentinel.get_credential_raw(service, key).is_ok() {
+  if !force && secrets.get_credential_raw(service, key).is_ok() {
     bentley::warn(&format!("Credential {service}/{key} already exists"));
     bentley::info("Use --force to overwrite existing credential");
     return Ok(());
@@ -235,13 +235,13 @@ async fn handle_store(
     return Ok(());
   }
 
-  sentinel.store_credential_raw(service, key, credential_value.trim())?;
+  secrets.store_credential_raw(service, key, credential_value.trim())?;
   bentley::success(&format!("Stored credential: {service}/{key}"));
   Ok(())
 }
 
-async fn handle_get(sentinel: &Sentinel, service: &str, key: &str, show: bool) -> Result<()> {
-  match sentinel.get_credential_raw(service, key) {
+async fn handle_get(secrets: &Secrets, service: &str, key: &str, show: bool) -> Result<()> {
+  match secrets.get_credential_raw(service, key) {
     Ok(value) => {
       if show {
         bentley::info(&format!("Credential {service}/{key}:"));
@@ -259,14 +259,14 @@ async fn handle_get(sentinel: &Sentinel, service: &str, key: &str, show: bool) -
 }
 
 async fn handle_update(
-  sentinel: &Sentinel,
+  secrets: &Secrets,
   service: &str,
   key: &str,
   value: Option<String>,
   force: bool,
 ) -> Result<()> {
   // Check if credential exists
-  if sentinel.get_credential_raw(service, key).is_err() {
+  if secrets.get_credential_raw(service, key).is_err() {
     bentley::warn(&format!("Credential not found: {service}/{key}"));
     return Ok(());
   }
@@ -287,20 +287,20 @@ async fn handle_update(
     }
   }
 
-  sentinel.store_credential_raw(service, key, &new_value)?;
+  secrets.store_credential_raw(service, key, &new_value)?;
   bentley::success(&format!("Updated credential: {service}/{key}"));
   Ok(())
 }
 
 async fn handle_delete(
-  sentinel: &Sentinel,
+  secrets: &Secrets,
   service: &str,
   key: Option<String>,
   force: bool,
 ) -> Result<()> {
   if let Some(key) = key {
     // Delete specific credential
-    if sentinel.get_credential_raw(service, &key).is_err() {
+    if secrets.get_credential_raw(service, &key).is_err() {
       bentley::error(&format!("Credential not found: {service}/{key}"));
       return Ok(());
     }
@@ -314,7 +314,7 @@ async fn handle_delete(
       }
     }
 
-    sentinel.delete_credential(service, &key)?;
+    secrets.delete_credential(service, &key)?;
     bentley::success(&format!("Deleted credential: {service}/{key}"));
   } else {
     // Delete all credentials for service
@@ -336,8 +336,8 @@ async fn handle_delete(
     let mut deleted_count = 0;
 
     for key in &common_keys {
-      if sentinel.get_credential_raw(service, key).is_ok()
-        && sentinel.delete_credential(service, key).is_ok()
+      if secrets.get_credential_raw(service, key).is_ok()
+        && secrets.delete_credential(service, key).is_ok()
       {
         deleted_count += 1;
         bentley::info(&format!("Deleted: {service}/{key}"));
@@ -355,7 +355,7 @@ async fn handle_delete(
 }
 
 async fn handle_list(
-  sentinel: &Sentinel,
+  secrets: &Secrets,
   service_filter: Option<String>,
   show_keys: bool,
   quiet: bool,
@@ -374,7 +374,7 @@ async fn handle_list(
       let mut found_keys = Vec::new();
 
       for key in &common_keys {
-        if sentinel.get_credential_raw(&service, key).is_ok() {
+        if secrets.get_credential_raw(&service, key).is_ok() {
           found_keys.push(key);
         }
       }
@@ -403,7 +403,7 @@ async fn handle_list(
         _ => continue,
       };
 
-      let missing = sentinel.verify_service_credentials(&service_config)?;
+      let missing = secrets.verify_service_credentials(&service_config)?;
       let configured = service_config.required_credentials.len() - missing.len();
 
       if configured > 0 {
@@ -428,15 +428,15 @@ async fn handle_list(
 
     if found_services.is_empty() {
       bentley::info("No predefined services configured");
-      bentley::info("Use 'sentinel setup <service>' for GitHub, GitLab, Jira, or Notion");
-      bentley::info("Use 'sentinel store <service> <key>' for arbitrary credentials");
+      bentley::info("Use 'secrets setup <service>' for GitHub, GitLab, Jira, or Notion");
+      bentley::info("Use 'secrets store <service> <key>' for arbitrary credentials");
     }
   }
 
   Ok(())
 }
 
-async fn handle_clear(sentinel: &Sentinel, force: bool, quiet: bool) -> Result<()> {
+async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
   if !force {
     bentley::warn("⚠️  This will DELETE ALL CREDENTIALS from the vault!");
     bentley::warn("This action cannot be undone!");
@@ -463,8 +463,8 @@ async fn handle_clear(sentinel: &Sentinel, force: bool, quiet: bool) -> Result<(
     };
 
     for cred_spec in &service_config.required_credentials {
-      if sentinel.get_credential_raw(&service_config.name, &cred_spec.key).is_ok()
-        && sentinel.delete_credential(&service_config.name, &cred_spec.key).is_ok()
+      if secrets.get_credential_raw(&service_config.name, &cred_spec.key).is_ok()
+        && secrets.delete_credential(&service_config.name, &cred_spec.key).is_ok()
       {
         cleared_count += 1;
       }
@@ -480,7 +480,7 @@ async fn handle_clear(sentinel: &Sentinel, force: bool, quiet: bool) -> Result<(
   bentley::info(
     "Note: Any arbitrary credentials (not from predefined services) must be deleted individually",
   );
-  bentley::info("Use 'sentinel delete <service> <key>' to remove specific credentials");
+  bentley::info("Use 'secrets delete <service> <key>' to remove specific credentials");
 
   if !quiet {
     bentley::flourish("Vault clearing complete!");
@@ -490,7 +490,7 @@ async fn handle_clear(sentinel: &Sentinel, force: bool, quiet: bool) -> Result<(
   Ok(())
 }
 
-async fn handle_verify(sentinel: &Sentinel, service_name: &str) -> Result<()> {
+async fn handle_verify(secrets: &Secrets, service_name: &str) -> Result<()> {
   let service_config = match service_name.to_lowercase().as_str() {
     "github" => services::github(),
     "gitlab" => services::gitlab(),
@@ -498,14 +498,14 @@ async fn handle_verify(sentinel: &Sentinel, service_name: &str) -> Result<()> {
     "notion" => services::notion(),
     _ => {
       bentley::error(&format!("Unsupported service: {service_name}"));
-      bentley::info("Use 'sentinel get <service> <key>' to check arbitrary credentials");
+      bentley::info("Use 'secrets get <service> <key>' to check arbitrary credentials");
       return Ok(());
     }
   };
 
   bentley::info(&format!("Verifying credentials for {}...", service_config.name));
 
-  let missing = sentinel.verify_service_credentials(&service_config)?;
+  let missing = secrets.verify_service_credentials(&service_config)?;
 
   if missing.is_empty() {
     bentley::success(&format!(
@@ -518,7 +518,7 @@ async fn handle_verify(sentinel: &Sentinel, service_name: &str) -> Result<()> {
       service_config.name,
       missing.join(", ")
     ));
-    bentley::info(&format!("Run 'sentinel setup {service_name}' to configure missing credentials"));
+    bentley::info(&format!("Run 'secrets setup {service_name}' to configure missing credentials"));
   }
 
   Ok(())
