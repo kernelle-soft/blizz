@@ -39,7 +39,7 @@ runs:
         fi
         
         # Define all crates
-        ALL_CRATES='["bentley", "sentinel", "adam", "violet", "insights"]'
+        ALL_CRATES='["bentley", "secrets", "adam", "violet", "insights"]'
         echo "all-crates=$ALL_CRATES" >> $GITHUB_OUTPUT
         
         # Check for workspace-level changes
@@ -60,7 +60,7 @@ runs:
         # Detect changed crates based on file paths
         CHANGED_CRATES='[]'
         
-        for crate in bentley sentinel adam violet insights; do
+        for crate in bentley secrets adam violet insights; do
           if git diff --name-only $BASE_SHA..HEAD | grep -q "^crates/$crate/"; then
             echo "🎯 Crate $crate has changes"
             CHANGED_CRATES=$(echo $CHANGED_CRATES | jq --arg crate "$crate" '. + [$crate]')

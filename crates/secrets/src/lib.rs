@@ -271,11 +271,11 @@ impl PasswordBasedCryptoManager {
   }
 }
 
-/// Sentinel - The watchful guardian of secrets
+/// Secrets - The watchful guardian of secrets
 ///
 /// Provides secure credential storage using Argon2-based password derivation
 /// instead of storing keys on disk. Requires a master password for access.
-pub struct Sentinel {
+pub struct Secrets {
   #[allow(dead_code)]
   service_name: String,
   crypto: Box<dyn CryptoProvider>,
@@ -305,7 +305,7 @@ pub struct Credential {
   pub value: String,
 }
 
-impl CredentialProvider for Sentinel {
+impl CredentialProvider for Secrets {
   fn get_credential(&self, service: &str, key: &str) -> Result<String> {
     self.get_credential_raw(service, key)
   }
@@ -315,13 +315,13 @@ impl CredentialProvider for Sentinel {
   }
 }
 
-impl Sentinel {
-  /// Create a new Sentinel instance for the Kernelle toolset
+impl Secrets {
+  /// Create a new Secrets instance for the Kernelle toolset
   pub fn new() -> Self {
     Self::with_crypto_provider(Box::new(PasswordBasedCryptoManager::new()))
   }
 
-  /// Create a Sentinel instance with a custom crypto provider for dependency injection
+  /// Create a Secrets instance with a custom crypto provider for dependency injection
   pub fn with_crypto_provider(crypto: Box<dyn CryptoProvider>) -> Self {
     Self { service_name: "kernelle".to_string(), crypto }
   }
@@ -492,7 +492,7 @@ impl Sentinel {
   }
 }
 
-impl Default for Sentinel {
+impl Default for Secrets {
   fn default() -> Self {
     Self::new()
   }
@@ -665,12 +665,12 @@ mod tests {
   }
 
   // Helper function to create a test sentinel with mock crypto provider
-  fn create_test_sentinel_with_mock(password: &str) -> Sentinel {
-    Sentinel::with_crypto_provider(Box::new(MockCryptoProvider::new(password)))
+  fn create_test_secrets_with_mock(password: &str) -> Secrets {
+    Secrets::with_crypto_provider(Box::new(MockCryptoProvider::new(password)))
   }
 
   // Helper function to create a test sentinel with a unique service name
-  fn create_test_sentinel() -> Sentinel {
+  fn create_test_secrets() -> Secrets {
     // Create isolated test environment for each test
     use std::time::{SystemTime, UNIX_EPOCH};
     let unique_id = format!(
@@ -682,11 +682,11 @@ mod tests {
 
     // Create a custom PasswordBasedCryptoManager with isolated path
     let mut credentials_path = temp_dir.clone();
-    credentials_path.push("sentinel");
+    credentials_path.push("secrets");
     credentials_path.push("credentials.enc");
     let crypto = PasswordBasedCryptoManager { credentials_path };
 
-    Sentinel { service_name: format!("test_kernelle_{unique_id}"), crypto: Box::new(crypto) }
+    Secrets { service_name: format!("test_kernelle_{unique_id}"), crypto: Box::new(crypto) }
   }
 
   #[test]
@@ -713,48 +713,48 @@ mod tests {
   }
 
   #[test]
-  fn test_sentinel_creation() {
-    let sentinel = Sentinel::new();
-    assert_eq!(sentinel.service_name, "kernelle");
+  fn test_secrets_creation() {
+    let secrets = Secrets::new();
+    assert_eq!(secrets.service_name, "kernelle");
 
-    let default_sentinel = Sentinel::default();
-    assert_eq!(default_sentinel.service_name, "kernelle");
+    let default_secrets = Secrets::default();
+    assert_eq!(default_secrets.service_name, "kernelle");
   }
 
   #[test]
   fn test_common_keys_for_service() {
-    let sentinel = Sentinel::new();
+    let secrets = Secrets::new();
 
-    assert_eq!(sentinel.get_common_keys_for_service("github"), vec!["token"]);
-    assert_eq!(sentinel.get_common_keys_for_service("gitlab"), vec!["token"]);
-    assert_eq!(sentinel.get_common_keys_for_service("jira"), vec!["token", "email", "url"]);
-    assert_eq!(sentinel.get_common_keys_for_service("notion"), vec!["token"]);
-    assert_eq!(sentinel.get_common_keys_for_service("unknown"), vec!["token"]);
-    assert_eq!(sentinel.get_common_keys_for_service("GITHUB"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_service("github"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_service("gitlab"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_service("jira"), vec!["token", "email", "url"]);
+    assert_eq!(secrets.get_common_keys_for_service("notion"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_service("unknown"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_service("GITHUB"), vec!["token"]);
   }
 
   #[test]
   fn test_credential_storage_and_retrieval() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
     let service = "test_service";
     let key = "test_key";
     let value = "test_secret_value";
 
     // Store credential
-    let store_result = sentinel.store_credential(service, key, value);
+    let store_result = secrets.store_credential(service, key, value);
     assert!(store_result.is_ok(), "Failed to store credential: {:?}", store_result.err());
 
     // Retrieve credential
-    let retrieved = sentinel.get_credential(service, key);
+    let retrieved = secrets.get_credential(service, key);
     assert!(retrieved.is_ok(), "Failed to retrieve credential: {:?}", retrieved.err());
     assert_eq!(retrieved.unwrap(), value);
   }
 
   #[test]
   fn test_credential_retrieval_nonexistent() {
-    let sentinel = create_test_sentinel();
-    let result = sentinel.get_credential("nonexistent_service", "nonexistent_key");
+    let secrets = create_test_secrets();
+    let result = secrets.get_credential("nonexistent_service", "nonexistent_key");
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("not found"));
   }
@@ -762,69 +762,69 @@ mod tests {
   #[test]
   fn test_credential_deletion() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
     let service = "test_delete_service";
     let key = "test_delete_key";
     let value = "test_delete_value";
 
     // Store then delete
-    sentinel.store_credential(service, key, value).unwrap();
-    let delete_result = sentinel.delete_credential(service, key);
+    secrets.store_credential(service, key, value).unwrap();
+    let delete_result = secrets.delete_credential(service, key);
     assert!(delete_result.is_ok());
 
     // Verify deletion
-    let retrieve_result = sentinel.get_credential(service, key);
+    let retrieve_result = secrets.get_credential(service, key);
     assert!(retrieve_result.is_err());
   }
 
   #[test]
   fn test_credential_overwrite() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
     let service = "test_overwrite_service";
     let key = "test_overwrite_key";
     let value1 = "original_value";
     let value2 = "updated_value";
 
     // Store original value
-    sentinel.store_credential(service, key, value1).unwrap();
-    assert_eq!(sentinel.get_credential(service, key).unwrap(), value1);
+    secrets.store_credential(service, key, value1).unwrap();
+    assert_eq!(secrets.get_credential(service, key).unwrap(), value1);
 
     // Overwrite with new value
-    sentinel.store_credential(service, key, value2).unwrap();
-    assert_eq!(sentinel.get_credential(service, key).unwrap(), value2);
+    secrets.store_credential(service, key, value2).unwrap();
+    assert_eq!(secrets.get_credential(service, key).unwrap(), value2);
   }
 
   #[test]
   fn test_multiple_credentials_same_service() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
     let service = "multi_cred_service";
 
     // Store multiple credentials for same service
-    sentinel.store_credential(service, "key1", "value1").unwrap();
-    sentinel.store_credential(service, "key2", "value2").unwrap();
-    sentinel.store_credential(service, "key3", "value3").unwrap();
+    secrets.store_credential(service, "key1", "value1").unwrap();
+    secrets.store_credential(service, "key2", "value2").unwrap();
+    secrets.store_credential(service, "key3", "value3").unwrap();
 
     // Verify all can be retrieved independently
-    assert_eq!(sentinel.get_credential(service, "key1").unwrap(), "value1");
-    assert_eq!(sentinel.get_credential(service, "key2").unwrap(), "value2");
-    assert_eq!(sentinel.get_credential(service, "key3").unwrap(), "value3");
+    assert_eq!(secrets.get_credential(service, "key1").unwrap(), "value1");
+    assert_eq!(secrets.get_credential(service, "key2").unwrap(), "value2");
+    assert_eq!(secrets.get_credential(service, "key3").unwrap(), "value3");
   }
 
   #[test]
   fn test_get_service_env_vars() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
     let service = "env_test_service";
 
     // Test with no credentials stored
-    let env_vars = sentinel.get_service_env_vars(service).unwrap();
+    let env_vars = secrets.get_service_env_vars(service).unwrap();
     assert!(env_vars.is_empty());
 
     // Store a credential and test env var generation
-    sentinel.store_credential(service, "token", "test_token_123").unwrap();
-    let env_vars = sentinel.get_service_env_vars(service).unwrap();
+    secrets.store_credential(service, "token", "test_token_123").unwrap();
+    let env_vars = secrets.get_service_env_vars(service).unwrap();
 
     let expected_key = format!("{}_TOKEN", service.to_uppercase());
     assert!(env_vars.contains_key(&expected_key));
@@ -834,12 +834,12 @@ mod tests {
   #[test]
   fn test_get_service_env_vars_github() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
     let service = "github";
 
     // Store GitHub token
-    sentinel.store_credential(service, "token", "ghp_test_token").unwrap();
-    let env_vars = sentinel.get_service_env_vars(service).unwrap();
+    secrets.store_credential(service, "token", "ghp_test_token").unwrap();
+    let env_vars = secrets.get_service_env_vars(service).unwrap();
 
     assert_eq!(env_vars.get("GITHUB_TOKEN").unwrap(), "ghp_test_token");
   }
@@ -847,15 +847,15 @@ mod tests {
   #[test]
   fn test_get_service_env_vars_jira() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
     let service = "jira";
 
     // Store Jira credentials
-    sentinel.store_credential(service, "token", "jira_token").unwrap();
-    sentinel.store_credential(service, "email", "test@example.com").unwrap();
-    sentinel.store_credential(service, "url", "https://test.atlassian.net").unwrap();
+    secrets.store_credential(service, "token", "jira_token").unwrap();
+    secrets.store_credential(service, "email", "test@example.com").unwrap();
+    secrets.store_credential(service, "url", "https://test.atlassian.net").unwrap();
 
-    let env_vars = sentinel.get_service_env_vars(service).unwrap();
+    let env_vars = secrets.get_service_env_vars(service).unwrap();
 
     assert_eq!(env_vars.get("JIRA_TOKEN").unwrap(), "jira_token");
     assert_eq!(env_vars.get("JIRA_EMAIL").unwrap(), "test@example.com");
@@ -865,7 +865,7 @@ mod tests {
   #[test]
   #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_setup_service() {
-    let sentinel = create_test_sentinel();
+    let secrets = create_test_secrets();
     let config = ServiceConfig {
       name: "test_setup_service".to_string(),
       description: "Test service for setup".to_string(),
@@ -878,23 +878,23 @@ mod tests {
     };
 
     // Note: This test will use placeholder values from prompt_for_credential
-    let result = sentinel.setup_service(&config);
+    let result = secrets.setup_service(&config);
     assert!(result.is_ok());
 
     // Verify credential was stored (with placeholder value)
-    let stored = sentinel.get_credential("test_setup_service", "test_key");
+    let stored = secrets.get_credential("test_setup_service", "test_key");
     assert!(stored.is_ok());
     assert_eq!(stored.unwrap(), "placeholder_credential");
 
     // Clean up
-    let _ = sentinel.delete_credential("test_setup_service", "test_key");
+    let _ = secrets.delete_credential("test_setup_service", "test_key");
   }
 
   #[test]
   fn test_prompt_for_optional() {
-    let sentinel = create_test_sentinel();
+    let secrets = create_test_secrets();
     // Test the current implementation which always returns true
-    let result = sentinel.prompt_for_optional("test_key");
+    let result = secrets.prompt_for_optional("test_key");
     assert!(result.is_ok());
     assert!(result.unwrap());
   }
@@ -902,7 +902,7 @@ mod tests {
   #[test]
   #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_prompt_for_credential() {
-    let sentinel = create_test_sentinel();
+    let secrets = create_test_secrets();
     let spec = CredentialSpec {
       key: "test_key".to_string(),
       description: "Test description".to_string(),
@@ -910,7 +910,7 @@ mod tests {
       is_required: true,
     };
 
-    let result = sentinel.prompt_for_credential(&spec);
+    let result = secrets.prompt_for_credential(&spec);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "placeholder_credential");
 
@@ -922,7 +922,7 @@ mod tests {
       is_required: true,
     };
 
-    let result = sentinel.prompt_for_credential(&spec_no_example);
+    let result = secrets.prompt_for_credential(&spec_no_example);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "placeholder_credential");
   }
@@ -971,13 +971,13 @@ mod tests {
   #[test]
   fn test_edge_cases() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
 
     // Test with empty strings
-    let result = sentinel.store_credential("", "", "");
+    let result = secrets.store_credential("", "", "");
     assert!(result.is_ok());
 
-    let retrieved = sentinel.get_credential("", "");
+    let retrieved = secrets.get_credential("", "");
     assert!(retrieved.is_ok());
     assert_eq!(retrieved.unwrap(), "");
 
@@ -986,25 +986,25 @@ mod tests {
     let key = "key&with*special(chars)";
     let value = "value with spaces and symbols!@#$%^&*()";
 
-    sentinel.store_credential(service, key, value).unwrap();
-    let retrieved = sentinel.get_credential(service, key).unwrap();
+    secrets.store_credential(service, key, value).unwrap();
+    let retrieved = secrets.get_credential(service, key).unwrap();
     assert_eq!(retrieved, value);
   }
 
   #[test]
   fn test_delete_nonexistent_credential() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
 
     // Try to delete a credential that doesn't exist
-    let result = sentinel.delete_credential("nonexistent", "key");
+    let result = secrets.delete_credential("nonexistent", "key");
     assert!(result.is_err());
   }
 
   #[test]
   #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_setup_service_with_optional_credentials() {
-    let sentinel = Sentinel::new();
+    let secrets = Secrets::new();
 
     // Create a config with optional credentials
     let config = ServiceConfig {
@@ -1027,32 +1027,32 @@ mod tests {
     };
 
     // Clean up any existing credentials
-    let _ = sentinel.delete_credential(&config.name, "required_token");
-    let _ = sentinel.delete_credential(&config.name, "optional_key");
+    let _ = secrets.delete_credential(&config.name, "required_token");
+    let _ = secrets.delete_credential(&config.name, "optional_key");
 
     // Test setup service - this will call prompt_for_optional and store_credential
-    let result = sentinel.setup_service(&config);
+    let result = secrets.setup_service(&config);
     assert!(result.is_ok());
 
     // Verify the required credential was stored
-    let required_cred = sentinel.get_credential(&config.name, "required_token");
+    let required_cred = secrets.get_credential(&config.name, "required_token");
     assert!(required_cred.is_ok());
     assert_eq!(required_cred.unwrap(), "placeholder_credential");
 
     // Verify the optional credential was also stored (since prompt_for_optional returns true)
-    let optional_cred = sentinel.get_credential(&config.name, "optional_key");
+    let optional_cred = secrets.get_credential(&config.name, "optional_key");
     assert!(optional_cred.is_ok());
     assert_eq!(optional_cred.unwrap(), "placeholder_credential");
 
     // Clean up
-    let _ = sentinel.delete_credential(&config.name, "required_token");
-    let _ = sentinel.delete_credential(&config.name, "optional_key");
+    let _ = secrets.delete_credential(&config.name, "required_token");
+    let _ = secrets.delete_credential(&config.name, "optional_key");
   }
 
   #[test]
   #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_prompt_for_credential_with_example() {
-    let sentinel = Sentinel::new();
+    let secrets = Secrets::new();
 
     // Test credential spec with example
     let spec_with_example = CredentialSpec {
@@ -1062,7 +1062,7 @@ mod tests {
       is_required: true,
     };
 
-    let result = sentinel.prompt_for_credential(&spec_with_example);
+    let result = secrets.prompt_for_credential(&spec_with_example);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "placeholder_credential");
 
@@ -1074,7 +1074,7 @@ mod tests {
       is_required: true,
     };
 
-    let result = sentinel.prompt_for_credential(&spec_without_example);
+    let result = secrets.prompt_for_credential(&spec_without_example);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "placeholder_credential");
   }
@@ -1082,7 +1082,7 @@ mod tests {
   #[test]
   #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_setup_service_with_mixed_optional_credentials() {
-    let sentinel = Sentinel::new();
+    let secrets = Secrets::new();
 
     // Create a mock config with both required and optional credentials
     let config = ServiceConfig {
@@ -1105,43 +1105,43 @@ mod tests {
     };
 
     // Clean up any existing credentials
-    let _ = sentinel.delete_credential(&config.name, "required_token");
-    let _ = sentinel.delete_credential(&config.name, "optional_key");
+    let _ = secrets.delete_credential(&config.name, "required_token");
+    let _ = secrets.delete_credential(&config.name, "optional_key");
 
     // Test setup service - this will exercise both branches of the conditional
-    let result = sentinel.setup_service(&config);
+    let result = secrets.setup_service(&config);
     assert!(result.is_ok());
 
     // Verify the required credential was stored (line 109 coverage)
-    let required_cred = sentinel.get_credential(&config.name, "required_token");
+    let required_cred = secrets.get_credential(&config.name, "required_token");
     assert!(required_cred.is_ok());
     assert_eq!(required_cred.unwrap(), "placeholder_credential");
 
     // Verify the optional credential was also stored since prompt_for_optional returns true
-    let optional_cred = sentinel.get_credential(&config.name, "optional_key");
+    let optional_cred = secrets.get_credential(&config.name, "optional_key");
     assert!(optional_cred.is_ok());
     assert_eq!(optional_cred.unwrap(), "placeholder_credential");
 
     // Clean up
-    let _ = sentinel.delete_credential(&config.name, "required_token");
-    let _ = sentinel.delete_credential(&config.name, "optional_key");
+    let _ = secrets.delete_credential(&config.name, "required_token");
+    let _ = secrets.delete_credential(&config.name, "optional_key");
   }
 
   #[test]
   fn test_store_credential_success_logging() {
     let password = "test_password_123";
-    let sentinel = create_test_sentinel_with_mock(password);
+    let secrets = create_test_secrets_with_mock(password);
 
     // Use a unique service and key to avoid conflicts with other tests
     let test_service = format!("test_logging_service_{}", std::process::id());
     let test_key = format!("test_logging_key_{}", std::process::id());
 
     // This test specifically targets line 53 - the bentley::event_success call
-    let result = sentinel.store_credential(&test_service, &test_key, "test_value");
+    let result = secrets.store_credential(&test_service, &test_key, "test_value");
     assert!(result.is_ok(), "Failed to store credential: {:?}", result.err());
 
     // Verify the credential was actually stored
-    let retrieved = sentinel.get_credential(&test_service, &test_key);
+    let retrieved = secrets.get_credential(&test_service, &test_key);
     assert!(retrieved.is_ok(), "Failed to retrieve credential: {:?}", retrieved.err());
     assert_eq!(retrieved.unwrap(), "test_value");
   }
@@ -1150,8 +1150,8 @@ mod tests {
   fn test_argon2_password_security() {
     let password1 = "correct_password_123";
     let password2 = "wrong_password_456";
-    let sentinel1 = create_test_sentinel_with_mock(password1);
-    let sentinel2 = create_test_sentinel_with_mock(password2);
+    let sentinel1 = create_test_secrets_with_mock(password1);
+    let sentinel2 = create_test_secrets_with_mock(password2);
     let service = "security_test_service";
     let key = "security_test_key";
     let value = "secret_value";

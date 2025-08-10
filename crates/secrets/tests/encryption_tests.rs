@@ -1,4 +1,4 @@
-use sentinel::encryption::{CredentialCache, EncryptedBlob, EncryptionManager};
+use secrets::encryption::{CredentialCache, EncryptedBlob, EncryptionManager};
 use std::collections::HashMap;
 use std::env;
 use tempfile::TempDir;

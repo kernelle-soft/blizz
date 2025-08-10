@@ -49,7 +49,7 @@ runs:
           ~/.cargo/bin/insights
           ~/.cargo/bin/violet
           ~/.cargo/bin/adam
-          ~/.cargo/bin/sentinel
+          ~/.cargo/bin/secrets
           ~/.kernelle
         key: ${{ runner.os }}-kernelle-bootstrap-${{ hashFiles('crates/**/Cargo.toml', 'Cargo.lock') }}
         restore-keys: |

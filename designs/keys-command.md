@@ -274,10 +274,10 @@ fn test_service_functionality() {
 
 ## Implementation Plan
 
-Given that `sentinel` already provides a solid foundation with CLI commands and 70% of the required functionality, the migration to `keeper` should be done in phases to maintain stability while adding the missing security and daemon features.
+Given that `secrets` already provides a solid foundation with CLI commands and 70% of the required functionality, the migration to `keeper` should be done in phases to maintain stability while adding the missing security and daemon features.
 
 ### Phase 1: Security Hardening 🔒
-**Goal:** Fix cryptographic weaknesses in current `sentinel` implementation
+**Goal:** Fix cryptographic weaknesses in current `secrets` implementation
 
 - [ ] **Replace weak key derivation**
   - [ ] Remove `DefaultHasher` usage in `encryption.rs`
@@ -302,19 +302,19 @@ Given that `sentinel` already provides a solid foundation with CLI commands and 
 - Memory containing secrets is properly zeroed after use
 
 ### Phase 2: Rename and API Alignment 🔄
-**Goal:** Rename `sentinel` to `keeper` and align CLI with design
+**Goal:** Rename `secrets` to `keeper` and align CLI with design
 
 - [ ] **Rename binary and crate**
-  - [ ] Rename `crates/sentinel` to `crates/keeper`
-  - [ ] Update binary name from `sentinel` to `keeper`
+  - [ ] Rename `crates/secrets` to `crates/keeper`
+  - [ ] Update binary name from `secrets` to `keeper`
   - [ ] Update all internal references and documentation
   - [ ] Create alias/symlink for backward compatibility during transition
 
 - [ ] **Align CLI API with design**
   - [ ] Map existing commands to new structure:
-    - `sentinel store <service> <key> <value>` → `keeper store [-g <service>] <key> [<value>]`
-    - `sentinel get <service> <key>` → `keeper read [-g <service>] <key>`
-    - `sentinel list` → `keeper list [-g <group>]`
+    - `secrets store <service> <key> <value>` → `keeper store [-g <service>] <key> [<value>]`
+    - `secrets get <service> <key>` → `keeper read [-g <service>] <key>`
+    - `secrets list` → `keeper list [-g <group>]`
   - [ ] Implement group concept (use service name as default group)
   - [ ] Add `-g, --group` option support
   - [ ] Maintain backward compatibility with old command structure
@@ -327,7 +327,7 @@ Given that `sentinel` already provides a solid foundation with CLI commands and 
 
 **Acceptance Criteria:**
 - `keeper` command works with new CLI syntax
-- All existing `sentinel` functionality preserved
+- All existing `secrets` functionality preserved
 - Backward compatibility maintained for services using old trait
 - Group concept properly implemented
 
@@ -363,12 +363,12 @@ Given that `sentinel` already provides a solid foundation with CLI commands and 
 - No password prompts during normal operation after initial setup
 
 ### Phase 4: Integration Updates 🔗
-**Goal:** Update existing services to use new `keeper` instead of `sentinel`
+**Goal:** Update existing services to use new `keeper` instead of `secrets`
 
 - [ ] **Update service integrations**
   - [ ] Update `jerrod` to use `SecretProvider` trait
   - [ ] Update `insights` credential handling
-  - [ ] Update any other services using `sentinel`
+  - [ ] Update any other services using `secrets`
   - [ ] Test all integrations work with new system
 
 - [ ] **Environment variable support**
@@ -377,15 +377,15 @@ Given that `sentinel` already provides a solid foundation with CLI commands and 
   - [ ] Document security implications and best practices
 
 - [ ] **Migration utilities**
-  - [ ] Create migration tool for existing `sentinel` credentials
-  - [ ] Handle file path changes (`sentinel/` → `keeper/`)
+  - [ ] Create migration tool for existing `secrets` credentials
+  - [ ] Handle file path changes (`secrets/` → `keeper/`)
   - [ ] Provide rollback capability during transition
 
 **Acceptance Criteria:**
 - All services work seamlessly with new `keeper` system
 - No functionality lost during migration
 - Environment variable authentication works
-- Migration from old `sentinel` data successful
+- Migration from old `secrets` data successful
 
 ### Phase 5: Enhanced Features ✨
 **Goal:** Add advanced features and polish
@@ -418,7 +418,7 @@ Given that `sentinel` already provides a solid foundation with CLI commands and 
 **Goal:** Remove old code and finalize migration
 
 - [ ] **Remove deprecated code**
-  - [ ] Remove old `sentinel` crate after all integrations migrated
+  - [ ] Remove old `secrets` crate after all integrations migrated
   - [ ] Remove compatibility wrappers
   - [ ] Remove old file paths and configurations
   - [ ] Clean up documentation references
@@ -430,7 +430,7 @@ Given that `sentinel` already provides a solid foundation with CLI commands and 
   - [ ] User acceptance testing
 
 **Acceptance Criteria:**
-- No old `sentinel` code remains
+- No old `secrets` code remains
 - All functionality working in production
 - Security requirements fully met
 - Performance acceptable for all use cases
