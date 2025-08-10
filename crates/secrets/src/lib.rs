@@ -664,12 +664,12 @@ mod tests {
     }
   }
 
-  // Helper function to create a test sentinel with mock crypto provider
+  // Helper function to create a test secrets with mock crypto provider
   fn create_test_secrets_with_mock(password: &str) -> Secrets {
     Secrets::with_crypto_provider(Box::new(MockCryptoProvider::new(password)))
   }
 
-  // Helper function to create a test sentinel with a unique service name
+  // Helper function to create a test secrets with a unique service name
   fn create_test_secrets() -> Secrets {
     // Create isolated test environment for each test
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1150,22 +1150,22 @@ mod tests {
   fn test_argon2_password_security() {
     let password1 = "correct_password_123";
     let password2 = "wrong_password_456";
-    let sentinel1 = create_test_secrets_with_mock(password1);
-    let sentinel2 = create_test_secrets_with_mock(password2);
+    let secrets1 = create_test_secrets_with_mock(password1);
+    let secrets2 = create_test_secrets_with_mock(password2);
     let service = "security_test_service";
     let key = "security_test_key";
     let value = "secret_value";
 
     // Store with password1
-    let result = sentinel1.store_credential(service, key, value);
+    let result = secrets1.store_credential(service, key, value);
     assert!(result.is_ok(), "Failed to store with correct password");
 
-    // Try to retrieve with sentinel2 (different password) - should fail
-    let wrong_password_result = sentinel2.get_credential(service, key);
+    // Try to retrieve with secrets2 (different password) - should fail
+    let wrong_password_result = secrets2.get_credential(service, key);
     assert!(wrong_password_result.is_err(), "Should not be able to retrieve with wrong password");
 
     // Verify we can still retrieve with correct password
-    let correct_password_result = sentinel1.get_credential(service, key);
+    let correct_password_result = secrets1.get_credential(service, key);
     assert!(correct_password_result.is_ok(), "Should be able to retrieve with correct password");
     assert_eq!(correct_password_result.unwrap(), value);
   }
