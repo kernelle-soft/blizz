@@ -203,6 +203,21 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     fs::copy(&new_source, &source_path)?;
   }
 
+  // Update the uninstaller script
+  let uninstall_path = real_kernelle_home.join("uninstall.sh");
+  let new_uninstall = new_kernelle_home.join("uninstall.sh");
+  if new_uninstall.exists() {
+    fs::copy(&new_uninstall, &uninstall_path)?;
+    // Ensure it's executable
+    #[cfg(unix)]
+    {
+      use std::os::unix::fs::PermissionsExt;
+      let mut perms = fs::metadata(&uninstall_path)?.permissions();
+      perms.set_mode(0o755);
+      fs::set_permissions(&uninstall_path, perms)?;
+    }
+  }
+
   println!("update complete!");
   println!("snapshot saved at: {}", snapshot_dir.display());
   println!("snapshot will be automatically cleaned up in 24 hours");
