@@ -48,10 +48,10 @@ echo "🗂️  Cleaning ~/.kernelle directory..."
 if [ -d "$KERNELLE_HOME" ]; then
 	# Clean up uninstaller files (but keep persistent data)
 	rm -f "$KERNELLE_HOME/uninstall.sh" 2>/dev/null || true
-	rm -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" 2>/dev/null || true
-	# Optionally remove volatile if empty
-	if [ -d "$KERNELLE_HOME/volatile" ] && [ -z "$(ls -A "$KERNELLE_HOME/volatile" 2>/dev/null)" ]; then
-		rmdir "$KERNELLE_HOME/volatile" 2>/dev/null || true
+	
+	# Remove volatile directory - it contains no user data
+	if [ -d "$KERNELLE_HOME/volatile" ]; then
+		rm -rf "$KERNELLE_HOME/volatile" 2>/dev/null || true
 	fi
 fi
 
