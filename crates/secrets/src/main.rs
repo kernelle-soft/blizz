@@ -6,7 +6,8 @@ use std::env;
 #[derive(Parser)]
 #[command(name = "secrets")]
 #[command(
-  about = "Secure credential storage for Kernelle tools - the watchful guardian of secrets"
+  about = "Secrets management for Kernelle, the AI toolshed.",
+  long_about = "Secure secret storage for Kernelle tools. Secrets are organized into groups for better management."
 )]
 #[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
 struct Cli {
@@ -27,35 +28,37 @@ enum Commands {
     #[arg(long)]
     force: bool,
   },
-  /// Store an arbitrary credential entry
+  /// Store a secret entry
   Store {
-    /// Service/namespace for the credential
-    service: String,
-    /// Key name for the credential
-    key: String,
+    /// Secret name/key
+    name: String,
     /// Value to store (will be prompted securely if not provided)
-    #[arg(long)]
     value: Option<String>,
-    /// Force overwrite existing credential
+    /// Group/namespace for the secret (defaults to 'general')
+    #[arg(short, long)]
+    group: Option<String>,
+    /// Force overwrite existing secret
     #[arg(long)]
     force: bool,
   },
-  /// Retrieve a credential entry
-  Get {
-    /// Service/namespace for the credential
-    service: String,
-    /// Key name for the credential
-    key: String,
-    /// Show the credential value (default: just confirm existence)
+  /// Retrieve/read a secret entry
+  Read {
+    /// Secret name/key
+    name: String,
+    /// Group/namespace for the secret (defaults to 'general')
+    #[arg(short, long)]
+    group: Option<String>,
+    /// Show the secret value (default: just confirm existence)
     #[arg(long)]
     show: bool,
   },
-  /// Update an existing credential entry
+  /// Update an existing secret entry
   Update {
-    /// Service/namespace for the credential
-    service: String,
-    /// Key name for the credential
-    key: String,
+    /// Secret name/key
+    name: String,
+    /// Group/namespace for the secret (defaults to 'general')
+    #[arg(short, long)]
+    group: Option<String>,
     /// New value to store (will be prompted securely if not provided)
     #[arg(long)]
     value: Option<String>,
@@ -63,25 +66,28 @@ enum Commands {
     #[arg(long)]
     force: bool,
   },
-  /// Delete credential entries
+  /// Delete secret entries
   Delete {
-    /// Service/namespace for the credential
-    service: String,
-    /// Key name for the credential (optional - deletes all service credentials if not specified)
-    key: Option<String>,
+    /// Secret name/key
+    name: String,
+    /// Group/namespace for the secret (defaults to 'general')
+    #[arg(short, long)]
+    group: Option<String>,
     /// Skip confirmation prompt
     #[arg(long)]
     force: bool,
   },
-  /// List all credential entries
+  /// List all secret entries
+  #[command(visible_alias = "ls")]
   List {
-    /// Show only entries for a specific service
-    service: Option<String>,
-    /// Show credential keys (default: just service names)
+    /// Show only entries for a specific group
+    #[arg(short, long)]
+    group: Option<String>,
+    /// Show secret keys (default: just group names)
     #[arg(long)]
     keys: bool,
   },
-  /// Clear all credentials from the vault
+  /// Clear all secrets from the vault
   Clear {
     /// Skip confirmation prompt
     #[arg(long)]
@@ -92,17 +98,30 @@ enum Commands {
     /// Service to verify (github, gitlab, jira, notion)
     service: String,
   },
+  
+  // Legacy command aliases for backward compatibility
+  /// @deprecated Use 'read' instead
+  #[command(hide = true)]
+  Get {
+    /// Service/namespace for the credential
+    service: String,
+    /// Key name for the credential
+    key: String,
+    /// Show the credential value (default: just confirm existence)
+    #[arg(long)]
+    show: bool,
+  },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
   let cli = Cli::parse();
 
-  // Auto-detect quiet mode if called as subprocess or if SENTINEL_QUIET is set
-  let quiet_mode = cli.quiet || env::var("SENTINEL_QUIET").is_ok() || is_subprocess();
+  // Auto-detect quiet mode if called as subprocess or if SECRETS_QUIET is set
+  let quiet_mode = cli.quiet || env::var("SECRETS_QUIET").is_ok() || is_subprocess();
 
   if !quiet_mode {
-    bentley::spotlight("Sentinel - The Watchful Guardian of Secrets");
+    bentley::spotlight("Secrets - The Watchful Guardian of Secrets");
   }
 
   let secrets = Secrets::new();
@@ -111,26 +130,34 @@ async fn main() -> Result<()> {
     Commands::Setup { service, force } => {
       handle_setup(&secrets, &service, force, quiet_mode).await?;
     }
-    Commands::Store { service, key, value, force } => {
-      handle_store(&secrets, &service, &key, value, force).await?;
+    Commands::Store { name, value, group, force } => {
+      let group = group.unwrap_or_else(|| "general".to_string());
+      handle_store(&secrets, &group, &name, value, force).await?;
     }
-    Commands::Get { service, key, show } => {
-      handle_get(&secrets, &service, &key, show).await?;
+    Commands::Read { name, group, show } => {
+      let group = group.unwrap_or_else(|| "general".to_string());
+      handle_read(&secrets, &group, &name, show).await?;
     }
-    Commands::Update { service, key, value, force } => {
-      handle_update(&secrets, &service, &key, value, force).await?;
+    Commands::Update { name, group, value, force } => {
+      let group = group.unwrap_or_else(|| "general".to_string());
+      handle_update(&secrets, &group, &name, value, force).await?;
     }
-    Commands::Delete { service, key, force } => {
-      handle_delete(&secrets, &service, key, force).await?;
+    Commands::Delete { name, group, force } => {
+      let group = group.unwrap_or_else(|| "general".to_string());
+      handle_delete(&secrets, &group, Some(name), force).await?;
     }
-    Commands::List { service, keys } => {
-      handle_list(&secrets, service, keys, quiet_mode).await?;
+    Commands::List { group, keys } => {
+      handle_list(&secrets, group, keys, quiet_mode).await?;
     }
     Commands::Clear { force } => {
       handle_clear(&secrets, force, quiet_mode).await?;
     }
     Commands::Verify { service } => {
       handle_verify(&secrets, &service).await?;
+    }
+    // Legacy command for backward compatibility
+    Commands::Get { service, key, show } => {
+      handle_read(&secrets, &service, &key, show).await?;
     }
   }
 
@@ -140,7 +167,7 @@ async fn main() -> Result<()> {
 /// Detect if we're running as a subprocess
 fn is_subprocess() -> bool {
   // Check if parent process is not a shell-like process
-  // Simple heuristic: if SENTINEL_QUIET env var is set by parent process
+  // Simple heuristic: if SECRETS_QUIET env var is set by parent process
   env::var("PPID").is_ok() && env::var("SHLVL").map_or(true, |level| level != "1")
 }
 
@@ -197,7 +224,7 @@ async fn handle_setup(
         continue;
       }
 
-      secrets.store_credential_raw(&service_config.name, &cred_spec.key, value.trim())?;
+      secrets.store_secret_raw(&service_config.name, &cred_spec.key, value.trim())?;
     }
   }
 
@@ -211,47 +238,47 @@ async fn handle_setup(
 
 async fn handle_store(
   secrets: &Secrets,
-  service: &str,
-  key: &str,
+  group: &str,
+  name: &str,
   value: Option<String>,
   force: bool,
 ) -> Result<()> {
-  // Check if credential already exists
-  if !force && secrets.get_credential_raw(service, key).is_ok() {
-    bentley::warn(&format!("Credential {service}/{key} already exists"));
-    bentley::info("Use --force to overwrite existing credential");
+  // Check if secret already exists
+  if !force && secrets.get_secret_raw(group, name).is_ok() {
+    bentley::warn(&format!("Secret {group}/{name} already exists"));
+    bentley::info("Use --force to overwrite existing secret");
     return Ok(());
   }
 
-  let credential_value = if let Some(val) = value {
+  let secret_value = if let Some(val) = value {
     val
   } else {
-    let prompt = format!("Enter value for {service}/{key}: ");
+    let prompt = format!("Enter value for {group}/{name}: ");
     rpassword::prompt_password(prompt)?
   };
 
-  if credential_value.trim().is_empty() {
-    bentley::error("Cannot store empty credential value");
+  if secret_value.trim().is_empty() {
+    bentley::error("Cannot store empty secret value");
     return Ok(());
   }
 
-  secrets.store_credential_raw(service, key, credential_value.trim())?;
-  bentley::success(&format!("Stored credential: {service}/{key}"));
+  secrets.store_secret_raw(group, name, secret_value.trim())?;
+  bentley::success(&format!("Stored secret: {group}/{name}"));
   Ok(())
 }
 
-async fn handle_get(secrets: &Secrets, service: &str, key: &str, show: bool) -> Result<()> {
-  match secrets.get_credential_raw(service, key) {
+async fn handle_read(secrets: &Secrets, group: &str, name: &str, show: bool) -> Result<()> {
+  match secrets.get_secret_raw(group, name) {
     Ok(value) => {
       if show {
-        bentley::info(&format!("Credential {service}/{key}:"));
+        bentley::info(&format!("Secret {group}/{name}:"));
         println!("{value}");
       } else {
-        bentley::success(&format!("✅ Credential {service}/{key} exists"));
+        bentley::success(&format!("✅ Secret {group}/{name} exists"));
       }
     }
     Err(_) => {
-      bentley::error(&format!("❌ Credential not found: {service}/{key}"));
+      bentley::error(&format!("❌ Secret not found: {group}/{name}"));
       std::process::exit(1);
     }
   }
@@ -260,26 +287,26 @@ async fn handle_get(secrets: &Secrets, service: &str, key: &str, show: bool) -> 
 
 async fn handle_update(
   secrets: &Secrets,
-  service: &str,
-  key: &str,
+  group: &str,
+  name: &str,
   value: Option<String>,
   force: bool,
 ) -> Result<()> {
-  // Check if credential exists
-  if secrets.get_credential_raw(service, key).is_err() {
-    bentley::warn(&format!("Credential not found: {service}/{key}"));
+  // Check if secret exists
+  if secrets.get_secret_raw(group, name).is_err() {
+    bentley::warn(&format!("Secret not found: {group}/{name}"));
     return Ok(());
   }
 
   let new_value = if let Some(val) = value {
     val
   } else {
-    bentley::info(&format!("Enter new value for {service}/{key}:"));
+    bentley::info(&format!("Enter new value for {group}/{name}:"));
     rpassword::prompt_password("New value: ")?
   };
 
   if !force {
-    bentley::info(&format!("Update credential {service}/{key}?"));
+    bentley::info(&format!("Update secret {group}/{name}?"));
     let input = rpassword::prompt_password("Type 'yes' to confirm: ")?;
     if input.trim().to_lowercase() != "yes" {
       bentley::info("Update cancelled");
@@ -287,26 +314,26 @@ async fn handle_update(
     }
   }
 
-  secrets.store_credential_raw(service, key, &new_value)?;
-  bentley::success(&format!("Updated credential: {service}/{key}"));
+  secrets.store_secret_raw(group, name, &new_value)?;
+  bentley::success(&format!("Updated secret: {group}/{name}"));
   Ok(())
 }
 
 async fn handle_delete(
   secrets: &Secrets,
-  service: &str,
-  key: Option<String>,
+  group: &str,
+  name: Option<String>,
   force: bool,
 ) -> Result<()> {
-  if let Some(key) = key {
-    // Delete specific credential
-    if secrets.get_credential_raw(service, &key).is_err() {
-      bentley::error(&format!("Credential not found: {service}/{key}"));
+  if let Some(name) = name {
+    // Delete specific secret
+    if secrets.get_secret_raw(group, &name).is_err() {
+      bentley::error(&format!("Secret not found: {group}/{name}"));
       return Ok(());
     }
 
     if !force {
-      bentley::warn(&format!("This will delete the credential: {service}/{key}"));
+      bentley::warn(&format!("This will delete the secret: {group}/{name}"));
       let confirm = rpassword::prompt_password("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
         bentley::info("Cancelled");
@@ -314,12 +341,12 @@ async fn handle_delete(
       }
     }
 
-    secrets.delete_credential(service, &key)?;
-    bentley::success(&format!("Deleted credential: {service}/{key}"));
+    secrets.delete_secret(group, &name)?;
+    bentley::success(&format!("Deleted secret: {group}/{name}"));
   } else {
-    // Delete all credentials for service
+    // Delete all secrets for group
     if !force {
-      bentley::warn(&format!("This will delete ALL credentials for service: {service}"));
+      bentley::warn(&format!("This will delete ALL secrets for group: {group}"));
       let confirm = rpassword::prompt_password("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
         bentley::info("Cancelled");
@@ -327,27 +354,27 @@ async fn handle_delete(
       }
     }
 
-    // For arbitrary services, we can't enumerate keys easily with the current keyring API
+    // For arbitrary groups, we can't enumerate keys easily with the current API
     // So we'll try to delete common keys and let the user know
-    bentley::info(&format!("Attempting to delete all credentials for service: {service}"));
+    bentley::info(&format!("Attempting to delete all secrets for group: {group}"));
 
-    // Try common credential keys
+    // Try common secret keys
     let common_keys = ["token", "api_key", "password", "secret", "key", "pat", "access_token"];
     let mut deleted_count = 0;
 
     for key in &common_keys {
-      if secrets.get_credential_raw(service, key).is_ok()
-        && secrets.delete_credential(service, key).is_ok()
+      if secrets.get_secret_raw(group, key).is_ok()
+        && secrets.delete_secret(group, key).is_ok()
       {
         deleted_count += 1;
-        bentley::info(&format!("Deleted: {service}/{key}"));
+        bentley::info(&format!("Deleted: {group}/{key}"));
       }
     }
 
     if deleted_count > 0 {
-      bentley::success(&format!("Deleted {deleted_count} credentials for service: {service}"));
+      bentley::success(&format!("Deleted {deleted_count} secrets for group: {group}"));
     } else {
-      bentley::info(&format!("No credentials found for service: {service}"));
+      bentley::info(&format!("No secrets found for group: {group}"));
     }
   }
 
@@ -356,43 +383,43 @@ async fn handle_delete(
 
 async fn handle_list(
   secrets: &Secrets,
-  service_filter: Option<String>,
+  group_filter: Option<String>,
   show_keys: bool,
   quiet: bool,
 ) -> Result<()> {
   if !quiet {
-    bentley::announce("Credential Vault Contents");
+    bentley::announce("Secret Vault Contents");
   }
 
-  if let Some(service) = service_filter {
-    // List credentials for specific service
-    bentley::info(&format!("Service: {service}"));
+  if let Some(group) = group_filter {
+    // List secrets for specific group
+    bentley::info(&format!("Group: {group}"));
 
     if show_keys {
-      // Try common credential keys to see what exists
+      // Try common secret keys to see what exists
       let common_keys = ["token", "api_key", "password", "secret", "key", "pat", "access_token"];
       let mut found_keys = Vec::new();
 
       for key in &common_keys {
-        if secrets.get_credential_raw(&service, key).is_ok() {
+        if secrets.get_secret_raw(&group, key).is_ok() {
           found_keys.push(key);
         }
       }
 
       if found_keys.is_empty() {
-        bentley::info("  No credentials found");
+        bentley::info("  No secrets found");
       } else {
         for key in found_keys {
           bentley::success(&format!("  ✅ {key}"));
         }
       }
     } else {
-      bentley::info("  Use --keys to show credential keys");
+      bentley::info("  Use --keys to show secret keys");
     }
   } else {
-    // List all services (predefined + any we can discover)
+    // List all groups (predefined + any we can discover)
     let predefined_services = ["github", "gitlab", "jira", "notion"];
-    let mut found_services = Vec::new();
+    let mut found_groups = Vec::new();
 
     for service_name in &predefined_services {
       let service_config = match *service_name {
@@ -407,10 +434,10 @@ async fn handle_list(
       let configured = service_config.required_credentials.len() - missing.len();
 
       if configured > 0 {
-        found_services.push(service_name);
+        found_groups.push(service_name);
         let total = service_config.required_credentials.len();
         bentley::success(&format!(
-          "📋 {}: {}/{} credentials",
+          "📋 {}: {}/{} secrets",
           service_config.name, configured, total
         ));
 
@@ -426,10 +453,10 @@ async fn handle_list(
       }
     }
 
-    if found_services.is_empty() {
+    if found_groups.is_empty() {
       bentley::info("No predefined services configured");
       bentley::info("Use 'secrets setup <service>' for GitHub, GitLab, Jira, or Notion");
-      bentley::info("Use 'secrets store <service> <key>' for arbitrary credentials");
+      bentley::info("Use 'secrets store <name> [-g <group>]' for arbitrary secrets");
     }
   }
 
@@ -438,7 +465,7 @@ async fn handle_list(
 
 async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
   if !force {
-    bentley::warn("⚠️  This will DELETE ALL CREDENTIALS from the vault!");
+    bentley::warn("⚠️  This will DELETE ALL SECRETS from the vault!");
     bentley::warn("This action cannot be undone!");
     let confirm = rpassword::prompt_password("Type 'DELETE ALL' to confirm: ")?;
     if confirm.trim() != "DELETE ALL" {
@@ -447,7 +474,7 @@ async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()>
     }
   }
 
-  bentley::info("Clearing credential vault...");
+  bentley::info("Clearing secret vault...");
 
   // Clear predefined services
   let services = ["github", "gitlab", "jira", "notion"];
@@ -463,24 +490,24 @@ async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()>
     };
 
     for cred_spec in &service_config.required_credentials {
-      if secrets.get_credential_raw(&service_config.name, &cred_spec.key).is_ok()
-        && secrets.delete_credential(&service_config.name, &cred_spec.key).is_ok()
+      if secrets.get_secret_raw(&service_config.name, &cred_spec.key).is_ok()
+        && secrets.delete_secret(&service_config.name, &cred_spec.key).is_ok()
       {
         cleared_count += 1;
       }
     }
   }
 
-  // Note: We can't easily enumerate all arbitrary credentials with the keyring API
+  // Note: We can't easily enumerate all arbitrary secrets with the current API
   // So we inform the user about this limitation
   if cleared_count > 0 {
-    bentley::success(&format!("Cleared {cleared_count} predefined service credentials"));
+    bentley::success(&format!("Cleared {cleared_count} predefined service secrets"));
   }
 
   bentley::info(
-    "Note: Any arbitrary credentials (not from predefined services) must be deleted individually",
+    "Note: Any arbitrary secrets (not from predefined services) must be deleted individually",
   );
-  bentley::info("Use 'secrets delete <service> <key>' to remove specific credentials");
+  bentley::info("Use 'secrets delete <name> [-g <group>]' to remove specific secrets");
 
   if !quiet {
     bentley::flourish("Vault clearing complete!");

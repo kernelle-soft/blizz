@@ -89,7 +89,7 @@ impl Default for CredentialCache {
 /// - Simple, focused approach reduces complexity and potential failure points
 ///
 /// **Note**: This is an internal implementation detail. Services should use the
-/// `CredentialProvider` trait instead of calling these functions directly.
+/// `SecretProvider` trait instead of calling these functions directly.
 pub struct EncryptionManager;
 
 impl EncryptionManager {
@@ -103,7 +103,7 @@ impl EncryptionManager {
   /// 1. Hardware UUID (motherboard/system UUID)
   /// 2. Fallback: hostname + username (for compatibility)
   ///
-  /// **Note**: This is an internal function. Use the `CredentialProvider` trait instead.
+  /// **Note**: This is an internal function. Use the `SecretProvider` trait instead.
   ///
   /// # Returns
   ///
@@ -124,7 +124,7 @@ impl EncryptionManager {
     };
 
     // Use SHA-256 to hash the device identifier to create a consistent key
-    let mut hasher = Sha256::new();
+    let mut hasher = Sha256::default();
     hasher.update(device_identifier.as_bytes());
     let hash_result = hasher.finalize();
 
@@ -194,7 +194,7 @@ impl EncryptionManager {
     let fallback_data = format!("{hostname}:{username}");
 
     // Create a deterministic UUID from the fallback data
-    let mut hasher = Sha256::new();
+    let mut hasher = Sha256::default();
     hasher.update(fallback_data.as_bytes());
     let hash = hasher.finalize();
 
@@ -213,7 +213,7 @@ impl EncryptionManager {
   /// encryption key. Argon2 provides resistance against timing attacks, side-channel attacks,
   /// and brute-force attacks through configurable memory and time costs.
   ///
-  /// **Note**: This is an internal function. Use the `CredentialProvider` trait instead.
+  /// **Note**: This is an internal function. Use the `SecretProvider` trait instead.
   ///
   /// # Arguments
   ///
