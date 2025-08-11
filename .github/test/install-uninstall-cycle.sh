@@ -19,6 +19,8 @@ test -f "$HOME/.cargo/bin/kernelle" || fail "kernelle binary not found after ins
 test -d ~/.kernelle || fail "~/.kernelle directory not found after install"
 test -f ~/.kernelle.source || fail "~/.kernelle.source not found after install"
 test -d ~/.kernelle/volatile/.cursor || fail "~/.kernelle/volatile/.cursor not found after install"
+test -f ~/.kernelle/uninstall.sh || fail "~/.kernelle/uninstall.sh not found after install"
+test -f ~/.kernelle/volatile/kernelle.internal.source.gone.template || fail "~/.kernelle/volatile/kernelle.internal.source.gone.template not found after install"
 
 
 # Check that binaries were installed (bentley is library-only, so exclude it)
@@ -41,6 +43,10 @@ echo "🔍 Verifying uninstallation..."
 # Verify kernelle.internal.source still exists (contains gone template)
 test -f ~/.kernelle/kernelle.internal.source || fail "kernelle.internal.source not found after uninstall"
 diff ~/.kernelle/kernelle.internal.source scripts/templates/kernelle.internal.source.gone.template || fail "kernelle.internal.source does not match gone template"
+
+# Verify uninstaller and template were self-cleaned
+test ! -f ~/.kernelle/uninstall.sh || fail "~/.kernelle/uninstall.sh still exists after uninstall"
+test ! -f ~/.kernelle/volatile/kernelle.internal.source.gone.template || fail "~/.kernelle/volatile/kernelle.internal.source.gone.template still exists after uninstall"
 
 # Verify volatile directory was removed but persistent directory remains
 test ! -d ~/.kernelle/volatile || fail "~/.kernelle/volatile directory still exists after uninstall"
