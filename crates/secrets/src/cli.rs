@@ -118,10 +118,6 @@ pub async fn handle_command(command: Commands) -> Result<()> {
   // Auto-detect quiet mode if called as subprocess or if SECRETS_QUIET is set
   let quiet_mode = env::var("SECRETS_QUIET").is_ok() || is_subprocess();
 
-  if !quiet_mode {
-    bentley::spotlight("Secrets");
-  }
-
   let secrets = Secrets::new();
 
   match command {
