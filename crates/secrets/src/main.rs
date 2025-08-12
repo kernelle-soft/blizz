@@ -19,14 +19,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-  /// Setup credentials for a predefined service
-  Setup {
-    /// Service to setup (github, gitlab, jira, notion)
-    service: String,
-    /// Force reconfiguration of existing credentials
-    #[arg(long)]
-    force: bool,
-  },
   /// Store an arbitrary credential entry
   Store {
     /// Service/namespace for the credential
@@ -108,9 +100,6 @@ async fn main() -> Result<()> {
   let secrets = Secrets::new();
 
   match cli.command {
-    Commands::Setup { service, force } => {
-      handle_setup(&secrets, &service, force, quiet_mode).await?;
-    }
     Commands::Store { service, key, value, force } => {
       handle_store(&secrets, &service, &key, value, force).await?;
     }
@@ -142,71 +131,6 @@ fn is_subprocess() -> bool {
   // Check if parent process is not a shell-like process
   // Simple heuristic: if SENTINEL_QUIET env var is set by parent process
   env::var("PPID").is_ok() && env::var("SHLVL").map_or(true, |level| level != "1")
-}
-
-async fn handle_setup(
-  secrets: &Secrets,
-  service_name: &str,
-  force: bool,
-  quiet: bool,
-) -> Result<()> {
-  let service_config = match service_name.to_lowercase().as_str() {
-    "github" => services::github(),
-    "gitlab" => services::gitlab(),
-    "jira" => services::jira(),
-    "notion" => services::notion(),
-    _ => {
-      bentley::error(&format!(
-        "Unsupported service: {service_name}. Supported services: github, gitlab, jira, notion"
-      ));
-      bentley::info("Use 'secrets store' for arbitrary credential storage");
-      return Ok(());
-    }
-  };
-
-  // Check if credentials already exist
-  let missing = secrets.verify_service_credentials(&service_config)?;
-
-  if missing.is_empty() && !force {
-    bentley::success(&format!(
-      "All credentials for {} are already configured!",
-      service_config.name
-    ));
-    bentley::info("Use --force to reconfigure existing credentials");
-    return Ok(());
-  }
-
-  if !quiet {
-    bentley::announce(&format!("Setting up credentials for {}", service_config.name));
-  }
-  bentley::info(&service_config.description);
-
-  for cred_spec in &service_config.required_credentials {
-    if force || missing.contains(&cred_spec.key) {
-      bentley::info(&format!("\n📝 Setting up: {}", cred_spec.description));
-
-      if let Some(example) = &cred_spec.example {
-        bentley::info(&format!("   Example format: {example}"));
-      }
-
-      let prompt = format!("Enter {}: ", cred_spec.key);
-      let value = rpassword::prompt_password(prompt)?;
-
-      if value.trim().is_empty() {
-        bentley::warn(&format!("Skipping empty {} - you can set it up later", cred_spec.key));
-        continue;
-      }
-
-      secrets.store_credential_raw(&service_config.name, &cred_spec.key, value.trim())?;
-    }
-  }
-
-  if !quiet {
-    bentley::flourish(&format!("Credentials setup complete for {}!", service_config.name));
-  } else {
-    bentley::success(&format!("✅ {} credentials configured successfully!", service_config.name));
-  }
-  Ok(())
 }
 
 async fn handle_store(
@@ -428,8 +352,7 @@ async fn handle_list(
 
     if found_services.is_empty() {
       bentley::info("No predefined services configured");
-      bentley::info("Use 'secrets setup <service>' for GitHub, GitLab, Jira, or Notion");
-      bentley::info("Use 'secrets store <service> <key>' for arbitrary credentials");
+      bentley::info("Use 'secrets store <service> <key>' to configure individual credentials");
     }
   }
 
@@ -518,7 +441,7 @@ async fn handle_verify(secrets: &Secrets, service_name: &str) -> Result<()> {
       service_config.name,
       missing.join(", ")
     ));
-    bentley::info(&format!("Run 'secrets setup {service_name}' to configure missing credentials"));
+    bentley::info(&format!("Use 'secrets store {service_name} <key>' to configure missing credentials"));
   }
 
   Ok(())
