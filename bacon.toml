@@ -18,6 +18,11 @@ command = ["cargo", "install", "--path", "crates/insights", "--force"]
 need_stdout = false
 watch = ["crates/insights/"]
 
+[jobs.secrets]
+command = ["cargo", "install", "--path", "crates/secrets", "--force"]
+need_stdout = false
+watch = ["crates/secrets/"]
+
 [jobs.all]
 command = ["cargo", "build", "--workspace"]
 need_stdout = false

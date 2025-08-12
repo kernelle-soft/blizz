@@ -5,6 +5,7 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
+pub mod cli;
 pub mod encryption;
 
 use encryption::{EncryptedBlob, EncryptionManager};
@@ -127,13 +128,8 @@ pub trait CryptoProvider {
   fn credentials_exist(&self) -> bool;
   fn get_master_password(&self) -> Result<String>;
   fn prompt_for_new_master_password(&self) -> Result<String>;
-  fn store_secret(
-    &self,
-    group: &str,
-    name: &str,
-    value: &str,
-    master_password: &str,
-  ) -> Result<()>;
+  fn store_secret(&self, group: &str, name: &str, value: &str, master_password: &str)
+    -> Result<()>;
   fn get_secret(&self, group: &str, name: &str, master_password: &str) -> Result<String>;
   fn delete_secret(&self, group: &str, name: &str, master_password: &str) -> Result<()>;
 }
@@ -369,9 +365,7 @@ impl Secrets {
     if let Some(config) = service_config {
       // Check if this name is part of the service config
       if config.required_credentials.iter().any(|spec| spec.key == name) {
-        bentley::info(&format!(
-          "Secret {group}/{name} not found. Setting up {group} secrets..."
-        ));
+        bentley::info(&format!("Secret {group}/{name} not found. Setting up {group} secrets..."));
         self.setup_service(&config)?;
         return self.get_secret_raw(group, name);
       }
@@ -759,12 +753,12 @@ mod tests {
   fn test_common_keys_for_service() {
     let secrets = Secrets::new();
 
-    assert_eq!(secrets.get_common_keys_for_service("github"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_service("gitlab"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_service("jira"), vec!["token", "email", "url"]);
-    assert_eq!(secrets.get_common_keys_for_service("notion"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_service("unknown"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_service("GITHUB"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("github"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("gitlab"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("jira"), vec!["token", "email", "url"]);
+    assert_eq!(secrets.get_common_keys_for_group("notion"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("unknown"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("GITHUB"), vec!["token"]);
   }
 
   #[test]
@@ -1253,3 +1247,6 @@ mod tests {
     println!();
   }
 }
+
+// Re-export command types and handlers for use by other crates
+pub use crate::cli::{handle_command as handle_secrets_command, Commands as SecretsCommands};
