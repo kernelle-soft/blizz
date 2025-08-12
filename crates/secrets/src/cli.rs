@@ -428,7 +428,7 @@ async fn handle_list(
         _ => continue,
       };
 
-      let missing = secrets.verify_service_credentials(&service_config)?;
+      let missing = secrets.verify_service_credentials_no_setup(&service_config)?;
       let configured = service_config.required_credentials.len() - missing.len();
 
       if configured > 0 {
@@ -527,7 +527,7 @@ async fn handle_verify(secrets: &Secrets, service_name: &str) -> Result<()> {
 
   bentley::info(&format!("Verifying credentials for {}...", service_config.name));
 
-  let missing = secrets.verify_service_credentials(&service_config)?;
+  let missing = secrets.verify_service_credentials_no_setup(&service_config)?;
 
   if missing.is_empty() {
     bentley::success(&format!(

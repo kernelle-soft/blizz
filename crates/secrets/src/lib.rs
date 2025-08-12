@@ -457,6 +457,22 @@ impl Secrets {
     Ok(missing)
   }
 
+  /// Check if all required secrets exist for a service WITHOUT triggering auto-setup
+  /// This is intended for CLI usage where we don't want to auto-trigger setup
+  pub fn verify_service_credentials_no_setup(&self, config: &ServiceConfig) -> Result<Vec<String>> {
+    let mut missing = Vec::new();
+
+    for cred_spec in &config.required_credentials {
+      if cred_spec.is_required
+        && self.get_secret_raw_no_setup(&config.name, &cred_spec.key).is_err()
+      {
+        missing.push(cred_spec.key.clone());
+      }
+    }
+
+    Ok(missing)
+  }
+
   // Private helper methods
 
   fn get_common_keys_for_group(&self, group: &str) -> Vec<String> {
