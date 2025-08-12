@@ -375,6 +375,12 @@ impl Secrets {
     Err(anyhow!("Secret not found for {}/{}", group, name))
   }
 
+  /// Retrieve a secret from encrypted file storage WITHOUT automatic setup
+  /// This is intended for CLI usage where we don't want to auto-trigger setup
+  pub fn get_secret_raw_no_setup(&self, group: &str, name: &str) -> Result<String> {
+    self.get_secret_inner(group, name)
+  }
+
   /// Internal method to get secret without automatic setup
   fn get_secret_inner(&self, group: &str, name: &str) -> Result<String> {
     if !self.crypto.credentials_exist() {

@@ -242,7 +242,7 @@ async fn handle_store(
   force: bool,
 ) -> Result<()> {
   // Check if secret already exists
-  if !force && secrets.get_secret_raw(group, name).is_ok() {
+  if !force && secrets.get_secret_raw_no_setup(group, name).is_ok() {
     bentley::warn(&format!("Secret {group}/{name} already exists"));
     bentley::info("Use --force to overwrite existing secret");
     return Ok(());
@@ -266,7 +266,7 @@ async fn handle_store(
 }
 
 async fn handle_read(secrets: &Secrets, group: &str, name: &str, show: bool) -> Result<()> {
-  match secrets.get_secret_raw(group, name) {
+  match secrets.get_secret_raw_no_setup(group, name) {
     Ok(value) => {
       if show {
         bentley::info(&format!("Secret {group}/{name}:"));
@@ -291,7 +291,7 @@ async fn handle_update(
   force: bool,
 ) -> Result<()> {
   // Check if secret exists
-  if secrets.get_secret_raw(group, name).is_err() {
+  if secrets.get_secret_raw_no_setup(group, name).is_err() {
     bentley::warn(&format!("Secret not found: {group}/{name}"));
     return Ok(());
   }
@@ -325,7 +325,7 @@ async fn handle_delete(
 ) -> Result<()> {
   if let Some(name) = name {
     // Delete specific secret
-    if secrets.get_secret_raw(group, &name).is_err() {
+    if secrets.get_secret_raw_no_setup(group, &name).is_err() {
       bentley::error(&format!("Secret not found: {group}/{name}"));
       return Ok(());
     }
@@ -361,7 +361,9 @@ async fn handle_delete(
     let mut deleted_count = 0;
 
     for key in &common_keys {
-      if secrets.get_secret_raw(group, key).is_ok() && secrets.delete_secret(group, key).is_ok() {
+      if secrets.get_secret_raw_no_setup(group, key).is_ok()
+        && secrets.delete_secret(group, key).is_ok()
+      {
         deleted_count += 1;
         bentley::info(&format!("Deleted: {group}/{key}"));
       }
@@ -397,7 +399,7 @@ async fn handle_list(
       let mut found_keys = Vec::new();
 
       for key in &common_keys {
-        if secrets.get_secret_raw(&group, key).is_ok() {
+        if secrets.get_secret_raw_no_setup(&group, key).is_ok() {
           found_keys.push(key);
         }
       }
@@ -483,7 +485,7 @@ async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()>
     };
 
     for cred_spec in &service_config.required_credentials {
-      if secrets.get_secret_raw(&service_config.name, &cred_spec.key).is_ok()
+      if secrets.get_secret_raw_no_setup(&service_config.name, &cred_spec.key).is_ok()
         && secrets.delete_secret(&service_config.name, &cred_spec.key).is_ok()
       {
         cleared_count += 1;
