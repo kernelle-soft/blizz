@@ -1271,4 +1271,3 @@ mod tests {
 }
 
 // Re-export command types and handlers for use by other crates
-pub use crate::cli::{handle_command as handle_secrets_command, Commands as SecretsCommands};
