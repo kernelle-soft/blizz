@@ -347,35 +347,9 @@ impl Secrets {
     Ok(())
   }
 
-  /// Retrieve a credential from encrypted file storage with automatic setup
+  /// Retrieve a credential from encrypted file storage
   pub fn get_credential_raw(&self, service: &str, key: &str) -> Result<String> {
-    // First try to get the credential directly
-    if let Ok(value) = self.get_credential_inner(service, key) {
-      return Ok(value);
-    }
-
-    // If not found, try to get the service config and set it up automatically
-    let service_config = match service.to_lowercase().as_str() {
-      "github" => Some(services::github()),
-      "gitlab" => Some(services::gitlab()),
-      "jira" => Some(services::jira()),
-      "notion" => Some(services::notion()),
-      _ => None,
-    };
-
-    if let Some(config) = service_config {
-      // Check if this key is part of the service config
-      if config.required_credentials.iter().any(|spec| spec.key == key) {
-        bentley::info(&format!(
-          "Credential {service}/{key} not found. Setting up {service} credentials..."
-        ));
-        self.setup_service(&config)?;
-        return self.get_credential_raw(service, key);
-      }
-    }
-
-    // If we can't auto-setup, return the original error
-    Err(anyhow!("Credential not found for {}/{}", service, key))
+    self.get_credential_inner(service, key)
   }
 
   /// Internal method to get credential without automatic setup
@@ -756,7 +730,9 @@ mod tests {
     let secrets = create_test_secrets();
     let result = secrets.get_credential("nonexistent_service", "nonexistent_key");
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("not found"));
+    let error_msg = result.unwrap_err().to_string();
+    // After removing automatic setup, this should return an appropriate error message
+    assert!(error_msg.contains("not found") || error_msg.contains("No credentials stored yet"));
   }
 
   #[test]
