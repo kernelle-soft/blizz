@@ -5,60 +5,64 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
+pub mod cli;
 pub mod encryption;
 
 use encryption::{EncryptedBlob, EncryptionManager};
 
-/// Trait interface for credential providers
+/// Trait interface for secret providers
 ///
-/// This is the main public API that services should use to interact with credential storage.
-/// It provides a simple, secure interface for storing and retrieving credentials.
+/// This is the main public API that services should use to interact with secret storage.
+/// It provides a simple, secure interface for storing and retrieving secrets.
 ///
-pub trait CredentialProvider {
-  fn get_credential(&self, service: &str, key: &str) -> Result<String>;
-  fn store_credential(&self, service: &str, key: &str, value: &str) -> Result<()>;
+pub trait SecretProvider {
+  fn get_secret(&self, group: &str, name: &str) -> Result<String>;
+  fn store_secret(&self, group: &str, name: &str, value: &str) -> Result<()>;
 }
 
-/// Mock credential provider for testing
-pub struct MockCredentialProvider {
-  credentials: HashMap<String, (String, String)>,
+// Backward compatibility - old trait name aliased to new trait
+pub use SecretProvider as CredentialProvider;
+
+/// Mock secret provider for testing
+pub struct MockSecretProvider {
+  secrets: HashMap<String, (String, String)>,
 }
 
-impl MockCredentialProvider {
+impl MockSecretProvider {
   pub fn new() -> Self {
-    Self { credentials: HashMap::new() }
+    Self { secrets: HashMap::new() }
   }
 
-  pub fn with_credential(mut self, service: &str, username: &str, secret: &str) -> Self {
-    self.credentials.insert(service.to_string(), (username.to_string(), secret.to_string()));
+  pub fn with_secret(mut self, group: &str, name: &str, value: &str) -> Self {
+    self.secrets.insert(group.to_string(), (name.to_string(), value.to_string()));
     self
   }
 }
 
-impl Default for MockCredentialProvider {
+impl Default for MockSecretProvider {
   fn default() -> Self {
     Self::new()
   }
 }
 
-impl CredentialProvider for MockCredentialProvider {
-  fn get_credential(&self, service: &str, key: &str) -> Result<String> {
+impl SecretProvider for MockSecretProvider {
+  fn get_secret(&self, group: &str, name: &str) -> Result<String> {
     self
-      .credentials
-      .get(service)
-      .and_then(|(username, secret)| {
-        if key == "username" {
-          Some(username.clone())
-        } else if key == "token" || key == "password" || key == "secret" {
+      .secrets
+      .get(group)
+      .and_then(|(stored_name, secret)| {
+        if name == stored_name || name == "username" {
+          Some(stored_name.clone())
+        } else if name == "token" || name == "password" || name == "secret" {
           Some(secret.clone())
         } else {
           None
         }
       })
-      .ok_or_else(|| anyhow!("Credential not found: {}/{}", service, key))
+      .ok_or_else(|| anyhow!("Secret not found: {}/{}", group, name))
   }
 
-  fn store_credential(&self, _service: &str, _key: &str, _value: &str) -> Result<()> {
+  fn store_secret(&self, _group: &str, _name: &str, _value: &str) -> Result<()> {
     // Mock implementation - could store in memory if needed
     Ok(())
   }
@@ -124,15 +128,10 @@ pub trait CryptoProvider {
   fn credentials_exist(&self) -> bool;
   fn get_master_password(&self) -> Result<String>;
   fn prompt_for_new_master_password(&self) -> Result<String>;
-  fn store_credential(
-    &self,
-    service: &str,
-    key: &str,
-    value: &str,
-    master_password: &str,
-  ) -> Result<()>;
-  fn get_credential(&self, service: &str, key: &str, master_password: &str) -> Result<String>;
-  fn delete_credential(&self, service: &str, key: &str, master_password: &str) -> Result<()>;
+  fn store_secret(&self, group: &str, name: &str, value: &str, master_password: &str)
+    -> Result<()>;
+  fn get_secret(&self, group: &str, name: &str, master_password: &str) -> Result<String>;
+  fn delete_secret(&self, group: &str, name: &str, master_password: &str) -> Result<()>;
 }
 
 /// Password-based crypto manager using Argon2 key derivation
@@ -188,47 +187,47 @@ impl CryptoProvider for PasswordBasedCryptoManager {
     Ok(password1.trim().to_string())
   }
 
-  fn store_credential(
+  fn store_secret(
     &self,
-    service: &str,
-    key: &str,
+    group: &str,
+    name: &str,
     value: &str,
     master_password: &str,
   ) -> Result<()> {
     let mut credentials = self.load_credentials(master_password).unwrap_or_else(|_| HashMap::new());
 
-    credentials.entry(service.to_string()).or_default().insert(key.to_string(), value.to_string());
+    credentials.entry(group.to_string()).or_default().insert(name.to_string(), value.to_string());
 
     self.save_credentials(&credentials, master_password)?;
     Ok(())
   }
 
-  fn get_credential(&self, service: &str, key: &str, master_password: &str) -> Result<String> {
+  fn get_secret(&self, group: &str, name: &str, master_password: &str) -> Result<String> {
     let credentials = self.load_credentials(master_password)?;
 
     credentials
-      .get(service)
-      .and_then(|service_creds| service_creds.get(key))
+      .get(group)
+      .and_then(|service_creds| service_creds.get(name))
       .cloned()
-      .ok_or_else(|| anyhow!("Credential not found for {}/{}", service, key))
+      .ok_or_else(|| anyhow!("Secret not found for {}/{}", group, name))
   }
 
-  fn delete_credential(&self, service: &str, key: &str, master_password: &str) -> Result<()> {
+  fn delete_secret(&self, group: &str, name: &str, master_password: &str) -> Result<()> {
     let mut credentials = self.load_credentials(master_password)?;
 
-    if let Some(service_creds) = credentials.get_mut(service) {
-      if service_creds.remove(key).is_some() {
+    if let Some(service_creds) = credentials.get_mut(group) {
+      if service_creds.remove(name).is_some() {
         // Remove the service entirely if no credentials left
         if service_creds.is_empty() {
-          credentials.remove(service);
+          credentials.remove(group);
         }
         self.save_credentials(&credentials, master_password)?;
         Ok(())
       } else {
-        Err(anyhow!("Credential not found for {}/{}", service, key))
+        Err(anyhow!("Secret not found for {}/{}", group, name))
       }
     } else {
-      Err(anyhow!("Credential not found for {}/{}", service, key))
+      Err(anyhow!("Secret not found for {}/{}", group, name))
     }
   }
 }
@@ -305,13 +304,13 @@ pub struct Credential {
   pub value: String,
 }
 
-impl CredentialProvider for Secrets {
-  fn get_credential(&self, service: &str, key: &str) -> Result<String> {
-    self.get_credential_raw(service, key)
+impl SecretProvider for Secrets {
+  fn get_secret(&self, group: &str, name: &str) -> Result<String> {
+    self.get_secret_raw(group, name)
   }
 
-  fn store_credential(&self, service: &str, key: &str, value: &str) -> Result<()> {
-    self.store_credential_raw(service, key, value)
+  fn store_secret(&self, group: &str, name: &str, value: &str) -> Result<()> {
+    self.store_secret_raw(group, name, value)
   }
 }
 
@@ -326,9 +325,9 @@ impl Secrets {
     Self { service_name: "kernelle".to_string(), crypto }
   }
 
-  /// Store a credential securely using Argon2-based encryption
-  pub fn store_credential_raw(&self, service: &str, key: &str, value: &str) -> Result<()> {
-    bentley::event_info(&format!("Storing credential for {service}/{key}"));
+  /// Store a secret securely using Argon2-based encryption
+  pub fn store_secret_raw(&self, group: &str, name: &str, value: &str) -> Result<()> {
+    bentley::event_info(&format!("Storing secret for {group}/{name}"));
 
     // Get master password (prompt for new one if first time)
     let master_password = if self.crypto.credentials_exist() {
@@ -340,22 +339,22 @@ impl Secrets {
     // Trim the value to remove any trailing newlines (common when copying from password managers)
     let trimmed_value = value.trim();
 
-    // Store the credential using Argon2-based encryption
-    self.crypto.store_credential(service, key, trimmed_value, &master_password)?;
+    // Store the secret using Argon2-based encryption
+    self.crypto.store_secret(group, name, trimmed_value, &master_password)?;
 
-    bentley::event_success(&format!("Credential stored securely for {service}/{key}"));
+    bentley::event_success(&format!("Secret stored securely for {group}/{name}"));
     Ok(())
   }
 
-  /// Retrieve a credential from encrypted file storage with automatic setup
-  pub fn get_credential_raw(&self, service: &str, key: &str) -> Result<String> {
-    // First try to get the credential directly
-    if let Ok(value) = self.get_credential_inner(service, key) {
+  /// Retrieve a secret from encrypted file storage with automatic setup
+  pub fn get_secret_raw(&self, group: &str, name: &str) -> Result<String> {
+    // First try to get the secret directly
+    if let Ok(value) = self.get_secret_inner(group, name) {
       return Ok(value);
     }
 
     // If not found, try to get the service config and set it up automatically
-    let service_config = match service.to_lowercase().as_str() {
+    let service_config = match group.to_lowercase().as_str() {
       "github" => Some(services::github()),
       "gitlab" => Some(services::gitlab()),
       "jira" => Some(services::jira()),
@@ -364,60 +363,64 @@ impl Secrets {
     };
 
     if let Some(config) = service_config {
-      // Check if this key is part of the service config
-      if config.required_credentials.iter().any(|spec| spec.key == key) {
-        bentley::info(&format!(
-          "Credential {service}/{key} not found. Setting up {service} credentials..."
-        ));
+      // Check if this name is part of the service config
+      if config.required_credentials.iter().any(|spec| spec.key == name) {
+        bentley::info(&format!("Secret {group}/{name} not found. Setting up {group} secrets..."));
         self.setup_service(&config)?;
-        return self.get_credential_raw(service, key);
+        return self.get_secret_raw(group, name);
       }
     }
 
     // If we can't auto-setup, return the original error
-    Err(anyhow!("Credential not found for {}/{}", service, key))
+    Err(anyhow!("Secret not found for {}/{}", group, name))
   }
 
-  /// Internal method to get credential without automatic setup
-  fn get_credential_inner(&self, service: &str, key: &str) -> Result<String> {
+  /// Retrieve a secret from encrypted file storage WITHOUT automatic setup
+  /// This is intended for CLI usage where we don't want to auto-trigger setup
+  pub fn get_secret_raw_no_setup(&self, group: &str, name: &str) -> Result<String> {
+    self.get_secret_inner(group, name)
+  }
+
+  /// Internal method to get secret without automatic setup
+  fn get_secret_inner(&self, group: &str, name: &str) -> Result<String> {
     if !self.crypto.credentials_exist() {
-      return Err(anyhow!("No credentials stored yet"));
+      return Err(anyhow!("No secrets stored yet"));
     }
 
     let master_password = self.crypto.get_master_password()?;
-    self.crypto.get_credential(service, key, &master_password)
+    self.crypto.get_secret(group, name, &master_password)
   }
 
-  /// Delete a credential from password-protected storage
-  pub fn delete_credential(&self, service: &str, key: &str) -> Result<()> {
-    bentley::event_info(&format!("Deleting credential for {service}/{key}"));
+  /// Delete a secret from password-protected storage
+  pub fn delete_secret(&self, group: &str, name: &str) -> Result<()> {
+    bentley::event_info(&format!("Deleting secret for {group}/{name}"));
 
     if !self.crypto.credentials_exist() {
-      return Err(anyhow!("No credentials stored yet"));
+      return Err(anyhow!("No secrets stored yet"));
     }
 
     let master_password = self.crypto.get_master_password()?;
-    self.crypto.delete_credential(service, key, &master_password)?;
+    self.crypto.delete_secret(group, name, &master_password)?;
 
-    bentley::event_success(&format!("Credential deleted for {service}/{key}"));
+    bentley::event_success(&format!("Secret deleted for {group}/{name}"));
     Ok(())
   }
 
-  /// Get all credentials for a service as environment variables
-  pub fn get_service_env_vars(&self, service: &str) -> Result<HashMap<String, String>> {
+  /// Get all secrets for a group as environment variables
+  pub fn get_group_env_vars(&self, group: &str) -> Result<HashMap<String, String>> {
     let mut env_vars = HashMap::new();
 
     if !self.crypto.credentials_exist() {
-      return Ok(env_vars); // Return empty if no credentials exist
+      return Ok(env_vars); // Return empty if no secrets exist
     }
 
-    // Try to get common credential types for the service
-    let common_keys = self.get_common_keys_for_service(service);
+    // Try to get common secret types for the group
+    let common_keys = self.get_common_keys_for_group(group);
 
     for key in common_keys {
-      if let Ok(value) = self.get_credential(service, &key) {
+      if let Ok(value) = self.get_secret(group, &key) {
         // Convert to environment variable format (uppercase with underscores)
-        let env_key = format!("{}_{}", service.to_uppercase(), key.to_uppercase());
+        let env_key = format!("{}_{}", group.to_uppercase(), key.to_uppercase());
         env_vars.insert(env_key, value);
       }
     }
@@ -425,28 +428,44 @@ impl Secrets {
     Ok(env_vars)
   }
 
-  /// Setup credentials for a service interactively
+  /// Setup secrets for a service interactively
   pub fn setup_service(&self, config: &ServiceConfig) -> Result<()> {
-    bentley::announce(&format!("Setting up credentials for {}", config.name));
+    bentley::announce(&format!("Setting up secrets for {}", config.name));
     bentley::info(&config.description);
 
     for cred_spec in &config.required_credentials {
       if cred_spec.is_required || self.prompt_for_optional(&cred_spec.key)? {
         let value = self.prompt_for_credential(cred_spec)?;
-        self.store_credential(&config.name, &cred_spec.key, &value)?;
+        self.store_secret(&config.name, &cred_spec.key, &value)?;
       }
     }
 
-    bentley::flourish(&format!("Credentials setup complete for {}", config.name));
+    bentley::flourish(&format!("Secrets setup complete for {}", config.name));
     Ok(())
   }
 
-  /// Check if all required credentials exist for a service
+  /// Check if all required secrets exist for a service
   pub fn verify_service_credentials(&self, config: &ServiceConfig) -> Result<Vec<String>> {
     let mut missing = Vec::new();
 
     for cred_spec in &config.required_credentials {
-      if cred_spec.is_required && self.get_credential(&config.name, &cred_spec.key).is_err() {
+      if cred_spec.is_required && self.get_secret(&config.name, &cred_spec.key).is_err() {
+        missing.push(cred_spec.key.clone());
+      }
+    }
+
+    Ok(missing)
+  }
+
+  /// Check if all required secrets exist for a service WITHOUT triggering auto-setup
+  /// This is intended for CLI usage where we don't want to auto-trigger setup
+  pub fn verify_service_credentials_no_setup(&self, config: &ServiceConfig) -> Result<Vec<String>> {
+    let mut missing = Vec::new();
+
+    for cred_spec in &config.required_credentials {
+      if cred_spec.is_required
+        && self.get_secret_raw_no_setup(&config.name, &cred_spec.key).is_err()
+      {
         missing.push(cred_spec.key.clone());
       }
     }
@@ -456,8 +475,8 @@ impl Secrets {
 
   // Private helper methods
 
-  fn get_common_keys_for_service(&self, service: &str) -> Vec<String> {
-    match service.to_lowercase().as_str() {
+  fn get_common_keys_for_group(&self, group: &str) -> Vec<String> {
+    match group.to_lowercase().as_str() {
       "github" => vec!["token".to_string()],
       "gitlab" => vec!["token".to_string()],
       "jira" => vec!["token".to_string(), "email".to_string(), "url".to_string()],
@@ -489,6 +508,37 @@ impl Secrets {
     }
 
     Ok(value.trim().to_string())
+  }
+
+  // Backward compatibility methods for legacy CredentialProvider interface
+  /// @deprecated Use get_secret instead
+  pub fn get_credential(&self, service: &str, key: &str) -> Result<String> {
+    self.get_secret(service, key)
+  }
+
+  /// @deprecated Use store_secret instead  
+  pub fn store_credential(&self, service: &str, key: &str, value: &str) -> Result<()> {
+    self.store_secret(service, key, value)
+  }
+
+  /// @deprecated Use delete_secret instead
+  pub fn delete_credential(&self, service: &str, key: &str) -> Result<()> {
+    self.delete_secret(service, key)
+  }
+
+  /// @deprecated Use get_secret_raw instead
+  pub fn get_credential_raw(&self, service: &str, key: &str) -> Result<String> {
+    self.get_secret_raw(service, key)
+  }
+
+  /// @deprecated Use store_secret_raw instead
+  pub fn store_credential_raw(&self, service: &str, key: &str, value: &str) -> Result<()> {
+    self.store_secret_raw(service, key, value)
+  }
+
+  /// @deprecated Use get_group_env_vars instead
+  pub fn get_service_env_vars(&self, service: &str) -> Result<HashMap<String, String>> {
+    self.get_group_env_vars(service)
   }
 }
 
@@ -606,10 +656,10 @@ mod tests {
       Ok(self.stored_password.clone())
     }
 
-    fn store_credential(
+    fn store_secret(
       &self,
-      service: &str,
-      key: &str,
+      group: &str,
+      name: &str,
       value: &str,
       master_password: &str,
     ) -> Result<()> {
@@ -621,14 +671,14 @@ mod tests {
         .credentials
         .lock()
         .unwrap()
-        .entry(service.to_string())
+        .entry(group.to_string())
         .or_default()
-        .insert(key.to_string(), value.to_string());
+        .insert(name.to_string(), value.to_string());
 
       Ok(())
     }
 
-    fn get_credential(&self, service: &str, key: &str, master_password: &str) -> Result<String> {
+    fn get_secret(&self, group: &str, name: &str, master_password: &str) -> Result<String> {
       if master_password != self.stored_password {
         return Err(anyhow!("Invalid password"));
       }
@@ -637,29 +687,29 @@ mod tests {
         .credentials
         .lock()
         .unwrap()
-        .get(service)
-        .and_then(|service_creds| service_creds.get(key))
+        .get(group)
+        .and_then(|service_creds| service_creds.get(name))
         .cloned()
-        .ok_or_else(|| anyhow!("Credential not found for {}/{}", service, key))
+        .ok_or_else(|| anyhow!("Secret not found for {}/{}", group, name))
     }
 
-    fn delete_credential(&self, service: &str, key: &str, master_password: &str) -> Result<()> {
+    fn delete_secret(&self, group: &str, name: &str, master_password: &str) -> Result<()> {
       if master_password != self.stored_password {
         return Err(anyhow!("Invalid password"));
       }
 
       let mut credentials = self.credentials.lock().unwrap();
-      if let Some(service_creds) = credentials.get_mut(service) {
-        if service_creds.remove(key).is_some() {
+      if let Some(service_creds) = credentials.get_mut(group) {
+        if service_creds.remove(name).is_some() {
           if service_creds.is_empty() {
-            credentials.remove(service);
+            credentials.remove(group);
           }
           Ok(())
         } else {
-          Err(anyhow!("Credential not found for {}/{}", service, key))
+          Err(anyhow!("Secret not found for {}/{}", group, name))
         }
       } else {
-        Err(anyhow!("Credential not found for {}/{}", service, key))
+        Err(anyhow!("Secret not found for {}/{}", group, name))
       }
     }
   }
@@ -725,12 +775,12 @@ mod tests {
   fn test_common_keys_for_service() {
     let secrets = Secrets::new();
 
-    assert_eq!(secrets.get_common_keys_for_service("github"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_service("gitlab"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_service("jira"), vec!["token", "email", "url"]);
-    assert_eq!(secrets.get_common_keys_for_service("notion"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_service("unknown"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_service("GITHUB"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("github"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("gitlab"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("jira"), vec!["token", "email", "url"]);
+    assert_eq!(secrets.get_common_keys_for_group("notion"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("unknown"), vec!["token"]);
+    assert_eq!(secrets.get_common_keys_for_group("GITHUB"), vec!["token"]);
   }
 
   #[test]
@@ -1219,3 +1269,5 @@ mod tests {
     println!();
   }
 }
+
+// Re-export command types and handlers for use by other crates

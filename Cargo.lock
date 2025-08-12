@@ -1447,11 +1447,14 @@ name = "kernelle"
 version = "0.3.5"
 dependencies = [
  "anyhow",
+ "bentley",
  "chrono",
  "clap",
  "dirs",
  "mockito",
  "reqwest",
+ "rpassword",
+ "secrets",
  "serde",
  "serde_json",
  "serde_yaml",

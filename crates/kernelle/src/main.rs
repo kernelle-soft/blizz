@@ -1,5 +1,6 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{command, Parser, Subcommand};
+use commands::secrets::SecretsCommands;
 use std::process;
 
 mod commands;
@@ -88,6 +89,14 @@ enum Commands {
     #[arg(long, short)]
     version: Option<String>,
   },
+  /// Manage secrets and credentials
+  Secrets {
+    #[command(subcommand)]
+    command: SecretsCommands,
+    /// Suppress banners and flourishes (useful when called from other tools)
+    #[arg(long, global = true)]
+    quiet: bool,
+  },
 }
 
 #[derive(Subcommand)]
@@ -131,6 +140,9 @@ async fn main() -> Result<()> {
         process::exit(1);
       }
       Ok(())
+    }
+    Commands::Secrets { command, quiet: _ } => {
+      commands::secrets::handle_secrets_command(command).await
     }
   }
 }
