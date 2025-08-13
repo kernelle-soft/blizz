@@ -148,6 +148,53 @@ fn is_subprocess() -> bool {
   env::var("PPID").is_ok() && env::var("SHLVL").map_or(true, |level| level != "1")
 }
 
+/// Helper function to get master password once, handling both existing and new vault scenarios
+async fn get_master_password(_secrets: &Secrets) -> Result<String> {
+  // Check if credentials file exists
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
+
+  let mut credentials_path = base_path;
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
+
+  if credentials_path.exists() {
+    // Existing vault - just get password
+    bentley::info("enter master password:");
+    print!("> ");
+    std::io::stdout().flush()?;
+    let password = rpassword::read_password()?;
+    if password.trim().is_empty() {
+      return Err(anyhow!("master password cannot be empty"));
+    }
+    Ok(password.trim().to_string())
+  } else {
+    // New vault - create master password
+    bentley::info("setting up vault - create master password:");
+    print!("> ");
+    std::io::stdout().flush()?;
+    let password1 = rpassword::read_password()?;
+    if password1.trim().is_empty() {
+      return Err(anyhow!("master password cannot be empty"));
+    }
+
+    bentley::info("confirm master password:");
+    print!("> ");
+    std::io::stdout().flush()?;
+    let password2 = rpassword::read_password()?;
+
+    if password1 != password2 {
+      return Err(anyhow!("passwords do not match"));
+    }
+
+    Ok(password1.trim().to_string())
+  }
+}
+
 async fn handle_store(
   secrets: &Secrets,
   group: &str,
@@ -174,7 +221,50 @@ async fn handle_store(
     return Ok(());
   }
 
-  secrets.store_secret_raw(group, name, secret_value.trim())?;
+  // Get master password once
+  let master_password = get_master_password(secrets).await?;
+
+  // Load existing credentials or create new ones
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
+
+  let mut credentials_path = base_path;
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
+
+  // Load existing credentials or start with empty
+  let mut all_credentials = if credentials_path.exists() {
+    use crate::PasswordBasedCredentialStore;
+    if let Some(store) = PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
+      match store.decrypt_credentials(&master_password) {
+        Ok(creds) => creds,
+        Err(_) => {
+          bentley::error("invalid master password");
+          return Ok(());
+        }
+      }
+    } else {
+      std::collections::HashMap::new()
+    }
+  } else {
+    std::collections::HashMap::new()
+  };
+
+  // Add/update the secret
+  all_credentials
+    .entry(group.to_string())
+    .or_default()
+    .insert(name.to_string(), secret_value.trim().to_string());
+
+  // Save back to file
+  use crate::PasswordBasedCredentialStore;
+  let store = PasswordBasedCredentialStore::new(&all_credentials, &master_password)?;
+  store.save_to_file(&credentials_path)?;
+
   bentley::success(&format!("Stored secret: {group}/{name}"));
   Ok(())
 }
