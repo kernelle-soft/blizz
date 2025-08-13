@@ -32,7 +32,7 @@ pub enum Commands {
     #[arg(short, long)]
     group: Option<String>,
     /// Force overwrite existing secret
-    #[arg(long)]
+    #[arg(short, long)]
     force: bool,
   },
   /// Retrieve/read a secret entry
@@ -42,23 +42,6 @@ pub enum Commands {
     /// Group/namespace for the secret (defaults to 'general')
     #[arg(short, long)]
     group: Option<String>,
-    /// Show the secret value (default: just confirm existence)
-    #[arg(long)]
-    show: bool,
-  },
-  /// Update an existing secret entry
-  Update {
-    /// Secret name/key
-    name: String,
-    /// Group/namespace for the secret (defaults to 'general')
-    #[arg(short, long)]
-    group: Option<String>,
-    /// New value to store (will be prompted securely if not provided)
-    #[arg(long)]
-    value: Option<String>,
-    /// Skip confirmation prompt
-    #[arg(long)]
-    force: bool,
   },
   /// Delete secret entries
   Delete {
@@ -87,19 +70,6 @@ pub enum Commands {
     #[arg(long)]
     force: bool,
   },
-
-  // Legacy command aliases for backward compatibility
-  /// @deprecated Use 'read' instead
-  #[command(hide = true)]
-  Get {
-    /// Service/namespace for the credential
-    service: String,
-    /// Key name for the credential
-    key: String,
-    /// Show the credential value (default: just confirm existence)
-    #[arg(long)]
-    show: bool,
-  },
 }
 
 /// Handle a secrets command
@@ -114,13 +84,9 @@ pub async fn handle_command(command: Commands) -> Result<()> {
       let group = group.unwrap_or_else(|| "general".to_string());
       handle_store(&secrets, &group, &name, value, force).await?;
     }
-    Commands::Read { name, group, show } => {
+    Commands::Read { name, group } => {
       let group = group.unwrap_or_else(|| "general".to_string());
-      handle_read(&secrets, &group, &name, show).await?;
-    }
-    Commands::Update { name, group, value, force } => {
-      let group = group.unwrap_or_else(|| "general".to_string());
-      handle_update(&secrets, &group, &name, value, force).await?;
+      handle_read(&secrets, &group, &name).await?;
     }
     Commands::Delete { name, group, force } => {
       let group = group.unwrap_or_else(|| "general".to_string());
@@ -131,10 +97,6 @@ pub async fn handle_command(command: Commands) -> Result<()> {
     }
     Commands::Clear { force } => {
       handle_clear(&secrets, force, quiet_mode).await?;
-    }
-    // Legacy command for backward compatibility
-    Commands::Get { service, key, show } => {
-      handle_read(&secrets, &service, &key, show).await?;
     }
   }
 
@@ -196,19 +158,12 @@ async fn get_master_password(_secrets: &Secrets) -> Result<String> {
 }
 
 async fn handle_store(
-  secrets: &Secrets,
+  _secrets: &Secrets,
   group: &str,
   name: &str,
   value: Option<String>,
   force: bool,
 ) -> Result<()> {
-  // Check if secret already exists
-  if !force && secrets.get_secret_raw_no_setup(group, name).is_ok() {
-    bentley::warn(&format!("Secret {group}/{name} already exists"));
-    bentley::info("Use --force to overwrite existing secret");
-    return Ok(());
-  }
-
   let secret_value = if let Some(val) = value {
     val
   } else {
@@ -222,7 +177,7 @@ async fn handle_store(
   }
 
   // Get master password once
-  let master_password = get_master_password(secrets).await?;
+  let master_password = get_master_password(_secrets).await?;
 
   // Load existing credentials or create new ones
   let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
@@ -254,6 +209,17 @@ async fn handle_store(
     std::collections::HashMap::new()
   };
 
+  // Check if secret already exists (now that we have the credentials loaded)
+  if !force {
+    if let Some(group_secrets) = all_credentials.get(group) {
+      if group_secrets.contains_key(name) {
+        bentley::warn(&format!("Secret {group}/{name} already exists"));
+        bentley::info("Use --force to overwrite existing secret");
+        return Ok(());
+      }
+    }
+  }
+
   // Add/update the secret
   all_credentials
     .entry(group.to_string())
@@ -269,55 +235,16 @@ async fn handle_store(
   Ok(())
 }
 
-async fn handle_read(secrets: &Secrets, group: &str, name: &str, show: bool) -> Result<()> {
+async fn handle_read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
   match secrets.get_secret_raw_no_setup(group, name) {
     Ok(value) => {
-      if show {
-        bentley::info(&format!("Secret {group}/{name}:"));
-        println!("{value}");
-      } else {
-        bentley::success(&format!("✅ Secret {group}/{name} exists"));
-      }
+      println!("{value}");
     }
     Err(_) => {
       bentley::error(&format!("❌ Secret not found: {group}/{name}"));
       std::process::exit(1);
     }
   }
-  Ok(())
-}
-
-async fn handle_update(
-  secrets: &Secrets,
-  group: &str,
-  name: &str,
-  value: Option<String>,
-  force: bool,
-) -> Result<()> {
-  // Check if secret exists
-  if secrets.get_secret_raw_no_setup(group, name).is_err() {
-    bentley::warn(&format!("Secret not found: {group}/{name}"));
-    return Ok(());
-  }
-
-  let new_value = if let Some(val) = value {
-    val
-  } else {
-    bentley::info(&format!("Enter new value for {group}/{name}:"));
-    rpassword::prompt_password("New value: ")?
-  };
-
-  if !force {
-    bentley::info(&format!("Update secret {group}/{name}?"));
-    let input = rpassword::prompt_password("Type 'yes' to confirm: ")?;
-    if input.trim().to_lowercase() != "yes" {
-      bentley::info("Update cancelled");
-      return Ok(());
-    }
-  }
-
-  secrets.store_secret_raw(group, name, &new_value)?;
-  bentley::success(&format!("Updated secret: {group}/{name}"));
   Ok(())
 }
 
@@ -465,7 +392,7 @@ async fn handle_list(
     for (group, secrets_map) in credentials_to_show {
       bentley::info(&format!("\n📁 {}/", group));
       for key in secrets_map.keys() {
-        println!("   🔑 {}/{}", group, key);
+        bentley::info(&format!("   🔑 {}/{}", group, key));
       }
     }
   } else {
