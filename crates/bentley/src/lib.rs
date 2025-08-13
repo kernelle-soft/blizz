@@ -45,7 +45,7 @@ pub fn log(message: &str) {
 
 /// Format a colored prefix for log messages
 fn format_prefix(color: Color, prefix: &str) -> String {
-  format!("[{}]", prefix.color(color).bold())
+  format!("[{}]{:<width$}", prefix.color(color).bold(), "", width = 7 - prefix.len() - 2)
 }
 
 /// Create a banner line of the specified length and character
@@ -66,6 +66,13 @@ where
   log_fn(&banner);
   log_fn(message);
   log_fn(&banner);
+}
+
+pub fn verbose(message: &str) {
+  let prefix = format_prefix(Color::Cyan, "verb");
+  for line in message.lines() {
+    log(&format!("{prefix} {line}"));
+  }
 }
 
 /// Info level logging - general information
@@ -92,6 +99,13 @@ pub fn error(message: &str) {
   }
 }
 
+pub fn fail(message: &str) {
+  let prefix = format_prefix(Color::BrightRed, "fail");
+  for line in message.lines() {
+    log(&format!("{prefix} {line}"));
+  }
+}
+
 /// Debug level logging - detailed diagnostic information
 pub fn debug(message: &str) {
   let prefix = format_prefix(Color::Magenta, "debug");
@@ -102,7 +116,7 @@ pub fn debug(message: &str) {
 
 /// Success level logging - something completed successfully
 pub fn success(message: &str) {
-  let prefix = format_prefix(Color::Green, "success");
+  let prefix = format_prefix(Color::Green, "succ");
   for line in message.lines() {
     log(&format!("{prefix} {line}"));
   }

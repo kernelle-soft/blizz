@@ -78,7 +78,7 @@ pub struct PasswordBasedCredentialStore {
 }
 
 impl PasswordBasedCredentialStore {
-  fn new(
+  pub fn new(
     credentials: &HashMap<String, HashMap<String, String>>,
     master_password: &str,
   ) -> Result<Self> {
@@ -103,7 +103,7 @@ impl PasswordBasedCredentialStore {
     }
   }
 
-  fn save_to_file(&self, path: &PathBuf) -> Result<()> {
+  pub fn save_to_file(&self, path: &PathBuf) -> Result<()> {
     if let Some(parent) = path.parent() {
       fs::create_dir_all(parent)?;
     }
