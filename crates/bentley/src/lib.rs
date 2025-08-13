@@ -37,7 +37,7 @@ pub fn init() {
 }
 
 /// Core logging function that handles the actual output
-fn log(message: &str) {
+pub fn log(message: &str) {
   for line in message.lines() {
     eprintln!("{line}");
   }

@@ -70,7 +70,7 @@ impl SecretProvider for MockSecretProvider {
 
 /// Password-based credential store using Argon2 key derivation
 #[derive(Debug, Serialize, Deserialize)]
-struct PasswordBasedCredentialStore {
+pub struct PasswordBasedCredentialStore {
   /// The encrypted credential data
   encrypted_data: EncryptedBlob,
   /// Version identifier for format compatibility
@@ -86,14 +86,14 @@ impl PasswordBasedCredentialStore {
     Ok(Self { encrypted_data, version: "1.0".to_string() })
   }
 
-  fn decrypt_credentials(
+  pub fn decrypt_credentials(
     &self,
     master_password: &str,
   ) -> Result<HashMap<String, HashMap<String, String>>> {
     EncryptionManager::decrypt_credentials(&self.encrypted_data, master_password)
   }
 
-  fn load_from_file(path: &PathBuf) -> Result<Option<Self>> {
+  pub fn load_from_file(path: &PathBuf) -> Result<Option<Self>> {
     if path.exists() {
       let content = fs::read_to_string(path)?;
       let store: PasswordBasedCredentialStore = serde_json::from_str(content.trim())?;
