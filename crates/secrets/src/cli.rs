@@ -36,6 +36,24 @@ pub enum AgentAction {
 
 #[derive(Subcommand)]
 pub enum Commands {
+  /// List all secret entries
+  #[command(visible_alias = "ls")]
+  List {
+    /// Show only entries for a specific group
+    #[arg(short, long)]
+    group: Option<String>,
+    /// Show secret keys (default: just group names)
+    #[arg(long)]
+    keys: bool,
+  },
+  /// Retrieve/read a secret entry
+  Read {
+    /// Secret name/key
+    name: String,
+    /// Group/namespace for the secret (defaults to 'general')
+    #[arg(short, long)]
+    group: Option<String>,
+  },
   /// Store a secret entry
   Store {
     /// Secret name/key
@@ -49,14 +67,6 @@ pub enum Commands {
     #[arg(short, long)]
     force: bool,
   },
-  /// Retrieve/read a secret entry
-  Read {
-    /// Secret name/key
-    name: String,
-    /// Group/namespace for the secret (defaults to 'general')
-    #[arg(short, long)]
-    group: Option<String>,
-  },
   /// Delete secret entries
   Delete {
     /// Secret name/key
@@ -68,16 +78,6 @@ pub enum Commands {
     #[arg(long)]
     force: bool,
   },
-  /// List all secret entries
-  #[command(visible_alias = "ls")]
-  List {
-    /// Show only entries for a specific group
-    #[arg(short, long)]
-    group: Option<String>,
-    /// Show secret keys (default: just group names)
-    #[arg(long)]
-    keys: bool,
-  },
   /// Clear all secrets from the vault
   Clear {
     /// Skip confirmation prompt
@@ -88,6 +88,12 @@ pub enum Commands {
   Agent {
     #[command(subcommand)]
     action: AgentAction,
+  },
+  /// Reset master password (re-encrypts all secrets)
+  ResetPassword {
+    /// Skip confirmation prompt
+    #[arg(long)]
+    force: bool,
   },
 }
 
@@ -119,6 +125,9 @@ pub async fn handle_command(command: Commands) -> Result<()> {
     }
     Commands::Agent { action } => {
       handle_agent(action).await?;
+    }
+    Commands::ResetPassword { force } => {
+      handle_reset_password(&secrets, force).await?;
     }
   }
 
@@ -682,6 +691,87 @@ async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()>
   if !quiet {
     bentley::success("vault cleared");
   }
+
+  Ok(())
+}
+
+async fn handle_reset_password(secrets: &Secrets, force: bool) -> Result<()> {
+  bentley::verbose("resetting master password...");
+
+  // Get the current master password from the daemon
+  let current_password = get_master_password(secrets).await?;
+
+  // Load current credentials store
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
+
+  let mut credentials_path = base_path;
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
+
+  if !credentials_path.exists() {
+    return Err(anyhow::anyhow!("No vault exists to reset password for"));
+  }
+
+  // Load existing credentials with current password
+  use crate::PasswordBasedCredentialStore;
+  let existing_store = match PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
+    Some(store) => store,
+    None => {
+      return Err(anyhow::anyhow!("No vault exists to reset password for"));
+    }
+  };
+
+  // Decrypt all credentials with current password
+  let credentials = match existing_store.decrypt_credentials(&current_password) {
+    Ok(creds) => creds,
+    Err(_) => {
+      return Err(anyhow::anyhow!("Failed to decrypt vault with current password"));
+    }
+  };
+
+  if !force {
+    eprintln!("This will re-encrypt all secrets with a new master password.");
+    eprintln!("You currently have {} secret(s) stored.", credentials.len());
+    eprint!("Are you sure you want to continue? (y/N): ");
+    std::io::stdout().flush()?;
+
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+    let input = input.trim().to_lowercase();
+
+    if input != "y" && input != "yes" {
+      bentley::info("password reset cancelled");
+      return Ok(());
+    }
+  }
+
+  // Prompt for new password
+  eprintln!("Enter new master password:");
+  let new_password = rpassword::read_password()?;
+
+  if new_password.is_empty() {
+    return Err(anyhow::anyhow!("Password cannot be empty"));
+  }
+
+  // Confirm new password
+  eprintln!("Confirm new master password:");
+  let confirm_password = rpassword::read_password()?;
+
+  if new_password != confirm_password {
+    return Err(anyhow::anyhow!("Passwords do not match"));
+  }
+
+  // Create new encrypted store with new password
+  let new_store = PasswordBasedCredentialStore::new(&credentials, &new_password)?;
+  new_store.save_to_file(&credentials_path)?;
+
+  bentley::success("master password reset successfully");
+  bentley::info("please restart the daemon for the new password to take effect");
 
   Ok(())
 }
