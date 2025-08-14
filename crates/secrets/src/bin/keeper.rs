@@ -61,8 +61,7 @@ fn get_password(keeper_path: &Path) -> Result<String> {
   let master_password = rpassword::read_password()?;
 
   if master_password.trim().is_empty() {
-    bentley::error("master password cannot be empty");
-    std::process::exit(1);
+    return Err(anyhow!("master password cannot be empty"));
   }
 
   // Verify password by attempting to decrypt
@@ -74,8 +73,7 @@ fn get_password(keeper_path: &Path) -> Result<String> {
   let blob: EncryptedBlob = serde_json::from_value(blob_val.clone())?;
 
   if EncryptionManager::decrypt_credentials(&blob, master_password.trim()).is_err() {
-    bentley::error("incorrect password");
-    std::process::exit(1);
+    return Err(anyhow!("incorrect password"));
   }
 
   Ok(master_password.trim().to_string())
@@ -88,8 +86,7 @@ fn create_new_vault(cred_path: &Path) -> Result<String> {
   let password1 = rpassword::read_password()?;
 
   if password1.trim().is_empty() {
-    bentley::error("master password cannot be empty");
-    std::process::exit(1);
+    return Err(anyhow!("master password cannot be empty"));
   }
 
   bentley::info("confirm master password:");
@@ -98,8 +95,7 @@ fn create_new_vault(cred_path: &Path) -> Result<String> {
   let password2 = rpassword::read_password()?;
 
   if password1 != password2 {
-    bentley::error("passwords do not match");
-    std::process::exit(1);
+    return Err(anyhow!("passwords do not match"));
   }
 
   // Create empty credentials structure
