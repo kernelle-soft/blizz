@@ -130,7 +130,7 @@ fn spawn_handler(socket: &PathBuf, pwd: String) -> JoinHandle<()> {
   let listener = match UnixListener::bind(socket) {
     Ok(listener) => listener,
     Err(e) => {
-      bentley::error(&format!("failed to bind socket: {}", e));
+      bentley::error(&format!("failed to bind socket: {e}"));
       std::process::exit(1);
     }
   };
@@ -147,7 +147,7 @@ fn spawn_handler(socket: &PathBuf, pwd: String) -> JoinHandle<()> {
           });
         }
         Err(e) => {
-          bentley::warn(&format!("failed to accept connection: {}", e));
+          bentley::warn(&format!("failed to accept connection: {e}"));
         }
       }
     }
@@ -164,11 +164,11 @@ async fn handle_client(stream: tokio::net::UnixStream, password: String) {
     Ok(_) if line.trim() == "GET" => {
       let mut stream = reader.into_inner();
       if let Err(e) = stream.write_all(password.as_bytes()).await {
-        bentley::warn(&format!("failed to send password: {}", e));
+        bentley::warn(&format!("failed to send password: {e}"));
         return;
       }
       if let Err(e) = stream.write_all(b"\n").await {
-        bentley::warn(&format!("failed to send newline: {}", e));
+        bentley::warn(&format!("failed to send newline: {e}"));
         return;
       }
       bentley::verbose("password sent to client");
@@ -177,7 +177,7 @@ async fn handle_client(stream: tokio::net::UnixStream, password: String) {
       bentley::warn(&format!("invalid request: {}", line.trim()));
     }
     Err(e) => {
-      bentley::warn(&format!("failed to read request: {}", e));
+      bentley::warn(&format!("failed to read request: {e}"));
     }
   }
 }

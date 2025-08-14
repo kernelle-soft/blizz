@@ -458,7 +458,7 @@ async fn handle_delete(
   if let Some(name) = name {
     // Delete specific secret
     let secret_exists =
-      all_credentials.get(group).map_or(false, |group_secrets| group_secrets.contains_key(&name));
+      all_credentials.get(group).is_some_and(|group_secrets| group_secrets.contains_key(&name));
 
     if !secret_exists {
       bentley::error(&format!("Secret not found: {group}/{name}"));
