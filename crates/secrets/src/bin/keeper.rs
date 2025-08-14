@@ -1,36 +1,45 @@
+use anyhow::anyhow;
 use anyhow::Result;
-use secrets::Secrets;
+use dirs;
+use rpassword;
+use secrets::encryption::{EncryptedBlob, EncryptionManager};
+use serde_json::{self, Value};
+use std::path::PathBuf;
+use std::{env, fs};
 use tokio::signal;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-  // Create a Secrets instance
-  let secrets = Secrets::new();
+  let base = if let Ok(dir) = env::var("KERNELLE_HOME") {
+    PathBuf::from(dir)
+  } else {
+    dirs::home_dir().ok_or_else(|| anyhow!("Failed to determine home directory"))?.join(".kernelle")
+  };
 
-  // Attempt to decrypt the vault by requesting a dummy secret
-  // This will prompt for the master password and perform decryption
-  match secrets.get_secret_raw_no_setup("", "") {
-    Ok(_) => {
-      // Found a secret with empty keys (unlikely), treat as success
-      println!("✅ Master password verified.");
-    }
-    Err(err) => {
-      let msg = err.to_string();
-      if msg.contains("Decryption failed") {
-        eprintln!("❌ Master password incorrect");
-        std::process::exit(1);
-      } else {
-        // Decryption succeeded but dummy key not found
-        println!("✅ Master password verified.");
-      }
-    }
+  let cred_path = base.join("persistent").join("keeper").join("credentials.enc");
+  bentley::info("password:");
+  let master_password = rpassword::prompt_password("> ")?;
+
+  if !cred_path.exists() {
+    bentley::error(&format!("no vault found at {:?}", cred_path));
+    std::process::exit(1);
   }
 
-  println!("Keeper is running. Press Ctrl+C to exit and keep the key cached.");
+  let data = fs::read_to_string(&cred_path)?;
+  let store_json: Value = serde_json::from_str(data.trim())?;
+  let blob_val = store_json
+    .get("encrypted_data")
+    .ok_or_else(|| anyhow!("invalid vault format: missing 'encrypted_data'"))?;
+  let blob: EncryptedBlob = serde_json::from_value(blob_val.clone())?;
+  if EncryptionManager::decrypt_credentials(&blob, &master_password).is_err() {
+    bentley::error("incorrect password");
+    std::process::exit(1);
+  }
 
-  // Hold the process alive until Ctrl+C
+  bentley::info("press ctrl+c to exit");
+
   signal::ctrl_c().await?;
-  println!("Shutting down keeper.");
 
+  bentley::info("\nshutting down");
   Ok(())
 }
