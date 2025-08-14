@@ -1,7 +1,9 @@
-use crate::{services, Secrets};
-use anyhow::Result;
+use crate::Secrets;
+use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use std::env;
+use std::io::Write;
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "secrets")]
@@ -20,14 +22,6 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-  /// Setup credentials for a predefined service
-  Setup {
-    /// Service to setup (github, gitlab, jira, notion)
-    service: String,
-    /// Force reconfiguration of existing credentials
-    #[arg(long)]
-    force: bool,
-  },
   /// Store a secret entry
   Store {
     /// Secret name/key
@@ -38,7 +32,7 @@ pub enum Commands {
     #[arg(short, long)]
     group: Option<String>,
     /// Force overwrite existing secret
-    #[arg(long)]
+    #[arg(short, long)]
     force: bool,
   },
   /// Retrieve/read a secret entry
@@ -48,23 +42,6 @@ pub enum Commands {
     /// Group/namespace for the secret (defaults to 'general')
     #[arg(short, long)]
     group: Option<String>,
-    /// Show the secret value (default: just confirm existence)
-    #[arg(long)]
-    show: bool,
-  },
-  /// Update an existing secret entry
-  Update {
-    /// Secret name/key
-    name: String,
-    /// Group/namespace for the secret (defaults to 'general')
-    #[arg(short, long)]
-    group: Option<String>,
-    /// New value to store (will be prompted securely if not provided)
-    #[arg(long)]
-    value: Option<String>,
-    /// Skip confirmation prompt
-    #[arg(long)]
-    force: bool,
   },
   /// Delete secret entries
   Delete {
@@ -93,24 +70,6 @@ pub enum Commands {
     #[arg(long)]
     force: bool,
   },
-  /// Verify credentials for a predefined service
-  Verify {
-    /// Service to verify (github, gitlab, jira, notion)
-    service: String,
-  },
-
-  // Legacy command aliases for backward compatibility
-  /// @deprecated Use 'read' instead
-  #[command(hide = true)]
-  Get {
-    /// Service/namespace for the credential
-    service: String,
-    /// Key name for the credential
-    key: String,
-    /// Show the credential value (default: just confirm existence)
-    #[arg(long)]
-    show: bool,
-  },
 }
 
 /// Handle a secrets command
@@ -121,20 +80,13 @@ pub async fn handle_command(command: Commands) -> Result<()> {
   let secrets = Secrets::new();
 
   match command {
-    Commands::Setup { service, force } => {
-      handle_setup(&secrets, &service, force, quiet_mode).await?;
-    }
     Commands::Store { name, value, group, force } => {
       let group = group.unwrap_or_else(|| "general".to_string());
       handle_store(&secrets, &group, &name, value, force).await?;
     }
-    Commands::Read { name, group, show } => {
+    Commands::Read { name, group } => {
       let group = group.unwrap_or_else(|| "general".to_string());
-      handle_read(&secrets, &group, &name, show).await?;
-    }
-    Commands::Update { name, group, value, force } => {
-      let group = group.unwrap_or_else(|| "general".to_string());
-      handle_update(&secrets, &group, &name, value, force).await?;
+      handle_read(&secrets, &group, &name).await?;
     }
     Commands::Delete { name, group, force } => {
       let group = group.unwrap_or_else(|| "general".to_string());
@@ -145,13 +97,6 @@ pub async fn handle_command(command: Commands) -> Result<()> {
     }
     Commands::Clear { force } => {
       handle_clear(&secrets, force, quiet_mode).await?;
-    }
-    Commands::Verify { service } => {
-      handle_verify(&secrets, &service).await?;
-    }
-    // Legacy command for backward compatibility
-    Commands::Get { service, key, show } => {
-      handle_read(&secrets, &service, &key, show).await?;
     }
   }
 
@@ -165,85 +110,60 @@ fn is_subprocess() -> bool {
   env::var("PPID").is_ok() && env::var("SHLVL").map_or(true, |level| level != "1")
 }
 
-async fn handle_setup(
-  secrets: &Secrets,
-  service_name: &str,
-  force: bool,
-  quiet: bool,
-) -> Result<()> {
-  let service_config = match service_name.to_lowercase().as_str() {
-    "github" => services::github(),
-    "gitlab" => services::gitlab(),
-    "jira" => services::jira(),
-    "notion" => services::notion(),
-    _ => {
-      bentley::error(&format!(
-        "Unsupported service: {service_name}. Supported services: github, gitlab, jira, notion"
-      ));
-      bentley::info("Use 'secrets store' for arbitrary credential storage");
-      return Ok(());
-    }
+/// Helper function to get master password once, handling both existing and new vault scenarios
+async fn get_master_password(_secrets: &Secrets) -> Result<String> {
+  // Check if credentials file exists
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
   };
 
-  // Check if credentials already exist
-  let missing = secrets.verify_service_credentials(&service_config)?;
+  let mut credentials_path = base_path;
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
 
-  if missing.is_empty() && !force {
-    bentley::success(&format!(
-      "All credentials for {} are already configured!",
-      service_config.name
-    ));
-    bentley::info("Use --force to reconfigure existing credentials");
-    return Ok(());
-  }
-
-  if !quiet {
-    bentley::announce(&format!("Setting up credentials for {}", service_config.name));
-  }
-  bentley::info(&service_config.description);
-
-  for cred_spec in &service_config.required_credentials {
-    if force || missing.contains(&cred_spec.key) {
-      bentley::info(&format!("\n📝 Setting up: {}", cred_spec.description));
-
-      if let Some(example) = &cred_spec.example {
-        bentley::info(&format!("   Example format: {example}"));
-      }
-
-      let prompt = format!("Enter {}: ", cred_spec.key);
-      let value = rpassword::prompt_password(prompt)?;
-
-      if value.trim().is_empty() {
-        bentley::warn(&format!("Skipping empty {} - you can set it up later", cred_spec.key));
-        continue;
-      }
-
-      secrets.store_secret_raw(&service_config.name, &cred_spec.key, value.trim())?;
+  if credentials_path.exists() {
+    // Existing vault - just get password
+    bentley::info("enter master password:");
+    print!("> ");
+    std::io::stdout().flush()?;
+    let password = rpassword::read_password()?;
+    if password.trim().is_empty() {
+      return Err(anyhow!("master password cannot be empty"));
     }
-  }
-
-  if !quiet {
-    bentley::flourish(&format!("Credentials setup complete for {}!", service_config.name));
+    Ok(password.trim().to_string())
   } else {
-    bentley::success(&format!("✅ {} credentials configured successfully!", service_config.name));
+    // New vault - create master password
+    bentley::info("setting up vault - create master password:");
+    print!("> ");
+    std::io::stdout().flush()?;
+    let password1 = rpassword::read_password()?;
+    if password1.trim().is_empty() {
+      return Err(anyhow!("master password cannot be empty"));
+    }
+
+    bentley::info("confirm master password:");
+    print!("> ");
+    std::io::stdout().flush()?;
+    let password2 = rpassword::read_password()?;
+
+    if password1 != password2 {
+      return Err(anyhow!("passwords do not match"));
+    }
+
+    Ok(password1.trim().to_string())
   }
-  Ok(())
 }
 
 async fn handle_store(
-  secrets: &Secrets,
+  _secrets: &Secrets,
   group: &str,
   name: &str,
   value: Option<String>,
   force: bool,
 ) -> Result<()> {
-  // Check if secret already exists
-  if !force && secrets.get_secret_raw_no_setup(group, name).is_ok() {
-    bentley::warn(&format!("Secret {group}/{name} already exists"));
-    bentley::info("Use --force to overwrite existing secret");
-    return Ok(());
-  }
-
   let secret_value = if let Some(val) = value {
     val
   } else {
@@ -256,60 +176,75 @@ async fn handle_store(
     return Ok(());
   }
 
-  secrets.store_secret_raw(group, name, secret_value.trim())?;
+  // Get master password once
+  let master_password = get_master_password(_secrets).await?;
+
+  // Load existing credentials or create new ones
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
+
+  let mut credentials_path = base_path;
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
+
+  // Load existing credentials or start with empty
+  let mut all_credentials = if credentials_path.exists() {
+    use crate::PasswordBasedCredentialStore;
+    if let Some(store) = PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
+      match store.decrypt_credentials(&master_password) {
+        Ok(creds) => creds,
+        Err(_) => {
+          bentley::error("invalid master password");
+          return Ok(());
+        }
+      }
+    } else {
+      std::collections::HashMap::new()
+    }
+  } else {
+    std::collections::HashMap::new()
+  };
+
+  // Check if secret already exists (now that we have the credentials loaded)
+  if !force {
+    if let Some(group_secrets) = all_credentials.get(group) {
+      if group_secrets.contains_key(name) {
+        bentley::warn(&format!("Secret {group}/{name} already exists"));
+        bentley::info("Use --force to overwrite existing secret");
+        return Ok(());
+      }
+    }
+  }
+
+  // Add/update the secret
+  all_credentials
+    .entry(group.to_string())
+    .or_default()
+    .insert(name.to_string(), secret_value.trim().to_string());
+
+  // Save back to file
+  use crate::PasswordBasedCredentialStore;
+  let store = PasswordBasedCredentialStore::new(&all_credentials, &master_password)?;
+  store.save_to_file(&credentials_path)?;
+
   bentley::success(&format!("Stored secret: {group}/{name}"));
   Ok(())
 }
 
-async fn handle_read(secrets: &Secrets, group: &str, name: &str, show: bool) -> Result<()> {
+async fn handle_read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
   match secrets.get_secret_raw_no_setup(group, name) {
     Ok(value) => {
-      if show {
-        bentley::info(&format!("Secret {group}/{name}:"));
-        println!("{value}");
-      } else {
-        bentley::success(&format!("✅ Secret {group}/{name} exists"));
-      }
+      println!("{value}");
     }
     Err(_) => {
       bentley::error(&format!("❌ Secret not found: {group}/{name}"));
       std::process::exit(1);
     }
   }
-  Ok(())
-}
-
-async fn handle_update(
-  secrets: &Secrets,
-  group: &str,
-  name: &str,
-  value: Option<String>,
-  force: bool,
-) -> Result<()> {
-  // Check if secret exists
-  if secrets.get_secret_raw_no_setup(group, name).is_err() {
-    bentley::warn(&format!("Secret not found: {group}/{name}"));
-    return Ok(());
-  }
-
-  let new_value = if let Some(val) = value {
-    val
-  } else {
-    bentley::info(&format!("Enter new value for {group}/{name}:"));
-    rpassword::prompt_password("New value: ")?
-  };
-
-  if !force {
-    bentley::info(&format!("Update secret {group}/{name}?"));
-    let input = rpassword::prompt_password("Type 'yes' to confirm: ")?;
-    if input.trim().to_lowercase() != "yes" {
-      bentley::info("Update cancelled");
-      return Ok(());
-    }
-  }
-
-  secrets.store_secret_raw(group, name, &new_value)?;
-  bentley::success(&format!("Updated secret: {group}/{name}"));
   Ok(())
 }
 
@@ -376,168 +311,175 @@ async fn handle_delete(
 }
 
 async fn handle_list(
-  secrets: &Secrets,
+  _secrets: &Secrets,
   group_filter: Option<String>,
   show_keys: bool,
   quiet: bool,
 ) -> Result<()> {
-  if !quiet {
-    bentley::announce("Secret Vault Contents");
-  }
-
-  if let Some(group) = group_filter {
-    // List secrets for specific group
-    bentley::info(&format!("Group: {group}"));
-
-    if show_keys {
-      // Try common secret keys to see what exists
-      let common_keys = ["token", "api_key", "password", "secret", "key", "pat", "access_token"];
-      let mut found_keys = Vec::new();
-
-      for key in &common_keys {
-        if secrets.get_secret_raw_no_setup(&group, key).is_ok() {
-          found_keys.push(key);
-        }
-      }
-
-      if found_keys.is_empty() {
-        bentley::info("  No secrets found");
-      } else {
-        for key in found_keys {
-          bentley::success(&format!("  ✅ {key}"));
-        }
-      }
-    } else {
-      bentley::info("  Use --keys to show secret keys");
-    }
+  // Get the credentials file path (same logic as PasswordBasedCryptoManager::new)
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
   } else {
-    // List all groups (predefined + any we can discover)
-    let predefined_services = ["github", "gitlab", "jira", "notion"];
-    let mut found_groups = Vec::new();
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
 
-    for service_name in &predefined_services {
-      let service_config = match *service_name {
-        "github" => services::github(),
-        "gitlab" => services::gitlab(),
-        "jira" => services::jira(),
-        "notion" => services::notion(),
-        _ => continue,
-      };
+  let mut credentials_path = base_path;
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
 
-      let missing = secrets.verify_service_credentials_no_setup(&service_config)?;
-      let configured = service_config.required_credentials.len() - missing.len();
-
-      if configured > 0 {
-        found_groups.push(service_name);
-        let total = service_config.required_credentials.len();
-        bentley::success(&format!("📋 {}: {}/{} secrets", service_config.name, configured, total));
-
-        if show_keys {
-          for cred_spec in &service_config.required_credentials {
-            if !missing.contains(&cred_spec.key) {
-              bentley::info(&format!("    ✅ {}", cred_spec.key));
-            } else {
-              bentley::warn(&format!("    ❌ {}", cred_spec.key));
-            }
-          }
-        }
-      }
-    }
-
-    if found_groups.is_empty() {
-      bentley::info("No predefined services configured");
-      bentley::info("Use 'secrets setup <service>' for GitHub, GitLab, Jira, or Notion");
-      bentley::info("Use 'secrets store <name> [-g <group>]' for arbitrary secrets");
-    }
+  // Check if credentials file exists
+  if !credentials_path.exists() {
+    bentley::info("no secrets stored yet");
+    return Ok(());
   }
 
-  Ok(())
-}
-
-async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
-  if !force {
-    bentley::warn("⚠️  This will DELETE ALL SECRETS from the vault!");
-    bentley::warn("This action cannot be undone!");
-    let confirm = rpassword::prompt_password("Type 'DELETE ALL' to confirm: ")?;
-    if confirm.trim() != "DELETE ALL" {
-      bentley::info("Cancelled - vault contents preserved");
-      return Ok(());
-    }
-  }
-
-  bentley::info("Clearing secret vault...");
-
-  // Clear predefined services
-  let services = ["github", "gitlab", "jira", "notion"];
-  let mut cleared_count = 0;
-
-  for service_name in &services {
-    let service_config = match *service_name {
-      "github" => services::github(),
-      "gitlab" => services::gitlab(),
-      "jira" => services::jira(),
-      "notion" => services::notion(),
-      _ => continue,
-    };
-
-    for cred_spec in &service_config.required_credentials {
-      if secrets.get_secret_raw_no_setup(&service_config.name, &cred_spec.key).is_ok()
-        && secrets.delete_secret(&service_config.name, &cred_spec.key).is_ok()
-      {
-        cleared_count += 1;
-      }
-    }
-  }
-
-  // Note: We can't easily enumerate all arbitrary secrets with the current API
-  // So we inform the user about this limitation
-  if cleared_count > 0 {
-    bentley::success(&format!("Cleared {cleared_count} predefined service secrets"));
-  }
-
-  bentley::info(
-    "Note: Any arbitrary secrets (not from predefined services) must be deleted individually",
-  );
-  bentley::info("Use 'secrets delete <name> [-g <group>]' to remove specific secrets");
-
-  if !quiet {
-    bentley::flourish("Vault clearing complete!");
-  } else {
-    bentley::success("Vault cleared successfully");
-  }
-  Ok(())
-}
-
-async fn handle_verify(secrets: &Secrets, service_name: &str) -> Result<()> {
-  let service_config = match service_name.to_lowercase().as_str() {
-    "github" => services::github(),
-    "gitlab" => services::gitlab(),
-    "jira" => services::jira(),
-    "notion" => services::notion(),
-    _ => {
-      bentley::error(&format!("Unsupported service: {service_name}"));
-      bentley::info("Use 'secrets get <service> <key>' to check arbitrary credentials");
+  // Load the encrypted store from file
+  use crate::PasswordBasedCredentialStore;
+  let store = match PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
+    Some(store) => store,
+    None => {
+      bentley::info("no secrets found");
       return Ok(());
     }
   };
 
-  bentley::info(&format!("Verifying credentials for {}...", service_config.name));
+  // Prompt for master password
+  bentley::info("enter master password:");
+  print!("> ");
+  std::io::stdout().flush()?;
+  let master_password = rpassword::read_password()?;
 
-  let missing = secrets.verify_service_credentials_no_setup(&service_config)?;
-
-  if missing.is_empty() {
-    bentley::success(&format!(
-      "✅ All required credentials configured for {}",
-      service_config.name
-    ));
-  } else {
-    bentley::warn(&format!(
-      "❌ Missing credentials for {}: {}",
-      service_config.name,
-      missing.join(", ")
-    ));
-    bentley::info(&format!("Run 'secrets setup {service_name}' to configure missing credentials"));
+  if master_password.trim().is_empty() {
+    return Err(anyhow!("master password cannot be empty"));
   }
 
+  // Decrypt all credentials
+  let all_credentials = match store.decrypt_credentials(master_password.trim()) {
+    Ok(creds) => creds,
+    Err(_) => {
+      bentley::error("invalid master password or corrupted data");
+      return Ok(());
+    }
+  };
+
+  // Display the contents
+  if all_credentials.is_empty() {
+    bentley::info("vault is empty");
+    return Ok(());
+  }
+
+  // Filter by group if specified
+  let filter_group = group_filter.clone();
+  let credentials_to_show = if let Some(filter) = group_filter {
+    all_credentials.into_iter().filter(|(group, _)| group == &filter).collect()
+  } else {
+    all_credentials
+  };
+
+  if credentials_to_show.is_empty() {
+    if let Some(filter) = filter_group {
+      bentley::info(&format!("no secrets found for group: {}", filter));
+    } else {
+      bentley::info("no secrets found");
+    }
+    return Ok(());
+  }
+
+  // Display format depends on show_keys flag
+  if show_keys {
+    // Show detailed view with group/key pairs
+    for (group, secrets_map) in credentials_to_show {
+      bentley::info(&format!("\n📁 {}/", group));
+      for key in secrets_map.keys() {
+        bentley::info(&format!("   🔑 {}/{}", group, key));
+      }
+    }
+  } else {
+    // Show summary view with just groups and counts
+    for (group, secrets_map) in credentials_to_show {
+      let count = secrets_map.len();
+      let plural = if count == 1 { "secret" } else { "secrets" };
+      bentley::info(&format!("📁 {}: {} {}", group, count, plural));
+    }
+
+    if !quiet {
+      bentley::info("\nuse --keys to see individual secret names");
+    }
+  }
+
+  Ok(())
+}
+
+async fn handle_clear(_secrets: &Secrets, _force: bool, quiet: bool) -> Result<()> {
+  bentley::warn("this will DELETE ALL SECRETS from the vault");
+  bentley::warn("this action cannot be undone!");
+  bentley::info("enter master password to confirm:");
+  print!("> ");
+  std::io::stdout().flush()?;
+  let master_password = rpassword::read_password()?;
+
+  if master_password.trim().is_empty() {
+    bentley::info("cancelled - vault contents preserved");
+    return Ok(());
+  }
+
+  // Try to verify the password by attempting to decrypt existing secrets
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
+
+  let mut credentials_path = base_path;
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
+
+  if credentials_path.exists() {
+    use crate::PasswordBasedCredentialStore;
+    if let Some(store) = PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
+      match store.decrypt_credentials(master_password.trim()) {
+        Ok(_) => {
+          // Password verified successfully
+        }
+        Err(_) => {
+          bentley::error("invalid master password - vault contents preserved");
+          return Ok(());
+        }
+      }
+    }
+  }
+
+  bentley::verbose("clearing vault...");
+
+  // Get the credentials file path (same logic as PasswordBasedCryptoManager::new)
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
+
+  let mut credentials_path = base_path;
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
+
+  if credentials_path.exists() {
+    // Create empty credentials structure
+    let empty_credentials = std::collections::HashMap::new();
+
+    // Create a new encrypted store with empty credentials
+    use crate::PasswordBasedCredentialStore;
+    let empty_store =
+      PasswordBasedCredentialStore::new(&empty_credentials, master_password.trim())?;
+    empty_store.save_to_file(&credentials_path)?;
+  } else {
+    bentley::info("no action taken - nothing to clear");
+  }
+
+  if !quiet {
+    bentley::success("vault cleared");
+  }
   Ok(())
 }
