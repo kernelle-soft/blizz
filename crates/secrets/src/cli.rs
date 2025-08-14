@@ -606,11 +606,24 @@ async fn handle_list(
   Ok(())
 }
 
-async fn handle_clear(secrets: &Secrets, _force: bool, quiet: bool) -> Result<()> {
+async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
   bentley::warn("this will DELETE ALL SECRETS from the vault");
   bentley::warn("this action cannot be undone!");
 
-  // Get master password using daemon integration for confirmation
+  // If not forced, ask for confirmation
+  if !force {
+    bentley::info("type 'yes' to confirm vault clearing:");
+    print!("> ");
+    std::io::stdout().flush()?;
+    let mut confirm = String::new();
+    std::io::stdin().read_line(&mut confirm)?;
+    if confirm.trim().to_lowercase() != "yes" {
+      bentley::info("cancelled - vault contents preserved");
+      return Ok(());
+    }
+  }
+
+  // Get master password using daemon integration for verification
   let master_password = get_master_password(secrets).await?;
 
   // Try to verify the password by attempting to decrypt existing secrets
