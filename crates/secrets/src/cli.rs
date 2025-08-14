@@ -406,9 +406,52 @@ async fn handle_delete(
   name: Option<String>,
   force: bool,
 ) -> Result<()> {
+  // Get the credentials file path
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
+
+  let mut credentials_path = base_path.clone();
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
+
+  // Check if credentials file exists
+  if !credentials_path.exists() {
+    bentley::error("No secrets stored yet");
+    return Ok(());
+  }
+
+  // Get master password using daemon integration
+  let master_password = get_master_password(secrets).await?;
+
+  // Load the encrypted store from file
+  use crate::PasswordBasedCredentialStore;
+  let store = match PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
+    Some(store) => store,
+    None => {
+      bentley::error("No secrets found");
+      return Ok(());
+    }
+  };
+
+  // Decrypt all credentials
+  let mut all_credentials = match store.decrypt_credentials(&master_password) {
+    Ok(creds) => creds,
+    Err(_) => {
+      bentley::error("Invalid master password or corrupted data");
+      return Ok(());
+    }
+  };
+
   if let Some(name) = name {
     // Delete specific secret
-    if secrets.get_secret_raw_no_setup(group, &name).is_err() {
+    let secret_exists =
+      all_credentials.get(group).map_or(false, |group_secrets| group_secrets.contains_key(&name));
+
+    if !secret_exists {
       bentley::error(&format!("Secret not found: {group}/{name}"));
       return Ok(());
     }
@@ -422,10 +465,28 @@ async fn handle_delete(
       }
     }
 
-    secrets.delete_secret(group, &name)?;
+    // Remove the secret
+    if let Some(group_secrets) = all_credentials.get_mut(group) {
+      group_secrets.remove(&name);
+
+      // Remove the group entirely if no credentials left
+      if group_secrets.is_empty() {
+        all_credentials.remove(group);
+      }
+    }
+
+    // Save updated credentials back to file
+    let updated_store = PasswordBasedCredentialStore::new(&all_credentials, &master_password)?;
+    updated_store.save_to_file(&credentials_path)?;
+
     bentley::success(&format!("Deleted secret: {group}/{name}"));
   } else {
     // Delete all secrets for group
+    if !all_credentials.contains_key(group) {
+      bentley::info(&format!("No secrets found for group: {group}"));
+      return Ok(());
+    }
+
     if !force {
       bentley::warn(&format!("This will delete ALL secrets for group: {group}"));
       let confirm = rpassword::prompt_password("Type 'yes' to confirm: ")?;
@@ -435,28 +496,17 @@ async fn handle_delete(
       }
     }
 
-    // For arbitrary groups, we can't enumerate keys easily with the current API
-    // So we'll try to delete common keys and let the user know
-    bentley::info(&format!("Attempting to delete all secrets for group: {group}"));
+    // Count secrets before deletion
+    let secret_count = all_credentials.get(group).map_or(0, |secrets| secrets.len());
 
-    // Try common secret keys
-    let common_keys = ["token", "api_key", "password", "secret", "key", "pat", "access_token"];
-    let mut deleted_count = 0;
+    // Remove the entire group
+    all_credentials.remove(group);
 
-    for key in &common_keys {
-      if secrets.get_secret_raw_no_setup(group, key).is_ok()
-        && secrets.delete_secret(group, key).is_ok()
-      {
-        deleted_count += 1;
-        bentley::info(&format!("Deleted: {group}/{key}"));
-      }
-    }
+    // Save updated credentials back to file
+    let updated_store = PasswordBasedCredentialStore::new(&all_credentials, &master_password)?;
+    updated_store.save_to_file(&credentials_path)?;
 
-    if deleted_count > 0 {
-      bentley::success(&format!("Deleted {deleted_count} secrets for group: {group}"));
-    } else {
-      bentley::info(&format!("No secrets found for group: {group}"));
-    }
+    bentley::success(&format!("Deleted {secret_count} secrets for group: {group}"));
   }
 
   Ok(())
