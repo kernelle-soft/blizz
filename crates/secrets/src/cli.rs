@@ -346,15 +346,57 @@ async fn handle_store(
 }
 
 async fn handle_read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
-  match secrets.get_secret_raw_no_setup(group, name) {
-    Ok(value) => {
+  // Get the credentials file path
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    PathBuf::from(kernelle_dir)
+  } else {
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+  };
+
+  let mut credentials_path = base_path.clone();
+  credentials_path.push("persistent");
+  credentials_path.push("keeper");
+  credentials_path.push("credentials.enc");
+
+  // Check if credentials file exists
+  if !credentials_path.exists() {
+    bentley::error(&format!("❌ Secret not found: {group}/{name}"));
+    std::process::exit(1);
+  }
+
+  // Load the encrypted store from file
+  use crate::PasswordBasedCredentialStore;
+  let store = match PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
+    Some(store) => store,
+    None => {
+      bentley::warn(&format!("secret not found: {group}/{name}"));
+      std::process::exit(1);
+    }
+  };
+
+  // Get master password using daemon integration
+  let master_password = get_master_password(secrets).await?;
+
+  // Decrypt all credentials
+  let all_credentials = match store.decrypt_credentials(&master_password) {
+    Ok(creds) => creds,
+    Err(_) => {
+      bentley::error("invalid master password or corrupted data");
+      std::process::exit(1);
+    }
+  };
+
+  // Look for the specific secret
+  match all_credentials.get(group).and_then(|group_secrets| group_secrets.get(name)) {
+    Some(value) => {
       println!("{value}");
     }
-    Err(_) => {
-      bentley::error(&format!("❌ Secret not found: {group}/{name}"));
+    None => {
+      bentley::warn(&format!("secret not found: {group}/{name}"));
       std::process::exit(1);
     }
   }
+
   Ok(())
 }
 
