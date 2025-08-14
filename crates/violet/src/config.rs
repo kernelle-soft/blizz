@@ -691,7 +691,7 @@ mod tests {
     assert!(patterns.iter().any(|p| p.contains("*.md")));
     assert!(patterns.iter().any(|p| p.contains("*.json")));
     assert!(patterns.iter().any(|p| p.contains("*.toml")));
-    
+
     // Font files should be ignored by default
     assert!(patterns.iter().any(|p| p.contains("*.ttf")));
     assert!(patterns.iter().any(|p| p.contains("*.woff")));
@@ -701,7 +701,7 @@ mod tests {
   #[test]
   fn test_should_ignore_font_files() {
     let config = default_global_config();
-    
+
     // Test various font file types should be ignored
     assert!(should_ignore_file(&config, "fonts/MyFont.ttf"));
     assert!(should_ignore_file(&config, "assets/font.woff"));
@@ -709,7 +709,7 @@ mod tests {
     assert!(should_ignore_file(&config, "MyFont.ttf"));
     assert!(should_ignore_file(&config, "font.woff"));
     assert!(should_ignore_file(&config, "icons.woff2"));
-    
+
     // Test that other files are not ignored
     assert!(!should_ignore_file(&config, "main.rs"));
     assert!(!should_ignore_file(&config, "config.js"));
