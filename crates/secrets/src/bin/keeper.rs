@@ -49,10 +49,12 @@ fn get_password(keeper_path: &Path) -> Result<String> {
   let cred_path = keeper_path.join("credentials.enc");
 
   if !cred_path.exists() {
-    bentley::error(&format!("no vault found at {}", cred_path.display()));
-    std::process::exit(1);
+    // No vault exists - create one
+    bentley::info("no vault found, setting up new vault");
+    return create_new_vault(&cred_path);
   }
 
+  // Vault exists - unlock it
   bentley::info("enter master password to unlock daemon:");
   print!("> ");
   std::io::stdout().flush()?;
@@ -77,6 +79,45 @@ fn get_password(keeper_path: &Path) -> Result<String> {
   }
 
   Ok(master_password.trim().to_string())
+}
+
+fn create_new_vault(cred_path: &Path) -> Result<String> {
+  bentley::info("setting up vault - create master password:");
+  print!("> ");
+  std::io::stdout().flush()?;
+  let password1 = rpassword::read_password()?;
+
+  if password1.trim().is_empty() {
+    bentley::error("master password cannot be empty");
+    std::process::exit(1);
+  }
+
+  bentley::info("confirm master password:");
+  print!("> ");
+  std::io::stdout().flush()?;
+  let password2 = rpassword::read_password()?;
+
+  if password1 != password2 {
+    bentley::error("passwords do not match");
+    std::process::exit(1);
+  }
+
+  // Create empty credentials structure
+  let empty_credentials = std::collections::HashMap::new();
+
+  // Encrypt and save the empty vault
+  use secrets::PasswordBasedCredentialStore;
+  let store = PasswordBasedCredentialStore::new(&empty_credentials, password1.trim())?;
+
+  // Ensure parent directory exists
+  if let Some(parent) = cred_path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+
+  store.save_to_file(&cred_path.to_path_buf())?;
+
+  bentley::success("vault created successfully");
+  Ok(password1.trim().to_string())
 }
 
 fn create_socket(keeper_path: &Path) -> Result<PathBuf> {
