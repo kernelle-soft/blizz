@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
   let base = if let Ok(dir) = env::var("KERNELLE_HOME") {
     PathBuf::from(dir)
   } else {
-    dirs::home_dir().ok_or_else(|| anyhow!("Failed to determine home directory"))?.join(".kernelle")
+    dirs::home_dir().ok_or_else(|| anyhow!("failed to determine home directory"))?.join(".kernelle")
   };
 
   let keeper_path = base.join("persistent").join("keeper");
