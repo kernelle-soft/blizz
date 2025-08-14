@@ -445,7 +445,16 @@ fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<
     if src_path.is_dir() {
       copy_dir_recursive(&src_path, &dst_path)?;
     } else {
-      fs::copy(&src_path, &dst_path)?;
+      // Check if it's a regular file before copying
+      let metadata = match fs::metadata(&src_path) {
+        Ok(meta) => meta,
+        Err(_) => continue, // Skip files we can't read metadata for
+      };
+
+      // Only copy regular files, skip special files (sockets, pipes, devices, etc.)
+      if metadata.is_file() {
+        fs::copy(&src_path, &dst_path)?;
+      }
     }
   }
 
@@ -764,6 +773,37 @@ mod tests {
     let result = copy_dir_recursive(&src_dir, &dst_dir);
     assert!(result.is_ok());
     assert!(!dst_dir.exists());
+  }
+
+  #[test]
+  fn test_copy_dir_recursive_with_socket() {
+    use std::os::unix::net::UnixListener;
+
+    let temp_dir = TempDir::new().unwrap();
+    let src_dir = temp_dir.path().join("src");
+    let dst_dir = temp_dir.path().join("dst");
+
+    // Create source directory structure
+    fs::create_dir_all(&src_dir).unwrap();
+    fs::write(src_dir.join("regular_file.txt"), "content").unwrap();
+
+    // Create a Unix socket file (this will create a special file type)
+    let socket_path = src_dir.join("test.sock");
+    let _listener = UnixListener::bind(&socket_path).unwrap();
+
+    // Verify the socket file exists and is not a regular file
+    assert!(socket_path.exists());
+    let metadata = fs::metadata(&socket_path).unwrap();
+    assert!(!metadata.is_file()); // Should not be a regular file
+
+    // Test copy_dir_recursive - should succeed and skip the socket
+    let result = copy_dir_recursive(&src_dir, &dst_dir);
+    assert!(result.is_ok());
+
+    // Verify regular file was copied but socket was skipped
+    assert!(dst_dir.join("regular_file.txt").exists());
+    assert!(!dst_dir.join("test.sock").exists()); // Socket should be skipped
+    assert_eq!(fs::read_to_string(dst_dir.join("regular_file.txt")).unwrap(), "content");
   }
 
   #[test]
