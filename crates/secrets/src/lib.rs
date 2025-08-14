@@ -145,6 +145,9 @@ impl CryptoProvider for PasswordBasedCryptoManager {
   }
 
   fn get_master_password(&self) -> Result<String> {
+    // In a real implementation, this would use daemon communication
+    // For now, we'll keep the direct prompting for backward compatibility
+    // The CLI layer handles daemon communication
     bentley::info("🔐 Enter master password to unlock credential store:");
     print!("> ");
     std::io::stdout().flush()?;
