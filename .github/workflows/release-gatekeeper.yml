@@ -20,7 +20,7 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     outputs:
       should-release: ${{ steps.check.outputs.should-release }}
-    
+
     steps:
       - name: Check if all workflows succeeded
         id: check
@@ -60,21 +60,24 @@ jobs:
     needs: check-all-workflows
     runs-on: ubuntu-latest
     if: needs.check-all-workflows.outputs.should-release == 'true'
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
+
       - name: Setup Kernelle Dependencies
         uses: ./.github/actions/setup-kernelle
+        with:
+          # Skip the slow bootstrapping step. Not needed for release
+          skip-bootstrap: "true"
 
       - name: Bump and Tag Version
         run: |
-          .github/run/bump-version.sh
+          .github/run/bump-version.sh patch
           .github/run/tag-version.sh
-        
+
       - name: Push Changes
         run: |
           git push origin dev
@@ -86,7 +89,7 @@ jobs:
           else
             echo "ℹ️ No tag found on current commit"
           fi
-      
+
       - name: Get Release Version
         id: version
         run: |
@@ -99,16 +102,16 @@ jobs:
             echo "❌ No tag found on current commit"
             exit 1
           fi
-      
+
       - name: Verify Release Version Matches Cargo.toml
         run: .github/run/assert-version-match.sh \
           "${{ steps.version.outputs.version }}"
-      
+
       - name: Generate Release Notes
         run: .github/run/create-release-notes.sh \
           "${{ steps.version.outputs.tag }}" \
           "${{ steps.version.outputs.version }}"
-      
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -118,4 +121,4 @@ jobs:
           draft: false
           prerelease: false
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

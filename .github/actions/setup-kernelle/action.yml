@@ -1,14 +1,18 @@
-name: 'Setup Kernelle Dependencies'
-description: 'Sets up Rust toolchain, installs dependencies, and bootstraps Kernelle CLI tools'
+name: "Setup Kernelle Dependencies"
+description: "Sets up Rust toolchain, installs dependencies, and bootstraps Kernelle CLI tools"
 
 inputs:
   rust-components:
-    description: 'Additional Rust components to install (e.g., rustfmt, clippy)'
+    description: "Additional Rust components to install (e.g., rustfmt, clippy)"
     required: false
-    default: 'rustfmt,clippy'
+    default: "rustfmt,clippy"
+  skip-bootstrap:
+    description: 'If "true", skip running the kernelle bootstrap/install script and related caching/verification steps'
+    required: false
+    default: "false"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -42,6 +46,7 @@ runs:
 
     # Cache kernelle bootstrap artifacts
     - name: Cache kernelle bootstrap
+      if: ${{ inputs.skip-bootstrap != 'true' }}
       uses: actions/cache@v4
       with:
         path: |
@@ -60,27 +65,29 @@ runs:
       shell: bash
 
     - name: Install cargo-tarpaulin for coverage
-      if: runner.os == 'Linux'
+      if: ${{ runner.os == 'Linux' }}
       run: cargo install cargo-tarpaulin --locked
       shell: bash
 
     - name: Bootstrap kernelle
+      if: ${{ inputs.skip-bootstrap != 'true' }}
       run: ./scripts/install.sh --non-interactive
       shell: bash
 
     - name: Add kernelle to PATH (Unix)
-      if: runner.os != 'Windows'
+      if: ${{ runner.os != 'Windows' && inputs.skip-bootstrap != 'true' }}
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       shell: bash
 
     - name: Add kernelle to PATH (Windows)
-      if: runner.os == 'Windows'
+      if: ${{ runner.os == 'Windows' && inputs.skip-bootstrap != 'true' }}
       run: echo "$env:USERPROFILE\.cargo\bin" >> $env:GITHUB_PATH
       shell: pwsh
 
     - name: Verify kernelle installation
+      if: ${{ inputs.skip-bootstrap != 'true' }}
       run: |
         kernelle --help
         insights --help
         violet --help
-      shell: bash 
+      shell: bash
