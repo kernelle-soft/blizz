@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use std::env;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::net::UnixStream;
 use tokio::time::{sleep, Duration};
 
@@ -225,7 +225,7 @@ async fn prompt_for_existing_vault_password() -> Result<String> {
 }
 
 /// Try to get password from running daemon
-async fn get_password_from_daemon(base_path: &PathBuf) -> Result<String> {
+async fn get_password_from_daemon(base_path: &Path) -> Result<String> {
   let socket_path = base_path.join("persistent").join("keeper").join("keeper.sock");
 
   if !socket_path.exists() {
@@ -260,7 +260,7 @@ async fn get_password_from_daemon(base_path: &PathBuf) -> Result<String> {
 }
 
 /// Start daemon if not running and wait for it to be ready
-async fn start_daemon_if_needed(base_path: &PathBuf) -> Result<()> {
+async fn start_daemon_if_needed(base_path: &Path) -> Result<()> {
   let socket_path = base_path.join("persistent").join("keeper").join("keeper.sock");
   let pid_file = base_path.join("persistent").join("keeper").join("keeper.pid");
   let keeper_path = base_path.join("persistent").join("keeper");
