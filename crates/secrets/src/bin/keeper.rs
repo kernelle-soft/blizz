@@ -90,7 +90,6 @@ fn spawn_handler(socket: &PathBuf, pwd: String) -> JoinHandle<()> {
     }
   });
 
-  
-
+  bentley::info(&format!("listening on socket: {:?}", socket));
   handler
 }

@@ -4,6 +4,8 @@ use clap::{Parser, Subcommand};
 use std::env;
 use std::io::Write;
 use std::path::PathBuf;
+use tokio::net::UnixStream;
+use tokio::time::{sleep, Duration};
 
 #[derive(Parser)]
 #[command(name = "secrets")]
@@ -522,64 +524,26 @@ async fn handle_agent(action: AgentAction) -> Result<()> {
 
   match action {
     AgentAction::Start => {
-      start_daemon(&socket_path, &pid_file, &keeper_path).await?;
+      start_agent(&socket_path, &pid_file, &keeper_path).await?;
     }
 
     AgentAction::Status => {
-      if socket_path.exists() {
-        // Try to connect and test the socket
-        use std::io::{Read, Write};
-        use std::os::unix::net::UnixStream;
-
-        match UnixStream::connect(&socket_path) {
-          Ok(mut stream) => {
-            if let Err(_) = stream.write_all(b"GET\n") {
-              bentley::warn("⚠️ Socket exists but failed to communicate");
-              return Ok(());
-            }
-
-            let mut response = String::new();
-            if stream.read_to_string(&mut response).is_ok() && !response.trim().is_empty() {
-              bentley::success("✅ Keeper daemon is running and responsive");
-              bentley::info("🔑 Master key is cached and available");
-            } else {
-              bentley::warn("⚠️ Keeper daemon is running but not responding correctly");
-            }
-          }
-          Err(_) => {
-            bentley::warn("⚠️ Socket file exists but connection failed");
-            bentley::info("Daemon may be starting up or in bad state");
-          }
-        }
-      } else {
-        bentley::info("❌ Keeper daemon is not running");
-        bentley::info("Use 'secrets agent start' to start the daemon");
-      }
+      get_agent_status(&socket_path).await?;
     }
 
     AgentAction::Stop => {
-      stop_daemon(&socket_path, &pid_file).await?;
+      stop_agent(&socket_path, &pid_file).await?;
     }
 
     AgentAction::Restart => {
-      bentley::info("Restarting keeper daemon...");
-
-      // Stop first
-      if socket_path.exists() {
-        stop_daemon(&socket_path, &pid_file).await?;
-        // Give it a moment to fully stop
-        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-      }
-
-      // Then start
-      start_daemon(&socket_path, &pid_file, &keeper_path).await?;
+      restart_agent(&socket_path, &pid_file, &keeper_path).await?;
     }
   }
 
   Ok(())
 }
 
-async fn start_daemon(
+async fn start_agent(
   socket_path: &std::path::Path,
   pid_file: &std::path::Path,
   keeper_path: &std::path::Path,
@@ -588,80 +552,137 @@ async fn start_daemon(
 
   // Check if already running
   if socket_path.exists() {
-    bentley::warn("Keeper daemon appears to already be running");
-    bentley::info("Use 'secrets agent status' to check or 'secrets agent restart' to restart");
+    bentley::warn("agent appears to already be running");
+    bentley::info("use 'secrets agent status' to check or 'secrets agent restart' to restart");
     return Ok(());
   }
 
-  bentley::info("Starting keeper daemon...");
+  bentley::info("starting agent...");
 
   // Spawn keeper binary as background process
   let output = Command::new("keeper").spawn();
 
   match output {
     Ok(child) => {
-      // Store PID for later reference
       fs::create_dir_all(&keeper_path)?;
       fs::write(&pid_file, child.id().to_string())?;
 
       // Give it a moment to start
-      tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+      sleep(Duration::from_millis(500)).await;
 
       if socket_path.exists() {
-        bentley::success("✅ Keeper daemon started successfully");
+        bentley::success("agent started successfully");
       } else {
-        bentley::error("❌ Keeper daemon failed to start (no socket created)");
+        bentley::error("agent failed to start (no socket created)");
         let _ = fs::remove_file(&pid_file);
       }
     }
     Err(e) => {
-      bentley::error(&format!("❌ Failed to start keeper daemon: {}", e));
-      bentley::info("Make sure the 'keeper' binary is in your PATH");
+      bentley::error(&format!("failed to start agent: {}", e));
+      bentley::info("make sure the 'keeper' binary is in your PATH");
     }
   }
 
   Ok(())
 }
 
-async fn stop_daemon(socket_path: &std::path::Path, pid_file: &std::path::Path) -> Result<()> {
-  use std::{fs, process::Command};
-
+async fn get_agent_status(socket_path: &std::path::Path) -> Result<()> {
   if !socket_path.exists() {
-    bentley::info("Keeper daemon is not running");
+    bentley::info("keeper daemon is not running");
+    bentley::info("use 'secrets agent start' to start the daemon");
     return Ok(());
   }
 
-  bentley::info("Stopping keeper daemon...");
+  match UnixStream::connect(&socket_path).await {
+    Ok(mut stream) => {
+      use tokio::io::{AsyncReadExt, AsyncWriteExt};
+      if let Err(_) = stream.write_all(b"GET\n").await {
+        bentley::warn("socket exists but failed to communicate");
+        return Ok(());
+      }
 
-  // Try to read PID and kill process
-  if let Ok(pid_str) = fs::read_to_string(&pid_file) {
-    if let Ok(pid) = pid_str.trim().parse::<u32>() {
-      // Send SIGTERM
-      let output = Command::new("kill").arg(pid.to_string()).output();
-
-      match output {
-        Ok(result) if result.status.success() => {
-          // Wait a moment for graceful shutdown
-          tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-          // Clean up files
-          let _ = fs::remove_file(&socket_path);
-          let _ = fs::remove_file(&pid_file);
-
-          bentley::success("✅ Keeper daemon stopped");
-        }
-        _ => {
-          bentley::warn("⚠️ Failed to stop daemon gracefully, cleaning up files");
-          let _ = fs::remove_file(&socket_path);
-          let _ = fs::remove_file(&pid_file);
-        }
+      let mut response = String::new();
+      if stream.read_to_string(&mut response).await.is_ok() && !response.trim().is_empty() {
+        bentley::success("keeper is running and responsive");
+      } else {
+        bentley::error("keeper is running but not responding correctly");
       }
     }
-  } else {
-    // No PID file, just clean up socket
-    let _ = fs::remove_file(&socket_path);
-    bentley::success("✅ Cleaned up daemon files");
+    Err(_) => {
+      bentley::error("socket file exists but connection failed");
+      bentley::error("daemon may be starting up or in bad state");
+    }
   }
+
+  Ok(())
+}
+
+async fn stop_agent(socket_path: &std::path::Path, pid_file: &std::path::Path) -> Result<()> {
+  use std::{fs, process::Command};
+
+  if !socket_path.exists() {
+    bentley::info("agent is not running");
+    return Ok(());
+  }
+
+  bentley::info("stopping agent...");
+
+  if !pid_file.exists() {
+    bentley::warn("PID file not found, cleaning up socket");
+    let _ = fs::remove_file(&socket_path);
+    return Ok(());
+  }
+
+  let pid_str = fs::read_to_string(&pid_file).ok();
+
+  if !pid_file.exists() || pid_str.is_none() {
+    bentley::warn("PID file not found or unreadable, cleaning up socket");
+    let _ = fs::remove_file(&socket_path);
+    return Ok(());
+  }
+
+  let pid: u32 = pid_str.unwrap().trim().parse().unwrap_or(0);
+  if pid == 0 {
+    bentley::warn("invalid PID, cleaning up socket");
+    let _ = fs::remove_file(&socket_path);
+    return Ok(());
+  }
+
+  let output = Command::new("kill").arg(pid.to_string()).output();
+  match output {
+    Ok(result) if result.status.success() => {
+      // Wait a moment for graceful shutdown
+      sleep(Duration::from_millis(500)).await;
+
+      // Clean up files
+      let _ = fs::remove_file(&socket_path);
+      let _ = fs::remove_file(&pid_file);
+
+      bentley::success("agent stopped");
+    }
+    _ => {
+      bentley::warn("failed to stop agent gracefully, cleaning up files");
+      let _ = fs::remove_file(&socket_path);
+      let _ = fs::remove_file(&pid_file);
+    }
+  }
+
+  Ok(())
+}
+
+async fn restart_agent(
+  socket_path: &std::path::Path,
+  pid_file: &std::path::Path,
+  keeper_path: &std::path::Path,
+) -> Result<()> {
+  bentley::info("Restarting keeper daemon...");
+
+  if socket_path.exists() {
+    stop_agent(&socket_path, &pid_file).await?;
+    sleep(Duration::from_millis(1000)).await;
+  }
+
+  start_agent(&socket_path, &pid_file, &keeper_path).await?;
 
   Ok(())
 }
