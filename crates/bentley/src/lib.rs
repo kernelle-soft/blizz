@@ -1,16 +1,4 @@
 // violet ignore chunk
-//! Bentley - The Town Crier of Kernelle
-//!
-//! A theatrical logging library that brings the dramatic flair of a three-ring circus
-//! to your terminal output. Bentley serves as the voice for all Kernelle tools,
-//! providing structured logging with personality and contextual formatting.
-//!
-//! ## The Town Crier's Role
-//!
-//! Bentley doesn't perform on his own - he amplifies the voices of others:
-//! - **Violet** calls upon Bentley to report code quality findings  
-//! - **Blizz** has Bentley spotlight important insights
-//!
 //! ## Features
 //!
 //! - Standard logging levels (info, warn, error, debug, success)
