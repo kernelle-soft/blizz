@@ -132,7 +132,7 @@ fn is_subprocess() -> bool {
   env::var("PPID").is_ok() && env::var("SHLVL").map_or(true, |level| level != "1")
 }
 
-/// Helper function to get master password once, handling both existing and new vault scenarios
+/// Helper function to get master password, first trying daemon, then fallback to direct prompt
 async fn get_master_password(_secrets: &Secrets) -> Result<String> {
   // Check if credentials file exists
   let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
@@ -141,42 +141,130 @@ async fn get_master_password(_secrets: &Secrets) -> Result<String> {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
   };
 
-  let mut credentials_path = base_path;
+  let mut credentials_path = base_path.clone();
   credentials_path.push("persistent");
   credentials_path.push("keeper");
   credentials_path.push("credentials.enc");
 
-  if credentials_path.exists() {
-    // Existing vault - just get password
-    bentley::info("enter master password:");
-    print!("> ");
-    std::io::stdout().flush()?;
-    let password = rpassword::read_password()?;
-    if password.trim().is_empty() {
-      return Err(anyhow!("master password cannot be empty"));
-    }
-    Ok(password.trim().to_string())
-  } else {
-    // New vault - create master password
-    bentley::info("setting up vault - create master password:");
-    print!("> ");
-    std::io::stdout().flush()?;
-    let password1 = rpassword::read_password()?;
-    if password1.trim().is_empty() {
-      return Err(anyhow!("master password cannot be empty"));
-    }
+  // Determine if this is a new vault setup
+  let is_new_vault = !credentials_path.exists();
 
-    bentley::info("confirm master password:");
-    print!("> ");
-    std::io::stdout().flush()?;
-    let password2 = rpassword::read_password()?;
-
-    if password1 != password2 {
-      return Err(anyhow!("passwords do not match"));
-    }
-
-    Ok(password1.trim().to_string())
+  if is_new_vault {
+    // New vault - create master password (daemon not relevant for setup)
+    return setup_new_vault().await;
   }
+
+  // Existing vault - try to get password from daemon first
+  match get_password_from_daemon(&base_path).await {
+    Ok(password) => {
+      bentley::verbose("retrieved password from daemon");
+      Ok(password)
+    }
+    Err(_) => {
+      // Daemon not available - start it and try again
+      bentley::verbose("daemon not available, starting...");
+      start_daemon_if_needed(&base_path).await?;
+
+      // Try daemon again after starting
+      match get_password_from_daemon(&base_path).await {
+        Ok(password) => {
+          bentley::verbose("retrieved password from daemon after startup");
+          Ok(password)
+        }
+        Err(_) => {
+          // Last resort - prompt directly
+          bentley::verbose("daemon unavailable, prompting directly");
+          prompt_for_existing_vault_password().await
+        }
+      }
+    }
+  }
+}
+
+/// Setup new vault with password confirmation
+async fn setup_new_vault() -> Result<String> {
+  bentley::info("setting up vault - create master password:");
+  print!("> ");
+  std::io::stdout().flush()?;
+  let password1 = rpassword::read_password()?;
+  if password1.trim().is_empty() {
+    return Err(anyhow!("master password cannot be empty"));
+  }
+
+  bentley::info("confirm master password:");
+  print!("> ");
+  std::io::stdout().flush()?;
+  let password2 = rpassword::read_password()?;
+
+  if password1 != password2 {
+    return Err(anyhow!("passwords do not match"));
+  }
+
+  Ok(password1.trim().to_string())
+}
+
+/// Prompt for password for existing vault
+async fn prompt_for_existing_vault_password() -> Result<String> {
+  bentley::info("enter master password:");
+  print!("> ");
+  std::io::stdout().flush()?;
+  let password = rpassword::read_password()?;
+  if password.trim().is_empty() {
+    return Err(anyhow!("master password cannot be empty"));
+  }
+  Ok(password.trim().to_string())
+}
+
+/// Try to get password from running daemon
+async fn get_password_from_daemon(base_path: &PathBuf) -> Result<String> {
+  let socket_path = base_path.join("persistent").join("keeper").join("keeper.sock");
+
+  if !socket_path.exists() {
+    return Err(anyhow!("daemon socket not found"));
+  }
+
+  let mut stream = UnixStream::connect(&socket_path)
+    .await
+    .map_err(|e| anyhow!("failed to connect to daemon: {}", e))?;
+
+  use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+  // Send GET request to daemon (with newline for protocol compatibility)
+  stream
+    .write_all(b"GET\n")
+    .await
+    .map_err(|e| anyhow!("failed to send request to daemon: {}", e))?;
+
+  // Read password response
+  let mut password = String::new();
+  stream
+    .read_to_string(&mut password)
+    .await
+    .map_err(|e| anyhow!("failed to read response from daemon: {}", e))?;
+
+  let password = password.trim();
+  if password.is_empty() {
+    return Err(anyhow!("daemon returned empty password"));
+  }
+
+  Ok(password.to_string())
+}
+
+/// Start daemon if not running and wait for it to be ready
+async fn start_daemon_if_needed(base_path: &PathBuf) -> Result<()> {
+  let socket_path = base_path.join("persistent").join("keeper").join("keeper.sock");
+  let pid_file = base_path.join("persistent").join("keeper").join("keeper.pid");
+  let keeper_path = base_path.join("persistent").join("keeper");
+
+  // If socket already exists, daemon might be running
+  if socket_path.exists() {
+    return Ok(());
+  }
+
+  bentley::info("starting daemon...");
+  start_agent(&socket_path, &pid_file, &keeper_path).await?;
+
+  Ok(())
 }
 
 async fn handle_store(
@@ -333,7 +421,7 @@ async fn handle_delete(
 }
 
 async fn handle_list(
-  _secrets: &Secrets,
+  secrets: &Secrets,
   group_filter: Option<String>,
   show_keys: bool,
   quiet: bool,
@@ -345,7 +433,7 @@ async fn handle_list(
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
   };
 
-  let mut credentials_path = base_path;
+  let mut credentials_path = base_path.clone();
   credentials_path.push("persistent");
   credentials_path.push("keeper");
   credentials_path.push("credentials.enc");
@@ -366,18 +454,11 @@ async fn handle_list(
     }
   };
 
-  // Prompt for master password
-  bentley::info("enter master password:");
-  print!("> ");
-  std::io::stdout().flush()?;
-  let master_password = rpassword::read_password()?;
-
-  if master_password.trim().is_empty() {
-    return Err(anyhow!("master password cannot be empty"));
-  }
+  // Get master password using daemon integration
+  let master_password = get_master_password(secrets).await?;
 
   // Decrypt all credentials
-  let all_credentials = match store.decrypt_credentials(master_password.trim()) {
+  let all_credentials = match store.decrypt_credentials(&master_password) {
     Ok(creds) => creds,
     Err(_) => {
       bentley::error("invalid master password or corrupted data");
@@ -433,18 +514,12 @@ async fn handle_list(
   Ok(())
 }
 
-async fn handle_clear(_secrets: &Secrets, _force: bool, quiet: bool) -> Result<()> {
+async fn handle_clear(secrets: &Secrets, _force: bool, quiet: bool) -> Result<()> {
   bentley::warn("this will DELETE ALL SECRETS from the vault");
   bentley::warn("this action cannot be undone!");
-  bentley::info("enter master password to confirm:");
-  print!("> ");
-  std::io::stdout().flush()?;
-  let master_password = rpassword::read_password()?;
 
-  if master_password.trim().is_empty() {
-    bentley::info("cancelled - vault contents preserved");
-    return Ok(());
-  }
+  // Get master password using daemon integration for confirmation
+  let master_password = get_master_password(secrets).await?;
 
   // Try to verify the password by attempting to decrypt existing secrets
   let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
@@ -461,7 +536,7 @@ async fn handle_clear(_secrets: &Secrets, _force: bool, quiet: bool) -> Result<(
   if credentials_path.exists() {
     use crate::PasswordBasedCredentialStore;
     if let Some(store) = PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
-      match store.decrypt_credentials(master_password.trim()) {
+      match store.decrypt_credentials(&master_password) {
         Ok(_) => {
           // Password verified successfully
         }
@@ -493,8 +568,7 @@ async fn handle_clear(_secrets: &Secrets, _force: bool, quiet: bool) -> Result<(
 
     // Create a new encrypted store with empty credentials
     use crate::PasswordBasedCredentialStore;
-    let empty_store =
-      PasswordBasedCredentialStore::new(&empty_credentials, master_password.trim())?;
+    let empty_store = PasswordBasedCredentialStore::new(&empty_credentials, &master_password)?;
     empty_store.save_to_file(&credentials_path)?;
   } else {
     bentley::info("no action taken - nothing to clear");
