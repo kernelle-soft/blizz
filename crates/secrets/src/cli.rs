@@ -563,18 +563,32 @@ async fn start_agent(
   let output = Command::new("keeper").spawn();
 
   match output {
-    Ok(child) => {
+    Ok(mut child) => {
       fs::create_dir_all(&keeper_path)?;
       fs::write(&pid_file, child.id().to_string())?;
 
-      // Give it a moment to start
-      sleep(Duration::from_millis(500)).await;
+      // Wait for socket to be created (indicates successful startup)
+      // We'll wait indefinitely since password entry can take time
+      loop {
+        // Check if process exited unexpectedly
+        if let Ok(Some(status)) = child.try_wait() {
+          let _ = fs::remove_file(&pid_file);
+          if status.success() {
+            bentley::error("keeper process exited unexpectedly");
+          } else {
+            bentley::error("keeper process failed to start");
+          }
+          return Ok(());
+        }
 
-      if socket_path.exists() {
-        bentley::success("agent started successfully");
-      } else {
-        bentley::error("agent failed to start (no socket created)");
-        let _ = fs::remove_file(&pid_file);
+        // Check if socket exists
+        if socket_path.exists() {
+          bentley::success("agent started successfully");
+          return Ok(());
+        }
+
+        // Short sleep to avoid busy waiting
+        sleep(Duration::from_millis(100)).await;
       }
     }
     Err(e) => {
@@ -588,7 +602,7 @@ async fn start_agent(
 
 async fn get_agent_status(socket_path: &std::path::Path) -> Result<()> {
   if !socket_path.exists() {
-    bentley::info("keeper daemon is not running");
+    bentley::info("agent is not running");
     bentley::info("use 'secrets agent start' to start the daemon");
     return Ok(());
   }
@@ -610,7 +624,7 @@ async fn get_agent_status(socket_path: &std::path::Path) -> Result<()> {
     }
     Err(_) => {
       bentley::error("socket file exists but connection failed");
-      bentley::error("daemon may be starting up or in bad state");
+      bentley::error("agent may be starting up or in bad state");
     }
   }
 
@@ -675,8 +689,6 @@ async fn restart_agent(
   pid_file: &std::path::Path,
   keeper_path: &std::path::Path,
 ) -> Result<()> {
-  bentley::info("Restarting keeper daemon...");
-
   if socket_path.exists() {
     stop_agent(&socket_path, &pid_file).await?;
     sleep(Duration::from_millis(1000)).await;

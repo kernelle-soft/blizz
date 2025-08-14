@@ -116,7 +116,7 @@ pub fn debug(message: &str) {
 
 /// Success level logging - something completed successfully
 pub fn success(message: &str) {
-  let prefix = format_prefix(Color::Green, "succ");
+  let prefix = format_prefix(Color::Green, "sccs");
   for line in message.lines() {
     log(&format!("{prefix} {line}"));
   }
