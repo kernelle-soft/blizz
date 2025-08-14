@@ -369,7 +369,7 @@ async fn handle_read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
 
   // Check if credentials file exists
   if !credentials_path.exists() {
-    bentley::error(&format!("❌ Secret not found: {group}/{name}"));
+    bentley::error(&format!("Secret not found: {group}/{name}"));
     std::process::exit(1);
   }
 
@@ -594,9 +594,9 @@ async fn handle_list(
   if show_keys {
     // Show detailed view with group/key pairs
     for (group, secrets_map) in credentials_to_show {
-      bentley::info(&format!("\n📁 {group}/"));
+      bentley::info(&format!("\n{group}/"));
       for key in secrets_map.keys() {
-        bentley::info(&format!("   🔑 {group}/{key}"));
+        bentley::info(&format!("   {group}/{key}"));
       }
     }
   } else {
@@ -604,7 +604,7 @@ async fn handle_list(
     for (group, secrets_map) in credentials_to_show {
       let count = secrets_map.len();
       let plural = if count == 1 { "secret" } else { "secrets" };
-      bentley::info(&format!("📁 {group}: {count} {plural}"));
+      bentley::info(&format!("{group}: {count} {plural}"));
     }
 
     if !quiet {

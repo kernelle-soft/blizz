@@ -24,7 +24,7 @@ pub fn add_insight_with_client(
   insight::set_embedding(&mut insight, embedding);
   insight::save(&insight)?;
 
-  println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+  println!("{} Added insight {}/{}", "[OK]".green(), topic.cyan(), name.yellow());
   Ok(())
 }
 
@@ -40,7 +40,7 @@ pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Re
     let insight =
       Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
     insight::save(&insight)?;
-    println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+    println!("{} Added insight {}/{}", "[OK]".green(), topic.cyan(), name.yellow());
     Ok(())
   }
 }
@@ -129,7 +129,7 @@ pub fn update_insight_with_client(
   let content = format!("---\n{}---\n\n{}", yaml_content, insight.details);
   std::fs::write(&file_path, content)?;
 
-  println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+  println!("{} Updated insight {}/{}", "[OK]".green(), topic.cyan(), name.yellow());
 
   Ok(())
 }
@@ -150,7 +150,7 @@ pub fn update_insight(
   {
     let mut insight = insight::load(topic, name)?;
     insight::update(&mut insight, new_overview, new_details)?;
-    println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+    println!("{} Updated insight {}/{}", "[OK]".green(), topic.cyan(), name.yellow());
     Ok(())
   }
 }
@@ -164,7 +164,7 @@ pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
   let insight = insight::load(topic, name)?;
   insight::delete(&insight)?;
 
-  println!("{} Deleted insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+  println!("{} Deleted insight {}/{}", "[OK]".green(), topic.cyan(), name.yellow());
 
   Ok(())
 }
@@ -197,7 +197,7 @@ fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -
 
   println!(
     "  {} Updated embeddings for {}/{}",
-    "✓".green(),
+    "[OK]".green(),
     insight.topic.cyan(),
     insight.name.yellow()
   );
@@ -245,7 +245,7 @@ pub fn index_insights_with_client(force: bool, client: &EmbeddingClient) -> Resu
 
   println!(
     "{} Indexed {} of {} insights",
-    "✓".green(),
+    "[OK]".green(),
     total_updated.to_string().yellow(),
     total_processed.to_string().cyan()
   );

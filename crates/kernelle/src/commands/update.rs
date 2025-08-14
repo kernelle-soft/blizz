@@ -134,7 +134,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
 
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    println!("❌ installation failed: {stderr}");
+    println!("installation failed: {stderr}");
     println!("automatically rolling back to previous version...");
     match perform_rollback(&snapshot_dir).await {
       Ok(()) => {
@@ -142,7 +142,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
         return Err(UpdateError::update_failed_rolled_back(stderr.to_string()).into());
       }
       Err(rollback_err) => {
-        println!("❌ CRITICAL: rollback also FAILED: {rollback_err}");
+        println!("CRITICAL: rollback also FAILED: {rollback_err}");
         return Err(
           UpdateError::update_and_rollback_failed(stderr.to_string(), rollback_err.to_string())
             .into(),
@@ -161,7 +161,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
 
   if !verify_output.status.success() {
     let stderr = String::from_utf8_lossy(&verify_output.stderr);
-    println!("❌ verification failed: {stderr}");
+    println!("verification failed: {stderr}");
     println!("automatically rolling back to previous version...");
     match perform_rollback(&snapshot_dir).await {
       Ok(()) => {
@@ -169,7 +169,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
         return Err(UpdateError::update_failed_rolled_back(stderr.to_string()).into());
       }
       Err(rollback_err) => {
-        println!("❌ CRITICAL: rollback also failed: {rollback_err}");
+        println!("CRITICAL: rollback also failed: {rollback_err}");
         return Err(
           UpdateError::update_and_rollback_failed(stderr.to_string(), rollback_err.to_string())
             .into(),
@@ -462,7 +462,7 @@ fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<
 }
 
 async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
-  println!("🔄 Rolling back from snapshot: {}", snapshot_path.display());
+  println!("Rolling back from snapshot: {}", snapshot_path.display());
 
   let kernelle_home = env::var("KERNELLE_HOME")
     .unwrap_or_else(|_| format!("{}/.kernelle", env::var("HOME").unwrap_or_default()));

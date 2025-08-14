@@ -148,7 +148,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
     // In a real implementation, this would use daemon communication
     // For now, we'll keep the direct prompting for backward compatibility
     // The CLI layer handles daemon communication
-    bentley::info("🔐 Enter master password to unlock credential store:");
+    bentley::info("Enter master password to unlock credential store:");
     print!("> ");
     std::io::stdout().flush()?;
 
@@ -162,7 +162,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
   }
 
   fn prompt_for_new_master_password(&self) -> Result<String> {
-    bentley::announce("🔐 Setting up secure credential storage");
+    bentley::announce("Setting up secure credential storage");
     bentley::info("Please create a master password to protect your credentials.");
     bentley::info("This password will be required to access stored credentials.");
 
@@ -186,7 +186,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
       return Err(anyhow!("Master password must be at least 8 characters"));
     }
 
-    bentley::success("🔑 Master password set successfully");
+    bentley::success("Master password set successfully");
     Ok(password1.trim().to_string())
   }
 
@@ -495,7 +495,7 @@ impl Secrets {
   }
 
   fn prompt_for_credential(&self, spec: &CredentialSpec) -> Result<String> {
-    bentley::info(&format!("🔑 Enter {}: {}", spec.key, spec.description));
+    bentley::info(&format!("Enter {}: {}", spec.key, spec.description));
 
     if let Some(example) = &spec.example {
       bentley::info(&format!("Example: {example}"));
@@ -1239,36 +1239,36 @@ mod tests {
     assert_eq!(key1, key2, "Machine key should be deterministic");
 
     // Show fingerprinting details
-    println!("\n🔒 Simplified Device Fingerprinting Test");
+    println!("\nSimplified Device Fingerprinting Test");
     println!("========================================");
-    println!("✅ Machine key generated successfully");
-    println!("📏 Key length: {} bytes (256-bit)", key1.len());
-    println!("🔑 Key (hex): {}", hex::encode(&key1));
+    println!("Machine key generated successfully");
+    println!("Key length: {} bytes (256-bit)", key1.len());
+    println!("Key (hex): {}", hex::encode(&key1));
 
     // Show what identifier is being used
-    println!("\n📊 Device Identification Strategy:");
+    println!("\nDevice Identification Strategy:");
     println!("----------------------------------");
 
     if let Ok(hostname) = hostname::get() {
-      println!("🖥️  Hostname: {}", hostname.to_string_lossy());
+      println!("Hostname: {}", hostname.to_string_lossy());
     }
-    println!("👤 Username: {}", whoami::username());
+    println!("Username: {}", whoami::username());
 
     // Try to determine which method is being used
     if std::fs::read_to_string("/etc/machine-id").is_ok() {
       println!("� Using: Linux machine-id (persistent across reboots)");
     } else if std::fs::read_to_string("/sys/class/dmi/id/product_uuid").is_ok() {
-      println!("🔧 Using: Hardware UUID from DMI (most stable)");
+      println!("Using: Hardware UUID from DMI (most stable)");
     } else {
       println!("� Using: Fallback deterministic UUID from hostname+username");
     }
 
-    println!("\n🛡️  Security Features:");
+    println!("\nSecurity Features:");
     println!("----------------------");
-    println!("✅ UUID-based device binding (optimal stability)");
-    println!("✅ Hardware-first approach (survives OS changes when possible)");
-    println!("✅ Deterministic fallback (guaranteed compatibility)");
-    println!("✅ Simplified and focused (no unnecessary complexity)");
+    println!("UUID-based device binding (optimal stability)");
+    println!("Hardware-first approach (survives OS changes when possible)");
+    println!("Deterministic fallback (guaranteed compatibility)");
+    println!("Simplified and focused (no unnecessary complexity)");
     println!();
   }
 }

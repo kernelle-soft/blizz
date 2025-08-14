@@ -148,7 +148,7 @@ fn print_results(violation_output: Vec<String>, config: &config::VioletConfig) {
 fn print_tool_announcement() {
   println!(
     "{}",
-    "🎨 Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold()
+    "Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold()
   );
   println!();
 }
@@ -166,7 +166,7 @@ fn print_violations_table(violation_output: &[String]) {
 }
 
 fn print_success_message() {
-  println!("{} No issues found. What beautiful code you have!", "✨".purple());
+  println!("No issues found. What beautiful code you have!");
 }
 
 fn main() {

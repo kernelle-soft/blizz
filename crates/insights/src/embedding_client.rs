@@ -136,7 +136,7 @@ fn real_blocking_embed(insight: &mut Insight) -> Embedding {
   match rt.block_on(async { compute_insight_embedding(insight).await }) {
     Ok(embedding) => embedding,
     Err(e) => {
-      eprintln!("  {} Warning: Failed to compute embedding: {}", "⚠".yellow(), e);
+      eprintln!("  {} Warning: Failed to compute embedding: {}", "[WARN]".yellow(), e);
       eprintln!("  {} Insight saved without embedding", "ℹ".blue());
 
       // Return a placeholder embedding instead of panicking

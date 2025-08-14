@@ -157,7 +157,7 @@ async fn handle_single_connection<M: insights::embedding_model::EmbeddingModel>(
     }
     Err(error_msg) => {
       if error_msg == "Timeout" {
-        println!("💤 Blizz daemon shutting down due to inactivity");
+        println!("Blizz daemon shutting down due to inactivity");
       }
       Ok(false)
     }
@@ -238,13 +238,13 @@ fn cleanup_existing_socket() {
 #[cfg(unix)]
 async fn setup_listener() -> Result<InsightsListener> {
   let listener = UnixListener::bind(SOCKET_PATH)?;
-  println!("🚀 Blizz daemon listening on {SOCKET_PATH}");
+  println!("Blizz daemon listening on {SOCKET_PATH}");
   Ok(InsightsListener::Unix(listener))
 }
 
 #[cfg(windows)]
 async fn setup_listener() -> Result<InsightsListener> {
   let listener = TcpListener::bind(TCP_ADDRESS).await?;
-  println!("🚀 Blizz daemon listening on {TCP_ADDRESS}");
+  println!("Blizz daemon listening on {TCP_ADDRESS}");
   Ok(InsightsListener::Tcp(listener))
 }
