@@ -132,9 +132,16 @@ cargo check --workspace
 echo "Committing version bump to git..."
 
 # Extract author info from Cargo.toml
-AUTHOR_LINE=$(grep -A 10 '^\[workspace\.package\]' Cargo.toml | grep '^authors = ' | sed 's/authors = \["//' | sed 's/"\]//')
+AUTHOR_LINE=$(grep -A 10 '^\[workspace\.package\]' Cargo.toml | grep '^authors = ' | sed 's/authors = \["//' | sed 's/"\]$//' | tr -d '"')
 AUTHOR_NAME=$(echo "$AUTHOR_LINE" | sed 's/ <.*$//')
 AUTHOR_EMAIL=$(echo "$AUTHOR_LINE" | sed 's/.*<\(.*\)>.*/\1/')
+
+# Fallback to default values if parsing fails
+if [ -z "$AUTHOR_NAME" ] || [ -z "$AUTHOR_EMAIL" ]; then
+  echo "⚠️  Could not parse author info from Cargo.toml, using default values"
+  AUTHOR_NAME="GitHub Actions"
+  AUTHOR_EMAIL="actions@github.com"
+fi
 
 git config --local user.email "$AUTHOR_EMAIL"
 git config --local user.name "$AUTHOR_NAME"

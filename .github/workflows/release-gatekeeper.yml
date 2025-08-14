@@ -73,6 +73,11 @@ jobs:
           # Skip the slow bootstrapping step. Not needed for release
           skip-bootstrap: "true"
 
+      - name: Configure Git
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+
       - name: Bump and Tag Version
         run: |
           .github/run/bump-version.sh patch
