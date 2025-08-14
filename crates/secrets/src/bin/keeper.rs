@@ -23,10 +23,10 @@ async fn main() -> Result<()> {
 
   let master_password = get_password(&keeper_path);
 
-  let (socket, listener) = create_socket(&keeper_path)?;
+  let socket = create_socket(&keeper_path)?;
   bentley::info("press ctrl+c to exit");
 
-  let ipc_handle = spawn_handler(listener, master_password.unwrap());
+  let ipc_handle = spawn_handler(&socket, master_password.unwrap());
 
   signal::ctrl_c().await?;
   bentley::info("\nshutting down");
@@ -59,19 +59,18 @@ fn get_password(keeper_path: &PathBuf) -> Result<String> {
   Ok(master_password)
 }
 
-fn create_socket(keeper_path: &PathBuf) -> Result<(PathBuf, UnixListener)> {
+fn create_socket(keeper_path: &PathBuf) -> Result<(PathBuf)> {
   // setup unix socket for IPC
-  let sock_path = keeper_path.join("keeper.sock");
+  let socket = keeper_path.join("keeper.sock");
 
   // remove existing socket if any
-  let _ = fs::remove_file(&sock_path);
-  let listener = UnixListener::bind(&sock_path)?;
-  bentley::info(&format!("listening on socket: {:?}", sock_path));
+  let _ = fs::remove_file(&socket);
 
-  Ok((sock_path, listener))
+  Ok(socket)
 }
 
-fn spawn_handler(listener: UnixListener, pwd: String) -> JoinHandle<()> {
+fn spawn_handler(socket: &PathBuf, pwd: String) -> JoinHandle<()> {
+  let listener = UnixListener::bind(&socket).unwrap();
   let handler = tokio::spawn(async move {
     loop {
       match listener.accept().await {
@@ -90,6 +89,8 @@ fn spawn_handler(listener: UnixListener, pwd: String) -> JoinHandle<()> {
       }
     }
   });
+
+  
 
   handler
 }
