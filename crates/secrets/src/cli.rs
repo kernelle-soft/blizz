@@ -564,15 +564,15 @@ async fn start_agent(
 
   match output {
     Ok(mut child) => {
-      fs::create_dir_all(&keeper_path)?;
-      fs::write(&pid_file, child.id().to_string())?;
+      fs::create_dir_all(keeper_path)?;
+      fs::write(pid_file, child.id().to_string())?;
 
       // Wait for socket to be created (indicates successful startup)
       // We'll wait indefinitely since password entry can take time
       loop {
         // Check if process exited unexpectedly
         if let Ok(Some(status)) = child.try_wait() {
-          let _ = fs::remove_file(&pid_file);
+          let _ = fs::remove_file(pid_file);
           if status.success() {
             bentley::error("keeper process exited unexpectedly");
           } else {
@@ -592,7 +592,7 @@ async fn start_agent(
       }
     }
     Err(e) => {
-      bentley::error(&format!("failed to start agent: {}", e));
+      bentley::error(&format!("failed to start agent: {e}"));
       bentley::info("make sure the 'keeper' binary is in your PATH");
     }
   }
@@ -610,7 +610,7 @@ async fn get_agent_status(socket_path: &std::path::Path) -> Result<()> {
   match UnixStream::connect(&socket_path).await {
     Ok(mut stream) => {
       use tokio::io::{AsyncReadExt, AsyncWriteExt};
-      if let Err(_) = stream.write_all(b"GET\n").await {
+      if (stream.write_all(b"GET\n").await).is_err() {
         bentley::warn("socket exists but failed to communicate");
         return Ok(());
       }
@@ -643,22 +643,22 @@ async fn stop_agent(socket_path: &std::path::Path, pid_file: &std::path::Path) -
 
   if !pid_file.exists() {
     bentley::warn("PID file not found, cleaning up socket");
-    let _ = fs::remove_file(&socket_path);
+    let _ = fs::remove_file(socket_path);
     return Ok(());
   }
 
-  let pid_str = fs::read_to_string(&pid_file).ok();
+  let pid_str = fs::read_to_string(pid_file).ok();
 
   if !pid_file.exists() || pid_str.is_none() {
     bentley::warn("PID file not found or unreadable, cleaning up socket");
-    let _ = fs::remove_file(&socket_path);
+    let _ = fs::remove_file(socket_path);
     return Ok(());
   }
 
   let pid: u32 = pid_str.unwrap().trim().parse().unwrap_or(0);
   if pid == 0 {
     bentley::warn("invalid PID, cleaning up socket");
-    let _ = fs::remove_file(&socket_path);
+    let _ = fs::remove_file(socket_path);
     return Ok(());
   }
 
@@ -669,15 +669,15 @@ async fn stop_agent(socket_path: &std::path::Path, pid_file: &std::path::Path) -
       sleep(Duration::from_millis(500)).await;
 
       // Clean up files
-      let _ = fs::remove_file(&socket_path);
-      let _ = fs::remove_file(&pid_file);
+      let _ = fs::remove_file(socket_path);
+      let _ = fs::remove_file(pid_file);
 
       bentley::success("agent stopped");
     }
     _ => {
       bentley::warn("failed to stop agent gracefully, cleaning up files");
-      let _ = fs::remove_file(&socket_path);
-      let _ = fs::remove_file(&pid_file);
+      let _ = fs::remove_file(socket_path);
+      let _ = fs::remove_file(pid_file);
     }
   }
 
@@ -690,11 +690,11 @@ async fn restart_agent(
   keeper_path: &std::path::Path,
 ) -> Result<()> {
   if socket_path.exists() {
-    stop_agent(&socket_path, &pid_file).await?;
+    stop_agent(socket_path, pid_file).await?;
     sleep(Duration::from_millis(1000)).await;
   }
 
-  start_agent(&socket_path, &pid_file, &keeper_path).await?;
+  start_agent(socket_path, pid_file, keeper_path).await?;
 
   Ok(())
 }

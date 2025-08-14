@@ -1,10 +1,8 @@
 use anyhow::anyhow;
 use anyhow::Result;
-use dirs;
-use rpassword;
 use secrets::encryption::{EncryptedBlob, EncryptionManager};
 use serde_json::{self, Value};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{env, fs};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixListener;
@@ -35,13 +33,13 @@ async fn main() -> Result<()> {
   Ok(())
 }
 
-fn get_password(keeper_path: &PathBuf) -> Result<String> {
+fn get_password(keeper_path: &Path) -> Result<String> {
   let cred_path = keeper_path.join("credentials.enc");
   bentley::info("password:");
   let master_password = rpassword::prompt_password("> ")?;
 
   if !cred_path.exists() {
-    bentley::error(&format!("no vault found at {:?}", cred_path));
+    bentley::error(&format!("no vault found at {cred_path:?}"));
     std::process::exit(1);
   }
 
@@ -59,7 +57,7 @@ fn get_password(keeper_path: &PathBuf) -> Result<String> {
   Ok(master_password)
 }
 
-fn create_socket(keeper_path: &PathBuf) -> Result<(PathBuf)> {
+fn create_socket(keeper_path: &Path) -> Result<PathBuf> {
   // setup unix socket for IPC
   let socket = keeper_path.join("keeper.sock");
 
@@ -70,26 +68,21 @@ fn create_socket(keeper_path: &PathBuf) -> Result<(PathBuf)> {
 }
 
 fn spawn_handler(socket: &PathBuf, pwd: String) -> JoinHandle<()> {
-  let listener = UnixListener::bind(&socket).unwrap();
+  let listener = UnixListener::bind(socket).unwrap();
   let handler = tokio::spawn(async move {
     loop {
-      match listener.accept().await {
-        Ok((stream, _)) => {
-          let mut reader = BufReader::new(stream);
-          let mut line = String::new();
-          if let Ok(_) = reader.read_line(&mut line).await {
-            if line.trim() == "GET" {
-              let mut s = reader.into_inner();
-              let _ = s.write_all(pwd.as_bytes()).await;
-              let _ = s.write_all(b"\n").await;
-            }
-          }
+      if let Ok((stream, _)) = listener.accept().await {
+        let mut reader = BufReader::new(stream);
+        let mut line = String::new();
+        if (reader.read_line(&mut line).await).is_ok() && line.trim() == "GET" {
+          let mut s = reader.into_inner();
+          let _ = s.write_all(pwd.as_bytes()).await;
+          let _ = s.write_all(b"\n").await;
         }
-        Err(_) => {}
       }
     }
   });
 
-  bentley::info(&format!("listening on socket: {:?}", socket));
+  bentley::info(&format!("listening on socket: {socket:?}"));
   handler
 }
