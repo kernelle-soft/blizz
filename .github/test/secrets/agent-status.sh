@@ -27,15 +27,8 @@ echo "Testing status when agent is stopped..."
 
 # Initially, agent should not be running
 OUTPUT=$("$HOME/.cargo/bin/secrets" agent status 2>&1 || true)
-echo "$OUTPUT" | grep -q "not running\|No daemon\|stopped" || fail "Expected agent to be stopped initially"
+echo "$OUTPUT" | grep -q "not running" || fail "Expected agent to be stopped initially"
 echo "✅ Status correctly reports stopped agent"
-
-# Check that status command exits with error code when stopped
-if "$HOME/.cargo/bin/secrets" agent status >/dev/null 2>&1; then
-    echo "ℹ️ Status command returns success even when stopped"
-else
-    echo "✅ Status command returns error when stopped"
-fi
 
 echo "Testing status when agent is running..."
 
@@ -44,27 +37,13 @@ echo "Testing status when agent is running..."
 sleep 2
 
 # Check status when running
-OUTPUT=$("$HOME/.cargo/bin/secrets" agent status)
-echo "$OUTPUT" | grep -q "running\|active\|started" || fail "Status should show running when agent is active"
+OUTPUT=$("$HOME/.cargo/bin/secrets" agent status 2>&1 || true)
+echo "$OUTPUT" | grep -q "running" || fail "Status should show running when agent is active"
 echo "✅ Status correctly reports running agent"
 
 # Check that status command exits successfully when running
 "$HOME/.cargo/bin/secrets" agent status >/dev/null || fail "Status command should return success when running"
 echo "✅ Status command returns success when running"
-
-# Check if status shows PID information
-if echo "$OUTPUT" | grep -q "PID\|pid\|process"; then
-    echo "✅ Status shows process information"
-else
-    echo "ℹ️ Status doesn't show process information"
-fi
-
-# Check if status shows socket information
-if echo "$OUTPUT" | grep -q "socket\|Socket"; then
-    echo "✅ Status shows socket information"
-else
-    echo "ℹ️ Status doesn't show socket information"
-fi
 
 echo "Testing status during agent operations..."
 
@@ -72,8 +51,8 @@ echo "Testing status during agent operations..."
 "$HOME/.cargo/bin/secrets" store test_key "test_value" || fail "Failed to store secret"
 
 # Status should still show running
-OUTPUT=$("$HOME/.cargo/bin/secrets" agent status)
-echo "$OUTPUT" | grep -q "running\|active" || fail "Status should show running during operations"
+OUTPUT=$("$HOME/.cargo/bin/secrets" agent status 2>&1 || true)
+echo "$OUTPUT" | grep -q "running" || fail "Status should show running during operations"
 echo "✅ Status correctly reports running during operations"
 
 # Multiple rapid status checks
@@ -92,7 +71,7 @@ sleep 1
 
 # Check status during/after shutdown
 OUTPUT=$("$HOME/.cargo/bin/secrets" agent status 2>&1 || true)
-echo "$OUTPUT" | grep -q "not running\|No daemon\|stopped" || fail "Status should show stopped after shutdown"
+echo "$OUTPUT" | grep -q "not running" || fail "Status should show stopped after shutdown"
 echo "✅ Status correctly reports stopped after shutdown"
 
 echo "Testing status consistency..."
@@ -103,8 +82,8 @@ sleep 2
 
 # Check status multiple times - should be consistent
 for i in {1..3}; do
-    OUTPUT=$("$HOME/.cargo/bin/secrets" agent status)
-    echo "$OUTPUT" | grep -q "running\|active" || fail "Status check $i inconsistent"
+    OUTPUT=$("$HOME/.cargo/bin/secrets" agent status 2>&1 || true)
+    echo "$OUTPUT" | grep -q "running" || fail "Status check $i inconsistent"
 done
 echo "✅ Status reports are consistent"
 
@@ -114,7 +93,7 @@ sleep 2
 
 for i in {1..3}; do
     OUTPUT=$("$HOME/.cargo/bin/secrets" agent status 2>&1 || true)
-    echo "$OUTPUT" | grep -q "not running\|No daemon\|stopped" || fail "Stopped status check $i inconsistent"
+    echo "$OUTPUT" | grep -q "not running" || fail "Stopped status check $i inconsistent"
 done
 echo "✅ Stopped status reports are consistent"
 
@@ -124,7 +103,7 @@ echo "Testing status without authentication..."
 unset SECRETS_AUTH
 
 OUTPUT=$("$HOME/.cargo/bin/secrets" agent status 2>&1 || true)
-echo "$OUTPUT" | grep -q "not running\|No daemon\|stopped" || fail "Status should work without auth"
+echo "$OUTPUT" | grep -q "not running" || fail "Status should work without auth"
 echo "✅ Status works without authentication"
 
 # Restore auth for cleanup
