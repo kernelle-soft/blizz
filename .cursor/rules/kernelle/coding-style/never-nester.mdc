@@ -13,4 +13,4 @@ When writing functions, use never-nester patterns:
 
 This applies when writing code for any language.
 
-You can use `violet` to double check how well you're breaking down complexity with these principles
+You can use the `violet` CLI to double check how well you're breaking down complexity with these principles

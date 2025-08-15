@@ -56,7 +56,6 @@ test -d ~/.kernelle/persistent || true  # persistent may or may not exist if no 
 # Verify binaries were removed
 test ! -f "$HOME/.cargo/bin/kernelle" || fail "kernelle binary still exists after uninstall"
 
-test ! -f "$HOME/.cargo/bin/blizz" || fail "blizz binary still exists after uninstall"
 test ! -f "$HOME/.cargo/bin/violet" || fail "violet binary still exists after uninstall"
 test ! -f "$HOME/.cargo/bin/adam" || fail "adam binary still exists after uninstall"
 test ! -f "$HOME/.cargo/bin/sentinel" || fail "sentinel binary still exists after uninstall"

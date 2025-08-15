@@ -7,7 +7,7 @@ alwaysApply: false
 This workflow is designed to gather insights in preparation to tackle a task from sources like JIRA, Trello, etc, such as a bug, feature addition, testing, or other basic unit of work.
 
 ## Read Also
-- [use-blizz](mdc:.cursor/rules/kernelle/behaviors/use-blizz.mdc)
+- [use-insights](mdc:.cursor/rules/kernelle/behaviors/use-insights.mdc)
 - [rate-confidence](mdc:.cursor/rules/kernelle/behaviors/rate-confidence.mdc)
 
 ## Inputs:
@@ -37,11 +37,11 @@ This workflow is designed to gather insights in preparation to tackle a task fro
 ## Algorithm
 1. Pull information on the task from the input url and try to understand its goal.
 2. State what you expect the task requires in order to be considered finished and wait for confirmation from the user.
-3. use `blizz` to double check if there are any existing insights related to the task at hand.
+3. use `insights` to double check if there are any existing insights related to the task at hand.
 4. From that, `rate-confidence.mdc` again.
 5. While confidence is below the Confidence Threshold:
   a. Do investigation on the thing's you're unsure of using the available tools  
-  b. use `blizz` to add or update your insights
+  b. use `insights` to add or update your insights
   c. `rate-confidence.mdc` again on the currenttask.
   d. If confidence is falling considerably, or if you need clarification from the user, don't hesitate to stop your investigation and ask for clarification
-6. Report your final confidence level and how you plan to proceed for final tweaks and approval. This final plan might also be good to take note of using `blizz` after final approval
+6. Report your final confidence level and how you plan to proceed for final tweaks and approval. This final plan might also be good to take note of using `insights` after final approval

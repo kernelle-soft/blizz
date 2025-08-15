@@ -1,14 +1,14 @@
 ---
-description: Historian automatic workflow for autonomous knowledge capture during work Historian automatic workflow for autonomous knowledge capture during work
+description: Insights CLI automatic workflow for autonomous knowledge capture during agent work
 globs: 
 alwaysApply: true
 ---
-# Blizz Automatic Workflow
+# Insights Automatic Workflow
 
 This document defines the workflow for **autonomous knowledge capture** where you proactively identify and store valuable insights during work.
 
 ## Read Also
-- [blizz-crud-operations](mdc:.cursor/rules/kernelle/definitions/blizz-crud-operations.mdc)
+- [insights-cli-help](mdc:.cursor/rules/kernelle/definitions/insights-cli-help.mdc)
 
 ## Autonomous Knowledge Capture
 
@@ -30,7 +30,7 @@ Recognize opportunities for automatic storage when chats include messages like:
 - "This repository uses..." (architectural insights)
 
 ### Storage Criteria
-Only store insights that meet ALL criteria from `blizz-crud-operations.mdc`
+Only store insights that meet ALL criteria:
 1. **Reusable** - likely to apply to future situations
 2. **Non-obvious** - not basic knowledge found in documentation
 3. **Contextual** - specific to this codebase/workflow/domain
@@ -45,7 +45,7 @@ You:
 "I've resolved the merge conflict by prioritizing the newer business logic while preserving the older validation patterns. 
 
 ```
-blizz add "merge-conflicts" "business-logic-priority" [options...]
+insights add "merge-conflicts" "business-logic-priority" [options...]
 ```
 
 *Stored insight: merge-conflicts/business-logic-priority for future reference.*
@@ -60,29 +60,18 @@ You:
 "The issue was resolved by configuring the MCP tool to use the specific endpoint format that Cursor expects.
 
 ```
-blizz add cursor-mcp endpoint-configuration [options...]
+insights add cursor-mcp endpoint-configuration [options...]
 ```
 
 Now the integration should work smoothly..."
 ```
 
-#### When Learning About Team Dynamics
-```
-Assistant: "I noticed from our conversation that John is the expert on MR workflows and tooling architecture.
-
-```
-blizz add john-coderman mr-workflow-expertise [options...]
-```
-
-Let me continue with the implementation..."
-```
-
 ## Integration with Active Work
 
 ### Knowledge-First Approach
-- **Search existing insights** before solving problems (see Read Operations in `blizz-crud-operations.mdc`)
+- **Search existing insights** before solving problems (see Read Operations in `insights-cli-help.mdc`)
 - **Build on previous solutions** rather than solving from scratch
-- **Update existing insights** if you discover improvements (see Update Operations in `blizz-crud-operations.mdc`)
+- **Update existing insights** if you discover improvements (see Update Operations in `insights-cli-help.mdc`)
 
 ### During Problem-Solving
 - **Query knowledge base** when stuck
@@ -104,7 +93,6 @@ Let me continue with the implementation..."
 
 ### Focus Areas for Automatic Capture
 - **Repository-specific quirks** and architectural decisions
-- **Team member expertise** and who to ask for help
 - **Tool integrations** that required specific configuration
 - **Debugging patterns** that revealed non-obvious causes
 - **Workflow optimizations** that saved significant time
