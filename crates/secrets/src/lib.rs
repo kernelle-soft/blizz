@@ -841,7 +841,6 @@ mod tests {
     assert_eq!(env_vars.get("GITHUB_TOKEN").unwrap(), "ghp_test_token");
   }
 
-
   #[test]
   #[ignore = "Prompts for user input - hangs in test environment"]
   fn test_setup_service() {
