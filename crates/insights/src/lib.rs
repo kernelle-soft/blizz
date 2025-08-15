@@ -1,4 +1,4 @@
-//! Blizz - Knowledge Management and Insight Storage System
+//! Insights - Knowledge Management and Storage System
 //!
 //! A high-performance knowledge management system providing structured insight
 //! storage and retrieval for development workflows and team collaboration.

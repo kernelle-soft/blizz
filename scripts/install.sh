@@ -200,7 +200,6 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo}"
 
 # Create directories
 echo "📁 Creating directories..."
-mkdir -p "$KERNELLE_HOME/persistent/blizz"
 mkdir -p "$KERNELLE_HOME/persistent/keeper"
 mkdir -p "$KERNELLE_HOME/volatile"
 

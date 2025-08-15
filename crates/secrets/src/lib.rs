@@ -359,8 +359,6 @@ impl Secrets {
     // If not found, try to get the service config and set it up automatically
     let service_config = match group.to_lowercase().as_str() {
       "github" => Some(services::github()),
-      "gitlab" => Some(services::gitlab()),
-      "jira" => Some(services::jira()),
       "notion" => Some(services::notion()),
       _ => None,
     };
@@ -481,8 +479,6 @@ impl Secrets {
   fn get_common_keys_for_group(&self, group: &str) -> Vec<String> {
     match group.to_lowercase().as_str() {
       "github" => vec!["token".to_string()],
-      "gitlab" => vec!["token".to_string()],
-      "jira" => vec!["token".to_string(), "email".to_string(), "url".to_string()],
       "notion" => vec!["token".to_string()],
       _ => vec!["token".to_string()], // Default to token
     }
@@ -566,47 +562,6 @@ pub mod services {
         example: Some("ghp_xxxxxxxxxxxxxxxxxxxx".to_string()),
         is_required: true,
       }],
-    }
-  }
-
-  pub fn gitlab() -> ServiceConfig {
-    ServiceConfig {
-      name: "gitlab".to_string(),
-      description: "GitLab API access for merge request management".to_string(),
-      required_credentials: vec![CredentialSpec {
-        key: "token".to_string(),
-        description: "GitLab Personal Access Token with API and read_repository permissions"
-          .to_string(),
-        example: Some("glpat-xxxxxxxxxxxxxxxxxxxx".to_string()),
-        is_required: true,
-      }],
-    }
-  }
-
-  pub fn jira() -> ServiceConfig {
-    ServiceConfig {
-      name: "jira".to_string(),
-      description: "Jira API access for issue tracking integration".to_string(),
-      required_credentials: vec![
-        CredentialSpec {
-          key: "url".to_string(),
-          description: "Jira instance URL".to_string(),
-          example: Some("https://yourcompany.atlassian.net".to_string()),
-          is_required: true,
-        },
-        CredentialSpec {
-          key: "email".to_string(),
-          description: "Your Jira account email".to_string(),
-          example: Some("you@yourcompany.com".to_string()),
-          is_required: true,
-        },
-        CredentialSpec {
-          key: "token".to_string(),
-          description: "Jira API token".to_string(),
-          example: Some("ATATT3xFfGF0T...".to_string()),
-          is_required: true,
-        },
-      ],
     }
   }
 
@@ -751,15 +706,6 @@ mod tests {
     assert!(github_config.required_credentials[0].is_required);
     assert!(github_config.required_credentials[0].example.is_some());
 
-    let gitlab_config = services::gitlab();
-    assert_eq!(gitlab_config.name, "gitlab");
-    assert_eq!(gitlab_config.required_credentials.len(), 1);
-    assert_eq!(gitlab_config.required_credentials[0].key, "token");
-
-    let jira_config = services::jira();
-    assert_eq!(jira_config.name, "jira");
-    assert_eq!(jira_config.required_credentials.len(), 3);
-
     let notion_config = services::notion();
     assert_eq!(notion_config.name, "notion");
     assert_eq!(notion_config.required_credentials.len(), 1);
@@ -779,8 +725,6 @@ mod tests {
     let secrets = Secrets::new();
 
     assert_eq!(secrets.get_common_keys_for_group("github"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_group("gitlab"), vec!["token"]);
-    assert_eq!(secrets.get_common_keys_for_group("jira"), vec!["token", "email", "url"]);
     assert_eq!(secrets.get_common_keys_for_group("notion"), vec!["token"]);
     assert_eq!(secrets.get_common_keys_for_group("unknown"), vec!["token"]);
     assert_eq!(secrets.get_common_keys_for_group("GITHUB"), vec!["token"]);
@@ -895,24 +839,6 @@ mod tests {
     let env_vars = secrets.get_service_env_vars(service).unwrap();
 
     assert_eq!(env_vars.get("GITHUB_TOKEN").unwrap(), "ghp_test_token");
-  }
-
-  #[test]
-  fn test_get_service_env_vars_jira() {
-    let password = "test_password_123";
-    let secrets = create_test_secrets_with_mock(password);
-    let service = "jira";
-
-    // Store Jira credentials
-    secrets.store_credential(service, "token", "jira_token").unwrap();
-    secrets.store_credential(service, "email", "test@example.com").unwrap();
-    secrets.store_credential(service, "url", "https://test.atlassian.net").unwrap();
-
-    let env_vars = secrets.get_service_env_vars(service).unwrap();
-
-    assert_eq!(env_vars.get("JIRA_TOKEN").unwrap(), "jira_token");
-    assert_eq!(env_vars.get("JIRA_EMAIL").unwrap(), "test@example.com");
-    assert_eq!(env_vars.get("JIRA_URL").unwrap(), "https://test.atlassian.net");
   }
 
   #[test]
