@@ -286,6 +286,9 @@ fn get_default_ignored_files() -> Vec<String> {
     "*.jpeg".to_string(),
     "*.gif".to_string(),
     "*.pdf".to_string(),
+    "*.ttf".to_string(),
+    "*.woff".to_string(),
+    "*.woff2".to_string(),
     "*.zip".to_string(),
     "*.tar".to_string(),
     "*.gz".to_string(),
@@ -688,6 +691,29 @@ mod tests {
     assert!(patterns.iter().any(|p| p.contains("*.md")));
     assert!(patterns.iter().any(|p| p.contains("*.json")));
     assert!(patterns.iter().any(|p| p.contains("*.toml")));
+
+    // Font files should be ignored by default
+    assert!(patterns.iter().any(|p| p.contains("*.ttf")));
+    assert!(patterns.iter().any(|p| p.contains("*.woff")));
+    assert!(patterns.iter().any(|p| p.contains("*.woff2")));
+  }
+
+  #[test]
+  fn test_should_ignore_font_files() {
+    let config = default_global_config();
+
+    // Test various font file types should be ignored
+    assert!(should_ignore_file(&config, "fonts/MyFont.ttf"));
+    assert!(should_ignore_file(&config, "assets/font.woff"));
+    assert!(should_ignore_file(&config, "styles/icons.woff2"));
+    assert!(should_ignore_file(&config, "MyFont.ttf"));
+    assert!(should_ignore_file(&config, "font.woff"));
+    assert!(should_ignore_file(&config, "icons.woff2"));
+
+    // Test that other files are not ignored
+    assert!(!should_ignore_file(&config, "main.rs"));
+    assert!(!should_ignore_file(&config, "config.js"));
+    assert!(!should_ignore_file(&config, "font_loader.py"));
   }
 
   #[test]
