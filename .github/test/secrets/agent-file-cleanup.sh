@@ -23,10 +23,16 @@ export SECRETS_QUIET="1"
 # Verify secrets binary exists
 test -f "$HOME/.cargo/bin/secrets" || fail "secrets binary not found after install"
 
-# Define expected file paths
-SOCKET_PATH="$HOME/.local/share/kernelle/secrets.sock"
-PID_PATH="$HOME/.local/share/kernelle/secrets.pid"
-DATA_DIR="$HOME/.local/share/kernelle"
+# Define expected file paths (using the isolated HOME from test environment)
+SOCKET_PATH="$HOME/.kernelle/persistent/keeper/keeper.sock"
+PID_PATH="$HOME/.kernelle/persistent/keeper/keeper.pid"
+DATA_DIR="$HOME/.kernelle/persistent/keeper"
+
+echo "🔧 Test Environment Paths:"
+echo "   HOME: $HOME"
+echo "   Expected socket: $SOCKET_PATH"
+echo "   Expected PID: $PID_PATH"
+echo "   Data directory: $DATA_DIR"
 
 echo "Testing initial state (no files should exist)..."
 
