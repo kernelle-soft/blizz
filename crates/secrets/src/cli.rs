@@ -829,7 +829,20 @@ async fn start_agent(
   bentley::info("starting agent...");
 
   // Spawn keeper binary as background process
-  let output = Command::new("keeper").spawn();
+  let mut cmd = Command::new("keeper");
+
+  // Inherit current environment and add our specific variables
+  cmd.envs(env::vars());
+
+  // Forward environment variables that the keeper needs explicitly
+  if let Ok(kernelle_home) = env::var("KERNELLE_HOME") {
+    cmd.env("KERNELLE_HOME", kernelle_home);
+  }
+  if let Ok(secrets_auth) = env::var("SECRETS_AUTH") {
+    cmd.env("SECRETS_AUTH", secrets_auth);
+  }
+
+  let output = cmd.spawn();
 
   match output {
     Ok(mut child) => {

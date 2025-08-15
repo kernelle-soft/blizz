@@ -48,13 +48,45 @@ async fn main() -> Result<()> {
 fn get_password(keeper_path: &Path) -> Result<String> {
   let cred_path = keeper_path.join("credentials.enc");
 
+  // Check for SECRETS_AUTH environment variable first
+  if let Ok(env_password) = env::var("SECRETS_AUTH") {
+    if env_password.trim().is_empty() {
+      return Err(anyhow!("SECRETS_AUTH environment variable is set but empty"));
+    }
+
+    let master_password = env_password.trim().to_string();
+
+    if !cred_path.exists() {
+      // No vault exists - create one using the environment password
+      bentley::info("no vault found, creating new vault using SECRETS_AUTH");
+      return create_new_vault_with_password(&cred_path, &master_password);
+    }
+
+    // Vault exists - verify the environment password
+    bentley::info("unlocking vault using SECRETS_AUTH");
+
+    // Verify password by attempting to decrypt
+    let data = fs::read_to_string(&cred_path)?;
+    let store_json: Value = serde_json::from_str(data.trim())?;
+    let blob_val = store_json
+      .get("encrypted_data")
+      .ok_or_else(|| anyhow!("invalid vault format: missing 'encrypted_data'"))?;
+    let blob: EncryptedBlob = serde_json::from_value(blob_val.clone())?;
+
+    if EncryptionManager::decrypt_credentials(&blob, &master_password).is_err() {
+      return Err(anyhow!("SECRETS_AUTH password is incorrect"));
+    }
+
+    return Ok(master_password);
+  }
+
   if !cred_path.exists() {
-    // No vault exists - create one
+    // No vault exists - create one with interactive prompts
     bentley::info("no vault found, setting up new vault");
     return create_new_vault(&cred_path);
   }
 
-  // Vault exists - unlock it
+  // Vault exists - unlock it with interactive prompt
   bentley::info("enter master password to unlock daemon:");
   print!("> ");
   std::io::stdout().flush()?;
@@ -114,6 +146,29 @@ fn create_new_vault(cred_path: &Path) -> Result<String> {
 
   bentley::success("vault created successfully");
   Ok(password1.trim().to_string())
+}
+
+fn create_new_vault_with_password(cred_path: &Path, password: &str) -> Result<String> {
+  if password.is_empty() {
+    return Err(anyhow!("master password cannot be empty"));
+  }
+
+  // Create empty credentials structure
+  let empty_credentials = std::collections::HashMap::new();
+
+  // Encrypt and save the empty vault
+  use secrets::PasswordBasedCredentialStore;
+  let store = PasswordBasedCredentialStore::new(&empty_credentials, password)?;
+
+  // Ensure parent directory exists
+  if let Some(parent) = cred_path.parent() {
+    fs::create_dir_all(parent)?;
+  }
+
+  store.save_to_file(&cred_path.to_path_buf())?;
+
+  bentley::success("vault created successfully");
+  Ok(password.to_string())
 }
 
 fn create_socket(keeper_path: &Path) -> Result<PathBuf> {
