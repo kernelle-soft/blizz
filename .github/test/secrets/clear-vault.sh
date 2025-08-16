@@ -19,6 +19,7 @@ echo "========================================="
 # Set up environment variables for testing
 export SECRETS_AUTH="test_password_123"
 export SECRETS_QUIET="1"
+export KERNELLE_HOME="$HOME/.kernelle"  # Ensure consistent path for CLI and daemon
 
 # Verify secrets binary exists
 test -f "$HOME/.cargo/bin/secrets" || fail "secrets binary not found after install"

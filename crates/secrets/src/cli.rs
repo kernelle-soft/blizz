@@ -144,7 +144,7 @@ fn is_subprocess() -> bool {
 /// Helper function to get master password, first trying daemon, then fallback to direct prompt
 async fn get_master_password(_secrets: &Secrets) -> Result<String> {
   // Check if credentials file exists
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
     PathBuf::from(kernelle_dir)
   } else {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
@@ -299,7 +299,7 @@ async fn handle_store(
   let master_password = get_master_password(_secrets).await?;
 
   // Load existing credentials or create new ones
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
     PathBuf::from(kernelle_dir)
   } else {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
@@ -356,7 +356,7 @@ async fn handle_store(
 
 async fn handle_read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
   // Get the credentials file path
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
     PathBuf::from(kernelle_dir)
   } else {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
@@ -416,7 +416,7 @@ async fn handle_delete(
   force: bool,
 ) -> Result<()> {
   // Get the credentials file path
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
     PathBuf::from(kernelle_dir)
   } else {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
@@ -528,7 +528,7 @@ async fn handle_list(
   quiet: bool,
 ) -> Result<()> {
   // Get the credentials file path (same logic as PasswordBasedCryptoManager::new)
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
     PathBuf::from(kernelle_dir)
   } else {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
@@ -636,7 +636,7 @@ async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()>
   let master_password = get_master_password(secrets).await?;
 
   // Try to verify the password by attempting to decrypt existing secrets
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
     PathBuf::from(kernelle_dir)
   } else {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
@@ -665,7 +665,7 @@ async fn handle_clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()>
   bentley::verbose("clearing vault...");
 
   // Get the credentials file path (same logic as PasswordBasedCryptoManager::new)
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
     PathBuf::from(kernelle_dir)
   } else {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
@@ -702,7 +702,7 @@ async fn handle_reset_password(secrets: &Secrets, force: bool) -> Result<()> {
   let current_password = get_master_password(secrets).await?;
 
   // Load current credentials store
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
     PathBuf::from(kernelle_dir)
   } else {
     dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")

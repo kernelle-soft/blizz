@@ -237,7 +237,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
 
 impl PasswordBasedCryptoManager {
   fn new() -> Self {
-    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
+    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_HOME") {
       std::path::PathBuf::from(kernelle_dir)
     } else {
       dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")

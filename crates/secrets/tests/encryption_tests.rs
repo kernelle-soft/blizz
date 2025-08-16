@@ -5,7 +5,7 @@ use tempfile::TempDir;
 
 fn setup_test_env() -> TempDir {
   let temp_dir = TempDir::new().unwrap();
-  env::set_var("KERNELLE_DIR", temp_dir.path());
+  env::set_var("KERNELLE_HOME", temp_dir.path());
   temp_dir
 }
 
