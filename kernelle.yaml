@@ -12,81 +12,87 @@ checks-full:
   - do: coverage
 
 # Other Useful Tasks
-build: 
+build:
   - do: rust-build
-clean: 
+clean:
   - do: rust-clean
-audit: 
+audit:
   - do: rust-audit
 test:
   - do: rust-test
-coverage: 
+coverage:
   - do: rust-coverage
-lint: 
+lint:
   - do: rust-lint
-tidy: 
+tidy:
   - do: lint
   - do: format
-format: 
+format:
   - do: rust-format
   - do: endlines
 endlines: bash scripts/ensure-final-newlines.sh --fix
 
-
 # ------------------------------------------------------------
 # Pre-check Tasks
 # ------------------------------------------------------------
-# These subtasks will be used to orchestrate linting, formatting, and other checks for PRs 
+# These subtasks will be used to orchestrate linting, formatting, and other checks for PRs
 # Note: for now, these are mostly just aliases for rust tasks, but eventually python will be added to the mix
 
 # Base pre-checks, built from other checks below
-checks-base: 
+checks-base:
   - do: check-build
   - do: check-tidy
 
-check-build: 
+check-build:
   - do: clean
   - do: build
-check-secure: 
+check-secure:
   - do: rust-audit
 check-test:
   - do: rust-test
-check-tidy: 
+check-tidy:
   - do: check-lint
   - do: check-format
   - do: check-endlines
   - do: check-reading
-check-reading: 
+check-reading:
   - violet .
-check-lint: 
+check-lint:
   - do: rust-lint-assert
-check-format: 
+check-format:
   - do: rust-format-assert
-check-endlines: 
+check-endlines:
   - bash scripts/ensure-final-newlines.sh --check
 
 # ------------------------------------------------------------
 # Rust Tasks
 # ------------------------------------------------------------
 
-rust-lint: 
+rust-lint:
   - cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged
-rust-format: 
+rust-format:
   - cargo fmt --all
-rust-lint-assert: 
+rust-lint-assert:
   - RUSTFLAGS="-D warnings" cargo clippy --workspace --all-targets
-rust-format-assert: 
+rust-format-assert:
   - cargo fmt --all -- --check
-rust-build: 
+rust-build:
   - cargo build --release
-rust-clean: 
+rust-clean:
   - cargo clean
-rust-build-clean: 
+rust-build-clean:
   - do: rust-clean
   - do: rust-build
-rust-audit: 
+rust-audit:
   - cargo audit --deny warnings --deny unmaintained
-rust-test: 
+rust-test:
   - cargo test --workspace
-rust-coverage: 
-  - cargo tarpaulin --workspace --timeout 300 --out xml --output-dir coverage --jobs $(nproc)
+rust-coverage:
+  - > 
+    RUSTFLAGS='-C instrument-coverage' cargo tarpaulin 
+    --workspace 
+    --timeout 300 
+    --out xml 
+    --output-dir coverage 
+    --jobs $(nproc) 
+    --branch
