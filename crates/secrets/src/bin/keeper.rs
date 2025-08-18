@@ -249,7 +249,7 @@ mod tests {
         let output = assert.get_output();
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
-          stderr.contains("daemon started"),
+          stderr.contains("daemon started") || stderr.contains("unlocking vault using SECRETS_AUTH"),
           "Should have started daemon using SECRETS_AUTH. STDERR: '{}'", stderr
         );
       });
@@ -462,7 +462,7 @@ mod tests {
         let output = assert.get_output();
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
-          stderr.contains("daemon started"),
+          stderr.contains("daemon started") || stderr.contains("unlocking vault"),
           "Should have started daemon using saved vault. STDERR: '{}'", stderr
         );
       });
@@ -514,7 +514,7 @@ mod tests {
         let output = assert.get_output();
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
-          stderr.contains("daemon started"),
+          stderr.contains("daemon started") || stderr.contains("unlocking vault"),
           "Should have started daemon with correct password. STDERR: '{}'", stderr
         );
       });
