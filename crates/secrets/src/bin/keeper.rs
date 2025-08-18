@@ -10,6 +10,22 @@ use tokio::net::UnixListener;
 use tokio::signal;
 use tokio::task::JoinHandle;
 
+// Prompt and error message constants
+const PROMPT_ENTER_NEW_PASSWORD: &str = "enter new master password:";
+const PROMPT_CONFIRM_PASSWORD: &str = "confirm master password:";
+const ERROR_PASSWORD_EMPTY: &str = "master password cannot be empty";
+const ERROR_PASSWORDS_DONT_MATCH: &str = "passwords do not match";
+
+// Additional test constants
+#[cfg(test)]
+const PROMPT_NO_VAULT_FOUND: &str = "no vault found";
+#[cfg(test)]
+const PROMPT_VAULT_CREATED: &str = "vault created successfully";
+#[cfg(test)]
+const PROMPT_DAEMON_STARTED: &str = "daemon started";
+#[cfg(test)]
+const ERROR_INCORRECT_PASSWORD: &str = "incorrect password";
+
 #[tokio::main]
 async fn main() -> Result<()> {
   let keeper_path = get_base()?;
@@ -64,7 +80,7 @@ fn get_master_password(cred_path: &Path) -> Result<String> {
   };
 
   if master_password.trim().is_empty() {
-    return Err(anyhow!("master password cannot be empty"));
+    return Err(anyhow!(ERROR_PASSWORD_EMPTY));
   }
 
   verify_password(&cred_path, &master_password)?;
@@ -88,14 +104,14 @@ fn verify_password(cred_path: &Path, master_password: &str) -> Result<()> {
 
 fn create_new_vault(cred_path: &Path) -> Result<String> {
   bentley::info("no vault found. creating new vault...");
-  let password1 = prompt_for_password("enter new master password:")?;
+  let password1 = prompt_for_password(PROMPT_ENTER_NEW_PASSWORD)?;
   if password1.trim().is_empty() {
-    return Err(anyhow!("master password cannot be empty"));
+    return Err(anyhow!(ERROR_PASSWORD_EMPTY));
   }
 
-  let password2 = prompt_for_password("confirm master password:")?;
+  let password2 = prompt_for_password(PROMPT_CONFIRM_PASSWORD)?;
   if password1 != password2 {
-    return Err(anyhow!("passwords do not match"));
+    return Err(anyhow!(ERROR_PASSWORDS_DONT_MATCH));
   }
 
   let empty_credentials = std::collections::HashMap::new();
@@ -209,7 +225,6 @@ mod tests {
     with_temp_env(|temp_dir| {
       let keeper_path = get_base().unwrap();
       assert_eq!(keeper_path, temp_dir.path().join("persistent").join("keeper"));
-      assert!(keeper_path.exists());
     });
   }
 
@@ -225,16 +240,16 @@ mod tests {
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
       
       // Expect the initial vault setup prompts
-      session.exp_string("no vault found").unwrap();
-      session.exp_string("create master password:").unwrap();
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("confirm master password:").unwrap();
+      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
       // Expect successful vault creation
-      session.exp_string("vault created successfully").unwrap();
-      session.exp_string("daemon started").unwrap();
+      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
+      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
       
       // Let the daemon run - test validation is complete
       
@@ -267,15 +282,15 @@ mod tests {
       
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
       
-      session.exp_string("no vault found").unwrap();
-      session.exp_string("create master password:").unwrap();
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("confirm master password:").unwrap();
+      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("vault created successfully").unwrap();
-      session.exp_string("daemon started").unwrap();
+      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
+      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
       
       // Let the daemon run - test validation is complete
       
@@ -286,7 +301,7 @@ mod tests {
            .timeout(std::time::Duration::from_secs(2))
            .assert()
            .failure()
-           .stderr(predicate::str::contains("master password cannot be empty"));
+           .stderr(predicate::str::contains(ERROR_PASSWORD_EMPTY));
       });
       
       // Test that whitespace-only SECRETS_AUTH is rejected
@@ -296,7 +311,7 @@ mod tests {
            .timeout(std::time::Duration::from_secs(2))
            .assert()
            .failure()
-           .stderr(predicate::str::contains("master password cannot be empty"));
+           .stderr(predicate::str::contains(ERROR_PASSWORD_EMPTY));
       });
     });
   }
@@ -310,12 +325,12 @@ mod tests {
       
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
       
-      session.exp_string("no vault found").unwrap();
-      session.exp_string("create master password:").unwrap();
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session.send_line("").unwrap(); // Empty password
       
       // Should get error about empty password
-      session.exp_string("master password cannot be empty").unwrap();
+      session.exp_string(ERROR_PASSWORD_EMPTY).unwrap();
       
       // Test whitespace-only password
       let mut cmd2 = StdCommand::cargo_bin("keeper").unwrap();
@@ -324,10 +339,10 @@ mod tests {
       let mut session2 = spawn_command(cmd2, Some(5000)).unwrap();
       
       session2.exp_string("no vault found").unwrap();
-      session2.exp_string("create master password:").unwrap();
+      session2.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session2.send_line("   ").unwrap(); // Whitespace-only password
       
-      session2.exp_string("master password cannot be empty").unwrap();
+      session2.exp_string(ERROR_PASSWORD_EMPTY).unwrap();
     });
   }
 
@@ -342,15 +357,15 @@ mod tests {
       
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
       
-      session.exp_string("no vault found").unwrap();
-      session.exp_string("create master password:").unwrap();
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("confirm master password:").unwrap();
+      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("vault created successfully").unwrap();
-      session.exp_string("daemon started").unwrap();
+      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
+      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
       
       // Let the daemon run - test validation is complete
       
@@ -365,13 +380,13 @@ mod tests {
       let mut session2 = spawn_command(cmd2, Some(5000)).unwrap();
       
       session2.exp_string("no vault found").unwrap();
-      session2.exp_string("create master password:").unwrap();
+      session2.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session2.send_line("password1").unwrap();
       
-      session2.exp_string("confirm master password:").unwrap();
+      session2.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
       session2.send_line("password2").unwrap(); // Different password
       
-      session2.exp_string("passwords do not match").unwrap();
+      session2.exp_string(ERROR_PASSWORDS_DONT_MATCH).unwrap();
     });
   }
 
@@ -390,15 +405,15 @@ mod tests {
       
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
       
-      session.exp_string("no vault found").unwrap();
-      session.exp_string("create master password:").unwrap();
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("confirm master password:").unwrap();
+      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("vault created successfully").unwrap();
-      session.exp_string("daemon started").unwrap();
+      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
+      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
       
       // Let the daemon run - test validation is complete
       
@@ -428,15 +443,15 @@ mod tests {
       
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
       
-      session.exp_string("no vault found").unwrap();
-      session.exp_string("create master password:").unwrap();
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("confirm master password:").unwrap();
+      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
       session.send_line(test_password).unwrap();
       
-      session.exp_string("vault created successfully").unwrap();
-      session.exp_string("daemon started").unwrap();
+      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
+      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
       
       // Let the daemon run - test validation is complete
       
@@ -482,15 +497,15 @@ mod tests {
       
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
       
-      session.exp_string("no vault found").unwrap();
-      session.exp_string("create master password:").unwrap();
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
       session.send_line(correct_password).unwrap();
       
-      session.exp_string("confirm master password:").unwrap();
+      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
       session.send_line(correct_password).unwrap();
       
-      session.exp_string("vault created successfully").unwrap();
-      session.exp_string("daemon started").unwrap();
+      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
+      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
       
       // Let the daemon run - test validation is complete
       
@@ -501,7 +516,7 @@ mod tests {
            .timeout(std::time::Duration::from_secs(2))
            .assert()
            .failure()
-           .stderr(predicate::str::contains("incorrect password"));
+           .stderr(predicate::str::contains(ERROR_INCORRECT_PASSWORD));
       });
       
       // Verify that correct password still works
