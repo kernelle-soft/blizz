@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use anyhow::Result;
-use argon2::password_hash;
 use secrets::encryption::{EncryptedBlob, EncryptionManager};
 use serde_json::{self, Value};
 use std::io::Write;
@@ -188,8 +187,8 @@ mod tests {
   use super::*;
   use temp_env;
   use tempfile::TempDir;
-  use tokio::io::{AsyncReadExt, AsyncWriteExt};
-  use tokio::net::UnixStream;
+  use assert_cmd::Command;
+  use predicates::prelude::*;
 
   fn with_temp_env<F, R>(f: F) -> R
   where
@@ -209,38 +208,228 @@ mod tests {
   }
 
   #[test]
-  fn test_get_master_password_uses_SECRETS_AUTH_var() {
-    // test
+  fn test_get_master_password_uses_secrets_auth_var() {
+    with_temp_env(|temp_dir| {
+      let test_password = "test_password_123";
+      
+      // First, create a vault interactively
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path())
+         .timeout(std::time::Duration::from_secs(5))
+         .write_stdin(format!("{}\n", test_password))
+         .timeout(std::time::Duration::from_secs(5))
+         .write_stdin(format!("{}\n", test_password))
+         .assert()
+         .success()
+         .stdout(predicate::str::contains("vault created successfully"));
+      
+      // Now test that SECRETS_AUTH is used (daemon should start without prompting)
+      temp_env::with_var("SECRETS_AUTH", Some(test_password), || {
+        let mut cmd = Command::cargo_bin("keeper").unwrap();
+        cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_millis(500)) // Short timeout since we expect quick startup
+           .assert()
+           .success()
+           .stdout(predicate::str::contains("daemon started"));
+      });
+    });
   }
 
   #[test]
-  fn test_get_master_password_uses_SECRETS_AUTH_validates_non_empty() {
-    //
+  fn test_get_master_password_uses_secrets_auth_validates_non_empty() {
+    with_temp_env(|temp_dir| {
+      let test_password = "valid_password_123";
+      
+      // First, create a vault interactively
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path())
+         .write_stdin(format!("{}\n{}\n", test_password, test_password))
+         .timeout(std::time::Duration::from_secs(5))
+         .assert()
+         .success()
+         .stdout(predicate::str::contains("vault created successfully"));
+      
+      // Test that empty SECRETS_AUTH is rejected
+      temp_env::with_var("SECRETS_AUTH", Some(""), || {
+        let mut cmd = Command::cargo_bin("keeper").unwrap();
+        cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_secs(2))
+           .assert()
+           .failure()
+           .stderr(predicate::str::contains("master password cannot be empty"));
+      });
+      
+      // Test that whitespace-only SECRETS_AUTH is rejected
+      temp_env::with_var("SECRETS_AUTH", Some("   \n  \t  "), || {
+        let mut cmd = Command::cargo_bin("keeper").unwrap();
+        cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_secs(2))
+           .assert()
+           .failure()
+           .stderr(predicate::str::contains("master password cannot be empty"));
+      });
+    });
   }
 
   #[test]
   fn test_create_vault_throws_if_password_is_empty() {
-    // 
+    with_temp_env(|temp_dir| {
+      // Test empty password input during vault creation
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path())
+         .write_stdin("\n\n") // Empty password inputs
+         .timeout(std::time::Duration::from_secs(5))
+         .assert()
+         .failure()
+         .stderr(predicate::str::contains("master password cannot be empty"));
+      
+      // Test whitespace-only password input during vault creation
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path())
+         .write_stdin("   \n   \n") // Whitespace-only password inputs
+         .timeout(std::time::Duration::from_secs(5))
+         .assert()
+         .failure()
+         .stderr(predicate::str::contains("master password cannot be empty"));
+    });
   }
 
   #[test]
   fn test_create_vault_creates_vault() {
-    //
+    with_temp_env(|temp_dir| {
+      let test_password = "strong_test_password_123";
+      
+      // Test successful vault creation with matching passwords
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path())
+         .write_stdin(format!("{}\n{}\n", test_password, test_password))
+         .timeout(std::time::Duration::from_secs(5))
+         .assert()
+         .success()
+         .stdout(predicate::str::contains("vault created successfully"))
+         .stdout(predicate::str::contains("daemon started"));
+      
+      // Verify the vault file was actually created
+      let vault_path = temp_dir.path().join("persistent").join("keeper").join("credentials.enc");
+      assert!(vault_path.exists(), "Vault file should exist after creation");
+      
+      // Test password mismatch during vault creation
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path().join("mismatch_test"))
+         .write_stdin("password1\npassword2\n") // Mismatched passwords
+         .timeout(std::time::Duration::from_secs(5))
+         .assert()
+         .failure()
+         .stderr(predicate::str::contains("passwords do not match"));
+    });
   }
 
   #[test]
   fn test_create_vault_creates_parent_dir_if_needed() {
-    //
+    with_temp_env(|temp_dir| {
+      let test_password = "test_password_123";
+      
+      // Ensure parent directories don't exist initially
+      let keeper_dir = temp_dir.path().join("persistent").join("keeper");
+      assert!(!keeper_dir.exists(), "Keeper directory should not exist initially");
+      
+      // Create vault - should create parent directories
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path())
+         .write_stdin(format!("{}\n{}\n", test_password, test_password))
+         .timeout(std::time::Duration::from_secs(5))
+         .assert()
+         .success()
+         .stdout(predicate::str::contains("vault created successfully"));
+      
+      // Verify parent directories were created
+      assert!(keeper_dir.exists(), "Keeper directory should be created");
+      assert!(keeper_dir.is_dir(), "Keeper path should be a directory");
+      
+      // Verify vault file exists in the created directory
+      let vault_path = keeper_dir.join("credentials.enc");
+      assert!(vault_path.exists(), "Vault file should exist in created directory");
+      assert!(vault_path.is_file(), "Vault path should be a file");
+    });
   }
 
   #[test]
   fn test_create_vault_saves_to_file() {
-    //
+    with_temp_env(|temp_dir| {
+      let test_password = "file_save_password_123";
+      let vault_path = temp_dir.path().join("persistent").join("keeper").join("credentials.enc");
+      
+      // Ensure file doesn't exist initially
+      assert!(!vault_path.exists(), "Vault file should not exist initially");
+      
+      // Create vault
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path())
+         .write_stdin(format!("{}\n{}\n", test_password, test_password))
+         .timeout(std::time::Duration::from_secs(5))
+         .assert()
+         .success()
+         .stdout(predicate::str::contains("vault created successfully"));
+      
+      // Verify file was saved
+      assert!(vault_path.exists(), "Vault file should exist after saving");
+      assert!(vault_path.is_file(), "Saved vault should be a file");
+      
+      // Verify file content is not empty
+      let file_contents = std::fs::read_to_string(&vault_path).unwrap();
+      assert!(!file_contents.is_empty(), "Saved vault file should not be empty");
+      
+      // Verify file contains valid JSON structure
+      let json_data: serde_json::Value = serde_json::from_str(&file_contents).unwrap();
+      assert!(json_data.get("encrypted_data").is_some(), "Saved vault should contain encrypted_data field");
+      
+      // Verify we can start the daemon again using the saved vault
+      temp_env::with_var("SECRETS_AUTH", Some(test_password), || {
+        let mut cmd = Command::cargo_bin("keeper").unwrap();
+        cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_millis(500))
+           .assert()
+           .success()
+           .stdout(predicate::str::contains("daemon started"));
+      });
+    });
   }
 
 
   #[test]
   fn test_master_password_throws_if_password_is_incorrect() {
-    //
+    with_temp_env(|temp_dir| {
+      let correct_password = "correct_password_123";
+      let wrong_password = "definitely_wrong_password";
+      
+      // First, create a vault with a known password
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path())
+         .write_stdin(format!("{}\n{}\n", correct_password, correct_password))
+         .timeout(std::time::Duration::from_secs(5))
+         .assert()
+         .success()
+         .stdout(predicate::str::contains("vault created successfully"));
+      
+      // Test that keeper fails with wrong password from SECRETS_AUTH
+      temp_env::with_var("SECRETS_AUTH", Some(wrong_password), || {
+        let mut cmd = Command::cargo_bin("keeper").unwrap();
+        cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_secs(2))
+           .assert()
+           .failure()
+           .stderr(predicate::str::contains("incorrect password"));
+      });
+      
+      // Verify that correct password still works
+      temp_env::with_var("SECRETS_AUTH", Some(correct_password), || {
+        let mut cmd = Command::cargo_bin("keeper").unwrap();
+        cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_millis(500))
+           .assert()
+           .success()
+           .stdout(predicate::str::contains("daemon started"));
+      });
+    });
   }
 }
