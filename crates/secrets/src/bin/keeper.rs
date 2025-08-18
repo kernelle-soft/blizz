@@ -669,7 +669,7 @@ mod tests {
           return Err("Socket not found".to_string());
         }
         
-        // Test 1: Send invalid request
+        // Send invalid request
         let mut stream = tokio::net::UnixStream::connect(&socket_path).await
           .map_err(|e| format!("Connection failed: {}", e))?;
           
@@ -713,5 +713,117 @@ mod tests {
         }
       }
     });
+  }
+
+  #[tokio::test]
+  async fn test_handle_client_get_request() {
+    // Test the handle_client function directly for coverage
+    use tokio::net::UnixStream;
+    
+    let test_password = "unit_test_password_456";
+    
+    // Create a Unix socket pair for testing
+    let (client_stream, server_stream) = UnixStream::pair().expect("Failed to create socket pair");
+    
+    // Test the handle_client function directly
+    let client_task = tokio::spawn(async move {
+      use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+      
+      let mut client = client_stream;
+      
+      // Send GET request
+      client.write_all(b"GET\n").await.expect("Failed to send GET request");
+      
+      // Read response
+      let mut reader = BufReader::new(client);
+      let mut response = String::new();
+      reader.read_line(&mut response).await.expect("Failed to read response");
+      
+      response.trim().to_string()
+    });
+    
+    // Handle the server side
+    let server_task = tokio::spawn(async move {
+      handle_client(server_stream, test_password.to_string()).await;
+    });
+    
+    // Wait for client to get response
+    let received_password = client_task.await.expect("Client task failed");
+    
+    // Wait for server to finish
+    let _ = server_task.await;
+    
+    // Verify we got the correct password
+    assert_eq!(received_password, test_password);
+  }
+
+  #[tokio::test]
+  async fn test_handle_client_invalid_request() {
+    // Test invalid request handling for coverage
+    use tokio::net::UnixStream;
+    
+    let test_password = "unit_test_password_789";
+    
+    // Create socket pair
+    let (client_stream, server_stream) = UnixStream::pair().expect("Failed to create socket pair");
+    
+    let client_task = tokio::spawn(async move {
+      use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+      
+      let mut client = client_stream;
+      
+      // Send invalid request
+      client.write_all(b"INVALID\n").await.expect("Failed to send invalid request");
+      
+      // Try to read response - should get nothing or connection should close
+      let mut reader = BufReader::new(client);
+      let mut response = String::new();
+      
+      match tokio::time::timeout(
+        tokio::time::Duration::from_millis(500),
+        reader.read_line(&mut response)
+      ).await {
+        Ok(Ok(0)) => "EOF".to_string(), // Connection closed
+        Ok(Ok(_)) => response.trim().to_string(), // Got some response
+        Ok(Err(_)) => "READ_ERROR".to_string(), // Read error
+        Err(_) => "TIMEOUT".to_string(), // Timeout
+      }
+    });
+    
+    let server_task = tokio::spawn(async move {
+      handle_client(server_stream, test_password.to_string()).await;
+    });
+    
+    let result = client_task.await.expect("Client task failed");
+    let _ = server_task.await;
+    
+    // For invalid requests, we should NOT get the password back
+    assert_ne!(result, test_password, "Invalid request should not return the password");
+    
+    // The result should be empty, EOF, or some error - not the actual password
+    assert!(
+      result.is_empty() || result == "EOF" || result == "READ_ERROR" || result == "TIMEOUT",
+      "Invalid request should not leak the password, got: '{}'", result
+    );
+  }
+
+  #[tokio::test]
+  async fn test_handle_client_connection_error() {
+    // Test connection error handling for coverage
+    let test_password = "connection_error_test_999";
+    
+    let (client_stream, server_stream) = tokio::net::UnixStream::pair()
+      .expect("Failed to create socket pair");
+    
+    // Close client side immediately to simulate connection error
+    drop(client_stream);
+    
+    // This should handle the error gracefully and not panic
+    let server_task = tokio::spawn(async move {
+      handle_client(server_stream, test_password.to_string()).await;
+    });
+    
+    // Should complete without panicking
+    let _ = server_task.await.expect("Server should handle connection error gracefully");
   }
 }
