@@ -212,25 +212,34 @@ mod tests {
     with_temp_env(|temp_dir| {
       let test_password = "test_password_123";
       
-      // First, create a vault interactively
+      // First, create a vault interactively (daemon will start, so we expect it to timeout but succeed)
       let mut cmd = Command::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path())
-         .timeout(std::time::Duration::from_secs(5))
-         .write_stdin(format!("{}\n", test_password))
-         .timeout(std::time::Duration::from_secs(5))
-         .write_stdin(format!("{}\n", test_password))
-         .assert()
-         .success()
-         .stdout(predicate::str::contains("vault created successfully"));
+      let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
+         .write_stdin(format!("{}\n{}\n", test_password, test_password))
+         .timeout(std::time::Duration::from_millis(2000)) // Short timeout since daemon will run
+         .assert();
+         
+      // The command should timeout (daemon runs indefinitely) but should have created vault
+      // We'll check the output contains vault creation success
+      let output = assert.get_output();
+      assert!(
+        String::from_utf8_lossy(&output.stdout).contains("vault created successfully"),
+        "Should have created vault successfully"
+      );
       
       // Now test that SECRETS_AUTH is used (daemon should start without prompting)
       temp_env::with_var("SECRETS_AUTH", Some(test_password), || {
         let mut cmd = Command::cargo_bin("keeper").unwrap();
-        cmd.env("KERNELLE_HOME", temp_dir.path())
-           .timeout(std::time::Duration::from_millis(500)) // Short timeout since we expect quick startup
-           .assert()
-           .success()
-           .stdout(predicate::str::contains("daemon started"));
+        let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_millis(1000)) // Short timeout since daemon will run
+           .assert();
+           
+        // Should timeout but successfully start daemon with SECRETS_AUTH
+        let output = assert.get_output();
+        assert!(
+          String::from_utf8_lossy(&output.stdout).contains("daemon started"),
+          "Should have started daemon using SECRETS_AUTH"
+        );
       });
     });
   }
@@ -240,14 +249,18 @@ mod tests {
     with_temp_env(|temp_dir| {
       let test_password = "valid_password_123";
       
-      // First, create a vault interactively
+      // First, create a vault interactively (will timeout due to daemon)
       let mut cmd = Command::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path())
+      let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
          .write_stdin(format!("{}\n{}\n", test_password, test_password))
-         .timeout(std::time::Duration::from_secs(5))
-         .assert()
-         .success()
-         .stdout(predicate::str::contains("vault created successfully"));
+         .timeout(std::time::Duration::from_millis(2000))
+         .assert();
+         
+      let output = assert.get_output();
+      assert!(
+        String::from_utf8_lossy(&output.stdout).contains("vault created successfully"),
+        "Should have created vault successfully"
+      );
       
       // Test that empty SECRETS_AUTH is rejected
       temp_env::with_var("SECRETS_AUTH", Some(""), || {
@@ -299,15 +312,17 @@ mod tests {
     with_temp_env(|temp_dir| {
       let test_password = "strong_test_password_123";
       
-      // Test successful vault creation with matching passwords
+      // Test successful vault creation with matching passwords (will timeout due to daemon)
       let mut cmd = Command::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path())
+      let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
          .write_stdin(format!("{}\n{}\n", test_password, test_password))
-         .timeout(std::time::Duration::from_secs(5))
-         .assert()
-         .success()
-         .stdout(predicate::str::contains("vault created successfully"))
-         .stdout(predicate::str::contains("daemon started"));
+         .timeout(std::time::Duration::from_millis(2000))
+         .assert();
+         
+      let output = assert.get_output();
+      let stdout = String::from_utf8_lossy(&output.stdout);
+      assert!(stdout.contains("vault created successfully"), "Should have created vault successfully");
+      assert!(stdout.contains("daemon started"), "Should have started daemon");
       
       // Verify the vault file was actually created
       let vault_path = temp_dir.path().join("persistent").join("keeper").join("credentials.enc");
@@ -333,14 +348,18 @@ mod tests {
       let keeper_dir = temp_dir.path().join("persistent").join("keeper");
       assert!(!keeper_dir.exists(), "Keeper directory should not exist initially");
       
-      // Create vault - should create parent directories
+      // Create vault - should create parent directories (will timeout due to daemon)
       let mut cmd = Command::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path())
+      let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
          .write_stdin(format!("{}\n{}\n", test_password, test_password))
-         .timeout(std::time::Duration::from_secs(5))
-         .assert()
-         .success()
-         .stdout(predicate::str::contains("vault created successfully"));
+         .timeout(std::time::Duration::from_millis(2000))
+         .assert();
+         
+      let output = assert.get_output();
+      assert!(
+        String::from_utf8_lossy(&output.stdout).contains("vault created successfully"),
+        "Should have created vault successfully"
+      );
       
       // Verify parent directories were created
       assert!(keeper_dir.exists(), "Keeper directory should be created");
@@ -362,14 +381,18 @@ mod tests {
       // Ensure file doesn't exist initially
       assert!(!vault_path.exists(), "Vault file should not exist initially");
       
-      // Create vault
+      // Create vault (will timeout due to daemon)
       let mut cmd = Command::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path())
+      let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
          .write_stdin(format!("{}\n{}\n", test_password, test_password))
-         .timeout(std::time::Duration::from_secs(5))
-         .assert()
-         .success()
-         .stdout(predicate::str::contains("vault created successfully"));
+         .timeout(std::time::Duration::from_millis(2000))
+         .assert();
+         
+      let output = assert.get_output();
+      assert!(
+        String::from_utf8_lossy(&output.stdout).contains("vault created successfully"),
+        "Should have created vault successfully"
+      );
       
       // Verify file was saved
       assert!(vault_path.exists(), "Vault file should exist after saving");
@@ -386,11 +409,15 @@ mod tests {
       // Verify we can start the daemon again using the saved vault
       temp_env::with_var("SECRETS_AUTH", Some(test_password), || {
         let mut cmd = Command::cargo_bin("keeper").unwrap();
-        cmd.env("KERNELLE_HOME", temp_dir.path())
-           .timeout(std::time::Duration::from_millis(500))
-           .assert()
-           .success()
-           .stdout(predicate::str::contains("daemon started"));
+        let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_millis(1000))
+           .assert();
+           
+        let output = assert.get_output();
+        assert!(
+          String::from_utf8_lossy(&output.stdout).contains("daemon started"),
+          "Should have started daemon using saved vault"
+        );
       });
     });
   }
@@ -402,14 +429,18 @@ mod tests {
       let correct_password = "correct_password_123";
       let wrong_password = "definitely_wrong_password";
       
-      // First, create a vault with a known password
+      // First, create a vault with a known password (will timeout due to daemon)
       let mut cmd = Command::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path())
+      let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
          .write_stdin(format!("{}\n{}\n", correct_password, correct_password))
-         .timeout(std::time::Duration::from_secs(5))
-         .assert()
-         .success()
-         .stdout(predicate::str::contains("vault created successfully"));
+         .timeout(std::time::Duration::from_millis(2000))
+         .assert();
+         
+      let output = assert.get_output();
+      assert!(
+        String::from_utf8_lossy(&output.stdout).contains("vault created successfully"),
+        "Should have created vault successfully"
+      );
       
       // Test that keeper fails with wrong password from SECRETS_AUTH
       temp_env::with_var("SECRETS_AUTH", Some(wrong_password), || {
@@ -424,11 +455,15 @@ mod tests {
       // Verify that correct password still works
       temp_env::with_var("SECRETS_AUTH", Some(correct_password), || {
         let mut cmd = Command::cargo_bin("keeper").unwrap();
-        cmd.env("KERNELLE_HOME", temp_dir.path())
-           .timeout(std::time::Duration::from_millis(500))
-           .assert()
-           .success()
-           .stdout(predicate::str::contains("daemon started"));
+        let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_millis(1000))
+           .assert();
+           
+        let output = assert.get_output();
+        assert!(
+          String::from_utf8_lossy(&output.stdout).contains("daemon started"),
+          "Should have started daemon with correct password"
+        );
       });
     });
   }
