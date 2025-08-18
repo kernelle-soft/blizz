@@ -251,21 +251,25 @@ mod tests {
       session.exp_string(PROMPT_VAULT_CREATED).unwrap();
       session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
       
-      // Let the daemon run - test validation is complete
+      // Terminate the first daemon before testing SECRETS_AUTH
+      drop(session);
+      
+      // Give the daemon time to shut down completely
+      std::thread::sleep(std::time::Duration::from_millis(100));
       
       // Now test that SECRETS_AUTH is used (daemon should start without prompting)
       temp_env::with_var("SECRETS_AUTH", Some(test_password), || {
         let mut cmd = Command::cargo_bin("keeper").unwrap();
-        let assert = cmd.env("KERNELLE_HOME", temp_dir.path())
-           .timeout(std::time::Duration::from_millis(1000)) // Short timeout since daemon will run
-           .assert();
+        let output = cmd.env("KERNELLE_HOME", temp_dir.path())
+           .timeout(std::time::Duration::from_secs(2))
+           .output()
+           .expect("Failed to execute keeper command");
            
-        // Should timeout but successfully start daemon with SECRETS_AUTH
-        let output = assert.get_output();
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-          stderr.contains("daemon started") || stderr.contains("unlocking vault using SECRETS_AUTH"),
-          "Should have started daemon using SECRETS_AUTH. STDERR: '{}'", stderr
+          stderr.contains(PROMPT_DAEMON_STARTED) || stdout.contains(PROMPT_DAEMON_STARTED),
+          "Should have started daemon using SECRETS_AUTH. STDERR: '{}', STDOUT: '{}'", stderr, stdout
         );
       });
     });
@@ -476,9 +480,11 @@ mod tests {
            
         let output = assert.get_output();
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-          stderr.contains("daemon started") || stderr.contains("unlocking vault"),
-          "Should have started daemon using saved vault. STDERR: '{}'", stderr
+          stderr.contains(PROMPT_DAEMON_STARTED) || stdout.contains(PROMPT_DAEMON_STARTED) || 
+          stderr.contains("unlocking vault") || stdout.contains("unlocking vault"),
+          "Should have started daemon using saved vault. STDERR: '{}', STDOUT: '{}'", stderr, stdout
         );
       });
     });
@@ -528,9 +534,11 @@ mod tests {
            
         let output = assert.get_output();
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(
-          stderr.contains("daemon started") || stderr.contains("unlocking vault"),
-          "Should have started daemon with correct password. STDERR: '{}'", stderr
+          stderr.contains(PROMPT_DAEMON_STARTED) || stdout.contains(PROMPT_DAEMON_STARTED) || 
+          stderr.contains("unlocking vault") || stdout.contains("unlocking vault"),
+          "Should have started daemon with correct password. STDERR: '{}', STDOUT: '{}'", stderr, stdout
         );
       });
     });
