@@ -973,4 +973,104 @@ mod tests {
     
     let _ = std::fs::remove_file(&socket_path);
   }
+
+  #[test]
+  fn test_verify_password_success() {
+    use tempfile::TempDir;
+    use secrets::PasswordBasedCredentialStore;
+    use std::collections::HashMap;
+    
+    let temp_dir = TempDir::new().unwrap();
+    let vault_path = temp_dir.path().join("test_vault.enc");
+    let test_password = "test_verification_password_123";
+    
+    // Create a valid vault file
+    let empty_credentials = HashMap::new();
+    let store = PasswordBasedCredentialStore::new(&empty_credentials, test_password).unwrap();
+    store.save_to_file(&vault_path).unwrap();
+    
+    // Test successful password verification
+    let result = verify_password(&vault_path, test_password);
+    assert!(result.is_ok(), "Password verification should succeed with correct password");
+  }
+
+  #[test]
+  fn test_verify_password_incorrect_password() {
+    use tempfile::TempDir;
+    use secrets::PasswordBasedCredentialStore;
+    use std::collections::HashMap;
+    
+    let temp_dir = TempDir::new().unwrap();
+    let vault_path = temp_dir.path().join("test_vault.enc");
+    let correct_password = "correct_password_456";
+    let wrong_password = "wrong_password_789";
+    
+    // Create a valid vault file with correct password
+    let empty_credentials = HashMap::new();
+    let store = PasswordBasedCredentialStore::new(&empty_credentials, correct_password).unwrap();
+    store.save_to_file(&vault_path).unwrap();
+    
+    // Test password verification failure
+    let result = verify_password(&vault_path, wrong_password);
+    assert!(result.is_err(), "Password verification should fail with incorrect password");
+    
+    let error_msg = result.unwrap_err().to_string();
+    assert!(error_msg.contains("incorrect password"), 
+      "Error should mention incorrect password, got: {}", error_msg);
+  }
+
+  #[test]  
+  fn test_verify_password_invalid_vault_format() {
+    use tempfile::TempDir;
+    
+    let temp_dir = TempDir::new().unwrap();
+    let vault_path = temp_dir.path().join("invalid_vault.enc");
+    let test_password = "any_password";
+    
+    // Create a file with invalid JSON format (missing encrypted_data field)
+    let invalid_json = r#"{"some_other_field": "value"}"#;
+    std::fs::write(&vault_path, invalid_json).unwrap();
+    
+    // Test that invalid vault format is detected
+    let result = verify_password(&vault_path, test_password);
+    assert!(result.is_err(), "Should fail with invalid vault format");
+    
+    let error_msg = result.unwrap_err().to_string();
+    assert!(error_msg.contains("invalid vault format") && error_msg.contains("encrypted_data"),
+      "Error should mention invalid vault format and missing encrypted_data, got: {}", error_msg);
+  }
+
+  #[test]
+  fn test_verify_password_malformed_json() {
+    use tempfile::TempDir;
+    
+    let temp_dir = TempDir::new().unwrap();
+    let vault_path = temp_dir.path().join("malformed_vault.enc");
+    let test_password = "any_password";
+    
+    // Create a file with completely malformed JSON
+    std::fs::write(&vault_path, "not json at all").unwrap();
+    
+    // Test that malformed JSON is handled
+    let result = verify_password(&vault_path, test_password);
+    assert!(result.is_err(), "Should fail with malformed JSON");
+    
+    // The exact error message will depend on serde_json, but it should fail
+    let _error_msg = result.unwrap_err().to_string();
+  }
+
+  #[test]
+  fn test_verify_password_file_not_found() {
+    use std::path::PathBuf;
+    
+    let nonexistent_path = PathBuf::from("/tmp/definitely_does_not_exist.enc");
+    let test_password = "any_password";
+    
+    // Test that missing file is handled
+    let result = verify_password(&nonexistent_path, test_password);
+    assert!(result.is_err(), "Should fail when vault file doesn't exist");
+    
+    // Should get a file system error
+    let _error_msg = result.unwrap_err().to_string();
+  }
 }
