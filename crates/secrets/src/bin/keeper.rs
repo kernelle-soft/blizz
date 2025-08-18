@@ -545,4 +545,173 @@ mod tests {
       });
     });
   }
+
+  #[test]
+  fn test_keeper_ipc_password_retrieval() {
+    with_temp_env(|temp_dir| {
+      let test_password = "ipc_test_password_123";
+      
+      // First, create a vault with a known password
+      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path());
+      
+      let mut session = spawn_command(cmd, Some(5000)).unwrap();
+      
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
+      session.send_line(test_password).unwrap();
+      
+      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
+      session.send_line(test_password).unwrap();
+      
+      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
+      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
+      
+      // Give the daemon a moment to fully start
+      std::thread::sleep(std::time::Duration::from_millis(500));
+      
+      // Now test the IPC functionality - connect as a client and get the password
+      let rt = tokio::runtime::Runtime::new().unwrap();
+      let test_result = rt.block_on(async {
+        let socket_path = temp_dir.path().join("persistent").join("keeper").join("keeper.sock");
+        
+        // Wait for socket to be available (up to 5 seconds)
+        let mut attempts = 0;
+        while !socket_path.exists() && attempts < 50 {
+          tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+          attempts += 1;
+        }
+        
+        if !socket_path.exists() {
+          return Err(format!("Socket not found at: {}", socket_path.display()));
+        }
+        
+        // Connect to the keeper daemon
+        let mut stream = match tokio::net::UnixStream::connect(&socket_path).await {
+          Ok(stream) => stream,
+          Err(e) => return Err(format!("Failed to connect to keeper socket: {}", e)),
+        };
+        
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        
+        // Send GET request
+        if let Err(e) = stream.write_all(b"GET\n").await {
+          return Err(format!("Failed to send GET request: {}", e));
+        }
+        
+        // Read the password response
+        let mut reader = BufReader::new(stream);
+        let mut response = String::new();
+        if let Err(e) = reader.read_line(&mut response).await {
+          return Err(format!("Failed to read password response: {}", e));
+        }
+        
+        let received_password = response.trim();
+        if received_password == test_password {
+          Ok(received_password.to_string())
+        } else {
+          Err(format!("Password mismatch: expected '{}', got '{}'", test_password, received_password))
+        }
+      });
+      
+      // Clean up - terminate the daemon
+      drop(session);
+      
+      // Check the result
+      match test_result {
+        Ok(retrieved_password) => {
+          assert_eq!(retrieved_password, test_password,
+            "Retrieved password should match the original");
+        }
+        Err(error_msg) => {
+          panic!("IPC test failed: {}", error_msg);
+        }
+      }
+    });
+  }
+
+  #[test]  
+  fn test_keeper_ipc_invalid_request() {
+    with_temp_env(|temp_dir| {
+      let test_password = "invalid_request_test_123";
+      
+      // Create a vault and start daemon
+      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
+      cmd.env("KERNELLE_HOME", temp_dir.path());
+      
+      let mut session = spawn_command(cmd, Some(5000)).unwrap();
+      
+      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
+      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
+      session.send_line(test_password).unwrap();
+      
+      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
+      session.send_line(test_password).unwrap();
+      
+      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
+      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
+      
+      std::thread::sleep(std::time::Duration::from_millis(500));
+      
+      // Test invalid request handling  
+      let rt = tokio::runtime::Runtime::new().unwrap();
+      let test_result = rt.block_on(async {
+        let socket_path = temp_dir.path().join("persistent").join("keeper").join("keeper.sock");
+        
+        // Wait for socket
+        let mut attempts = 0;
+        while !socket_path.exists() && attempts < 50 {
+          tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+          attempts += 1;
+        }
+        
+        if !socket_path.exists() {
+          return Err("Socket not found".to_string());
+        }
+        
+        // Test 1: Send invalid request
+        let mut stream = tokio::net::UnixStream::connect(&socket_path).await
+          .map_err(|e| format!("Connection failed: {}", e))?;
+          
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        
+        stream.write_all(b"INVALID_COMMAND\n").await
+          .map_err(|e| format!("Write failed: {}", e))?;
+          
+        // The connection should close or we should get no meaningful response
+        let mut reader = BufReader::new(stream);
+        let mut response = String::new();
+        
+        // Try to read - this should either fail or return empty/invalid response
+        match tokio::time::timeout(
+          tokio::time::Duration::from_secs(2), 
+          reader.read_line(&mut response)
+        ).await {
+          Ok(Ok(0)) => Ok("Connection closed as expected".to_string()), // EOF
+          Ok(Ok(_)) => {
+            // Got some response - check it's not the password
+            if response.trim() == test_password {
+              Err("Invalid request returned password - security issue!".to_string())
+            } else {
+              Ok(format!("Got non-password response: {}", response.trim()))
+            }
+          }
+          Ok(Err(_)) => Ok("Read failed as expected".to_string()),
+          Err(_) => Ok("Request timed out as expected".to_string()),
+        }
+      });
+      
+      drop(session);
+      
+      // Check result - we expect the invalid request to NOT return the password
+      match test_result {
+        Ok(_) => {
+          // Good - invalid request was handled properly
+        }
+        Err(error_msg) => {
+          panic!("Invalid request test failed: {}", error_msg);
+        }
+      }
+    });
+  }
 }
