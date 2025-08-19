@@ -143,16 +143,6 @@ thread_local! {
 }
 
 #[cfg(test)]
-pub fn set_test_prompt_responses(responses: Vec<String>) {
-  TEST_PROMPT_RESPONSES.with(|r| {
-    *r.borrow_mut() = responses;
-  });
-  TEST_PROMPT_INDEX.with(|i| {
-    *i.borrow_mut() = 0;
-  });
-}
-
-#[cfg(test)]
 mod tests {
   use super::*;
 
