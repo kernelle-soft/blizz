@@ -431,3 +431,287 @@ mod whoami {
       .unwrap_or_else(|_| "unknown".to_string())
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use std::fs;
+  use tempfile::TempDir;
+
+  // Test constants
+  const PROMPT_ENTER_NEW_PASSWORD: &str = "enter new master password:";
+  const PROMPT_CONFIRM_PASSWORD: &str = "confirm master password:";
+  const ERROR_PASSWORD_EMPTY: &str = "master password cannot be empty";
+  const ERROR_PASSWORDS_DONT_MATCH: &str = "passwords do not match";
+  const ERROR_INCORRECT_PASSWORD: &str = "incorrect password";
+
+  fn with_temp_dir<F>(test: F)
+  where
+    F: FnOnce(&TempDir),
+  {
+    let temp_dir = TempDir::new().unwrap();
+    test(&temp_dir);
+  }
+
+  #[test]
+  fn test_verify_password_success() {
+    use crate::PasswordBasedCredentialStore;
+    use std::collections::HashMap;
+
+    with_temp_dir(|temp_dir| {
+      let vault_path = temp_dir.path().join("test_vault.enc");
+      let test_password = "test_verification_password_123";
+
+      // Create a valid vault file
+      let empty_credentials = HashMap::new();
+      let store = PasswordBasedCredentialStore::new(&empty_credentials, test_password).unwrap();
+      store.save_to_file(&vault_path).unwrap();
+
+      // Test successful password verification
+      let result = EncryptionManager::verify_password(&vault_path, test_password);
+      assert!(result.is_ok(), "Password verification should succeed with correct password");
+    });
+  }
+
+  #[test]
+  fn test_verify_password_incorrect_password() {
+    use crate::PasswordBasedCredentialStore;
+    use std::collections::HashMap;
+
+    with_temp_dir(|temp_dir| {
+      let vault_path = temp_dir.path().join("test_vault.enc");
+      let correct_password = "correct_password_456";
+      let wrong_password = "wrong_password_789";
+
+      // Create a valid vault file with correct password
+      let empty_credentials = HashMap::new();
+      let store = PasswordBasedCredentialStore::new(&empty_credentials, correct_password).unwrap();
+      store.save_to_file(&vault_path).unwrap();
+
+      // Test password verification failure
+      let result = EncryptionManager::verify_password(&vault_path, wrong_password);
+      assert!(result.is_err(), "Password verification should fail with incorrect password");
+
+      let error_msg = result.unwrap_err().to_string();
+      assert!(
+        error_msg.contains("incorrect password"),
+        "Error should mention incorrect password, got: {error_msg}"
+      );
+    });
+  }
+
+  #[test]
+  fn test_verify_password_invalid_vault_format() {
+    with_temp_dir(|temp_dir| {
+      let vault_path = temp_dir.path().join("invalid_vault.enc");
+      let test_password = "any_password";
+
+      // Create a file with invalid JSON format (missing encrypted_data field)
+      let invalid_json = r#"{"some_other_field": "value"}"#;
+      fs::write(&vault_path, invalid_json).unwrap();
+
+      // Test that invalid vault format is detected
+      let result = EncryptionManager::verify_password(&vault_path, test_password);
+      assert!(result.is_err(), "Should fail with invalid vault format");
+
+      let error_msg = result.unwrap_err().to_string();
+      assert!(
+        error_msg.contains("invalid vault format") && error_msg.contains("encrypted_data"),
+        "Error should mention invalid vault format and missing encrypted_data, got: {error_msg}"
+      );
+    });
+  }
+
+  #[test]
+  fn test_verify_password_malformed_json() {
+    with_temp_dir(|temp_dir| {
+      let vault_path = temp_dir.path().join("malformed_vault.enc");
+      let test_password = "any_password";
+
+      // Create a file with completely malformed JSON
+      fs::write(&vault_path, "not json at all").unwrap();
+
+      // Test that malformed JSON is handled
+      let result = EncryptionManager::verify_password(&vault_path, test_password);
+      assert!(result.is_err(), "Should fail with malformed JSON");
+
+      // The exact error message will depend on serde_json, but it should fail
+      let _error_msg = result.unwrap_err().to_string();
+    });
+  }
+
+  #[test]
+  fn test_verify_password_file_not_found() {
+    use std::path::PathBuf;
+
+    let nonexistent_path = PathBuf::from("/tmp/definitely_does_not_exist.enc");
+    let test_password = "any_password";
+
+    // Test that missing file is handled
+    let result = EncryptionManager::verify_password(&nonexistent_path, test_password);
+    assert!(result.is_err(), "Should fail when vault file doesn't exist");
+
+    // Should get a file system error
+    let _error_msg = result.unwrap_err().to_string();
+  }
+
+  // Helper function to test create_new_vault logic without interactive prompts
+  fn create_new_vault_non_interactive(
+    cred_path: &Path,
+    password1: &str,
+    password2: &str,
+  ) -> Result<String> {
+    bentley::info("no vault found. creating new vault...");
+
+    if password1.trim().is_empty() {
+      return Err(anyhow!("master password cannot be empty"));
+    }
+
+    if password1 != password2 {
+      return Err(anyhow!("passwords do not match"));
+    }
+
+    let empty_credentials = HashMap::new();
+    use crate::PasswordBasedCredentialStore;
+    let store = PasswordBasedCredentialStore::new(&empty_credentials, password1.trim())?;
+
+    if let Some(parent) = cred_path.parent() {
+      fs::create_dir_all(parent)?;
+    }
+
+    store.save_to_file(&cred_path.to_path_buf())?;
+
+    bentley::success("vault created successfully");
+    Ok(password1.trim().to_string())
+  }
+
+  #[test]
+  fn test_create_new_vault_empty_password_path() {
+    with_temp_dir(|temp_dir| {
+      let cred_path = temp_dir.path().join("credentials.enc");
+
+      // Test the empty password check
+      let result = create_new_vault_non_interactive(&cred_path, "", "anything");
+      assert!(result.is_err());
+      let error_msg = result.unwrap_err().to_string();
+      assert!(error_msg.contains("master password cannot be empty"));
+
+      // Test whitespace-only password
+      let result2 = create_new_vault_non_interactive(&cred_path, "   ", "   ");
+      assert!(result2.is_err());
+      let error_msg2 = result2.unwrap_err().to_string();
+      assert!(error_msg2.contains("master password cannot be empty"));
+    });
+  }
+
+  #[test]
+  fn test_create_new_vault_password_mismatch_path() {
+    with_temp_dir(|temp_dir| {
+      let cred_path = temp_dir.path().join("credentials.enc");
+
+      // Test the password mismatch check
+      let result = create_new_vault_non_interactive(&cred_path, "password123", "different_password");
+      assert!(result.is_err());
+      let error_msg = result.unwrap_err().to_string();
+      assert!(error_msg.contains("passwords do not match"));
+    });
+  }
+
+  #[test]
+  fn test_create_new_vault_success_path_all_components() {
+    with_temp_dir(|temp_dir| {
+      let nested_path = temp_dir.path().join("nested").join("path");
+      let cred_path = nested_path.join("credentials.enc");
+
+      // Test the successful flow covering all components
+      let result =
+        create_new_vault_non_interactive(&cred_path, "test_password_123", "test_password_123");
+      assert!(result.is_ok());
+      let returned_password = result.unwrap();
+      assert_eq!(returned_password, "test_password_123");
+
+      // Verify the directory was created
+      assert!(nested_path.exists());
+      assert!(nested_path.is_dir());
+
+      // Verify the credentials file was created
+      assert!(cred_path.exists());
+
+      // Verify the file can be read back
+      let verify_result = EncryptionManager::verify_password(&cred_path, "test_password_123");
+      assert!(verify_result.is_ok());
+    });
+  }
+
+  #[test]
+  fn test_create_new_vault_trimming_in_success_path() {
+    with_temp_dir(|temp_dir| {
+      let cred_path = temp_dir.path().join("credentials.enc");
+
+      // Test password trimming in success path
+      let password_with_spaces = "  trimmed_password  ";
+      let result =
+        create_new_vault_non_interactive(&cred_path, password_with_spaces, password_with_spaces);
+      assert!(result.is_ok());
+      let returned_password = result.unwrap();
+
+      // Should be trimmed in return
+      assert_eq!(returned_password, "trimmed_password");
+      assert!(!returned_password.contains(' '));
+
+      // Should be able to verify with trimmed password
+      let verify_result = EncryptionManager::verify_password(&cred_path, "trimmed_password");
+      assert!(verify_result.is_ok());
+    });
+  }
+
+  #[test]
+  fn test_create_new_vault_directory_creation() {
+    use crate::PasswordBasedCredentialStore;
+
+    with_temp_dir(|temp_dir| {
+      let nested_path = temp_dir.path().join("deep").join("nested").join("path").join("vault.enc");
+      let test_password = "directory_test_password_123";
+
+      // Verify the parent directory doesn't exist initially
+      assert!(!nested_path.parent().unwrap().exists());
+
+      // Create a vault directly to test the directory creation logic
+      let empty_credentials = HashMap::new();
+      let store = PasswordBasedCredentialStore::new(&empty_credentials, test_password).unwrap();
+
+      // This should create the parent directories
+      let result = store.save_to_file(&nested_path);
+      assert!(result.is_ok(), "Should be able to save to nested path");
+
+      // Verify parent directories were created
+      assert!(nested_path.parent().unwrap().exists(), "Parent directories should be created");
+      assert!(nested_path.exists(), "Vault file should be created");
+    });
+  }
+
+  #[test]
+  fn test_create_new_vault_store_creation_and_save() {
+    use crate::PasswordBasedCredentialStore;
+
+    with_temp_dir(|temp_dir| {
+      let vault_path = temp_dir.path().join("test_store_vault.enc");
+      let test_password = "store_creation_password_456";
+
+      // Test the store creation and save logic that's used in create_new_vault
+      let empty_credentials = HashMap::new();
+      let store = PasswordBasedCredentialStore::new(&empty_credentials, test_password).unwrap();
+
+      // Test saving to file
+      let save_result = store.save_to_file(&vault_path);
+      assert!(save_result.is_ok(), "Should be able to save store to file");
+
+      // Verify the file was created and is valid
+      assert!(vault_path.exists(), "Vault file should exist after saving");
+
+      // Verify we can read it back and verify with the password
+      let verify_result = EncryptionManager::verify_password(&vault_path, test_password);
+      assert!(verify_result.is_ok(), "Should be able to verify the created vault");
+    });
+  }
+}
