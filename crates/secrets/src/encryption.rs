@@ -1137,8 +1137,4 @@ mod tests {
       });
     });
   }
-
-  // Test coverage for the actual create_new_vault function would require interactive input
-  // or more sophisticated mocking. The helper function tests cover the same logic paths.
-  // Integration tests in keeper.rs use rexpect to test the interactive flows.
 }
