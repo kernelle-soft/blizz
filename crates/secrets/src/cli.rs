@@ -1,7 +1,7 @@
 use crate::Secrets;
 use anyhow::{anyhow, Result};
-use dialoguer::Password;
 use clap::{Parser, Subcommand};
+use dialoguer::Password;
 use std::env;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -10,15 +10,12 @@ use tokio::time::{sleep, Duration};
 
 // Helper functions for password input using dialoguer
 fn read_password() -> Result<String> {
-  let password = Password::new()
-    .interact()?;
+  let password = Password::new().interact()?;
   Ok(password)
 }
 
 fn prompt_password(prompt: &str) -> Result<String> {
-  let password = Password::new()
-    .with_prompt(prompt)
-    .interact()?;
+  let password = Password::new().with_prompt(prompt).interact()?;
   Ok(password)
 }
 

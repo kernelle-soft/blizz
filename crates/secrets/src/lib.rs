@@ -13,8 +13,7 @@ use encryption::{EncryptedBlob, EncryptionManager};
 
 // Helper function for password input using dialoguer
 fn read_password() -> Result<String> {
-  let password = Password::new()
-    .interact()?;
+  let password = Password::new().interact()?;
   Ok(password)
 }
 
