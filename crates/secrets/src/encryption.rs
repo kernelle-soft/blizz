@@ -610,7 +610,8 @@ mod tests {
       let cred_path = temp_dir.path().join("credentials.enc");
 
       // Test the password mismatch check
-      let result = create_new_vault_non_interactive(&cred_path, "password123", "different_password");
+      let result =
+        create_new_vault_non_interactive(&cred_path, "password123", "different_password");
       assert!(result.is_err());
       let error_msg = result.unwrap_err().to_string();
       assert!(error_msg.contains("passwords do not match"));

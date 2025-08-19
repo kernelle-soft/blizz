@@ -1,10 +1,10 @@
-use anyhow::Result;
 use crate::Secrets;
+use anyhow::Result;
 use std::path::PathBuf;
 
+use crate::keeper_client;
 use std::io::Write;
 use std::path::Path;
-use crate::keeper_client;
 
 pub async fn store(
   _secrets: &Secrets,
@@ -197,7 +197,8 @@ pub async fn delete(
 
     if !force {
       bentley::warn(&format!("This will delete the secret: {group}/{name}"));
-      let confirm = crate::encryption::EncryptionManager::prompt_confirmation("Type 'yes' to confirm: ")?;
+      let confirm =
+        crate::encryption::EncryptionManager::prompt_confirmation("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
         bentley::info("Cancelled");
         return Ok(());
@@ -228,7 +229,8 @@ pub async fn delete(
 
     if !force {
       bentley::warn(&format!("This will delete ALL secrets for group: {group}"));
-      let confirm = crate::encryption::EncryptionManager::prompt_confirmation("Type 'yes' to confirm: ")?;
+      let confirm =
+        crate::encryption::EncryptionManager::prompt_confirmation("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
         bentley::info("Cancelled");
         return Ok(());
@@ -478,7 +480,8 @@ async fn start_daemon_if_needed(base_path: &Path) -> Result<()> {
   keeper_client::start(&socket_path, &pid_file, &keeper_path).await?;
 
   Ok(())
-}pub async fn reset_password(secrets: &Secrets, force: bool) -> Result<()> {
+}
+pub async fn reset_password(secrets: &Secrets, force: bool) -> Result<()> {
   bentley::verbose("resetting master password...");
 
   // Get the current master password from the daemon
@@ -534,14 +537,16 @@ async fn start_daemon_if_needed(base_path: &Path) -> Result<()> {
   }
 
   // Prompt for new password
-  let new_password = crate::encryption::EncryptionManager::prompt_for_password("Enter new master password:")?;
+  let new_password =
+    crate::encryption::EncryptionManager::prompt_for_password("Enter new master password:")?;
 
   if new_password.is_empty() {
     return Err(anyhow::anyhow!("Password cannot be empty"));
   }
 
   // Confirm new password
-  let confirm_password = crate::encryption::EncryptionManager::prompt_for_password("Confirm new master password:")?;
+  let confirm_password =
+    crate::encryption::EncryptionManager::prompt_for_password("Confirm new master password:")?;
 
   if new_password != confirm_password {
     return Err(anyhow::anyhow!("Passwords do not match"));

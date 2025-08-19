@@ -7,8 +7,8 @@ use std::io::Write;
 use std::path::PathBuf;
 
 pub mod cli;
-pub mod encryption;
 pub mod commands;
+pub mod encryption;
 pub mod keeper_client;
 
 use encryption::{EncryptedBlob, EncryptionManager};

@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
 use std::env;
-use tokio::time::{sleep, Duration};
-use tokio::net::UnixStream;
 use std::path::Path;
+use tokio::net::UnixStream;
+use tokio::time::{sleep, Duration};
 
 /// Start the agent
 pub async fn start(

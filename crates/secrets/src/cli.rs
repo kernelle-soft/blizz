@@ -1,9 +1,9 @@
+use crate::commands;
+use crate::keeper_client;
 use crate::Secrets;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::env;
-use crate::commands;
-use crate::keeper_client;
 
 #[derive(Parser)]
 #[command(name = "secrets")]
@@ -131,7 +131,6 @@ pub async fn handle_command(command: Commands) -> Result<()> {
 
   Ok(())
 }
-
 
 async fn handle_agent(action: AgentAction) -> Result<()> {
   use dirs;
