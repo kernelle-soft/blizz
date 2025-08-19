@@ -71,50 +71,6 @@ fn get_base() -> Result<PathBuf> {
   Ok(keeper_path)
 }
 
-// Moved to secrets::encryption::EncryptionManager::get_master_password
-
-// Moved to secrets::encryption::EncryptionManager::verify_password
-
-// Moved to secrets::encryption::EncryptionManager::create_new_vault
-
-#[cfg(test)]
-use std::cell::RefCell;
-
-#[cfg(test)]
-thread_local! {
-  static TEST_PROMPT_RESPONSES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-  static TEST_PROMPT_INDEX: RefCell<usize> = const { RefCell::new(0) };
-}
-
-#[cfg(test)]
-pub fn set_test_prompt_responses(responses: Vec<String>) {
-  TEST_PROMPT_RESPONSES.with(|r| {
-    *r.borrow_mut() = responses;
-  });
-  TEST_PROMPT_INDEX.with(|i| {
-    *i.borrow_mut() = 0;
-  });
-}
-
-#[cfg(test)]
-fn get_next_test_response() -> Option<String> {
-  TEST_PROMPT_RESPONSES.with(|responses| {
-    TEST_PROMPT_INDEX.with(|index| {
-      let mut idx = index.borrow_mut();
-      let resp = responses.borrow();
-      if *idx < resp.len() {
-        let result = resp[*idx].clone();
-        *idx += 1;
-        Some(result)
-      } else {
-        None
-      }
-    })
-  })
-}
-
-// Password prompting moved to secrets::encryption::EncryptionManager
-
 fn create_socket(keeper_path: &Path) -> Result<PathBuf> {
   let socket = keeper_path.join("keeper.sock");
   let _ = fs::remove_file(&socket);
@@ -175,6 +131,25 @@ async fn handle_client(stream: tokio::net::UnixStream, password: String) {
       bentley::warn(&format!("failed to read request: {e}"));
     }
   }
+}
+
+#[cfg(test)]
+use std::cell::RefCell;
+
+#[cfg(test)]
+thread_local! {
+  static TEST_PROMPT_RESPONSES: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+  static TEST_PROMPT_INDEX: RefCell<usize> = const { RefCell::new(0) };
+}
+
+#[cfg(test)]
+pub fn set_test_prompt_responses(responses: Vec<String>) {
+  TEST_PROMPT_RESPONSES.with(|r| {
+    *r.borrow_mut() = responses;
+  });
+  TEST_PROMPT_INDEX.with(|i| {
+    *i.borrow_mut() = 0;
+  });
 }
 
 #[cfg(test)]

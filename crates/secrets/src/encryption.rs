@@ -438,13 +438,6 @@ mod tests {
   use std::fs;
   use tempfile::TempDir;
 
-  // Test constants
-  const PROMPT_ENTER_NEW_PASSWORD: &str = "enter new master password:";
-  const PROMPT_CONFIRM_PASSWORD: &str = "confirm master password:";
-  const ERROR_PASSWORD_EMPTY: &str = "master password cannot be empty";
-  const ERROR_PASSWORDS_DONT_MATCH: &str = "passwords do not match";
-  const ERROR_INCORRECT_PASSWORD: &str = "incorrect password";
-
   fn with_temp_dir<F>(test: F)
   where
     F: FnOnce(&TempDir),
