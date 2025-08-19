@@ -4,39 +4,37 @@ globs:
 alwaysApply: false
 ---
 
-Unit testing is one of the most important ways to ensure code quality and reliability. Code coverage only helps identify untested code. For code that is tested, how do we know that the unit tests are any good?
+# High-Quality Unit Testing
 
-## Attributes of High-Quality Unit Tests
-Here are a few attributes of unit tests that are considered high-quality.
-- Singular
-- Thorough
-- Isolated
-- Performant
-- Maintainable
-- Reliable
-- Redundant
+Good unit tests have these essential attributes:
 
-## Singular Unit Tests
-A good unit test is one that checks a single, well defined case. Smaller, more focused units tests are easier to read and help developers isolate issues with their code more quickly when trying to fix or prevent regressions.
+## **Singular**: Test one specific case
+- Focus on single, well-defined behavior
+- Easier to read and debug failures
 
-## Thorough Unit Tests
-A good unit test suite should be thorough. This means that it should cover all relevant cases and edge cases. They look out for many types of inputs and ensure the code outputs the correct result or errors accordingly. They should use asserts to check against correct values and make developers aware when those assertions fail. This helps to ensure that the code is robust and can handle a wide range of inputs.
+## **Thorough**: Cover relevant cases and edge cases  
+- Test various inputs and expected outputs
+- Include error conditions and boundary cases
 
-## Isolated Unit Tests
-Isolated unit tests will not depend on other APIs or services. Their dependencies will be as minimal as possible so as to only be testing one function at a time. A high-quality unit test should not depend on the results of other tests or external factors such as the current time or the state of the database. This ensures that the test can be run in isolation and the results will be consistent.
+## **Isolated**: Minimal dependencies
+- Don't rely on other tests, external services, or system state
+- Use mocks for external dependencies
+- Produce consistent, repeatable results
 
-A well-isolated test should also be repeatable. A unit test should produce the same results every time it is run, provided that the code being tested has not changed. This makes it easy to diagnose issues and ensure that the code is working correctly.
+## **Performant**: Fast execution (milliseconds)
+- Quick feedback accelerates development
+- Indicates tests are focused and isolated
 
-## Performant Unit Tests
-Running unit tests should be fast, the sooner an issue is found the quicker the turnaround time. On average, a unit test should take a few milliseconds to run. This will help ensure that tests are narrow and isolated.
+## **Maintainable**: Easy to understand and update
+- Clear naming and documentation for edge cases
+- Well-organized in logical directory structure
+- Short and readable implementations
 
-## Maintainable Unit Tests
-The test should be maintainable. As the codebase changes over time, unit tests may need to be updated to reflect these changes. It’s important to write tests in a way that makes them easy to understand and maintain so that they can continue to provide value as the codebase evolves.
+## **Reliable**: Consistent results
+- Eliminate flaky tests that randomly pass/fail
+- Mock randomness and external factors
 
-This means that a unit test should be well-named and should be documented for any unclear edge case. Good unit tests are short and easy to understand. Grouping together in obvious places in the directory tree allows them to be easily discovered. This will also help ensure that developers know which behaviors are already tested preventing wasted resources.
-
-## Reliable Unit Tests
-A good unit test suite should produce the same results no matter how many times it’s run. Flaky unit tests, those that return as passed or failed unexpectedly, degrade trust in the test suite. Sometimes this is due to third-party APIs or randomness. A good unit test will try to mock these cases out to focus on testing the codebase.
-
-## A Note on Redundant Unit Tests
-While it seems counterintuitive, a good test suite has some level of redundancy in coverage. With redundancy you no longer have to rely on a _single test_ to tell you whether or not a piece of functionality is working, and can instead use the presence of multiple similar test failures to identify actual code issues. This is practical for maintainability: If two tests cover overlapping areas of code or one test must assume another case works to cover its own case, it becomes simpler to identify true regressions from issues and flake with the tests themselves, and allows you to feel more confident ignoring flake or disabling and removing a bad test altogether.
+## **Strategic Redundancy**: Overlapping coverage helps
+- Multiple tests can validate the same functionality from different angles
+- Makes it easier to distinguish real bugs from test issues
+- Allows confident removal of flaky tests
