@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use anyhow::Result;
-use secrets::encryption::{EncryptedBlob, EncryptionManager};
-use serde_json::{self, Value};
+
 
 use std::path::{Path, PathBuf};
 use std::{env, fs};
@@ -10,11 +9,7 @@ use tokio::net::UnixListener;
 use tokio::signal;
 use tokio::task::JoinHandle;
 
-// Prompt and error message constants
-const PROMPT_ENTER_NEW_PASSWORD: &str = "enter new master password:";
-const PROMPT_CONFIRM_PASSWORD: &str = "confirm master password:";
-const ERROR_PASSWORD_EMPTY: &str = "master password cannot be empty";
-const ERROR_PASSWORDS_DONT_MATCH: &str = "passwords do not match";
+// Test constants moved to test section
 
 // Additional test constants
 #[cfg(test)]
@@ -34,9 +29,9 @@ async fn main() -> Result<()> {
   fs::create_dir_all(&keeper_path)?;
   let cred_path = keeper_path.join("credentials.enc");
   let master_password = if !cred_path.exists() {
-    create_new_vault(&cred_path)?
+    secrets::encryption::EncryptionManager::create_new_vault(&cred_path)?
   } else {
-    get_master_password(&cred_path)?
+    secrets::encryption::EncryptionManager::get_master_password(&cred_path)?
   };
 
   let socket_path = create_socket(&keeper_path)?;
@@ -71,62 +66,11 @@ fn get_base() -> Result<PathBuf> {
   Ok(keeper_path)
 }
 
-fn get_master_password(cred_path: &Path) -> Result<String> {
-  let master_password: String = if let Ok(password) = env::var("SECRETS_AUTH") {
-    password.trim().to_string()
-  } else {
-    let master_password = prompt_for_password("enter master password:")?;
-    master_password.trim().to_string()
-  };
+// Moved to secrets::encryption::EncryptionManager::get_master_password
 
-  if master_password.trim().is_empty() {
-    return Err(anyhow!(ERROR_PASSWORD_EMPTY));
-  }
+// Moved to secrets::encryption::EncryptionManager::verify_password
 
-  verify_password(cred_path, &master_password)?;
-  Ok(master_password.trim().to_string())
-}
-
-fn verify_password(cred_path: &Path, master_password: &str) -> Result<()> {
-  let data = fs::read_to_string(cred_path)?;
-  let store_json: Value = serde_json::from_str(data.trim())?;
-  let blob_val = store_json
-    .get("encrypted_data")
-    .ok_or_else(|| anyhow!("invalid vault format: missing 'encrypted_data'"))?;
-  let blob: EncryptedBlob = serde_json::from_value(blob_val.clone())?;
-
-  if let Err(e) = EncryptionManager::decrypt_credentials(&blob, master_password.trim()) {
-    return Err(anyhow!("incorrect password: {e}"));
-  }
-
-  Ok(())
-}
-
-fn create_new_vault(cred_path: &Path) -> Result<String> {
-  bentley::info("no vault found. creating new vault...");
-  let password1 = prompt_for_password(PROMPT_ENTER_NEW_PASSWORD)?;
-  if password1.trim().is_empty() {
-    return Err(anyhow!(ERROR_PASSWORD_EMPTY));
-  }
-
-  let password2 = prompt_for_password(PROMPT_CONFIRM_PASSWORD)?;
-  if password1 != password2 {
-    return Err(anyhow!(ERROR_PASSWORDS_DONT_MATCH));
-  }
-
-  let empty_credentials = std::collections::HashMap::new();
-  use secrets::PasswordBasedCredentialStore;
-  let store = PasswordBasedCredentialStore::new(&empty_credentials, password1.trim())?;
-
-  if let Some(parent) = cred_path.parent() {
-    fs::create_dir_all(parent)?;
-  }
-
-  store.save_to_file(&cred_path.to_path_buf())?;
-
-  bentley::success("vault created successfully");
-  Ok(password1.trim().to_string())
-}
+// Moved to secrets::encryption::EncryptionManager::create_new_vault
 
 #[cfg(test)]
 use std::cell::RefCell;
@@ -164,20 +108,7 @@ fn get_next_test_response() -> Option<String> {
   })
 }
 
-fn prompt_for_password(message: &str) -> Result<String> {
-  #[cfg(test)]
-  {
-    if let Some(response) = get_next_test_response() {
-      return Ok(response.trim().to_string());
-    }
-  }
-
-  use dialoguer::Password;
-
-  let password = Password::new().with_prompt(message).interact()?;
-
-  Ok(password.trim().to_string())
-}
+// Password prompting moved to secrets::encryption::EncryptionManager
 
 fn create_socket(keeper_path: &Path) -> Result<PathBuf> {
   let socket = keeper_path.join("keeper.sock");

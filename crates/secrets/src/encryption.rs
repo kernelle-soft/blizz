@@ -7,10 +7,15 @@ use argon2::{
   password_hash::{PasswordHasher, SaltString},
   Argon2, Params,
 };
+use dialoguer::Password;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::env;
+use std::fs;
+use std::path::Path;
 use uuid::Uuid;
 
 /// Encrypted credential blob stored on disk
@@ -325,6 +330,78 @@ impl EncryptionManager {
       serde_json::from_slice(&decrypted_data)?;
 
     Ok(credentials)
+  }
+}
+
+// Password prompting and verification functions
+impl EncryptionManager {
+  /// Prompt for password with custom message
+  pub fn prompt_for_password(message: &str) -> Result<String> {
+    let password = Password::new().with_prompt(message).interact()?;
+    Ok(password.trim().to_string())
+  }
+
+  /// Get master password from environment variable or prompt user
+  pub fn get_master_password(cred_path: &Path) -> Result<String> {
+    let master_password = if let Ok(password) = env::var("SECRETS_AUTH") {
+      password.trim().to_string()
+    } else {
+      Self::prompt_for_password("enter master password:")?
+    };
+
+    if master_password.trim().is_empty() {
+      return Err(anyhow!("master password cannot be empty"));
+    }
+
+    Self::verify_password(cred_path, &master_password)?;
+    Ok(master_password)
+  }
+
+  /// Verify password against stored credentials
+  pub fn verify_password(cred_path: &Path, master_password: &str) -> Result<()> {
+    let data = fs::read_to_string(cred_path)?;
+    let store_json: Value = serde_json::from_str(data.trim())?;
+    let blob_val = store_json
+      .get("encrypted_data")
+      .ok_or_else(|| anyhow!("invalid vault format: missing 'encrypted_data'"))?;
+    let blob: EncryptedBlob = serde_json::from_value(blob_val.clone())?;
+
+    if let Err(e) = Self::decrypt_credentials(&blob, master_password.trim()) {
+      return Err(anyhow!("incorrect password: {e}"));
+    }
+
+    Ok(())
+  }
+
+  /// Create new vault with password confirmation
+  pub fn create_new_vault(cred_path: &Path) -> Result<String> {
+    bentley::info("no vault found. creating new vault...");
+    let password1 = Self::prompt_for_password("enter new master password:")?;
+    if password1.trim().is_empty() {
+      return Err(anyhow!("master password cannot be empty"));
+    }
+
+    let password2 = Self::prompt_for_password("confirm master password:")?;
+    if password1 != password2 {
+      return Err(anyhow!("passwords do not match"));
+    }
+
+    let empty_credentials = HashMap::new();
+    use crate::PasswordBasedCredentialStore;
+    let store = PasswordBasedCredentialStore::new(&empty_credentials, password1.trim())?;
+
+    if let Some(parent) = cred_path.parent() {
+      fs::create_dir_all(parent)?;
+    }
+    store.save_to_file(&cred_path.to_path_buf())?;
+
+    bentley::success("vault created successfully");
+    Ok(password1.trim().to_string())
+  }
+
+  /// Prompt for password confirmation (for destructive operations)
+  pub fn prompt_confirmation(message: &str) -> Result<String> {
+    Self::prompt_for_password(message)
   }
 }
 

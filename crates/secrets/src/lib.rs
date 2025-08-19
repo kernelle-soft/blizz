@@ -8,6 +8,8 @@ use std::path::PathBuf;
 
 pub mod cli;
 pub mod encryption;
+pub mod commands;
+pub mod keeper_client;
 
 use encryption::{EncryptedBlob, EncryptionManager};
 
