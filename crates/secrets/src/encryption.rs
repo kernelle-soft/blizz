@@ -1137,4 +1137,187 @@ mod tests {
       });
     });
   }
+
+  // Tests for CredentialCache methods that need coverage
+  #[test]
+  fn test_credential_cache_clear() {
+    let mut cache = CredentialCache::new();
+    cache.store("key1".to_string(), "value1".to_string());
+    cache.store("key2".to_string(), "value2".to_string());
+    
+    assert!(cache.get("key1").is_some(), "Should have key1 before clear");
+    assert!(cache.get("key2").is_some(), "Should have key2 before clear");
+    
+    // Test the clear function
+    cache.clear();
+    
+    assert!(cache.get("key1").is_none(), "Should not have key1 after clear");
+    assert!(cache.get("key2").is_none(), "Should not have key2 after clear");
+  }
+
+  #[test]
+  fn test_credential_cache_default() {
+    // Test the Default trait implementation
+    let cache: CredentialCache = Default::default();
+    
+    assert!(cache.get("any_key").is_none(), "Default cache should be empty");
+    assert_eq!(cache.to_map().len(), 0, "Default cache should have no entries");
+  }
+
+  #[test]
+  fn test_credential_cache_remove() {
+    let mut cache = CredentialCache::new();
+    cache.store("test_key".to_string(), "test_value".to_string());
+    cache.store("other_key".to_string(), "other_value".to_string());
+    
+    // Test remove method
+    let removed = cache.remove("test_key");
+    assert_eq!(removed, Some("test_value".to_string()), "Should return removed value");
+    
+    assert!(cache.get("test_key").is_none(), "Removed key should be gone");
+    assert!(cache.get("other_key").is_some(), "Other keys should remain");
+    
+    // Test remove non-existent key
+    let removed_none = cache.remove("non_existent");
+    assert_eq!(removed_none, None, "Should return None for non-existent key");
+  }
+
+  // Additional tests for encrypt_credentials error paths and edge cases
+  #[test]
+  fn test_encrypt_credentials_with_large_data() {
+    // Test encryption with larger credential sets to ensure it handles size properly
+    let mut large_credentials = HashMap::new();
+    
+    for i in 0..50 {  // Reduced from 100 to keep test fast
+      let mut service_creds = HashMap::new();
+      service_creds.insert(format!("username_{}", i), format!("user_{}", i));
+      service_creds.insert(format!("password_{}", i), format!("pass_{}", i));
+      large_credentials.insert(format!("service_{}", i), service_creds);
+    }
+    
+    let master_password = "large_data_test_password";
+    
+    // Should handle large amounts of data
+    let result = EncryptionManager::encrypt_credentials(&large_credentials, master_password);
+    assert!(result.is_ok(), "Should encrypt large credential sets");
+    
+    let blob = result.unwrap();
+    assert!(!blob.data.is_empty(), "Encrypted blob should not be empty");
+    
+    // Should be able to decrypt back
+    let decrypted = EncryptionManager::decrypt_credentials(&blob, master_password).unwrap();
+    assert_eq!(decrypted, large_credentials, "Should decrypt back to original data");
+  }
+
+  #[test]
+  fn test_decrypt_credentials_corrupted_blob_data() {
+    // Test decryption with corrupted encrypted data
+    let mut test_credentials = HashMap::new();
+    let mut service_creds = HashMap::new();
+    service_creds.insert("username".to_string(), "testuser".to_string());
+    test_credentials.insert("service".to_string(), service_creds);
+    
+    let master_password = "corruption_test_password";
+    
+    // Create a valid blob first
+    let mut blob = EncryptionManager::encrypt_credentials(&test_credentials, master_password).unwrap();
+    
+    // Corrupt the encrypted data
+    if !blob.data.is_empty() {
+      blob.data[0] ^= 1; // Flip one bit
+    }
+    
+    let decrypt_result = EncryptionManager::decrypt_credentials(&blob, master_password);
+    assert!(decrypt_result.is_err(), "Should fail with corrupted data");
+    
+    let error_msg = decrypt_result.unwrap_err().to_string();
+    assert!(error_msg.contains("Decryption failed"), "Error should mention decryption failure");
+  }
+
+  #[test]
+  fn test_decrypt_credentials_corrupted_nonce() {
+    // Test decryption with corrupted nonce
+    let mut test_credentials = HashMap::new();
+    let mut service_creds = HashMap::new();
+    service_creds.insert("key".to_string(), "value".to_string());
+    test_credentials.insert("service".to_string(), service_creds);
+    
+    let master_password = "nonce_corruption_test";
+    
+    let mut blob = EncryptionManager::encrypt_credentials(&test_credentials, master_password).unwrap();
+    
+    // Corrupt the nonce
+    if !blob.nonce.is_empty() {
+      blob.nonce[0] ^= 1;
+    }
+    
+    let result = EncryptionManager::decrypt_credentials(&blob, master_password);
+    assert!(result.is_err(), "Should fail with corrupted nonce");
+  }
+
+  // Test edge cases in derive_key Argon2 parameter handling
+  #[test]
+  fn test_derive_key_with_longer_salt() {
+    let master_password = "longer_salt_test_password";
+    let machine_key = b"test_machine_key_for_long_salt_32!";
+    
+    // Create a longer salt (but within reasonable Argon2 limits)
+    let longer_salt = vec![0xAB; 32]; // 32 bytes, reasonable length
+    
+    let result = EncryptionManager::derive_key(master_password, machine_key, &longer_salt);
+    assert!(result.is_ok(), "Should handle longer salts without issues");
+    
+    let derived_key = result.unwrap();
+    assert_eq!(derived_key.len(), 32, "Should still produce 32-byte key");
+  }
+
+  #[test]
+  fn test_derive_key_salt_size_boundaries() {
+    let master_password = "salt_boundary_test_password";
+    let machine_key = b"test_machine_key_salt_boundary!!";
+    
+    // Test various salt sizes around the boundary conditions
+    let salt_sizes = vec![8, 16, 24, 32]; // Various reasonable salt sizes
+    
+    for size in salt_sizes {
+      let salt = vec![0x42; size];
+      let result = EncryptionManager::derive_key(master_password, machine_key, &salt);
+      assert!(result.is_ok(), "Should handle {}-byte salt", size);
+      
+      let derived_key = result.unwrap();
+      assert_eq!(derived_key.len(), 32, "Should produce 32-byte key with {}-byte salt", size);
+    }
+  }
+
+  #[test]
+  fn test_derive_key_with_different_machine_keys() {
+    let master_password = "machine_key_test_password";
+    let salt = b"consistent_salt_for_test";
+    
+    let machine_key1 = b"machine_key_variant_1_32_bytes!!";
+    let machine_key2 = b"machine_key_variant_2_32_bytes!!";
+    
+    let key1 = EncryptionManager::derive_key(master_password, machine_key1, salt).unwrap();
+    let key2 = EncryptionManager::derive_key(master_password, machine_key2, salt).unwrap();
+    
+    assert_ne!(key1, key2, "Different machine keys should produce different derived keys");
+    assert_eq!(key1.len(), 32, "First key should be 32 bytes");
+    assert_eq!(key2.len(), 32, "Second key should be 32 bytes");
+  }
+
+  #[test]
+  fn test_encryption_manager_static_methods_consistency() {
+    // Test that static method calls are consistent across multiple invocations
+    let password = "consistency_test_password";
+    let machine_key1 = EncryptionManager::machine_key().unwrap();
+    let machine_key2 = EncryptionManager::machine_key().unwrap();
+    
+    assert_eq!(machine_key1, machine_key2, "machine_key() should be deterministic");
+    
+    let salt = b"consistency_test_salt";
+    let derived1 = EncryptionManager::derive_key(password, &machine_key1, salt).unwrap();
+    let derived2 = EncryptionManager::derive_key(password, &machine_key2, salt).unwrap();
+    
+    assert_eq!(derived1, derived2, "Same inputs should produce same derived keys");
+  }
 }
