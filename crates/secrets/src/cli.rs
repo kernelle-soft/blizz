@@ -1,11 +1,26 @@
 use crate::Secrets;
 use anyhow::{anyhow, Result};
+use dialoguer::Password;
 use clap::{Parser, Subcommand};
 use std::env;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tokio::net::UnixStream;
 use tokio::time::{sleep, Duration};
+
+// Helper functions for password input using dialoguer
+fn read_password() -> Result<String> {
+  let password = Password::new()
+    .interact()?;
+  Ok(password)
+}
+
+fn prompt_password(prompt: &str) -> Result<String> {
+  let password = Password::new()
+    .with_prompt(prompt)
+    .interact()?;
+  Ok(password)
+}
 
 #[derive(Parser)]
 #[command(name = "secrets")]
@@ -195,7 +210,7 @@ async fn setup_new_vault() -> Result<String> {
   bentley::info("setting up vault - create master password:");
   print!("> ");
   std::io::stdout().flush()?;
-  let password1 = rpassword::read_password()?;
+  let password1 = read_password()?;
   if password1.trim().is_empty() {
     return Err(anyhow!("master password cannot be empty"));
   }
@@ -203,7 +218,7 @@ async fn setup_new_vault() -> Result<String> {
   bentley::info("confirm master password:");
   print!("> ");
   std::io::stdout().flush()?;
-  let password2 = rpassword::read_password()?;
+  let password2 = read_password()?;
 
   if password1 != password2 {
     return Err(anyhow!("passwords do not match"));
@@ -217,7 +232,7 @@ async fn prompt_for_existing_vault_password() -> Result<String> {
   bentley::info("enter master password:");
   print!("> ");
   std::io::stdout().flush()?;
-  let password = rpassword::read_password()?;
+  let password = read_password()?;
   if password.trim().is_empty() {
     return Err(anyhow!("master password cannot be empty"));
   }
@@ -287,7 +302,7 @@ async fn handle_store(
     val
   } else {
     let prompt = format!("Enter value for {group}/{name}: ");
-    rpassword::prompt_password(prompt)?
+    prompt_password(&prompt)?
   };
 
   if secret_value.trim().is_empty() {
@@ -467,7 +482,7 @@ async fn handle_delete(
 
     if !force {
       bentley::warn(&format!("This will delete the secret: {group}/{name}"));
-      let confirm = rpassword::prompt_password("Type 'yes' to confirm: ")?;
+      let confirm = prompt_password("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
         bentley::info("Cancelled");
         return Ok(());
@@ -498,7 +513,7 @@ async fn handle_delete(
 
     if !force {
       bentley::warn(&format!("This will delete ALL secrets for group: {group}"));
-      let confirm = rpassword::prompt_password("Type 'yes' to confirm: ")?;
+      let confirm = prompt_password("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
         bentley::info("Cancelled");
         return Ok(());
@@ -752,7 +767,7 @@ async fn handle_reset_password(secrets: &Secrets, force: bool) -> Result<()> {
 
   // Prompt for new password
   eprintln!("Enter new master password:");
-  let new_password = rpassword::read_password()?;
+  let new_password = read_password()?;
 
   if new_password.is_empty() {
     return Err(anyhow::anyhow!("Password cannot be empty"));
@@ -760,7 +775,7 @@ async fn handle_reset_password(secrets: &Secrets, force: bool) -> Result<()> {
 
   // Confirm new password
   eprintln!("Confirm new master password:");
-  let confirm_password = rpassword::read_password()?;
+  let confirm_password = read_password()?;
 
   if new_password != confirm_password {
     return Err(anyhow::anyhow!("Passwords do not match"));

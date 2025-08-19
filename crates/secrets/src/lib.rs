@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use dialoguer::Password;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -9,6 +10,13 @@ pub mod cli;
 pub mod encryption;
 
 use encryption::{EncryptedBlob, EncryptionManager};
+
+// Helper function for password input using dialoguer
+fn read_password() -> Result<String> {
+  let password = Password::new()
+    .interact()?;
+  Ok(password)
+}
 
 /// Trait interface for secret providers
 ///
@@ -152,7 +160,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
     print!("> ");
     std::io::stdout().flush()?;
 
-    let password = rpassword::read_password()?;
+    let password = read_password()?;
 
     if password.trim().is_empty() {
       return Err(anyhow!("Master password cannot be empty"));
@@ -168,7 +176,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
 
     print!("Enter master password: ");
     std::io::stdout().flush()?;
-    let password1 = rpassword::read_password()?;
+    let password1 = read_password()?;
 
     if password1.trim().is_empty() {
       return Err(anyhow!("Master password cannot be empty"));
@@ -176,7 +184,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
 
     print!("Confirm master password: ");
     std::io::stdout().flush()?;
-    let password2 = rpassword::read_password()?;
+    let password2 = read_password()?;
 
     if password1 != password2 {
       return Err(anyhow!("Passwords do not match"));
@@ -500,7 +508,7 @@ impl Secrets {
     print!("> ");
     std::io::stdout().flush()?;
 
-    let value = rpassword::read_password()?;
+    let value = read_password()?;
 
     if value.trim().is_empty() {
       return Err(anyhow!("{} cannot be empty", spec.key));
