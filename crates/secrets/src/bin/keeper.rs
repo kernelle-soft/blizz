@@ -272,6 +272,26 @@ mod tests {
   }
 
   #[test]
+  fn test_get_base_fallback_behavior() {
+    use temp_env::with_vars;
+    
+    // Test fallback behavior when KERNELLE_HOME is not set (line 53-56)
+    // The dirs crate is robust and uses system calls as fallbacks, so this rarely fails
+    // This test verifies the fallback path works correctly
+    with_vars([("KERNELLE_HOME", None::<String>)], || {
+      let result = get_base();
+      assert!(result.is_ok(), "get_base should fallback to home directory successfully");
+      
+      let keeper_path = result.unwrap();
+      // Should end with the expected path structure
+      assert!(keeper_path.to_string_lossy().ends_with("/.kernelle/persistent/keeper"));
+      
+      // Verify it's an absolute path
+      assert!(keeper_path.is_absolute(), "Fallback path should be absolute");
+    });
+  }
+
+  #[test]
   fn test_get_master_password_uses_secrets_auth_var() {
     with_temp_env(|temp_dir| {
       let test_password = "test_password_123";
