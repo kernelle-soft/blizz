@@ -988,19 +988,6 @@ mod tests {
   }
 
   #[test]
-  fn test_prompt_for_password_function_exists() {
-    // This test just verifies that prompt_for_password function compiles and can be called
-    // We can't easily test its interactive behavior, but we can ensure it exists
-
-    // We can't actually call it without a TTY, but we can verify it compiles
-    // by referencing it in a way that requires it to exist
-    let _fn_ptr: fn(&str) -> Result<String> = prompt_for_password;
-
-    // This test mainly serves to ensure the function signature is correct
-    // Function signature verification is complete by reaching this point
-  }
-
-  #[test]
   fn test_empty_credentials_hashmap_creation() {
     use std::collections::HashMap;
 
@@ -1181,88 +1168,6 @@ mod tests {
     let _pid_result = std::fs::remove_file(&nonexistent_pid);
 
     // File cleanup completed without panicking - test passes by reaching this point
-  }
-
-  #[test]
-  fn test_get_master_password_secrets_auth_trimming() {
-    use secrets::PasswordBasedCredentialStore;
-    use std::collections::HashMap;
-    use temp_env::with_var;
-    use tempfile::TempDir;
-
-    let temp_dir = TempDir::new().unwrap();
-    let cred_path = temp_dir.path().join("credentials.enc");
-
-    // Create a vault first with the trimmed password
-    let trimmed_password = "test_password_with_spaces";
-    let empty_credentials = HashMap::new();
-    let store = PasswordBasedCredentialStore::new(&empty_credentials, trimmed_password).unwrap();
-    store.save_to_file(&cred_path).unwrap();
-
-    // Test SECRETS_AUTH password trimming (line 76)
-    let password_with_whitespace = "  test_password_with_spaces  ";
-
-    with_var("SECRETS_AUTH", Some(password_with_whitespace), || {
-      let result = get_master_password(&cred_path);
-      assert!(result.is_ok());
-      let password = result.unwrap();
-      // Should be trimmed
-      assert_eq!(password, "test_password_with_spaces");
-      assert!(!password.contains(" "));
-    });
-  }
-
-  #[test]
-  fn test_get_master_password_empty_password_check() {
-    use temp_env::with_var;
-    use tempfile::TempDir;
-
-    let temp_dir = TempDir::new().unwrap();
-    let cred_path = temp_dir.path().join("credentials.enc");
-
-    // Test the empty password check (line 82-83)
-    with_var("SECRETS_AUTH", Some("   "), || {
-      let result = get_master_password(&cred_path);
-      assert!(result.is_err());
-      let error_msg = result.unwrap_err().to_string();
-      assert!(error_msg.contains("master password cannot be empty"));
-    });
-
-    // Test with empty string
-    with_var("SECRETS_AUTH", Some(""), || {
-      let result = get_master_password(&cred_path);
-      assert!(result.is_err());
-      let error_msg = result.unwrap_err().to_string();
-      assert!(error_msg.contains("master password cannot be empty"));
-    });
-  }
-
-  #[test]
-  fn test_get_master_password_success_return_trimmed() {
-    use secrets::PasswordBasedCredentialStore;
-    use std::collections::HashMap;
-    use temp_env::with_var;
-    use tempfile::TempDir;
-
-    let temp_dir = TempDir::new().unwrap();
-    let cred_path = temp_dir.path().join("credentials.enc");
-
-    // Create a vault first
-    let test_password = "valid_password";
-    let empty_credentials = HashMap::new();
-    let store = PasswordBasedCredentialStore::new(&empty_credentials, test_password).unwrap();
-    store.save_to_file(&cred_path).unwrap();
-
-    // Test successful return with trimming (line 87)
-    let password_with_spaces = "  valid_password  ";
-    with_var("SECRETS_AUTH", Some(password_with_spaces), || {
-      let result = get_master_password(&cred_path);
-      assert!(result.is_ok());
-      let returned_password = result.unwrap();
-      assert_eq!(returned_password, "valid_password");
-      assert!(!returned_password.starts_with(' '));
-      assert!(!returned_password.ends_with(' '));
-    });
   }
 
   #[test]
@@ -1469,8 +1374,4 @@ mod tests {
     assert!(matches!(permission_denied.kind(), io::ErrorKind::PermissionDenied));
     assert!(matches!(not_found.kind(), io::ErrorKind::NotFound));
   }
-
-  // create_new_vault_non_interactive helper moved to crate::encryption::tests
-
-  // All remaining vault creation and password tests moved to crate::encryption::tests
 }
