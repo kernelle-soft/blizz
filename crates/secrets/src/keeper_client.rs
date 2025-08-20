@@ -530,4 +530,84 @@ mod tests {
     assert!(result.is_err(), "Should fail when daemon returns whitespace-only password");
     assert!(result.unwrap_err().to_string().contains("daemon returned empty password"));
   }
+
+  #[tokio::test]
+  async fn test_start_keeper_binary_not_found() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("test_spawn_fail.sock");
+    let pid_file = temp_dir.path().join("test_spawn_fail.pid");
+    let keeper_path = temp_dir.path().join("keeper");
+
+    // Ensure socket doesn't exist so we get past the early return
+    assert!(!socket_path.exists());
+
+    // Temporarily modify PATH to not include keeper binary
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", "/nonexistent/path"); // Path that definitely doesn't have keeper
+
+    let result = start(&socket_path, &pid_file, &keeper_path).await;
+    
+    // Restore original PATH
+    std::env::set_var("PATH", original_path);
+    
+    assert!(result.is_ok(), "Function should not error even when spawn fails");
+    // This should hit lines 22 (starting agent log), 70-71 (error messages)
+  }
+
+  #[tokio::test]
+  async fn test_start_directory_creation_setup() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("never_created.sock");
+    let pid_file = temp_dir.path().join("deep/nested/path/test.pid");
+    let keeper_path = temp_dir.path().join("deep/nested/keeper/path");
+
+    // Ensure nested directories don't exist initially
+    assert!(!pid_file.parent().unwrap().exists());
+    assert!(!keeper_path.exists());
+
+    // Don't create socket, so function tries to spawn
+    assert!(!socket_path.exists());
+
+    // Set PATH to empty to ensure spawn fails quickly
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", "");
+
+    let result = start(&socket_path, &pid_file, &keeper_path).await;
+    
+    // Restore PATH
+    std::env::set_var("PATH", original_path);
+
+    assert!(result.is_ok(), "Should handle spawn failure gracefully");
+    // This test ensures the function attempts to process through spawn logic
+    // hitting the "starting agent..." log message and error handling paths
+  }
+
+  #[tokio::test]
+  async fn test_start_environment_variable_handling_with_spawn_attempt() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("env_test.sock");
+    let pid_file = temp_dir.path().join("env_test.pid");
+    let keeper_path = temp_dir.path().join("keeper");
+
+    // Set test environment variables
+    std::env::set_var("KERNELLE_HOME", "/test/kernelle/home");
+    std::env::set_var("SECRETS_AUTH", "test_auth_value");
+
+    // Don't create socket so function tries to spawn
+    assert!(!socket_path.exists());
+
+    // Clear PATH to make spawn fail and hit error path
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", "");
+
+    let result = start(&socket_path, &pid_file, &keeper_path).await;
+    
+    // Restore environment
+    std::env::set_var("PATH", original_path);
+    std::env::remove_var("KERNELLE_HOME");
+    std::env::remove_var("SECRETS_AUTH");
+
+    assert!(result.is_ok(), "Should handle spawn failure with env vars set");
+    // This hits lines 31-36 (env var forwarding), line 22 (logging), and 70-71 (error handling)
+  }
 }
