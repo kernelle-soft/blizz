@@ -84,6 +84,7 @@ pub async fn store(
   Ok(())
 }
 
+/// Read a secret from the vault
 pub async fn read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
   // Get the credentials file path
   let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
@@ -481,6 +482,8 @@ async fn start_daemon_if_needed(base_path: &Path) -> Result<()> {
 
   Ok(())
 }
+
+/// Reset the master password for the vault
 pub async fn reset_password(secrets: &Secrets, force: bool) -> Result<()> {
   bentley::verbose("resetting master password...");
 
@@ -560,4 +563,50 @@ pub async fn reset_password(secrets: &Secrets, force: bool) -> Result<()> {
   bentley::info("please restart the daemon for the new password to take effect");
 
   Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use tempfile::TempDir;
+  use crate::Secrets;
+
+  fn setup_test_env() -> TempDir {
+    let temp_dir = TempDir::new().unwrap();
+    std::env::set_var("KERNELLE_DIR", temp_dir.path());
+    // Set master password via environment variable to avoid prompts
+    std::env::set_var("SECRETS_MASTER_PASSWORD", "test_password_123");
+    temp_dir
+  }
+
+  #[tokio::test]
+  async fn test_store_empty_value_rejection() {
+    let _temp_dir = setup_test_env();
+    let secrets = Secrets::new();
+    
+    // Test the early return path for empty values (line 23-26 in store function)
+    // This should return Ok(()) without calling get_master_password
+    let result = store(&secrets, "test", "test", Some("   ".to_string()), false).await;
+    assert!(result.is_ok(), "Empty values should be handled gracefully");
+  }
+
+  #[tokio::test]
+  async fn test_store_whitespace_value_rejection() {
+    let _temp_dir = setup_test_env();
+    let secrets = Secrets::new();
+    
+    // Test the early return path for whitespace-only values
+    let result = store(&secrets, "test", "test", Some("\t\n\r ".to_string()), false).await;
+    assert!(result.is_ok(), "Whitespace-only values should be handled gracefully");
+  }
+
+  #[tokio::test]
+  async fn test_store_mixed_whitespace_value_rejection() {
+    let _temp_dir = setup_test_env();
+    let secrets = Secrets::new();
+    
+    // Test mixed whitespace and special characters
+    let result = store(&secrets, "test", "test", Some("  \n\t  \r  ".to_string()), false).await;
+    assert!(result.is_ok(), "Mixed whitespace values should be handled gracefully");
+  }
 }
