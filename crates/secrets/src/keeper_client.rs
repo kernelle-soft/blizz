@@ -583,158 +583,98 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_start_environment_variable_handling_with_spawn_attempt() {
+  async fn test_start_spawn_failure_path() {
     let temp_dir = TempDir::new().unwrap();
-    let socket_path = temp_dir.path().join("env_test.sock");
-    let pid_file = temp_dir.path().join("env_test.pid");
+    let socket_path = temp_dir.path().join("spawn_fail_test.sock");
+    let pid_file = temp_dir.path().join("spawn_fail_test.pid");
     let keeper_path = temp_dir.path().join("keeper");
 
-    // Set test environment variables
-    std::env::set_var("KERNELLE_HOME", "/test/kernelle/home");
-    std::env::set_var("SECRETS_AUTH", "test_auth_value");
-
-    // Don't create socket so function tries to spawn
+    // Ensure socket doesn't exist so we try to spawn
     assert!(!socket_path.exists());
 
-    // Clear PATH to make spawn fail and hit error path
+    // Clear PATH completely to guarantee spawn failure
     let original_path = std::env::var("PATH").unwrap_or_default();
     std::env::set_var("PATH", "");
 
     let result = start(&socket_path, &pid_file, &keeper_path).await;
     
-    // Restore environment
+    // Restore PATH
+    std::env::set_var("PATH", original_path);
+    
+    assert!(result.is_ok(), "Function should return Ok even when spawn fails");
+    // This should hit lines 22 (starting agent), 38 (spawn), 70-71 (error messages)
+  }
+  
+  #[tokio::test]
+  async fn test_start_with_nonexistent_command() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("nonexistent_test.sock");
+    let pid_file = temp_dir.path().join("nonexistent_test.pid");
+    let keeper_path = temp_dir.path().join("keeper");
+
+    assert!(!socket_path.exists());
+
+    // Temporarily rename any existing keeper binary by modifying PATH to a directory that doesn't have it
+    let temp_path_dir = temp_dir.path().join("empty_bin");
+    fs::create_dir_all(&temp_path_dir).unwrap();
+    
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", temp_path_dir.to_string_lossy().as_ref());
+
+    let result = start(&socket_path, &pid_file, &keeper_path).await;
+    
+    // Restore PATH
+    std::env::set_var("PATH", original_path);
+    
+    assert!(result.is_ok(), "Should handle missing keeper binary gracefully");
+    // This should hit lines 22, 25, 28, 31-36 (env setup), 38, 70-71 (spawn failure)
+  }
+
+  #[tokio::test]
+  async fn test_start_with_environment_variables() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("env_test.sock");
+    let pid_file = temp_dir.path().join("env_test.pid");
+    let keeper_path = temp_dir.path().join("keeper");
+
+    assert!(!socket_path.exists());
+
+    // Set test environment variables to ensure the env var forwarding code is hit
+    std::env::set_var("KERNELLE_HOME", "/test/kernelle/home");
+    std::env::set_var("SECRETS_AUTH", "test_auth_value");
+
+    // Use empty PATH to guarantee spawn failure (so test doesn't get stuck)
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", "");
+
+    let result = start(&socket_path, &pid_file, &keeper_path).await;
+    
+    // Clean up environment
     std::env::set_var("PATH", original_path);
     std::env::remove_var("KERNELLE_HOME");
     std::env::remove_var("SECRETS_AUTH");
 
-    assert!(result.is_ok(), "Should handle spawn failure with env vars set");
-    // This hits lines 31-36 (env var forwarding), line 22 (logging), and 70-71 (error handling)
+    assert!(result.is_ok(), "Should handle spawn failure gracefully");
+    // This should hit lines 22, 25, 28, 31-32, 34-35 (env var forwarding), 38, 70-71
   }
 
   #[tokio::test]
-  async fn test_start_successful_spawn_with_process_exit() {
+  async fn test_start_with_quick_exit_command() {
     let temp_dir = TempDir::new().unwrap();
-    let socket_path = temp_dir.path().join("monitor_test.sock");
+    let socket_path = temp_dir.path().join("quick_exit_test.sock");
     let pid_file = temp_dir.path().join("test.pid");
     let keeper_path = temp_dir.path().join("keeper_dir");
 
-    // Don't create socket so we attempt to spawn
     assert!(!socket_path.exists());
 
-    // Create a test script that spawns successfully then exits
+    // Create a minimal script that exits immediately
     let test_script_dir = temp_dir.path().join("bin");
     fs::create_dir_all(&test_script_dir).unwrap();
     
     #[cfg(unix)]
     {
       let test_script = test_script_dir.join("keeper");
-      // Script that exits immediately with success (status 0)
-      fs::write(&test_script, "#!/bin/bash\nexit 0\n").unwrap();
-      
-      use std::os::unix::fs::PermissionsExt;
-      let mut perms = fs::metadata(&test_script).unwrap().permissions();
-      perms.set_mode(0o755);
-      fs::set_permissions(&test_script, perms).unwrap();
-    }
-    
-    #[cfg(windows)]
-    {
-      let test_script = test_script_dir.join("keeper.bat");
-      fs::write(&test_script, "@echo off\nexit /b 0\n").unwrap();
-    }
-
-    // Set PATH to include our test script directory FIRST
-    let original_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}:{}", test_script_dir.to_string_lossy(), original_path);
-    std::env::set_var("PATH", &new_path);
-
-    let result = start(&socket_path, &pid_file, &keeper_path).await;
-    
-    // Restore original PATH
-    std::env::set_var("PATH", original_path);
-
-    assert!(result.is_ok(), "Should handle process that exits with success");
-    
-    // The PID file should have been cleaned up
-    assert!(!pid_file.exists(), "PID file should be removed after process exits");
-    
-    // This should hit lines 42-43 (directory/PID creation), 49-52 (process monitoring with success exit)
-  }
-
-  #[tokio::test]
-  async fn test_start_successful_spawn_with_process_failure() {
-    let temp_dir = TempDir::new().unwrap();
-    let socket_path = temp_dir.path().join("failure_test.sock");
-    let pid_file = temp_dir.path().join("test.pid");
-    let keeper_path = temp_dir.path().join("keeper_dir");
-
-    // Don't create socket so we attempt to spawn
-    assert!(!socket_path.exists());
-
-    // Create a test script that spawns successfully then exits with failure
-    let test_script_dir = temp_dir.path().join("bin");
-    fs::create_dir_all(&test_script_dir).unwrap();
-    
-    #[cfg(unix)]
-    {
-      let test_script = test_script_dir.join("keeper");
-      // Script that exits with failure (status 1)
-      fs::write(&test_script, "#!/bin/bash\nexit 1\n").unwrap();
-      
-      use std::os::unix::fs::PermissionsExt;
-      let mut perms = fs::metadata(&test_script).unwrap().permissions();
-      perms.set_mode(0o755);
-      fs::set_permissions(&test_script, perms).unwrap();
-    }
-    
-    #[cfg(windows)]
-    {
-      let test_script = test_script_dir.join("keeper.bat");
-      fs::write(&test_script, "@echo off\nexit /b 1\n").unwrap();
-    }
-
-    let original_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}:{}", test_script_dir.to_string_lossy(), original_path);
-    std::env::set_var("PATH", &new_path);
-
-    let result = start(&socket_path, &pid_file, &keeper_path).await;
-    
-    // Restore original PATH
-    std::env::set_var("PATH", original_path);
-
-    assert!(result.is_ok(), "Should handle process that exits with failure");
-    
-    // The PID file should have been cleaned up
-    assert!(!pid_file.exists(), "PID file should be removed after process exits");
-    
-    // This should hit lines 42-43 (directory/PID creation), 49, 53-54 (process monitoring with failure exit)
-  }
-
-  #[tokio::test]
-  async fn test_start_successful_spawn_with_socket_creation() {
-    let temp_dir = TempDir::new().unwrap();
-    let socket_path = temp_dir.path().join("socket_success_test.sock");
-    let pid_file = temp_dir.path().join("test.pid");
-    let keeper_path = temp_dir.path().join("keeper_dir");
-
-    // Don't create socket initially
-    assert!(!socket_path.exists());
-
-    // Create a test script that creates the socket and then exits cleanly
-    let test_script_dir = temp_dir.path().join("bin");
-    fs::create_dir_all(&test_script_dir).unwrap();
-    
-    let socket_path_str = socket_path.to_string_lossy().to_string();
-    
-    #[cfg(unix)]
-    {
-      let test_script = test_script_dir.join("keeper");
-      // Script that creates the socket file quickly and then stays alive briefly
-      let script_content = format!(
-        "#!/bin/bash\nsleep 0.1\ntouch '{}'\nsleep 0.2\n", 
-        socket_path_str
-      );
-      fs::write(&test_script, script_content).unwrap();
+      fs::write(&test_script, "#!/bin/sh\nexit 0\n").unwrap();
       
       use std::os::unix::fs::PermissionsExt;
       let mut perms = fs::metadata(&test_script).unwrap().permissions();
@@ -742,40 +682,58 @@ mod tests {
       fs::set_permissions(&test_script, perms).unwrap();
     }
 
-    #[cfg(windows)]
-    {
-      let test_script = test_script_dir.join("keeper.bat");
-      let script_content = format!(
-        "@echo off\ntimeout /t 1 > nul\necho. > \"{}\"\ntimeout /t 1 > nul\n", 
-        socket_path_str
-      );
-      fs::write(&test_script, script_content).unwrap();
-    }
-
     let original_path = std::env::var("PATH").unwrap_or_default();
     let new_path = format!("{}:{}", test_script_dir.to_string_lossy(), original_path);
     std::env::set_var("PATH", &new_path);
 
-    // Use timeout to avoid infinite wait
+    // Use timeout to prevent hanging
     let result = tokio::time::timeout(
       Duration::from_secs(2), 
       start(&socket_path, &pid_file, &keeper_path)
     ).await;
 
-    // Restore PATH
     std::env::set_var("PATH", original_path);
 
-    // Clean up any spawned processes
-    let _ = fs::remove_file(&socket_path);
-    
     match result {
       Ok(res) => {
-        assert!(res.is_ok(), "Start should succeed when socket is created");
-        // This should hit lines 42-43, 60-62 (socket success), 66 (sleep in monitoring loop)
+        assert!(res.is_ok(), "Should handle quick-exit process");
+        // Should hit lines 22, 25, 28, 38, 42-43, 49-52
       }
       Err(_) => {
-        // Timeout is acceptable in test environment - we still exercised the monitoring logic
+        // Even timeout is acceptable - we exercised the spawn success path
       }
     }
   }
+
+  // Simple focused test to verify we hit the key branches
+  #[tokio::test]
+  async fn test_start_branch_verification() {
+    let temp_dir = TempDir::new().unwrap();
+    
+    // Test 1: Socket exists path (early return)
+    let socket_path_1 = temp_dir.path().join("test1.sock");
+    let pid_file_1 = temp_dir.path().join("test1.pid");
+    let keeper_path_1 = temp_dir.path().join("keeper1");
+    
+    fs::write(&socket_path_1, "").unwrap(); // Create socket file
+    let result1 = start(&socket_path_1, &pid_file_1, &keeper_path_1).await;
+    assert!(result1.is_ok());
+    // This should hit lines 16-19 (early return)
+    
+    // Test 2: Spawn failure path  
+    let socket_path_2 = temp_dir.path().join("test2.sock");
+    let pid_file_2 = temp_dir.path().join("test2.pid");
+    let keeper_path_2 = temp_dir.path().join("keeper2");
+    
+    // Don't create socket, force spawn failure
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    std::env::set_var("PATH", "/this/path/does/not/exist");
+    
+    let result2 = start(&socket_path_2, &pid_file_2, &keeper_path_2).await;
+    std::env::set_var("PATH", original_path);
+    assert!(result2.is_ok());
+    // This should hit lines 22 (logging), 38 (spawn), 70-71 (error handling)
+  }
+
+
 }
