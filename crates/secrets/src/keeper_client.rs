@@ -851,12 +851,6 @@ mod tests {
     
     let result = stop(&socket_path, &pid_file).await;
     assert!(result.is_ok(), "Should handle kill command successfully");
-    
-    // This should hit the successful kill path:
-    // - Lines 144-152: success branch with sleep and cleanup
-    // - Line 146: sleep(Duration::from_millis(500)).await
-    // - Lines 149-150: file cleanup
-    // - Line 152: bentley::success("agent stopped")
   }
 
   #[tokio::test]
@@ -913,9 +907,6 @@ mod tests {
         // which still exercises some of the start() code paths
       }
     }
-    
-    // This should hit line 52: bentley::error("keeper process exited unexpectedly")
-    // because the process exits with status 0 but doesn't create the expected socket
   }
 
 
