@@ -96,3 +96,5 @@ rust-coverage:
     --output-dir coverage 
     --jobs $(nproc) 
     --branch
+    --config tarpaulin.toml 
+

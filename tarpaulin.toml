@@ -13,7 +13,9 @@ forward = true
 exclude = [
   # WIP packages that are unused and will be (re-)implemented in the future
   "adam",
+]
 
+exclude-files = [
   # File-level excludes
   "*/tests/*",
   "*/examples/*",
