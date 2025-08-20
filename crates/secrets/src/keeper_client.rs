@@ -399,6 +399,72 @@ mod tests {
     assert!(result.is_ok(), "Should handle kill command gracefully even if PID doesn't exist");
   }
 
+  #[tokio::test]
+  async fn test_stop_no_socket_early_return() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("no_socket.sock");
+    let pid_file = temp_dir.path().join("test.pid");
+    
+    // Ensure socket doesn't exist
+    assert!(!socket_path.exists());
+    
+    let result = stop(&socket_path, &pid_file).await;
+    assert!(result.is_ok(), "Should handle no socket with early return");
+    
+    // This should hit lines 136-137 (early return when socket doesn't exist)
+  }
+  
+  #[tokio::test]
+  async fn test_stop_empty_pid_file() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("test.sock");
+    let pid_file = temp_dir.path().join("empty.pid");
+    
+    // Create socket and completely empty PID file
+    fs::write(&socket_path, "").unwrap();
+    fs::write(&pid_file, "").unwrap(); // Empty content
+    
+    let result = stop(&socket_path, &pid_file).await;
+    assert!(result.is_ok(), "Should handle empty PID file gracefully");
+    assert!(!socket_path.exists(), "Socket should be cleaned up");
+    
+    // This should hit lines 156-159 (PID file read but empty/unreadable)
+  }
+  
+  #[tokio::test]
+  async fn test_stop_whitespace_only_pid() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("test.sock");
+    let pid_file = temp_dir.path().join("whitespace.pid");
+    
+    // Create socket and PID file with only whitespace
+    fs::write(&socket_path, "").unwrap();
+    fs::write(&pid_file, "   \t  \n  ").unwrap(); // Whitespace only
+    
+    let result = stop(&socket_path, &pid_file).await;
+    assert!(result.is_ok(), "Should handle whitespace-only PID gracefully");
+    assert!(!socket_path.exists(), "Socket should be cleaned up");
+    
+    // This should hit the trim().parse() failure path and lines 164-166
+  }
+  
+  #[tokio::test]
+  async fn test_stop_with_current_process_pid() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("test.sock");
+    let pid_file = temp_dir.path().join("current.pid");
+    
+    // Create socket and PID file with current process PID
+    fs::write(&socket_path, "").unwrap();
+    fs::write(&pid_file, std::process::id().to_string()).unwrap();
+    
+    let result = stop(&socket_path, &pid_file).await;
+    assert!(result.is_ok(), "Should handle current process PID without actually killing self");
+    
+    // This should hit lines 170 (kill command), and likely success path lines 173-181
+    // since killing our own process may succeed but not actually kill us
+  }
+
   // Tests for restart() function branches
   // Note: restart() function is difficult to test without mocking Command::spawn
   // as it always calls start() which tries to spawn the keeper process.
