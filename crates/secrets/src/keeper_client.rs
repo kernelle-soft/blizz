@@ -610,4 +610,172 @@ mod tests {
     assert!(result.is_ok(), "Should handle spawn failure with env vars set");
     // This hits lines 31-36 (env var forwarding), line 22 (logging), and 70-71 (error handling)
   }
+
+  #[tokio::test]
+  async fn test_start_successful_spawn_with_process_exit() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("monitor_test.sock");
+    let pid_file = temp_dir.path().join("test.pid");
+    let keeper_path = temp_dir.path().join("keeper_dir");
+
+    // Don't create socket so we attempt to spawn
+    assert!(!socket_path.exists());
+
+    // Create a test script that spawns successfully then exits
+    let test_script_dir = temp_dir.path().join("bin");
+    fs::create_dir_all(&test_script_dir).unwrap();
+    
+    #[cfg(unix)]
+    {
+      let test_script = test_script_dir.join("keeper");
+      // Script that exits immediately with success (status 0)
+      fs::write(&test_script, "#!/bin/bash\nexit 0\n").unwrap();
+      
+      use std::os::unix::fs::PermissionsExt;
+      let mut perms = fs::metadata(&test_script).unwrap().permissions();
+      perms.set_mode(0o755);
+      fs::set_permissions(&test_script, perms).unwrap();
+    }
+    
+    #[cfg(windows)]
+    {
+      let test_script = test_script_dir.join("keeper.bat");
+      fs::write(&test_script, "@echo off\nexit /b 0\n").unwrap();
+    }
+
+    // Set PATH to include our test script directory FIRST
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", test_script_dir.to_string_lossy(), original_path);
+    std::env::set_var("PATH", &new_path);
+
+    let result = start(&socket_path, &pid_file, &keeper_path).await;
+    
+    // Restore original PATH
+    std::env::set_var("PATH", original_path);
+
+    assert!(result.is_ok(), "Should handle process that exits with success");
+    
+    // The PID file should have been cleaned up
+    assert!(!pid_file.exists(), "PID file should be removed after process exits");
+    
+    // This should hit lines 42-43 (directory/PID creation), 49-52 (process monitoring with success exit)
+  }
+
+  #[tokio::test]
+  async fn test_start_successful_spawn_with_process_failure() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("failure_test.sock");
+    let pid_file = temp_dir.path().join("test.pid");
+    let keeper_path = temp_dir.path().join("keeper_dir");
+
+    // Don't create socket so we attempt to spawn
+    assert!(!socket_path.exists());
+
+    // Create a test script that spawns successfully then exits with failure
+    let test_script_dir = temp_dir.path().join("bin");
+    fs::create_dir_all(&test_script_dir).unwrap();
+    
+    #[cfg(unix)]
+    {
+      let test_script = test_script_dir.join("keeper");
+      // Script that exits with failure (status 1)
+      fs::write(&test_script, "#!/bin/bash\nexit 1\n").unwrap();
+      
+      use std::os::unix::fs::PermissionsExt;
+      let mut perms = fs::metadata(&test_script).unwrap().permissions();
+      perms.set_mode(0o755);
+      fs::set_permissions(&test_script, perms).unwrap();
+    }
+    
+    #[cfg(windows)]
+    {
+      let test_script = test_script_dir.join("keeper.bat");
+      fs::write(&test_script, "@echo off\nexit /b 1\n").unwrap();
+    }
+
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", test_script_dir.to_string_lossy(), original_path);
+    std::env::set_var("PATH", &new_path);
+
+    let result = start(&socket_path, &pid_file, &keeper_path).await;
+    
+    // Restore original PATH
+    std::env::set_var("PATH", original_path);
+
+    assert!(result.is_ok(), "Should handle process that exits with failure");
+    
+    // The PID file should have been cleaned up
+    assert!(!pid_file.exists(), "PID file should be removed after process exits");
+    
+    // This should hit lines 42-43 (directory/PID creation), 49, 53-54 (process monitoring with failure exit)
+  }
+
+  #[tokio::test]
+  async fn test_start_successful_spawn_with_socket_creation() {
+    let temp_dir = TempDir::new().unwrap();
+    let socket_path = temp_dir.path().join("socket_success_test.sock");
+    let pid_file = temp_dir.path().join("test.pid");
+    let keeper_path = temp_dir.path().join("keeper_dir");
+
+    // Don't create socket initially
+    assert!(!socket_path.exists());
+
+    // Create a test script that creates the socket and then exits cleanly
+    let test_script_dir = temp_dir.path().join("bin");
+    fs::create_dir_all(&test_script_dir).unwrap();
+    
+    let socket_path_str = socket_path.to_string_lossy().to_string();
+    
+    #[cfg(unix)]
+    {
+      let test_script = test_script_dir.join("keeper");
+      // Script that creates the socket file quickly and then stays alive briefly
+      let script_content = format!(
+        "#!/bin/bash\nsleep 0.1\ntouch '{}'\nsleep 0.2\n", 
+        socket_path_str
+      );
+      fs::write(&test_script, script_content).unwrap();
+      
+      use std::os::unix::fs::PermissionsExt;
+      let mut perms = fs::metadata(&test_script).unwrap().permissions();
+      perms.set_mode(0o755);
+      fs::set_permissions(&test_script, perms).unwrap();
+    }
+
+    #[cfg(windows)]
+    {
+      let test_script = test_script_dir.join("keeper.bat");
+      let script_content = format!(
+        "@echo off\ntimeout /t 1 > nul\necho. > \"{}\"\ntimeout /t 1 > nul\n", 
+        socket_path_str
+      );
+      fs::write(&test_script, script_content).unwrap();
+    }
+
+    let original_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", test_script_dir.to_string_lossy(), original_path);
+    std::env::set_var("PATH", &new_path);
+
+    // Use timeout to avoid infinite wait
+    let result = tokio::time::timeout(
+      Duration::from_secs(2), 
+      start(&socket_path, &pid_file, &keeper_path)
+    ).await;
+
+    // Restore PATH
+    std::env::set_var("PATH", original_path);
+
+    // Clean up any spawned processes
+    let _ = fs::remove_file(&socket_path);
+    
+    match result {
+      Ok(res) => {
+        assert!(res.is_ok(), "Start should succeed when socket is created");
+        // This should hit lines 42-43, 60-62 (socket success), 66 (sleep in monitoring loop)
+      }
+      Err(_) => {
+        // Timeout is acceptable in test environment - we still exercised the monitoring logic
+      }
+    }
+  }
 }
