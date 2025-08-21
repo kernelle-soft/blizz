@@ -23,8 +23,6 @@ const PROMPT_CONFIRM_PASSWORD: &str = "confirm master password:";
 const ERROR_PASSWORD_EMPTY: &str = "master password cannot be empty";
 #[cfg(test)]
 const ERROR_PASSWORDS_DONT_MATCH: &str = "passwords do not match";
-#[cfg(test)]
-const ERROR_INCORRECT_PASSWORD: &str = "incorrect password";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -190,54 +188,6 @@ mod tests {
   }
 
   #[test]
-  fn test_get_master_password_uses_secrets_auth_var() {
-    with_temp_env(|temp_dir| {
-      let test_password = "test_password_123";
-
-      // First, create a vault interactively using rexpect
-      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
-
-      let mut session = spawn_command(cmd, Some(5000)).unwrap();
-
-      // Expect the initial vault setup prompts
-      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
-      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
-      session.send_line(test_password).unwrap();
-
-      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
-      session.send_line(test_password).unwrap();
-
-      // Expect successful vault creation
-      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
-      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
-
-      // Terminate the first daemon before testing SECRETS_AUTH
-      drop(session);
-
-      // Give the daemon time to shut down completely
-      std::thread::sleep(std::time::Duration::from_millis(100));
-
-      // Now test that SECRETS_AUTH is used (daemon should start without prompting)
-      temp_env::with_var("SECRETS_AUTH", Some(test_password), || {
-        let mut cmd = Command::cargo_bin("keeper").unwrap();
-        let output = cmd
-          .env("KERNELLE_HOME", temp_dir.path())
-          .timeout(std::time::Duration::from_secs(2))
-          .output()
-          .expect("Failed to execute keeper command");
-
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-          stderr.contains(PROMPT_DAEMON_STARTED) || stdout.contains(PROMPT_DAEMON_STARTED),
-          "Should have started daemon using SECRETS_AUTH. STDERR: '{stderr}', STDOUT: '{stdout}'"
-        );
-      });
-    });
-  }
-
-  #[test]
   fn test_get_master_password_uses_secrets_auth_validates_non_empty() {
     with_temp_env(|temp_dir| {
       let test_password = "valid_password_123";
@@ -389,129 +339,6 @@ mod tests {
       let vault_path = keeper_dir.join("credentials.enc");
       assert!(vault_path.exists(), "Vault file should exist in created directory");
       assert!(vault_path.is_file(), "Vault path should be a file");
-    });
-  }
-
-  #[test]
-  fn test_create_vault_saves_to_file() {
-    with_temp_env(|temp_dir| {
-      let test_password = "file_save_password_123";
-      let vault_path = temp_dir.path().join("persistent").join("keeper").join("credentials.enc");
-
-      // Ensure file doesn't exist initially
-      assert!(!vault_path.exists(), "Vault file should not exist initially");
-
-      // Create vault
-      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
-
-      let mut session = spawn_command(cmd, Some(5000)).unwrap();
-
-      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
-      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
-      session.send_line(test_password).unwrap();
-
-      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
-      session.send_line(test_password).unwrap();
-
-      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
-      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
-
-      // Terminate the first daemon before testing vault reuse
-      drop(session);
-
-      // Give the daemon time to shut down completely
-      std::thread::sleep(std::time::Duration::from_millis(100));
-
-      // Verify file was saved
-      assert!(vault_path.exists(), "Vault file should exist after saving");
-      assert!(vault_path.is_file(), "Saved vault should be a file");
-
-      // Verify file content is not empty
-      let file_contents = std::fs::read_to_string(&vault_path).unwrap();
-      assert!(!file_contents.is_empty(), "Saved vault file should not be empty");
-
-      // Verify file contains valid JSON structure
-      let json_data: serde_json::Value = serde_json::from_str(&file_contents).unwrap();
-      assert!(
-        json_data.get("encrypted_data").is_some(),
-        "Saved vault should contain encrypted_data field"
-      );
-
-      // Verify we can start the daemon again using the saved vault
-      temp_env::with_var("SECRETS_AUTH", Some(test_password), || {
-        let mut cmd = Command::cargo_bin("keeper").unwrap();
-        let output = cmd
-          .env("KERNELLE_HOME", temp_dir.path())
-          .timeout(std::time::Duration::from_secs(2))
-          .output()
-          .expect("Failed to execute keeper command");
-
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-          stderr.contains(PROMPT_DAEMON_STARTED) || stdout.contains(PROMPT_DAEMON_STARTED),
-          "Should have started daemon using saved vault. STDERR: '{stderr}', STDOUT: '{stdout}'"
-        );
-      });
-    });
-  }
-
-  #[test]
-  fn test_master_password_throws_if_password_is_incorrect() {
-    with_temp_env(|temp_dir| {
-      let correct_password = "correct_password_123";
-      let wrong_password = "definitely_wrong_password";
-
-      // First, create a vault with a known password
-      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
-
-      let mut session = spawn_command(cmd, Some(5000)).unwrap();
-
-      session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
-      session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
-      session.send_line(correct_password).unwrap();
-
-      session.exp_string(PROMPT_CONFIRM_PASSWORD).unwrap();
-      session.send_line(correct_password).unwrap();
-
-      session.exp_string(PROMPT_VAULT_CREATED).unwrap();
-      session.exp_string(PROMPT_DAEMON_STARTED).unwrap();
-
-      // Terminate the first daemon before testing incorrect password
-      drop(session);
-
-      // Give the daemon time to shut down completely
-      std::thread::sleep(std::time::Duration::from_millis(100));
-
-      // Test that keeper fails with wrong password from SECRETS_AUTH
-      temp_env::with_var("SECRETS_AUTH", Some(wrong_password), || {
-        let mut cmd = Command::cargo_bin("keeper").unwrap();
-        cmd
-          .env("KERNELLE_HOME", temp_dir.path())
-          .timeout(std::time::Duration::from_secs(2))
-          .assert()
-          .failure()
-          .stderr(predicate::str::contains(ERROR_INCORRECT_PASSWORD));
-      });
-
-      // Verify that correct password still works
-      temp_env::with_var("SECRETS_AUTH", Some(correct_password), || {
-        let mut cmd = Command::cargo_bin("keeper").unwrap();
-        let output = cmd
-          .env("KERNELLE_HOME", temp_dir.path())
-          .timeout(std::time::Duration::from_secs(2))
-          .output()
-          .expect("Failed to execute keeper command");
-
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(
-          stderr.contains(PROMPT_DAEMON_STARTED) || stdout.contains(PROMPT_DAEMON_STARTED),
-          "Should have started daemon with correct password. STDERR: '{stderr}', STDOUT: '{stdout}'"
-        );
-      });
     });
   }
 

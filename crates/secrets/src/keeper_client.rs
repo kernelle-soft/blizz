@@ -240,7 +240,7 @@ mod tests {
     // This test just verifies the environment variable handling logic exists
     // We can't easily test the actual process spawning without mocking,
     // but we can verify the function exists and handles paths correctly
-    
+
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("already_running.sock");
     let pid_file = temp_dir.path().join("test.pid");
@@ -262,7 +262,7 @@ mod tests {
     std::env::remove_var("SECRETS_AUTH");
   }
 
-  // Tests for status() function branches  
+  // Tests for status() function branches
   #[tokio::test]
   async fn test_status_socket_does_not_exist() {
     let temp_dir = TempDir::new().unwrap();
@@ -291,7 +291,7 @@ mod tests {
 
     // Create a mock daemon that responds properly
     let listener = UnixListener::bind(&socket_path).unwrap();
-    
+
     // Spawn a task to handle the connection
     let _handle = tokio::spawn(async move {
       if let Ok((mut stream, _)) = listener.accept().await {
@@ -315,7 +315,7 @@ mod tests {
 
     // Create a mock daemon that responds with empty content
     let listener = UnixListener::bind(&socket_path).unwrap();
-    
+
     let _handle = tokio::spawn(async move {
       if let Ok((mut stream, _)) = listener.accept().await {
         let mut buffer = [0; 4];
@@ -404,63 +404,63 @@ mod tests {
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("no_socket.sock");
     let pid_file = temp_dir.path().join("test.pid");
-    
+
     // Ensure socket doesn't exist
     assert!(!socket_path.exists());
-    
+
     let result = stop(&socket_path, &pid_file).await;
     assert!(result.is_ok(), "Should handle no socket with early return");
-    
+
     // This should hit lines 136-137 (early return when socket doesn't exist)
   }
-  
+
   #[tokio::test]
   async fn test_stop_empty_pid_file() {
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("test.sock");
     let pid_file = temp_dir.path().join("empty.pid");
-    
+
     // Create socket and completely empty PID file
     fs::write(&socket_path, "").unwrap();
     fs::write(&pid_file, "").unwrap(); // Empty content
-    
+
     let result = stop(&socket_path, &pid_file).await;
     assert!(result.is_ok(), "Should handle empty PID file gracefully");
     assert!(!socket_path.exists(), "Socket should be cleaned up");
-    
+
     // This should hit lines 156-159 (PID file read but empty/unreadable)
   }
-  
+
   #[tokio::test]
   async fn test_stop_whitespace_only_pid() {
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("test.sock");
     let pid_file = temp_dir.path().join("whitespace.pid");
-    
+
     // Create socket and PID file with only whitespace
     fs::write(&socket_path, "").unwrap();
     fs::write(&pid_file, "   \t  \n  ").unwrap(); // Whitespace only
-    
+
     let result = stop(&socket_path, &pid_file).await;
     assert!(result.is_ok(), "Should handle whitespace-only PID gracefully");
     assert!(!socket_path.exists(), "Socket should be cleaned up");
-    
+
     // This should hit the trim().parse() failure path and lines 164-166
   }
-  
+
   #[tokio::test]
   async fn test_stop_with_large_nonexistent_pid() {
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("test.sock");
     let pid_file = temp_dir.path().join("large_pid.pid");
-    
+
     // Create socket and PID file with a very large PID that definitely doesn't exist
     fs::write(&socket_path, "").unwrap();
     fs::write(&pid_file, "999999").unwrap(); // Very unlikely to exist
-    
+
     let result = stop(&socket_path, &pid_file).await;
     assert!(result.is_ok(), "Should handle nonexistent PID gracefully");
-    
+
     // This should hit lines 170 (kill command), and likely the failure cleanup path
     // since the PID doesn't exist, kill will fail
   }
@@ -469,7 +469,7 @@ mod tests {
   // Note: restart() function is difficult to test without mocking Command::spawn
   // as it always calls start() which tries to spawn the keeper process.
   // The function branches are indirectly tested through start() and stop() tests above.
-  
+
   #[tokio::test]
   async fn test_restart_without_existing_socket() {
     let temp_dir = TempDir::new().unwrap();
@@ -485,7 +485,7 @@ mod tests {
     let _ = result; // Don't assert on result since process operations may fail in test environment
   }
 
-  #[tokio::test]  
+  #[tokio::test]
   async fn test_restart_with_existing_socket() {
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("restart_with_socket.sock");
@@ -511,16 +511,16 @@ mod tests {
 
     // Test socket existence check (the branch condition in restart())
     assert!(!nonexistent_socket.exists(), "Socket should not exist for first branch");
-    
+
     let existing_socket = temp_dir.path().join("existing.sock");
     let existing_pid = temp_dir.path().join("existing.pid");
     fs::write(&existing_socket, "").unwrap();
     assert!(existing_socket.exists(), "Socket should exist for second branch");
-    
+
     // Now actually call restart to get coverage
     let result1 = restart(&nonexistent_socket, &nonexistent_pid, &keeper_path).await;
     let result2 = restart(&existing_socket, &existing_pid, &keeper_path).await;
-    
+
     // Both may fail due to process operations, but should hit the branch logic
     let _ = (result1, result2);
   }
@@ -564,7 +564,7 @@ mod tests {
 
     // Create a mock daemon that responds with a password
     let listener = UnixListener::bind(&socket_path).unwrap();
-    
+
     let _handle = tokio::spawn(async move {
       if let Ok((mut stream, _)) = listener.accept().await {
         let mut buffer = [0; 4];
@@ -591,7 +591,7 @@ mod tests {
 
     // Create a mock daemon that responds with empty password
     let listener = UnixListener::bind(&socket_path).unwrap();
-    
+
     let _handle = tokio::spawn(async move {
       if let Ok((mut stream, _)) = listener.accept().await {
         let mut buffer = [0; 4];
@@ -618,7 +618,7 @@ mod tests {
 
     // Create a mock daemon that responds with whitespace-only password
     let listener = UnixListener::bind(&socket_path).unwrap();
-    
+
     let _handle = tokio::spawn(async move {
       if let Ok((mut stream, _)) = listener.accept().await {
         let mut buffer = [0; 4];
@@ -649,10 +649,10 @@ mod tests {
     std::env::set_var("PATH", "/nonexistent/path"); // Path that definitely doesn't have keeper
 
     let result = start(&socket_path, &pid_file, &keeper_path).await;
-    
+
     // Restore original PATH
     std::env::set_var("PATH", original_path);
-    
+
     assert!(result.is_ok(), "Function should not error even when spawn fails");
     // This should hit lines 22 (starting agent log), 70-71 (error messages)
   }
@@ -676,7 +676,7 @@ mod tests {
     std::env::set_var("PATH", "");
 
     let result = start(&socket_path, &pid_file, &keeper_path).await;
-    
+
     // Restore PATH
     std::env::set_var("PATH", original_path);
 
@@ -700,14 +700,14 @@ mod tests {
     std::env::set_var("PATH", "");
 
     let result = start(&socket_path, &pid_file, &keeper_path).await;
-    
+
     // Restore PATH
     std::env::set_var("PATH", original_path);
-    
+
     assert!(result.is_ok(), "Function should return Ok even when spawn fails");
     // This should hit lines 22 (starting agent), 38 (spawn), 70-71 (error messages)
   }
-  
+
   #[tokio::test]
   async fn test_start_with_nonexistent_command() {
     let temp_dir = TempDir::new().unwrap();
@@ -720,15 +720,15 @@ mod tests {
     // Temporarily rename any existing keeper binary by modifying PATH to a directory that doesn't have it
     let temp_path_dir = temp_dir.path().join("empty_bin");
     fs::create_dir_all(&temp_path_dir).unwrap();
-    
+
     let original_path = std::env::var("PATH").unwrap_or_default();
     std::env::set_var("PATH", temp_path_dir.to_string_lossy().as_ref());
 
     let result = start(&socket_path, &pid_file, &keeper_path).await;
-    
+
     // Restore PATH
     std::env::set_var("PATH", original_path);
-    
+
     assert!(result.is_ok(), "Should handle missing keeper binary gracefully");
     // This should hit lines 22, 25, 28, 31-36 (env setup), 38, 70-71 (spawn failure)
   }
@@ -751,7 +751,7 @@ mod tests {
     std::env::set_var("PATH", "");
 
     let result = start(&socket_path, &pid_file, &keeper_path).await;
-    
+
     // Clean up environment
     std::env::set_var("PATH", original_path);
     std::env::remove_var("KERNELLE_HOME");
@@ -773,12 +773,12 @@ mod tests {
     // Create a minimal script that exits immediately
     let test_script_dir = temp_dir.path().join("bin");
     fs::create_dir_all(&test_script_dir).unwrap();
-    
+
     #[cfg(unix)]
     {
       let test_script = test_script_dir.join("keeper");
       fs::write(&test_script, "#!/bin/sh\nexit 0\n").unwrap();
-      
+
       use std::os::unix::fs::PermissionsExt;
       let mut perms = fs::metadata(&test_script).unwrap().permissions();
       perms.set_mode(0o755);
@@ -790,10 +790,9 @@ mod tests {
     std::env::set_var("PATH", &new_path);
 
     // Use timeout to prevent hanging
-    let result = tokio::time::timeout(
-      Duration::from_secs(2), 
-      start(&socket_path, &pid_file, &keeper_path)
-    ).await;
+    let result =
+      tokio::time::timeout(Duration::from_secs(2), start(&socket_path, &pid_file, &keeper_path))
+        .await;
 
     std::env::set_var("PATH", original_path);
 
@@ -812,26 +811,26 @@ mod tests {
   #[tokio::test]
   async fn test_start_branch_verification() {
     let temp_dir = TempDir::new().unwrap();
-    
+
     // Test 1: Socket exists path (early return)
     let socket_path_1 = temp_dir.path().join("test1.sock");
     let pid_file_1 = temp_dir.path().join("test1.pid");
     let keeper_path_1 = temp_dir.path().join("keeper1");
-    
+
     fs::write(&socket_path_1, "").unwrap(); // Create socket file
     let result1 = start(&socket_path_1, &pid_file_1, &keeper_path_1).await;
     assert!(result1.is_ok());
     // This should hit lines 16-19 (early return)
-    
-    // Test 2: Spawn failure path  
+
+    // Test 2: Spawn failure path
     let socket_path_2 = temp_dir.path().join("test2.sock");
     let pid_file_2 = temp_dir.path().join("test2.pid");
     let keeper_path_2 = temp_dir.path().join("keeper2");
-    
+
     // Don't create socket, force spawn failure
     let original_path = std::env::var("PATH").unwrap_or_default();
     std::env::set_var("PATH", "/this/path/does/not/exist");
-    
+
     let result2 = start(&socket_path_2, &pid_file_2, &keeper_path_2).await;
     std::env::set_var("PATH", original_path);
     assert!(result2.is_ok());
@@ -843,12 +842,12 @@ mod tests {
     let temp_dir = TempDir::new().unwrap();
     let socket_path = temp_dir.path().join("success_test.sock");
     let pid_file = temp_dir.path().join("success_test.pid");
-    
+
     // Create socket and PID file with PID 1 (init process, safe to signal)
     // Init process typically ignores SIGTERM, so this is safe for testing
     fs::write(&socket_path, "").unwrap();
     fs::write(&pid_file, "1").unwrap();
-    
+
     let result = stop(&socket_path, &pid_file).await;
     assert!(result.is_ok(), "Should handle kill command successfully");
   }
@@ -859,23 +858,23 @@ mod tests {
     let socket_path = temp_dir.path().join("success_exit_test.sock");
     let pid_file = temp_dir.path().join("success_exit_test.pid");
     let keeper_path = temp_dir.path().join("keeper_dir");
-    
+
     // Don't create socket file, so start() will try to spawn
     assert!(!socket_path.exists());
-    
+
     // Set PATH to include /bin which should have 'true' command
     let original_path = std::env::var("PATH").unwrap_or_default();
     std::env::set_var("PATH", "/bin:/usr/bin");
-    
+
     // Override command to use 'true' which exits with status 0 but doesn't create socket
     // We can't easily mock Command::new(), but we can try using a command that exists
     // and exits successfully but quickly
-    
+
     // Create a simple shell script that exits successfully
     let script_dir = temp_dir.path().join("bin");
     fs::create_dir_all(&script_dir).unwrap();
     let script_path = script_dir.join("keeper");
-    
+
     #[cfg(unix)]
     {
       fs::write(&script_path, "#!/bin/sh\nexit 0\n").unwrap();
@@ -884,20 +883,19 @@ mod tests {
       perms.set_mode(0o755);
       fs::set_permissions(&script_path, perms).unwrap();
     }
-    
+
     // Add our script directory to PATH
     let new_path = format!("{}:{}", script_dir.to_string_lossy(), original_path);
     std::env::set_var("PATH", &new_path);
-    
+
     // Use timeout to prevent test from hanging if process doesn't exit quickly
-    let result = tokio::time::timeout(
-      Duration::from_secs(2), 
-      start(&socket_path, &pid_file, &keeper_path)
-    ).await;
-    
+    let result =
+      tokio::time::timeout(Duration::from_secs(2), start(&socket_path, &pid_file, &keeper_path))
+        .await;
+
     // Restore PATH
     std::env::set_var("PATH", original_path);
-    
+
     match result {
       Ok(start_result) => {
         assert!(start_result.is_ok(), "Should handle process that exits successfully");
@@ -908,6 +906,4 @@ mod tests {
       }
     }
   }
-
-
 }
