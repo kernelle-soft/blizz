@@ -1,4 +1,3 @@
-use crate::embedding_client::Embedding;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use dirs::home_dir;
@@ -66,20 +65,6 @@ pub fn file_path(insight: &Insight) -> Result<PathBuf> {
   let normalized_topic = insight.topic.to_lowercase();
   let normalized_name = insight.name.to_lowercase();
   Ok(insights_root.join(&normalized_topic).join(format!("{normalized_name}.insight.md")))
-}
-
-pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
-  insight.embedding_version = Some(embedding.version);
-  insight.embedding = Some(embedding.embedding);
-  insight.embedding_computed = Some(embedding.created_at);
-}
-
-pub fn has_embedding(insight: &Insight) -> bool {
-  insight.embedding.is_some()
-}
-
-pub fn get_embedding_text(insight: &Insight) -> String {
-  format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
 }
 
 pub fn save(insight: &Insight) -> Result<()> {

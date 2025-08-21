@@ -1,7 +1,5 @@
 use anyhow::Result;
 use insights::commands::*;
-use insights::embedding_client;
-use insights::embedding_client::MockEmbeddingService;
 use insights::insight;
 use serial_test::serial;
 use std::env;
@@ -21,7 +19,6 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_basic_command_flow() -> Result<()> {
     let _temp = setup_temp_insights_root("basic_flow");
-    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Test add -> get -> list flow
     add_insight_with_client(
@@ -29,7 +26,6 @@ mod cli_enhancement_tests {
       "basic",
       "Basic workflow test",
       "Testing the basic command flow",
-      &client,
     )?;
 
     get_insight("workflow", "basic", false)?;
@@ -46,13 +42,12 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_multiple_insights_workflow() -> Result<()> {
     let _temp = setup_temp_insights_root("multiple_insights");
-    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create multiple insights across topics
-    add_insight_with_client("ai", "basics", "AI Basics", "Introduction to AI", &client)?;
-    add_insight_with_client("ai", "advanced", "Advanced AI", "Deep AI concepts", &client)?;
-    add_insight_with_client("rust", "ownership", "Ownership", "Rust ownership model", &client)?;
-    add_insight_with_client("rust", "borrowing", "Borrowing", "Rust borrowing rules", &client)?;
+    add_insight_with_client("ai", "basics", "AI Basics", "Introduction to AI")?;
+    add_insight_with_client("ai", "advanced", "Advanced AI", "Deep AI concepts")?;
+    add_insight_with_client("rust", "ownership", "Ownership", "Rust ownership model")?;
+    add_insight_with_client("rust", "borrowing", "Borrowing", "Rust borrowing rules")?;
 
     // Test listing and filtering
     list_insights(None, false)?;
@@ -67,21 +62,14 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_update_workflow() -> Result<()> {
     let _temp = setup_temp_insights_root("update_workflow");
-    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create initial insight
-    add_insight_with_client("updates", "test", "Original overview", "Original details", &client)?;
+    add_insight_with_client("updates", "test", "Original overview", "Original details")?;
 
     // Test various update scenarios
-    update_insight_with_client("updates", "test", Some("Updated overview"), None, &client)?;
-    update_insight_with_client("updates", "test", None, Some("Updated details"), &client)?;
-    update_insight_with_client(
-      "updates",
-      "test",
-      Some("Final overview"),
-      Some("Final details"),
-      &client,
-    )?;
+    update_insight_with_client("updates", "test", Some("Updated overview"), None)?;
+    update_insight_with_client("updates", "test", None, Some("Updated details"))?;
+    update_insight_with_client("updates", "test", Some("Final overview"), Some("Final details"))?;
 
     // Verify final state
     let final_insight = insight::load("updates", "test")?;
@@ -95,12 +83,11 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_delete_workflow() -> Result<()> {
     let _temp = setup_temp_insights_root("delete_workflow");
-    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create insights to delete
-    add_insight_with_client("deleteme", "first", "First insight", "First details", &client)?;
-    add_insight_with_client("deleteme", "second", "Second insight", "Second details", &client)?;
-    add_insight_with_client("keepme", "safe", "Safe insight", "Safe details", &client)?;
+    add_insight_with_client("deleteme", "first", "First insight", "First details")?;
+    add_insight_with_client("deleteme", "second", "Second insight", "Second details")?;
+    add_insight_with_client("keepme", "safe", "Safe insight", "Safe details")?;
 
     // Delete one insight
     delete_insight("deleteme", "first", true)?;
@@ -123,15 +110,14 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_topics_management() -> Result<()> {
     let _temp = setup_temp_insights_root("topics_management");
-    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Start with empty topics
     list_topics()?;
 
     // Add insights to create topics
-    add_insight_with_client("topic1", "insight1", "Overview 1", "Details 1", &client)?;
-    add_insight_with_client("topic2", "insight2", "Overview 2", "Details 2", &client)?;
-    add_insight_with_client("topic3", "insight3", "Overview 3", "Details 3", &client)?;
+    add_insight_with_client("topic1", "insight1", "Overview 1", "Details 1")?;
+    add_insight_with_client("topic2", "insight2", "Overview 2", "Details 2")?;
+    add_insight_with_client("topic3", "insight3", "Overview 3", "Details 3")?;
 
     // Test topic listing
     list_topics()?;
@@ -149,15 +135,13 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_error_handling() -> Result<()> {
     let _temp = setup_temp_insights_root("error_handling");
-    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Test getting non-existent insight
     let result = get_insight("nonexistent", "insight", false);
     assert!(result.is_err());
 
     // Test updating non-existent insight
-    let result =
-      update_insight_with_client("nonexistent", "insight", Some("overview"), None, &client);
+    let result = update_insight_with_client("nonexistent", "insight", Some("overview"), None);
     assert!(result.is_err());
 
     // Test deleting non-existent insight
@@ -165,8 +149,8 @@ mod cli_enhancement_tests {
     assert!(result.is_err());
 
     // Test duplicate addition
-    add_insight_with_client("errors", "duplicate", "Original", "Original", &client)?;
-    let result = add_insight_with_client("errors", "duplicate", "Duplicate", "Duplicate", &client);
+    add_insight_with_client("errors", "duplicate", "Original", "Original")?;
+    let result = add_insight_with_client("errors", "duplicate", "Duplicate", "Duplicate");
     assert!(result.is_err());
 
     Ok(())
@@ -176,12 +160,11 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_content_variations() -> Result<()> {
     let _temp = setup_temp_insights_root("content_variations");
-    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Test with empty content
-    add_insight_with_client("empty", "test1", "", "", &client)?;
-    add_insight_with_client("empty", "test2", "Overview", "", &client)?;
-    add_insight_with_client("empty", "test3", "", "Details", &client)?;
+    add_insight_with_client("empty", "test1", "", "")?;
+    add_insight_with_client("empty", "test2", "Overview", "")?;
+    add_insight_with_client("empty", "test3", "", "Details")?;
 
     // Test with special characters
     add_insight_with_client(
@@ -189,13 +172,12 @@ mod cli_enhancement_tests {
       "chars",
       "Overview with émojis 🚀 and symbols: @#$%",
       "Details with\nmultiple\nlines\nand unicode: ñáéíóú",
-      &client,
     )?;
 
     // Test with long content
     let long_overview = "A".repeat(1000);
     let long_details = "B".repeat(5000);
-    add_insight_with_client("long", "content", &long_overview, &long_details, &client)?;
+    add_insight_with_client("long", "content", &long_overview, &long_details)?;
 
     // Verify all can be retrieved
     list_insights(None, false)?;
@@ -207,11 +189,10 @@ mod cli_enhancement_tests {
   #[serial]
   fn test_cli_output_modes() -> Result<()> {
     let _temp = setup_temp_insights_root("output_modes");
-    let client = embedding_client::with_service(Box::new(MockEmbeddingService));
 
     // Create test data
-    add_insight_with_client("output", "test1", "Short overview", "Short details", &client)?;
-    add_insight_with_client("output", "test2", "Another overview", "More details here", &client)?;
+    add_insight_with_client("output", "test1", "Short overview", "Short details")?;
+    add_insight_with_client("output", "test2", "Another overview", "More details here")?;
 
     // Test different output modes
     get_insight("output", "test1", false)?; // Full content

@@ -4,8 +4,6 @@
 //! storage and retrieval for development workflows and team collaboration.
 
 pub mod commands;
-pub mod embedding_client;
-pub mod embedding_model;
 pub mod insight;
 pub mod search;
 pub mod semantic;

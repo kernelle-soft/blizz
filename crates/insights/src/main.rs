@@ -2,8 +2,6 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 mod commands;
-mod embedding_client;
-mod embedding_model;
 mod insight;
 mod search;
 mod semantic;
