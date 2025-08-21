@@ -90,6 +90,7 @@ pub fn save(insight: &Insight) -> Result<()> {
 }
 
 /// Save an insight, overwriting if it already exists (used for embedding updates)
+#[allow(dead_code)]
 pub fn save_existing(insight: &Insight) -> Result<()> {
   let file_path = file_path(insight)?;
   write_to_file(insight, &file_path)

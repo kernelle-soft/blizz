@@ -386,9 +386,7 @@ mod insight_tests {
       topic: None,
       case_sensitive: false,
       overview_only: false,
-      semantic: false,
       exact: true, // Use exact search which doesn't require neural features
-      embedding_client: insights::embedding_client::create(),
     };
 
     let results = insights::search::search(&["rust".to_string()], &search_options)?;
