@@ -1,19 +1,11 @@
-#[cfg(all(test, feature = "neural"))]
 use anyhow::Result;
-#[cfg(all(test, feature = "neural"))]
 use chrono::Utc;
-#[cfg(all(test, feature = "neural"))]
 use insights::embedding_client::Embedding;
-#[cfg(all(test, feature = "neural"))]
 use insights::insight::{self, Insight};
-#[cfg(all(test, feature = "neural"))]
 use serial_test::serial;
-#[cfg(all(test, feature = "neural"))]
 use std::env;
-#[cfg(all(test, feature = "neural"))]
 use tempfile::TempDir;
 
-#[cfg(all(test, feature = "neural"))]
 mod neural_feature_tests {
   use super::*;
 

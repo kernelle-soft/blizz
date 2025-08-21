@@ -9,11 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
 
-#[cfg(feature = "neural")]
 use insights::embedding_model::{create_production_model, EmbeddingModel};
-
-#[cfg(not(feature = "neural"))]
-use insights::embedding_model::MockEmbeddingModel;
 
 // Platform-specific constants
 #[cfg(unix)]
@@ -102,16 +98,9 @@ impl<M: EmbeddingModel> EmbeddingService<M> {
   }
 }
 
-#[cfg(feature = "neural")]
 async fn create_embedding_service(
 ) -> Result<EmbeddingService<insights::embedding_model::OnnxEmbeddingModel>> {
   let model = create_production_model().await?;
-  Ok(EmbeddingService::new(model))
-}
-
-#[cfg(not(feature = "neural"))]
-async fn create_embedding_service() -> Result<EmbeddingService<MockEmbeddingModel>> {
-  let model = MockEmbeddingModel::new();
   Ok(EmbeddingService::new(model))
 }
 

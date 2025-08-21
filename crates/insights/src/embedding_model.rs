@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use std::path::Path;
 
-#[cfg(feature = "neural")]
 use ort::session::{builder::GraphOptimizationLevel, Session};
 use ort::{session::SessionOutputs, value::Tensor};
 
@@ -10,13 +9,11 @@ pub trait EmbeddingModel {
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>>;
 }
 
-#[cfg(feature = "neural")]
 pub struct OnnxEmbeddingModel {
   session: Session,
   tokenizer: tokenizers::Tokenizer,
 }
 
-#[cfg(feature = "neural")]
 impl EmbeddingModel for OnnxEmbeddingModel {
   fn compute_embeddings(&mut self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
     compute_onnx_embeddings(self, texts)
@@ -65,7 +62,6 @@ impl EmbeddingModel for MockEmbeddingModel {
   }
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)]
 pub async fn create_production_model() -> Result<OnnxEmbeddingModel> {
   initialize_onnx_runtime()?;
@@ -75,7 +71,6 @@ pub async fn create_production_model() -> Result<OnnxEmbeddingModel> {
   Ok(OnnxEmbeddingModel { session, tokenizer })
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 fn initialize_onnx_runtime() -> Result<()> {
   ort::init()
@@ -85,7 +80,6 @@ fn initialize_onnx_runtime() -> Result<()> {
     .map(|_| ())
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 fn create_model_session() -> Result<Session> {
   // Try to load from URL if local file doesn't exist
@@ -107,7 +101,6 @@ fn create_model_session() -> Result<Session> {
   Ok(session)
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
   // Load tokenizer from embedded data - no files, no downloads, no dependencies!
@@ -116,7 +109,6 @@ fn load_tokenizer() -> Result<tokenizers::Tokenizer> {
     .map_err(|e| anyhow!("Failed to load embedded tokenizer: {}", e))
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 pub fn compute_onnx_embeddings(
   model: &mut OnnxEmbeddingModel,
@@ -167,7 +159,6 @@ fn get_session_outputs<'a>(outputs: &'a SessionOutputs<'_>) -> Result<&'a ort::v
   Ok(output)
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 fn tokenize_texts(
   tokenizer: &mut tokenizers::Tokenizer,
@@ -177,7 +168,6 @@ fn tokenize_texts(
   tokenizer.encode_batch(text_refs, true).map_err(|e| anyhow!("Failed to encode texts: {}", e))
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 fn batch_tokens(
   encodings: &[tokenizers::Encoding],
@@ -210,7 +200,6 @@ fn batch_tokens(
   (ids, mask, token_type_ids, batch, length)
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 fn extract_embeddings(data: &[f32], batch_size: usize) -> Vec<Vec<f32>> {
   let mut results = Vec::new();
@@ -235,7 +224,6 @@ fn extract_embeddings(data: &[f32], batch_size: usize) -> Vec<Vec<f32>> {
   results
 }
 
-#[cfg(feature = "neural")]
 #[allow(dead_code)] // Used by daemon binary
 fn normalize_vector(vector: Vec<f32>) -> Vec<f32> {
   let magnitude: f32 = vector.iter().map(|x| x * x).sum::<f32>().sqrt();

@@ -1,27 +1,18 @@
 // violet ignore file -- test file for complex lazy embedding recomputation interaction
-#[cfg(all(test, feature = "neural"))]
 use anyhow::Result;
-#[cfg(all(test, feature = "neural"))]
 use insights::embedding_client::{self, MockEmbeddingService};
-#[cfg(all(test, feature = "neural"))]
 use insights::insight::{self, Insight};
-#[cfg(all(test, feature = "neural"))]
 use insights::search::{self, SearchOptions};
-#[cfg(all(test, feature = "neural"))]
 use serial_test::serial;
-#[cfg(all(test, feature = "neural"))]
 use std::env;
-#[cfg(all(test, feature = "neural"))]
 use tempfile::TempDir;
 
-#[cfg(all(test, feature = "neural"))]
 fn setup_temp_insights_root(_test_name: &str) -> TempDir {
   let temp_dir = TempDir::new().unwrap();
   env::set_var("INSIGHTS_ROOT", temp_dir.path());
   temp_dir
 }
 
-#[cfg(all(test, feature = "neural"))]
 #[test]
 #[serial]
 fn test_lazy_embedding_save_on_search() -> Result<()> {
@@ -48,7 +39,6 @@ fn test_lazy_embedding_save_on_search() -> Result<()> {
     topic: None,
     case_sensitive: false,
     overview_only: false,
-    #[cfg(feature = "semantic")]
     semantic: false, // Disable semantic to force neural search
     exact: false, // Disable exact to force neural search
     embedding_client: mock_client,
@@ -78,7 +68,6 @@ fn test_lazy_embedding_save_on_search() -> Result<()> {
   Ok(())
 }
 
-#[cfg(all(test, feature = "neural"))]
 #[test]
 #[serial]
 fn test_existing_embedding_not_overwritten() -> Result<()> {
@@ -105,7 +94,6 @@ fn test_existing_embedding_not_overwritten() -> Result<()> {
     topic: None,
     case_sensitive: false,
     overview_only: false,
-    #[cfg(feature = "semantic")]
     semantic: false,
     exact: false,
     embedding_client: mock_client,

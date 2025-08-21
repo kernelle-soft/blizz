@@ -2,13 +2,10 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 
 mod commands;
-#[cfg(feature = "neural")]
 mod embedding_client;
-#[cfg(feature = "neural")]
 mod embedding_model;
 mod insight;
 mod search;
-#[cfg(feature = "semantic")]
 mod semantic;
 mod similarity;
 
@@ -90,7 +87,6 @@ enum Command {
   /// List all available topics
   Topics,
   /// Recompute embeddings for all insights
-  #[cfg(feature = "neural")]
   Index {
     /// Force recompute even for insights that already have embeddings
     #[arg(short, long)]
@@ -116,7 +112,6 @@ fn handle(command: Command) -> Result<()> {
     }
     Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force),
     Command::Topics => commands::list_topics(),
-    #[cfg(feature = "neural")]
     Command::Index { force } => commands::index_insights(force),
   }
 }

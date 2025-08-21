@@ -1,10 +1,7 @@
-#[cfg(feature = "neural")]
 use insights::embedding_client;
-#[cfg(feature = "neural")]
 use insights::embedding_client::MockEmbeddingService;
 
 #[cfg(test)]
-#[cfg(feature = "neural")]
 mod command_tests {
   use super::*;
   use anyhow::Result;

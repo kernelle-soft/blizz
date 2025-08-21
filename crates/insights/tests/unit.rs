@@ -386,10 +386,8 @@ mod insight_tests {
       topic: None,
       case_sensitive: false,
       overview_only: false,
-      #[cfg(feature = "semantic")]
       semantic: false,
       exact: true, // Use exact search which doesn't require neural features
-      #[cfg(feature = "neural")]
       embedding_client: insights::embedding_client::create(),
     };
 

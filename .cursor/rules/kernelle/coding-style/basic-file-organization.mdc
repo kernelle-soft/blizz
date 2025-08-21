@@ -87,10 +87,8 @@ use crate::semantic;
 use crate::similarity;
 
 // Semantic similarity threshold for meaningful results
-#[cfg(feature = "semantic")]
 const SEMANTIC_SIMILARITY_THRESHOLD: f32 = 0.2;
 
-#[cfg(feature = "neural")]
 const EMBEDDING_SIMILARITY_THRESHOLD: f32 = 0.2;
 
 #[derive(Debug)]
@@ -115,7 +113,6 @@ pub struct SearchOptions {
   #[arg(short, long)]
   overview_only: bool,
   /// Use semantic + exact search only (drops neural for speed)
-  #[cfg(feature = "semantic")]
   #[arg(short, long)]
   semantic: bool,
   /// Use exact term matching only (fastest, drops neural and semantic)
@@ -127,12 +124,10 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<()> {
   let mut results = Vec::new();
   results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
 
-  #[cfg(feature = "semantic")]
   if can_use_semantic_similarity_search(options) {
     results.extend(search_topic(terms, get_semantic_match, SEMANTIC_SIMILARITY_THRESHOLD, options)?);
   }
 
-  #[cfg(feature = "neural")]
   if can_use_embedding_search(options) {
     results.extend(search_topic(terms, get_embedding_match, EMBEDDING_SIMILARITY_THRESHOLD, options)?);
   }
@@ -229,13 +224,11 @@ fn get_exact_match(content: &str, terms: &[String]) -> f32 {
     .sum::<usize>() as f32
 }
 
-#[cfg(feature = "semantic")]
 fn get_semantic_match(content: &str, terms: &[String]) -> f32 {
   let extracted_terms = semantic::extract_words(&terms.join(" "));
   semantic::similarity(&extracted_terms, content)
 }
 
-#[cfg(feature = "neural")]
 fn get_embedding_match(content: &str, terms: &[String]) -> f32 {
   match try_daemon_embedding_match(content, terms) {
     Ok(similarity) => similarity,
@@ -243,7 +236,6 @@ fn get_embedding_match(content: &str, terms: &[String]) -> f32 {
   }
 }
 
-#[cfg(feature = "neural")]
 fn try_daemon_embedding_match(content: &str, terms: &[String]) -> Result<f32> {
   let query_embedding = embedding_client::create_embedding_daemon_only(&terms.join(" "))?;
   let content_embedding = embedding_client::create_embedding_daemon_only(content)?;

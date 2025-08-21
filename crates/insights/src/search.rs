@@ -5,17 +5,13 @@ use colored::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "neural")]
 use crate::embedding_client;
 use crate::insight;
-#[cfg(any(feature = "semantic", feature = "neural"))]
 use crate::similarity;
 
 // Semantic similarity threshold for meaningful results
-#[cfg(feature = "semantic")]
 const SEMANTIC_SIMILARITY_THRESHOLD: f32 = 0.2;
 
-#[cfg(feature = "neural")]
 const EMBEDDING_SIMILARITY_THRESHOLD: f32 = 0.2;
 
 #[derive(Debug)]
@@ -40,7 +36,6 @@ pub struct SearchCommandOptions {
   #[arg(short, long)]
   overview_only: bool,
   /// Use semantic + exact search only (drops neural for speed)
-  #[cfg(feature = "semantic")]
   #[arg(short, long)]
   semantic: bool,
   /// Use exact term matching only (fastest, drops neural and semantic)
@@ -52,10 +47,8 @@ pub struct SearchOptions {
   pub topic: Option<String>,
   pub case_sensitive: bool,
   pub overview_only: bool,
-  #[cfg(feature = "semantic")]
   pub semantic: bool,
   pub exact: bool,
-  #[cfg(feature = "neural")]
   pub embedding_client: embedding_client::EmbeddingClient,
 }
 
@@ -65,10 +58,8 @@ impl SearchOptions {
       topic: options.topic.clone(),
       case_sensitive: options.case_sensitive,
       overview_only: options.overview_only,
-      #[cfg(feature = "semantic")]
       semantic: options.semantic,
       exact: options.exact,
-      #[cfg(feature = "neural")]
       embedding_client: embedding_client::create(),
     }
   }
@@ -81,7 +72,6 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
     results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
   }
 
-  #[cfg(feature = "semantic")]
   if can_use_semantic_similarity_search(options) {
     results.extend(search_topic(
       terms,
@@ -91,7 +81,6 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
     )?);
   }
 
-  #[cfg(feature = "neural")]
   if can_use_embedding_search(options) {
     results.extend(search_topic(
       terms,
@@ -116,38 +105,19 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
 /// Check if exact search should be used (default behavior unless explicitly disabled)
 fn can_use_exact_search(options: &SearchOptions) -> bool {
   // Don't run exact search when we want neural-only mode
-  #[cfg(feature = "semantic")]
   if !options.semantic && !options.exact {
     false // Neural-only mode for testing
   } else {
-    #[cfg(feature = "semantic")]
-    {
-      !options.semantic
-    } // Run exact unless semantic-only mode
-    #[cfg(not(feature = "semantic"))]
-    {
-      !options.exact
-    }
+    !options.semantic // Run exact unless semantic-only mode
   }
-  #[cfg(not(feature = "semantic"))]
-  !options.exact
 }
 
 /// Check if embedding search feature can be used
-#[cfg(feature = "neural")]
 fn can_use_embedding_search(options: &SearchOptions) -> bool {
-  #[cfg(feature = "semantic")]
-  {
-    !options.semantic && !options.exact
-  }
-  #[cfg(not(feature = "semantic"))]
-  {
-    !options.exact
-  }
+  !options.semantic && !options.exact
 }
 
 /// Check if semantic search feature can be used
-#[cfg(feature = "semantic")]
 fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
   !options.exact
 }
@@ -227,7 +197,6 @@ fn get_exact_match(insight: &insight::Insight, terms: &[String], options: &Searc
   normalized_terms.iter().map(|term| normalized_content.matches(term).count()).sum::<usize>() as f32
 }
 
-#[cfg(feature = "semantic")]
 fn get_semantic_match(
   insight: &insight::Insight,
   terms: &[String],
@@ -239,7 +208,6 @@ fn get_semantic_match(
   similarity::semantic(&normalized_terms.into_iter().collect(), &normalized_content)
 }
 
-#[cfg(feature = "neural")]
 fn get_embedding_match(
   insight: &insight::Insight,
   terms: &[String],
@@ -248,7 +216,6 @@ fn get_embedding_match(
   try_get_embedding(insight, terms, options).unwrap_or(0.0)
 }
 
-#[cfg(feature = "neural")]
 fn try_get_embedding(
   insight: &insight::Insight,
   terms: &[String],
@@ -278,7 +245,6 @@ fn try_get_embedding(
 }
 
 /// Recompute the embedding for an insight and save it to the file system.
-#[cfg(feature = "neural")]
 fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> Result<Vec<f32>> {
   let normalized_content = get_normalized_content(insight, options);
 

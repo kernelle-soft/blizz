@@ -1,10 +1,7 @@
-#[cfg(feature = "neural")]
 use insights::embedding_client;
-#[cfg(feature = "neural")]
 use insights::embedding_client::MockEmbeddingService;
 
 #[cfg(test)]
-#[cfg(feature = "neural")]
 mod index_command_tests {
   use super::*;
   use anyhow::Result;
@@ -200,29 +197,5 @@ mod index_command_tests {
     assert_eq!(preserved.details, original_details);
 
     Ok(())
-  }
-
-  // Helper function for creating test insights directory (unused in simplified tests)
-  #[allow(dead_code)]
-  fn create_test_insights_dir() -> Result<()> {
-    use std::fs;
-
-    let insights_dir = std::env::var("INSIGHTS_ROOT")?;
-    fs::create_dir_all(&insights_dir)?;
-    Ok(())
-  }
-}
-
-// Test that index_insights compilation is conditional on neural feature
-#[cfg(not(feature = "neural"))]
-#[cfg(test)]
-mod general_index_tests {
-  #[test]
-  fn test_index_command_conditional_compilation() {
-    // This test verifies that when neural features are disabled,
-    // the code still compiles but index_insights is not available
-    // The test itself doesn't do much, but ensures the conditional compilation works
-
-    // Test passes if compilation succeeds - no assertions needed
   }
 }
