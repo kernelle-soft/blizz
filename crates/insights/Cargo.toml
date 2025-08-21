@@ -18,12 +18,6 @@ path = "src/main.rs"
 [[bin]]
 name = "insights_embedding_daemon"
 path = "src/bin/insights_embedding_daemon.rs"
-required-features = ["neural"]
-
-[features]
-default = ["semantic", "neural"]
-semantic = []
-neural = ["ort", "ndarray", "tokenizers", "tokio", "uuid"]
 
 [dependencies]
 clap.workspace = true
@@ -46,13 +40,13 @@ serde_json.workspace = true
 serde_yaml = "0.9"
 
 # Async runtime for daemon IPC
-tokio = { version = "1.47", features = ["full"], optional = true }
-uuid = { version = "1.18", features = ["v4"], optional = true }
+tokio = { version = "1.47", features = ["full"] }
+uuid = { version = "1.18", features = ["v4"] }
 
 # Neural embeddings via ONNX (v2 API!)
-ort = { version = "2.0.0-rc.10", features = ["fetch-models"], optional = true }
-ndarray = { version = "0.16", optional = true }
-tokenizers = { version = "0.21", default-features = false, features = ["onig"], optional = true }
+ort = { version = "2.0.0-rc.10", features = ["fetch-models"] }
+ndarray = { version = "0.16" }
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 
 # Future: Neural embeddings when ecosystem stabilizes
 

@@ -5,18 +5,11 @@ use colored::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "neural")]
-use crate::embedding_client;
 use crate::insight;
-#[cfg(any(feature = "semantic", feature = "neural"))]
 use crate::similarity;
 
 // Semantic similarity threshold for meaningful results
-#[cfg(feature = "semantic")]
 const SEMANTIC_SIMILARITY_THRESHOLD: f32 = 0.2;
-
-#[cfg(feature = "neural")]
-const EMBEDDING_SIMILARITY_THRESHOLD: f32 = 0.2;
 
 #[derive(Debug)]
 pub struct SearchResult {
@@ -39,11 +32,7 @@ pub struct SearchCommandOptions {
   /// Search only in overview sections
   #[arg(short, long)]
   overview_only: bool,
-  /// Use semantic + exact search only (drops neural for speed)
-  #[cfg(feature = "semantic")]
-  #[arg(short, long)]
-  semantic: bool,
-  /// Use exact term matching only (fastest, drops neural and semantic)
+  /// Use exact term matching only
   #[arg(short, long)]
   exact: bool,
 }
@@ -52,11 +41,7 @@ pub struct SearchOptions {
   pub topic: Option<String>,
   pub case_sensitive: bool,
   pub overview_only: bool,
-  #[cfg(feature = "semantic")]
-  pub semantic: bool,
   pub exact: bool,
-  #[cfg(feature = "neural")]
-  pub embedding_client: embedding_client::EmbeddingClient,
 }
 
 impl SearchOptions {
@@ -65,11 +50,7 @@ impl SearchOptions {
       topic: options.topic.clone(),
       case_sensitive: options.case_sensitive,
       overview_only: options.overview_only,
-      #[cfg(feature = "semantic")]
-      semantic: options.semantic,
       exact: options.exact,
-      #[cfg(feature = "neural")]
-      embedding_client: embedding_client::create(),
     }
   }
 }
@@ -77,28 +58,15 @@ impl SearchOptions {
 pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
 
-  if can_use_exact_search(options) {
-    results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
-  }
-
-  #[cfg(feature = "semantic")]
-  if can_use_semantic_similarity_search(options) {
+  if can_use_advanced_search(options) {
     results.extend(search_topic(
       terms,
       get_semantic_match,
       SEMANTIC_SIMILARITY_THRESHOLD,
       options,
     )?);
-  }
-
-  #[cfg(feature = "neural")]
-  if can_use_embedding_search(options) {
-    results.extend(search_topic(
-      terms,
-      get_embedding_match,
-      EMBEDDING_SIMILARITY_THRESHOLD,
-      options,
-    )?);
+  } else {
+    results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
   }
 
   results.sort_by(|a, b| {
@@ -113,42 +81,8 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
   Ok(results)
 }
 
-/// Check if exact search should be used (default behavior unless explicitly disabled)
-fn can_use_exact_search(options: &SearchOptions) -> bool {
-  // Don't run exact search when we want neural-only mode
-  #[cfg(feature = "semantic")]
-  if !options.semantic && !options.exact {
-    false // Neural-only mode for testing
-  } else {
-    #[cfg(feature = "semantic")]
-    {
-      !options.semantic
-    } // Run exact unless semantic-only mode
-    #[cfg(not(feature = "semantic"))]
-    {
-      !options.exact
-    }
-  }
-  #[cfg(not(feature = "semantic"))]
-  !options.exact
-}
-
-/// Check if embedding search feature can be used
-#[cfg(feature = "neural")]
-fn can_use_embedding_search(options: &SearchOptions) -> bool {
-  #[cfg(feature = "semantic")]
-  {
-    !options.semantic && !options.exact
-  }
-  #[cfg(not(feature = "semantic"))]
-  {
-    !options.exact
-  }
-}
-
 /// Check if semantic search feature can be used
-#[cfg(feature = "semantic")]
-fn can_use_semantic_similarity_search(options: &SearchOptions) -> bool {
+fn can_use_advanced_search(options: &SearchOptions) -> bool {
   !options.exact
 }
 
@@ -227,7 +161,6 @@ fn get_exact_match(insight: &insight::Insight, terms: &[String], options: &Searc
   normalized_terms.iter().map(|term| normalized_content.matches(term).count()).sum::<usize>() as f32
 }
 
-#[cfg(feature = "semantic")]
 fn get_semantic_match(
   insight: &insight::Insight,
   terms: &[String],
@@ -237,66 +170,6 @@ fn get_semantic_match(
   let normalized_terms = get_normalized_terms(terms, options);
 
   similarity::semantic(&normalized_terms.into_iter().collect(), &normalized_content)
-}
-
-#[cfg(feature = "neural")]
-fn get_embedding_match(
-  insight: &insight::Insight,
-  terms: &[String],
-  options: &SearchOptions,
-) -> f32 {
-  try_get_embedding(insight, terms, options).unwrap_or(0.0)
-}
-
-#[cfg(feature = "neural")]
-fn try_get_embedding(
-  insight: &insight::Insight,
-  terms: &[String],
-  options: &SearchOptions,
-) -> Result<f32> {
-  let client = &options.embedding_client;
-
-  let normalized_terms = get_normalized_terms(terms, options);
-
-  // Create a temporary insight for query embedding
-  let mut query_insight = insight::Insight::new(
-    "query".to_string(),
-    "search_terms".to_string(),
-    normalized_terms.join(" "),
-    "".to_string(),
-  );
-
-  let query_embedding_obj = embedding_client::embed_insight(client, &mut query_insight);
-  let query_embedding = query_embedding_obj.embedding;
-  let content_embedding = if let Some(embedding) = insight.embedding.as_ref() {
-    embedding.clone()
-  } else {
-    recompute_embedding(insight, options)?
-  };
-
-  Ok(similarity::cosine(&query_embedding, &content_embedding))
-}
-
-/// Recompute the embedding for an insight and save it to the file system.
-#[cfg(feature = "neural")]
-fn recompute_embedding(insight: &insight::Insight, options: &SearchOptions) -> Result<Vec<f32>> {
-  let normalized_content = get_normalized_content(insight, options);
-
-  // Create a temporary insight for embedding computation
-  let mut temp_insight = insight::Insight::new(
-    insight.topic.clone(),
-    insight.name.clone(),
-    insight.overview.clone(),
-    normalized_content,
-  );
-
-  let embedding = embedding_client::embed_insight(&options.embedding_client, &mut temp_insight);
-
-  // Lazily recompute and save embedding.
-  let mut to_save = insight.clone();
-  insight::set_embedding(&mut to_save, embedding.clone());
-  insight::save_existing(&to_save)?;
-  Ok(embedding.embedding)
 }
 
 /// Highlight search terms

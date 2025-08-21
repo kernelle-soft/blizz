@@ -16,16 +16,14 @@ use tokio::net::UnixStream;
 use crate::insight::{self, Insight};
 
 // Platform-specific constants
-#[cfg(all(feature = "neural", unix))]
+#[cfg(unix)]
 const SOCKET_PATH: &str = "/tmp/insights_embeddings.sock";
-#[cfg(all(feature = "neural", windows))]
+#[cfg(windows)]
 const TCP_ADDRESS: &str = "127.0.0.1:47291";
 
-#[cfg(feature = "neural")]
 const STARTUP_DELAY_MS: u64 = 500;
 
 // Cross-platform stream abstraction
-#[cfg(feature = "neural")]
 enum InsightsStream {
   #[cfg(unix)]
   Unix(UnixStream),
@@ -33,7 +31,6 @@ enum InsightsStream {
   Tcp(TcpStream),
 }
 
-#[cfg(feature = "neural")]
 impl InsightsStream {
   async fn write_all(&mut self, buf: &[u8]) -> Result<(), std::io::Error> {
     match self {
@@ -53,14 +50,12 @@ pub struct Embedding {
   pub embedding: Vec<f32>,
 }
 
-#[cfg(feature = "neural")]
 #[derive(Serialize, Deserialize)]
 struct EmbeddingRequest {
   texts: Vec<String>,
   id: String,
 }
 
-#[cfg(feature = "neural")]
 #[derive(Serialize, Deserialize)]
 struct EmbeddingResponse {
   embeddings: Vec<Vec<f32>>,
@@ -119,16 +114,7 @@ impl EmbeddingService for MockEmbeddingService {
 
 // Private implementation functions
 fn blocking_embed(insight: &mut Insight) -> Embedding {
-  #[cfg(feature = "neural")]
-  {
-    real_blocking_embed(insight)
-  }
-
-  #[cfg(not(feature = "neural"))]
-  {
-    let _ = insight;
-    Embedding { version: "mock".to_string(), created_at: Utc::now(), embedding: vec![0.0; 384] }
-  }
+  real_blocking_embed(insight)
 }
 
 fn real_blocking_embed(insight: &mut Insight) -> Embedding {
@@ -145,7 +131,6 @@ fn real_blocking_embed(insight: &mut Insight) -> Embedding {
   }
 }
 
-#[cfg(feature = "neural")]
 async fn compute_insight_embedding(insight: &Insight) -> Result<Embedding> {
   let embedding_text = insight::get_embedding_text(insight);
   let result = request(&embedding_text).await;
@@ -157,7 +142,6 @@ async fn compute_insight_embedding(insight: &Insight) -> Result<Embedding> {
   }
 }
 
-#[cfg(feature = "neural")]
 async fn request(text: &str) -> Result<Vec<f32>> {
   if let Ok(embedding) = request_embedding_from_daemon(text).await {
     return Ok(embedding);
@@ -166,38 +150,34 @@ async fn request(text: &str) -> Result<Vec<f32>> {
   request_embedding_with_retry(text).await
 }
 
-#[cfg(feature = "neural")]
 async fn request_embedding_from_daemon(text: &str) -> Result<Vec<f32>> {
   let request = create_request(text);
   let response = send(&request).await?;
   parse_response(response)
 }
 
-#[cfg(feature = "neural")]
 fn create_request(text: &str) -> EmbeddingRequest {
   EmbeddingRequest { texts: vec![text.to_string()], id: uuid::Uuid::new_v4().to_string() }
 }
 
-#[cfg(feature = "neural")]
 async fn send(request: &EmbeddingRequest) -> Result<EmbeddingResponse> {
   let mut stream = connect_to_daemon().await?;
   stream_to(&mut stream, request).await?;
   stream_from(&mut stream).await
 }
 
-#[cfg(all(feature = "neural", unix))]
+#[cfg(unix)]
 async fn connect_to_daemon() -> Result<InsightsStream> {
   let stream = UnixStream::connect(SOCKET_PATH).await.map_err(|_| anyhow!("Daemon not running"))?;
   Ok(InsightsStream::Unix(stream))
 }
 
-#[cfg(all(feature = "neural", windows))]
+#[cfg(windows)]
 async fn connect_to_daemon() -> Result<InsightsStream> {
   let stream = TcpStream::connect(TCP_ADDRESS).await.map_err(|_| anyhow!("Daemon not running"))?;
   Ok(InsightsStream::Tcp(stream))
 }
 
-#[cfg(feature = "neural")]
 async fn stream_to(stream: &mut InsightsStream, request: &EmbeddingRequest) -> Result<()> {
   let json = serde_json::to_string(request)?;
   stream.write_all(json.as_bytes()).await?;
@@ -205,7 +185,6 @@ async fn stream_to(stream: &mut InsightsStream, request: &EmbeddingRequest) -> R
   Ok(())
 }
 
-#[cfg(feature = "neural")]
 async fn stream_from(stream: &mut InsightsStream) -> Result<EmbeddingResponse> {
   let reader = match stream {
     #[cfg(unix)]
@@ -221,7 +200,6 @@ async fn stream_from(stream: &mut InsightsStream) -> Result<EmbeddingResponse> {
   serde_json::from_str(line.trim()).map_err(|e| anyhow!("Invalid response: {}", e))
 }
 
-#[cfg(feature = "neural")]
 fn parse_response(response: EmbeddingResponse) -> Result<Vec<f32>> {
   if let Some(error) = response.error {
     return Err(anyhow!("Daemon error: {}", error));
@@ -229,14 +207,12 @@ fn parse_response(response: EmbeddingResponse) -> Result<Vec<f32>> {
   Ok(response.embeddings.into_iter().next().unwrap_or_default())
 }
 
-#[cfg(feature = "neural")]
 async fn request_embedding_with_retry(text: &str) -> Result<Vec<f32>> {
   start_daemon().await?;
   sleep(Duration::from_millis(STARTUP_DELAY_MS)).await;
   request_embedding_from_daemon(text).await
 }
 
-#[cfg(feature = "neural")]
 async fn start_daemon() -> Result<()> {
   let daemon_path = get_daemon_executable_path()?;
 
@@ -250,7 +226,7 @@ async fn start_daemon() -> Result<()> {
   Ok(())
 }
 
-#[cfg(all(feature = "neural", windows))]
+#[cfg(windows)]
 fn get_daemon_executable_path() -> Result<std::path::PathBuf> {
   let current_exe = std::env::current_exe()?;
   let exe_dir =
@@ -258,7 +234,7 @@ fn get_daemon_executable_path() -> Result<std::path::PathBuf> {
   Ok(exe_dir.join("insights_embedding_daemon.exe"))
 }
 
-#[cfg(all(feature = "neural", unix))]
+#[cfg(unix)]
 fn get_daemon_executable_path() -> Result<std::path::PathBuf> {
   let current_exe = std::env::current_exe()?;
   let exe_dir =

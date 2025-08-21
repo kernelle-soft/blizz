@@ -1,22 +1,13 @@
-#[cfg(feature = "neural")]
 use anyhow::Result;
-#[cfg(feature = "neural")]
 use insights::commands::*;
-#[cfg(feature = "neural")]
 use insights::embedding_client;
-#[cfg(feature = "neural")]
 use insights::embedding_client::MockEmbeddingService;
-#[cfg(feature = "neural")]
 use insights::insight;
-#[cfg(feature = "neural")]
 use serial_test::serial;
-#[cfg(feature = "neural")]
 use std::env;
-#[cfg(feature = "neural")]
 use tempfile::TempDir;
 
 #[cfg(test)]
-#[cfg(feature = "neural")]
 mod cli_enhancement_tests {
   use super::*;
 

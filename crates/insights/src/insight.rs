@@ -1,4 +1,3 @@
-#[cfg(feature = "neural")]
 use crate::embedding_client::Embedding;
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
@@ -69,19 +68,16 @@ pub fn file_path(insight: &Insight) -> Result<PathBuf> {
   Ok(insights_root.join(&normalized_topic).join(format!("{normalized_name}.insight.md")))
 }
 
-#[cfg(feature = "neural")]
 pub fn set_embedding(insight: &mut Insight, embedding: Embedding) {
   insight.embedding_version = Some(embedding.version);
   insight.embedding = Some(embedding.embedding);
   insight.embedding_computed = Some(embedding.created_at);
 }
 
-#[cfg(feature = "neural")]
 pub fn has_embedding(insight: &Insight) -> bool {
   insight.embedding.is_some()
 }
 
-#[cfg(feature = "neural")]
 pub fn get_embedding_text(insight: &Insight) -> String {
   format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details)
 }
@@ -94,7 +90,7 @@ pub fn save(insight: &Insight) -> Result<()> {
 }
 
 /// Save an insight, overwriting if it already exists (used for embedding updates)
-#[cfg(feature = "neural")]
+#[allow(dead_code)]
 pub fn save_existing(insight: &Insight) -> Result<()> {
   let file_path = file_path(insight)?;
   write_to_file(insight, &file_path)
