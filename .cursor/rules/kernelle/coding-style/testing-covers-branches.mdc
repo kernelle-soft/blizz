@@ -1,0 +1,50 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# High-Quality Unit Testing
+
+Good unit tests have these essential attributes:
+
+### **Applicable**: Test actual code
+- Tests test the functions and/or code they say they do
+- Code isn't written/modified to overfit the test case
+  - e.x., making a switch statement that's specifically designed to make the test pass, but not actually be useful
+
+### **Observational**: Tests use code. They don't modify it.
+- Tests use the code they put under test
+- Good tests don't modify code with special "test" branches or conditions
+- Note: good _code_ is generally easy to test
+
+### **Singular**: Test one specific case
+- Focus on single, well-defined behavior
+- Easier to read and debug failures
+
+### **Thorough**: Cover relevant cases and edge cases  
+- Test various inputs and expected outputs
+- Include error conditions and boundary cases
+
+### **Isolated**: Minimal dependencies
+- Don't rely on other tests, external services, or system state
+- Use mocks for external dependencies
+- Produce consistent, repeatable results
+
+### **Performant**: Fast execution (milliseconds)
+- Quick feedback accelerates development
+- Indicates tests are focused and isolated
+
+### **Maintainable**: Easy to understand and update
+- Clear naming and documentation for edge cases
+- Well-organized in logical directory structure
+- Short and readable implementations
+
+### **Reliable**: Consistent results
+- Eliminate flaky tests that randomly pass/fail
+- Mock randomness and external factors
+
+### **Strategic Redundancy**: Overlapping coverage helps
+- Multiple tests can validate the same functionality from different angles
+- Makes it easier to distinguish real bugs from test issues
+- Allows confident removal of flaky tests

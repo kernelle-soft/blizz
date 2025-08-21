@@ -2,29 +2,34 @@
 coverage-reports = ["Html", "Lcov", "Json"]
 output-dir = "target/coverage/"
 
-fail-under = 40.0  
+fail-under = 40.0
 ignore-panics = true
 
 skip-clean = true
 count = true
-line = true
 branch = true
 forward = true
 
 exclude = [
   # WIP packages that are unused and will be (re-)implemented in the future
   "adam",
-  
+]
+
+exclude-files = [
   # File-level excludes
   "*/tests/*",
-  "*/examples/*", 
+  "*/examples/*",
   "*/target/*",
 
   # Auth module uses external credentials - hard to test
   "*/auth.rs",
-  
+
   # Update module relies heavily on APIs and the file system - hard to test
   "*/kernelle/src/update.rs",
+
+  # Entrypoints and CLI routers are very simple and typically aren't useful to test
+  "*/cli.rs",
+  "*/main.rs"
 ]
 
 timeout = "120s"
@@ -34,4 +39,6 @@ release = true
 
 all-features = true
 workspace = true
-engine = "Llvm" 
+engine = "Llvm"
+out = ["Html", "Xml", "Json"]
+print = "branch"
