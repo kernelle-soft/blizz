@@ -1,7 +1,6 @@
 use anyhow::Result;
 use colored::*;
 
-use crate::embedding_client::{self, EmbeddingClient};
 use crate::insight::InsightMetaData;
 use crate::insight::{self, Insight};
 
@@ -11,14 +10,10 @@ pub fn add_insight_with_client(
   name: &str,
   overview: &str,
   details: &str,
-  client: &EmbeddingClient,
 ) -> Result<()> {
-  let mut insight =
+  let insight =
     Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
 
-  // Compute embedding before saving
-  let embedding = embedding_client::embed_insight(client, &mut insight);
-  insight::set_embedding(&mut insight, embedding);
   insight::save(&insight)?;
 
   println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
@@ -27,8 +22,7 @@ pub fn add_insight_with_client(
 
 /// Add a new insight to the knowledge base (production version)
 pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
-  let client = embedding_client::create();
-  add_insight_with_client(topic, name, overview, details, &client)
+  add_insight_with_client(topic, name, overview, details)
 }
 
 /// Get content of a specific insight
@@ -89,15 +83,10 @@ pub fn update_insight_with_client(
   name: &str,
   new_overview: Option<&str>,
   new_details: Option<&str>,
-  client: &EmbeddingClient,
 ) -> Result<()> {
   let mut insight = insight::load(topic, name)?;
 
   insight::update(&mut insight, new_overview, new_details)?;
-
-  // Recompute and set embedding after content change
-  let embedding = embedding_client::embed_insight(client, &mut insight);
-  insight::set_embedding(&mut insight, embedding);
 
   let file_path = insight::file_path(&insight)?;
   let metadata = InsightMetaData {
@@ -126,8 +115,7 @@ pub fn update_insight(
   new_overview: Option<&str>,
   new_details: Option<&str>,
 ) -> Result<()> {
-  let client = embedding_client::create();
-  update_insight_with_client(topic, name, new_overview, new_details, &client)
+  update_insight_with_client(topic, name, new_overview, new_details)
 }
 
 /// Delete an insight
@@ -144,16 +132,7 @@ pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
   Ok(())
 }
 
-fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -> Result<bool> {
-  let should_update = if force { true } else { !insight::has_embedding(insight) };
-
-  if !should_update {
-    return Ok(false);
-  }
-
-  let embedding = embedding_client::embed_insight(client, insight);
-  insight::set_embedding(insight, embedding);
-
+fn index_insight(insight: &mut Insight, _force: bool) -> Result<bool> {
   let file_path = insight::file_path(insight)?;
   let metadata = InsightMetaData {
     topic: insight.topic.clone(),
@@ -179,17 +158,13 @@ fn index_insight(insight: &mut Insight, force: bool, client: &EmbeddingClient) -
   Ok(true)
 }
 
-fn index_topics_with_client(
-  topic: &str,
-  force: bool,
-  client: &EmbeddingClient,
-) -> Result<(usize, usize)> {
+fn index_topics(topic: &str, force: bool) -> Result<(usize, usize)> {
   let insights = insight::get_insights(Some(topic))?;
   let total = insights.len();
   let mut updated = 0;
 
   for mut insight in insights {
-    if index_insight(&mut insight, force, client)? {
+    if index_insight(&mut insight, force)? {
       updated += 1;
     }
   }
@@ -198,7 +173,7 @@ fn index_topics_with_client(
 }
 
 /// Recompute embeddings for insights (testable version with dependency injection)
-pub fn index_insights_with_client(force: bool, client: &EmbeddingClient) -> Result<()> {
+pub fn index_insights(force: bool) -> Result<()> {
   let topics = insight::get_topics()?;
 
   if topics.is_empty() {
@@ -210,7 +185,7 @@ pub fn index_insights_with_client(force: bool, client: &EmbeddingClient) -> Resu
   let mut total_processed = 0;
 
   for topic in topics {
-    let (updated, processed) = index_topics_with_client(&topic, force, client)?;
+    let (updated, processed) = index_topics(&topic, force)?;
     total_updated += updated;
     total_processed += processed;
   }
@@ -223,10 +198,4 @@ pub fn index_insights_with_client(force: bool, client: &EmbeddingClient) -> Resu
   );
 
   Ok(())
-}
-
-/// Recompute embeddings for insights
-pub fn index_insights(force: bool) -> Result<()> {
-  let client = embedding_client::create();
-  index_insights_with_client(force, &client)
 }

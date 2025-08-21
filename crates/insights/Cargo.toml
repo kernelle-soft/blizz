@@ -15,10 +15,6 @@ path = "src/lib.rs"
 name = "insights"
 path = "src/main.rs"
 
-[[bin]]
-name = "insights_embedding_daemon"
-path = "src/bin/insights_embedding_daemon.rs"
-
 [dependencies]
 clap.workspace = true
 
