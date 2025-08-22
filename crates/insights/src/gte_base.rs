@@ -118,12 +118,30 @@ impl GTEBase {
       bentley::verbose(&format!("Generating embedding for: {}", 
           text.chars().take(50).collect::<String>()));
       
-      // Tokenize the input text
+      // Tokenize the input text (without truncation to detect overlong inputs)
       let encoding = self.tokenizer
           .encode(text, true)
           .map_err(|e| anyhow!("Tokenization failed: {}", e))?;
       
+      // Check if input exceeds model's maximum sequence length
       let input_ids = encoding.get_ids();
+      let token_count = input_ids.len();
+      const MAX_SEQUENCE_LENGTH: usize = 511; // GTE-Base limit is 512. Since tokenization truncates longer, we reject at 511 to guarantee it's under the limit.
+      
+      bentley::info(&format!("Token count check: {} tokens (limit: {})", token_count, MAX_SEQUENCE_LENGTH));
+      
+      if token_count > MAX_SEQUENCE_LENGTH {
+        let error_msg = format!(
+          "Input text contains {} tokens, which exceeds the model's maximum sequence length of {}. Please reduce the input size.",
+          token_count,
+          MAX_SEQUENCE_LENGTH
+        );
+        bentley::warn(&error_msg);
+        return Err(anyhow!(error_msg));
+      }
+      
+      bentley::info(&format!("✓ Processing {} tokens (within {} limit)", token_count, MAX_SEQUENCE_LENGTH));
+      
       let attention_mask = encoding.get_attention_mask();
       let token_type_ids = encoding.get_type_ids();
       
