@@ -14,43 +14,36 @@ use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 struct EmbeddingRequest {
-    request: String,
-    body: String,
+  request: String,
+  body: String,
 }
 
 #[derive(Debug, Serialize)]
 struct EmbeddingResponse {
-    success: bool,
-    body: Vec<f32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<ErrorInfo>,
+  success: bool,
+  body: Vec<f32>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  error: Option<ErrorInfo>,
 }
 
 #[derive(Debug, Serialize)]
 struct ErrorInfo {
-    message: String,
-    tag: String,
+  message: String,
+  tag: String,
 }
 
 impl EmbeddingResponse {
-    fn success(embedding: Vec<f32>) -> Self {
-        Self {
-            success: true,
-            body: embedding,
-            error: None,
-        }
-    }
+  fn success(embedding: Vec<f32>) -> Self {
+    Self { success: true, body: embedding, error: None }
+  }
 
-    fn error(message: &str, tag: &str) -> Self {
-        Self {
-            success: false,
-            body: Vec::new(),
-            error: Some(ErrorInfo {
-                message: message.to_string(),
-                tag: tag.to_string(),
-            }),
-        }
+  fn error(message: &str, tag: &str) -> Self {
+    Self {
+      success: false,
+      body: Vec::new(),
+      error: Some(ErrorInfo { message: message.to_string(), tag: tag.to_string() }),
     }
+  }
 }
 
 #[tokio::main]
@@ -64,7 +57,7 @@ async fn main() -> Result<()> {
   let embedder = match GTEBase::load().await {
     Ok(embedder) => Some(Arc::new(tokio::sync::Mutex::new(embedder))),
     Err(e) => {
-      bentley::warn(&format!("Failed to load embedder model: {}", e));
+      bentley::warn(&format!("Failed to load embedder model: {e}"));
       bentley::warn("Daemon will run without embedding capabilities");
       None
     }
@@ -108,7 +101,10 @@ fn create_socket(insights_path: &Path) -> Result<PathBuf> {
   Ok(socket)
 }
 
-fn spawn_handler(socket: &PathBuf, embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>) -> JoinHandle<()> {
+fn spawn_handler(
+  socket: &PathBuf,
+  embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
+) -> JoinHandle<()> {
   let listener = match UnixListener::bind(socket) {
     Ok(listener) => listener,
     Err(e) => {
@@ -123,7 +119,7 @@ fn spawn_handler(socket: &PathBuf, embedder: Option<Arc<tokio::sync::Mutex<GTEBa
     loop {
       match listener.accept().await {
         Ok((stream, _)) => {
-          let embedder_for_task = embedder.as_ref().map(|e| Arc::clone(e));
+          let embedder_for_task = embedder.as_ref().map(Arc::clone);
           tokio::spawn(async move {
             handle_client(stream, embedder_for_task).await;
           });
@@ -138,12 +134,18 @@ fn spawn_handler(socket: &PathBuf, embedder: Option<Arc<tokio::sync::Mutex<GTEBa
   handler
 }
 
-async fn handle_client(mut stream: tokio::net::UnixStream, embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>) {
+async fn handle_client(
+  mut stream: tokio::net::UnixStream,
+  embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
+) {
   let response = process_client_request(&mut stream, embedder).await;
   send_response_to_client(&mut stream, response).await;
 }
 
-async fn process_client_request(stream: &mut tokio::net::UnixStream, embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>) -> EmbeddingResponse {
+async fn process_client_request(
+  stream: &mut tokio::net::UnixStream,
+  embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
+) -> EmbeddingResponse {
   let request_data = match read_request_data(stream).await {
     Ok(data) => data,
     Err(response) => return response,
@@ -161,19 +163,24 @@ async fn process_client_request(stream: &mut tokio::net::UnixStream, embedder: O
 
   if request.request != "embed" {
     bentley::warn(&format!("unsupported request type: {}", request.request));
-    return EmbeddingResponse::error(&format!("Unsupported request type: {}", request.request), "unsupported_request");
+    return EmbeddingResponse::error(
+      &format!("Unsupported request type: {}", request.request),
+      "unsupported_request",
+    );
   }
 
   process_embedding_request(&request.body, embedder).await
 }
 
-async fn read_request_data(stream: &mut tokio::net::UnixStream) -> Result<Vec<u8>, EmbeddingResponse> {
+async fn read_request_data(
+  stream: &mut tokio::net::UnixStream,
+) -> Result<Vec<u8>, EmbeddingResponse> {
   let mut buffer = Vec::new();
   match stream.read_to_end(&mut buffer).await {
     Ok(_) => Ok(buffer),
     Err(e) => {
-      bentley::warn(&format!("failed to read from client: {}", e));
-      Err(EmbeddingResponse::error(&format!("Failed to read request: {}", e), "read_failed"))
+      bentley::warn(&format!("failed to read from client: {e}"));
+      Err(EmbeddingResponse::error(&format!("Failed to read request: {e}"), "read_failed"))
     }
   }
 }
@@ -192,13 +199,16 @@ fn parse_json_request(request_str: &str) -> Result<EmbeddingRequest, EmbeddingRe
   match serde_json::from_str::<EmbeddingRequest>(request_str) {
     Ok(request) => Ok(request),
     Err(e) => {
-      bentley::warn(&format!("failed to parse JSON request: {}", e));
-      Err(EmbeddingResponse::error(&format!("Invalid JSON request: {}", e), "invalid_json"))
+      bentley::warn(&format!("failed to parse JSON request: {e}"));
+      Err(EmbeddingResponse::error(&format!("Invalid JSON request: {e}"), "invalid_json"))
     }
   }
 }
 
-async fn process_embedding_request(text: &str, embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>) -> EmbeddingResponse {
+async fn process_embedding_request(
+  text: &str,
+  embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
+) -> EmbeddingResponse {
   let embedder_arc = match embedder {
     Some(arc) => arc,
     None => {
@@ -210,13 +220,15 @@ async fn process_embedding_request(text: &str, embedder: Option<Arc<tokio::sync:
   let mut embedder_guard = embedder_arc.lock().await;
   match embedder_guard.embed(text) {
     Ok(embedding) => {
-      bentley::verbose(&format!("generated embedding for text: {}", 
-        text.chars().take(50).collect::<String>()));
+      bentley::verbose(&format!(
+        "generated embedding for text: {}",
+        text.chars().take(50).collect::<String>()
+      ));
       EmbeddingResponse::success(embedding)
     }
     Err(e) => {
-      bentley::warn(&format!("embedding failed: {}", e));
-      EmbeddingResponse::error(&format!("Failed to generate embedding: {}", e), "embedding_failed")
+      bentley::warn(&format!("embedding failed: {e}"));
+      EmbeddingResponse::error(&format!("Failed to generate embedding: {e}"), "embedding_failed")
     }
   }
 }
@@ -225,12 +237,12 @@ async fn send_response_to_client(stream: &mut tokio::net::UnixStream, response: 
   let response_json = match serde_json::to_string(&response) {
     Ok(json) => json,
     Err(e) => {
-      bentley::error(&format!("failed to serialize response: {}", e));
+      bentley::error(&format!("failed to serialize response: {e}"));
       return;
     }
   };
 
   if let Err(e) = stream.write_all(response_json.as_bytes()).await {
-    bentley::warn(&format!("failed to write response: {}", e));
+    bentley::warn(&format!("failed to write response: {e}"));
   }
 }

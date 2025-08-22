@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
-use std::process::{Command, Stdio};
 use std::env;
 use std::io::{self, Write};
+use std::process::{Command, Stdio};
 
 fn main() -> Result<()> {
   // Skip entirely in CI environments
@@ -24,7 +24,9 @@ fn main() -> Result<()> {
 
   // 3. Check and install NVIDIA dependencies (Ubuntu/apt only)
   if !is_ubuntu_apt() {
-    bentley::info("Non-Ubuntu system detected - please install CUDA dependencies manually if needed");
+    bentley::info(
+      "Non-Ubuntu system detected - please install CUDA dependencies manually if needed",
+    );
     print_manual_instructions()?;
     return Ok(());
   }
@@ -35,7 +37,7 @@ fn main() -> Result<()> {
   }
 
   check_and_install_cuda_dependencies()?;
-  
+
   bentley::success("CUDA dependency check complete!");
   Ok(())
 }
@@ -59,18 +61,16 @@ fn has_nvidia_gpu() -> Result<bool> {
     }
   }
 
-  // Method 2: Use lspci to check for NVIDIA VGA devices  
-  if let Ok(output) = Command::new("lspci")
-    .args(["-nn"])
-    .output() 
-  {
+  // Method 2: Use lspci to check for NVIDIA VGA devices
+  if let Ok(output) = Command::new("lspci").args(["-nn"]).output() {
     let output_str = String::from_utf8_lossy(&output.stdout);
     for line in output_str.lines() {
-      if line.contains("VGA") || line.contains("3D") || line.contains("Display") {
-        if line.to_lowercase().contains("nvidia") || line.contains("[10de:") { // 10de is NVIDIA vendor ID
-          bentley::info("NVIDIA GPU detected via lspci");
-          return Ok(true);
-        }
+      if (line.contains("VGA") || line.contains("3D") || line.contains("Display"))
+        && (line.to_lowercase().contains("nvidia") || line.contains("[10de:"))
+      {
+        // 10de is NVIDIA vendor ID
+        bentley::info("NVIDIA GPU detected via lspci");
+        return Ok(true);
       }
     }
   }
@@ -82,7 +82,8 @@ fn has_nvidia_gpu() -> Result<bool> {
         if name.starts_with("card") && name.len() > 4 {
           let device_path = entry.path().join("device/vendor");
           if let Ok(vendor) = std::fs::read_to_string(device_path) {
-            if vendor.trim() == "0x10de" { // NVIDIA vendor ID
+            if vendor.trim() == "0x10de" {
+              // NVIDIA vendor ID
               bentley::info("NVIDIA GPU detected via sysfs");
               return Ok(true);
             }
@@ -98,18 +99,14 @@ fn has_nvidia_gpu() -> Result<bool> {
 /// Check if NVIDIA drivers are installed and attempt installation if needed
 fn check_nvidia_drivers() -> Result<bool> {
   // Check if nvidia-smi exists and works
-  match Command::new("nvidia-smi")
-      .stdout(Stdio::null())
-      .stderr(Stdio::null())
-      .status()
-  {
+  match Command::new("nvidia-smi").stdout(Stdio::null()).stderr(Stdio::null()).status() {
     Ok(status) if status.success() => {
       bentley::info("NVIDIA drivers are installed and accessible");
       Ok(true)
     }
     _ => {
       bentley::warn("NVIDIA GPU found but drivers not accessible (nvidia-smi failed)");
-      
+
       // Attempt automatic driver installation
       match install_nvidia_drivers() {
         Ok(true) => {
@@ -125,7 +122,7 @@ fn check_nvidia_drivers() -> Result<bool> {
           Ok(false)
         }
         Err(e) => {
-          bentley::warn(&format!("Automatic driver installation failed: {}", e));
+          bentley::warn(&format!("Automatic driver installation failed: {e}"));
           print_manual_driver_instructions();
           Ok(false)
         }
@@ -145,61 +142,54 @@ fn install_nvidia_drivers() -> Result<bool> {
   bentley::info("Would you like to install NVIDIA drivers automatically? (y/N)");
   bentley::info("This will:");
   bentley::info("  1. Update package lists");
-  bentley::info("  2. Detect and install the recommended NVIDIA driver"); 
+  bentley::info("  2. Detect and install the recommended NVIDIA driver");
   bentley::info("  3. Require a manual system reboot to take effect");
-  
+
   // Read user input
   print!("Install drivers? [y/N]: ");
   io::stdout().flush()?;
-  
+
   let mut input = String::new();
   io::stdin().read_line(&mut input)?;
   let input = input.trim().to_lowercase();
-  
+
   if input != "y" && input != "yes" {
     bentley::info("Driver installation skipped");
     return Ok(false);
   }
-  
+
   bentley::info("Proceeding with automatic installation...");
-  
+
   // Update package lists
   bentley::info("Updating package lists...");
-  let status = Command::new("sudo")
-    .args(["apt", "update"])
-    .status()?;
-  
+  let status = Command::new("sudo").args(["apt", "update"]).status()?;
+
   if !status.success() {
     return Err(anyhow::anyhow!("Failed to update package lists"));
   }
 
   // Install NVIDIA drivers using Ubuntu's automatic detection
   bentley::info("Detecting recommended NVIDIA driver...");
-  
+
   // Method 1: Try ubuntu-drivers autoinstall (most automatic)
-  match Command::new("ubuntu-drivers")
-    .arg("devices")
-    .output()
-  {
+  match Command::new("ubuntu-drivers").arg("devices").output() {
     Ok(output) if output.status.success() => {
       let devices_output = String::from_utf8_lossy(&output.stdout);
       bentley::info("Available drivers detected:");
       for line in devices_output.lines() {
         if line.contains("nvidia") || line.contains("recommended") {
-          bentley::info(&format!("  {}", line));
+          bentley::info(&format!("  {line}"));
         }
       }
-      
+
       bentley::info("Installing recommended drivers automatically...");
-      let status = Command::new("sudo")
-        .args(["ubuntu-drivers", "autoinstall"])
-        .status()?;
-        
+      let status = Command::new("sudo").args(["ubuntu-drivers", "autoinstall"]).status()?;
+
       if status.success() {
         // Verify that nvidia-smi is actually working after installation
         if Command::new("nvidia-smi")
           .stdout(Stdio::null())
-          .stderr(Stdio::null()) 
+          .stderr(Stdio::null())
           .status()
           .map(|s| s.success())
           .unwrap_or(false)
@@ -217,13 +207,11 @@ fn install_nvidia_drivers() -> Result<bool> {
       bentley::warn("ubuntu-drivers not available, trying alternative method...");
     }
   }
-  
+
   // Method 2: Fallback to recent stable version
   bentley::info("Falling back to recent stable driver (nvidia-driver-580)...");
-  let status = Command::new("sudo")
-    .args(["apt", "install", "-y", "nvidia-driver-580"])
-    .status()?;
-    
+  let status = Command::new("sudo").args(["apt", "install", "-y", "nvidia-driver-580"]).status()?;
+
   if status.success() {
     // Verify installation worked
     if Command::new("nvidia-smi")
@@ -263,12 +251,12 @@ fn print_manual_driver_instructions() {
 fn check_library_path() -> Result<()> {
   let ld_library_path = env::var("LD_LIBRARY_PATH").unwrap_or_default();
   let ort_cache_pattern = ".cache/ort.pyke.io/dfbin";
-  
+
   if ld_library_path.contains(ort_cache_pattern) {
     // Find and report the specific ONNX Runtime path
     for path_part in ld_library_path.split(':') {
       if path_part.contains(ort_cache_pattern) && path_part.contains("onnxruntime/lib") {
-        bentley::info(&format!("LD_LIBRARY_PATH configured: {}", path_part));
+        bentley::info(&format!("LD_LIBRARY_PATH configured: {path_part}"));
         return Ok(());
       }
     }
@@ -278,8 +266,8 @@ fn check_library_path() -> Result<()> {
 
   // Try to find the ONNX Runtime cache directory
   let home = env::var("HOME")?;
-  let ort_cache_base = format!("{}/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu", home);
-  
+  let ort_cache_base = format!("{home}/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu");
+
   if let Ok(entries) = std::fs::read_dir(&ort_cache_base) {
     for entry in entries {
       if let Ok(entry) = entry {
@@ -287,7 +275,10 @@ fn check_library_path() -> Result<()> {
         if lib_path.exists() {
           bentley::info("ONNX Runtime GPU libraries found but LD_LIBRARY_PATH not configured");
           bentley::info("To enable GPU acceleration, add this to your ~/.zshrc (or ~/.bashrc):");
-          bentley::info(format!("   export LD_LIBRARY_PATH=\"{}:$LD_LIBRARY_PATH\"", lib_path.display()).as_str());
+          bentley::info(
+            format!("   export LD_LIBRARY_PATH=\"{}:$LD_LIBRARY_PATH\"", lib_path.display())
+              .as_str(),
+          );
           bentley::info("   Then restart your shell or run: source ~/.zshrc");
           bentley::info("Proceeding with CPU inference for now...");
           return Ok(());
@@ -325,19 +316,17 @@ fn check_and_install_cuda_dependencies() -> Result<()> {
 /// Get CUDA version from NVIDIA driver
 fn get_cuda_version_from_driver() -> Result<String> {
   // Try to get CUDA version from nvidia-smi --version
-  let output = Command::new("nvidia-smi")
-    .arg("--version")
-    .output()?;
+  let output = Command::new("nvidia-smi").arg("--version").output()?;
 
   if output.status.success() {
     let output_str = String::from_utf8_lossy(&output.stdout);
-    
+
     // Look for the line containing "CUDA Version" and extract version
     for line in output_str.lines() {
       if line.contains("CUDA Version") {
         if let Some(colon_pos) = line.find(':') {
           let cuda_version = line[colon_pos + 1..].trim();
-          bentley::info(&format!("CUDA {} detected", cuda_version));
+          bentley::info(&format!("CUDA {cuda_version} detected"));
           return Ok(cuda_version.to_string());
         }
       }
@@ -351,35 +340,39 @@ fn get_cuda_version_from_driver() -> Result<String> {
 fn check_cudnn(cuda_version: &str) -> Result<()> {
   // Check if cuDNN is already installed
   if let Some(cudnn_info) = get_cudnn_info() {
-    bentley::info(&format!("cuDNN {} is already installed", cudnn_info));
+    bentley::info(&format!("cuDNN {cudnn_info} is already installed"));
     return Ok(());
   }
 
   bentley::info("cuDNN not found");
-  
+
   // Determine appropriate cuDNN package based on CUDA version
   let cudnn_package = match cuda_version {
     v if v.starts_with("13.") => "libcudnn9-cuda-13",
-    v if v.starts_with("12.") => "libcudnn9-cuda-12", 
+    v if v.starts_with("12.") => "libcudnn9-cuda-12",
     v if v.starts_with("11.") => "libcudnn9-cuda-11",
     _ => {
-      bentley::info(format!("Unknown CUDA version {}, defaulting to cuDNN for CUDA 12", cuda_version).as_str());
+      bentley::info(
+        format!("Unknown CUDA version {cuda_version}, defaulting to cuDNN for CUDA 12").as_str(),
+      );
       "libcudnn9-cuda-12"
     }
   };
 
-  bentley::info(format!("Attempting to install {} for CUDA {}...", cudnn_package, cuda_version).as_str());
-  
+  bentley::info(
+    format!("Attempting to install {cudnn_package} for CUDA {cuda_version}...").as_str(),
+  );
+
   match install_cudnn(cudnn_package) {
     Ok(_) => {
-      bentley::info(format!("{} installed successfully", cudnn_package).as_str());
+      bentley::info(format!("{cudnn_package} installed successfully").as_str());
       Ok(())
     }
     Err(e) => {
-      bentley::info(format!("Failed to install {}: {}", cudnn_package, e).as_str());
+      bentley::info(format!("Failed to install {cudnn_package}: {e}").as_str());
       bentley::info("Please install cuDNN manually:");
       bentley::info("   sudo apt update");
-      bentley::info(format!("   sudo apt install -y {}", cudnn_package).as_str());
+      bentley::info(format!("   sudo apt install -y {cudnn_package}").as_str());
       bentley::info("   # Or download from NVIDIA's cuDNN page");
       Err(e)
     }
@@ -389,10 +382,7 @@ fn check_cudnn(cuda_version: &str) -> Result<()> {
 /// Get cuDNN information if installed, including version
 fn get_cudnn_info() -> Option<String> {
   // First try to get version from package manager (most reliable)
-  if let Ok(output) = Command::new("dpkg")
-    .args(["-l"])
-    .output() 
-  {
+  if let Ok(output) = Command::new("dpkg").args(["-l"]).output() {
     let output_str = String::from_utf8_lossy(&output.stdout);
     for line in output_str.lines() {
       if line.contains("libcudnn9") {
@@ -402,9 +392,9 @@ fn get_cudnn_info() -> Option<String> {
           let version = parts[2];
           // Extract CUDA version from package name (e.g., libcudnn9-cuda-13)
           if let Some(cuda_part) = package_name.strip_prefix("libcudnn9-cuda-") {
-            return Some(format!("v{} (CUDA {})", version, cuda_part));
+            return Some(format!("v{version} (CUDA {cuda_part})"));
           } else {
-            return Some(format!("v{}", version));
+            return Some(format!("v{version}"));
           }
         }
       }
@@ -414,7 +404,7 @@ fn get_cudnn_info() -> Option<String> {
   // Fallback: check file system for library existence
   let cudnn_paths = [
     "/lib/x86_64-linux-gnu/libcudnn.so.9",
-    "/usr/lib/x86_64-linux-gnu/libcudnn.so.9", 
+    "/usr/lib/x86_64-linux-gnu/libcudnn.so.9",
     "/usr/local/cuda/lib64/libcudnn.so.9",
   ];
 
@@ -437,10 +427,8 @@ fn get_cudnn_info() -> Option<String> {
 
 /// Install cuDNN package
 fn install_cudnn(package_name: &str) -> Result<()> {
-  let status = Command::new("sudo")
-    .args(["apt", "install", "-y", package_name])
-    .status()?;
-  
+  let status = Command::new("sudo").args(["apt", "install", "-y", package_name]).status()?;
+
   if status.success() {
     Ok(())
   } else {
