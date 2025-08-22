@@ -157,7 +157,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
     // In a real implementation, this would use daemon communication
     // For now, we'll keep the direct prompting for backward compatibility
     // The CLI layer handles daemon communication
-    bentley::info("Enter master password to unlock credential store:");
+    bentley::info!("Enter master password to unlock credential store:");
     print!("> ");
     std::io::stdout().flush()?;
 
@@ -171,9 +171,9 @@ impl CryptoProvider for PasswordBasedCryptoManager {
   }
 
   fn prompt_for_new_master_password(&self) -> Result<String> {
-    bentley::announce("Setting up secure credential storage");
-    bentley::info("Please create a master password to protect your credentials.");
-    bentley::info("This password will be required to access stored credentials.");
+    bentley::announce!("Setting up secure credential storage");
+    bentley::info!("Please create a master password to protect your credentials.");
+    bentley::info!("This password will be required to access stored credentials.");
 
     print!("Enter master password: ");
     std::io::stdout().flush()?;
@@ -195,7 +195,7 @@ impl CryptoProvider for PasswordBasedCryptoManager {
       return Err(anyhow!("Master password must be at least 8 characters"));
     }
 
-    bentley::success("Master password set successfully");
+    bentley::success!("Master password set successfully");
     Ok(password1.trim().to_string())
   }
 
@@ -339,7 +339,7 @@ impl Secrets {
 
   /// Store a secret securely using Argon2-based encryption
   pub fn store_secret_raw(&self, group: &str, name: &str, value: &str) -> Result<()> {
-    bentley::event_info(&format!("Storing secret for {group}/{name}"));
+    bentley::event_info!(&format!("Storing secret for {group}/{name}"));
 
     // Get master password (prompt for new one if first time)
     let master_password = if self.crypto.credentials_exist() {
@@ -354,7 +354,7 @@ impl Secrets {
     // Store the secret using Argon2-based encryption
     self.crypto.store_secret(group, name, trimmed_value, &master_password)?;
 
-    bentley::event_success(&format!("Secret stored securely for {group}/{name}"));
+    bentley::event_success!(&format!("Secret stored securely for {group}/{name}"));
     Ok(())
   }
 
@@ -375,7 +375,7 @@ impl Secrets {
     if let Some(config) = service_config {
       // Check if this name is part of the service config
       if config.required_credentials.iter().any(|spec| spec.key == name) {
-        bentley::info(&format!("Secret {group}/{name} not found. Setting up {group} secrets..."));
+        bentley::info!(&format!("Secret {group}/{name} not found. Setting up {group} secrets..."));
         self.setup_service(&config)?;
         return self.get_secret_raw(group, name);
       }
@@ -403,7 +403,7 @@ impl Secrets {
 
   /// Delete a secret from password-protected storage
   pub fn delete_secret(&self, group: &str, name: &str) -> Result<()> {
-    bentley::event_info(&format!("Deleting secret for {group}/{name}"));
+    bentley::event_info!(&format!("Deleting secret for {group}/{name}"));
 
     if !self.crypto.credentials_exist() {
       return Err(anyhow!("No secrets stored yet"));
@@ -412,7 +412,7 @@ impl Secrets {
     let master_password = self.crypto.get_master_password()?;
     self.crypto.delete_secret(group, name, &master_password)?;
 
-    bentley::event_success(&format!("Secret deleted for {group}/{name}"));
+    bentley::event_success!(&format!("Secret deleted for {group}/{name}"));
     Ok(())
   }
 
@@ -440,8 +440,8 @@ impl Secrets {
 
   /// Setup secrets for a service interactively
   pub fn setup_service(&self, config: &ServiceConfig) -> Result<()> {
-    bentley::announce(&format!("Setting up secrets for {}", config.name));
-    bentley::info(&config.description);
+    bentley::announce!(&format!("Setting up secrets for {}", config.name));
+    bentley::info!(&config.description);
 
     for cred_spec in &config.required_credentials {
       if cred_spec.is_required || self.prompt_for_optional(&cred_spec.key)? {
@@ -450,7 +450,7 @@ impl Secrets {
       }
     }
 
-    bentley::flourish(&format!("Secrets setup complete for {}", config.name));
+    bentley::flourish!(&format!("Secrets setup complete for {}", config.name));
     Ok(())
   }
 
@@ -500,10 +500,10 @@ impl Secrets {
   }
 
   fn prompt_for_credential(&self, spec: &CredentialSpec) -> Result<String> {
-    bentley::info(&format!("Enter {}: {}", spec.key, spec.description));
+    bentley::info!(&format!("Enter {}: {}", spec.key, spec.description));
 
     if let Some(example) = &spec.example {
-      bentley::info(&format!("Example: {example}"));
+      bentley::info!(&format!("Example: {example}"));
     }
 
     print!("> ");

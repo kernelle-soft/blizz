@@ -20,8 +20,7 @@ audit:
   - do: rust-audit
 test:
   - do: rust-test
-coverage:
-  - do: rust-coverage
+
 lint:
   - do: rust-lint
 tidy:
@@ -31,6 +30,14 @@ format:
   - do: rust-format
   - do: endlines
 endlines: bash scripts/ensure-final-newlines.sh --fix
+
+# Crate specific and workspace-wide coverage tasks
+cov-show: 
+  - sh -c 'vivaldi "$(pwd)/crates/${1:-insights}/coverage/tarpaulin-report.html"'
+cov: 
+  - sh -c 'cargo tarpaulin -p ${1:-insights} --tests --all-targets --config crates/${1:-insights}/tarpaulin.toml'
+coverage:
+  - do: rust-coverage
 
 # ------------------------------------------------------------
 # Pre-check Tasks

@@ -3,27 +3,43 @@ use std::env;
 use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
+// NOTE: This file is intentionally not unit tested for the following reasons:
+//
+// 1. SYSTEM INTEGRATION SCRIPT: 95% of this code deals with system commands,
+//    hardware detection, package installation, and file I/O operations that
+//    require real system state and cannot be meaningfully mocked.
+//
+// 2. LOW VALUE-TO-EFFORT RATIO: The ~5% of pure logic (string parsing, env
+//    checking) is simple and would require extensive mocking infrastructure
+//    that adds complexity without proportional benefit.
+//
+// 3. FAILURE MODES: Most failures are environmental (missing drivers, network
+//    issues, permission problems) rather than logical bugs in our code.
+//
+// For setup/installation scripts like this, clear error messages and good
+// documentation provide more value than unit test coverage.
+
 fn main() -> Result<()> {
   // Skip entirely in CI environments
   if is_ci_environment() {
-    bentley::info("CI environment detected.");
-    bentley::info("Skipping CUDA dependency setup.");
+    bentley::info!("CI environment detected.");
+    bentley::info!("Skipping CUDA dependency setup.");
     return Ok(());
   }
 
-  bentley::info("Checking NVIDIA GPU and CUDA dependencies...");
+  bentley::info!("Checking NVIDIA GPU and CUDA dependencies...");
 
   if !has_nvidia_gpu()? {
-    bentley::info("No NVIDIA GPU detected in system.");
-    bentley::info("Skipping CUDA dependency setup.");
+    bentley::info!("No NVIDIA GPU detected in system.");
+    bentley::info!("Skipping CUDA dependency setup.");
     return Ok(());
   }
 
   check_library_path()?;
 
   if !is_ubuntu_apt() {
-    bentley::info(
-      "Non-Ubuntu system detected - please install CUDA dependencies manually if needed",
+    bentley::info!(
+      "Non-Ubuntu system detected - please install CUDA dependencies manually if needed"
     );
     print_manual_instructions()?;
     return Ok(());
@@ -35,7 +51,7 @@ fn main() -> Result<()> {
 
   check_and_install_cuda_dependencies()?;
 
-  bentley::success("CUDA dependency check complete!");
+  bentley::success!("CUDA dependency check complete!");
   Ok(())
 }
 
@@ -75,7 +91,7 @@ fn check_nvidia_proc_directory() -> Result<bool> {
     return Ok(false);
   }
 
-  bentley::info("NVIDIA GPU detected via /proc/driver/nvidia");
+  bentley::info!("NVIDIA GPU detected via /proc/driver/nvidia");
   Ok(true)
 }
 
@@ -89,7 +105,7 @@ fn check_nvidia_via_lspci() -> Result<bool> {
 
   for line in output_str.lines() {
     if is_nvidia_display_device(line) {
-      bentley::info("NVIDIA GPU detected via lspci");
+      bentley::info!("NVIDIA GPU detected via lspci");
       return Ok(true);
     }
   }
@@ -112,7 +128,7 @@ fn check_nvidia_via_sysfs() -> Result<bool> {
 
   for entry in entries.flatten() {
     if is_nvidia_drm_device(&entry)? {
-      bentley::info("NVIDIA GPU detected via sysfs");
+      bentley::info!("NVIDIA GPU detected via sysfs");
       return Ok(true);
     }
   }
@@ -142,11 +158,11 @@ fn is_nvidia_drm_device(entry: &std::fs::DirEntry) -> Result<bool> {
 /// Check if NVIDIA drivers are installed and attempt installation if needed
 fn check_nvidia_drivers() -> Result<bool> {
   if is_nvidia_smi_working() {
-    bentley::info("NVIDIA drivers are installed and accessible");
+    bentley::info!("NVIDIA drivers are installed and accessible");
     return Ok(true);
   }
 
-  bentley::warn("NVIDIA GPU found but drivers not accessible (nvidia-smi failed)");
+  bentley::warn!("NVIDIA GPU found but drivers not accessible !(nvidia-smi failed)");
   handle_missing_nvidia_drivers()
 }
 
@@ -170,16 +186,16 @@ fn handle_missing_nvidia_drivers() -> Result<bool> {
 
 /// Handle successful driver installation (requires reboot)
 fn handle_successful_driver_installation() -> Result<bool> {
-  bentley::success("NVIDIA drivers installed successfully!");
-  bentley::warn("*** REBOOT REQUIRED ***");
-  bentley::info("Please reboot your system and run this script again.");
-  bentley::info("After reboot, GPU acceleration will be available.");
+  bentley::success!("NVIDIA drivers installed successfully!");
+  bentley::warn!("*** REBOOT REQUIRED ***");
+  bentley::info!("Please reboot your system and run this script again.");
+  bentley::info!("After reboot, GPU acceleration will be available.");
   Ok(false) // Return false so we don't continue (need reboot)
 }
 
 /// Handle when driver installation is skipped or fails
 fn handle_skipped_driver_installation() -> Result<bool> {
-  bentley::info("Driver installation skipped by user");
+  bentley::info!("Driver installation skipped by user");
   print_manual_driver_instructions();
   Ok(false)
 }
@@ -187,16 +203,16 @@ fn handle_skipped_driver_installation() -> Result<bool> {
 /// Attempt to install NVIDIA drivers
 fn install_nvidia_drivers() -> Result<bool> {
   if is_ci_environment() {
-    bentley::info("CI environment detected - skipping interactive driver installation");
+    bentley::info!("CI environment detected - skipping interactive driver installation");
     return Ok(false);
   }
 
   if !prompt_user_for_driver_installation()? {
-    bentley::info("Driver installation skipped");
+    bentley::info!("Driver installation skipped");
     return Ok(false);
   }
 
-  bentley::info("Proceeding with automatic installation...");
+  bentley::info!("Proceeding with automatic installation...");
 
   update_package_lists()?;
 
@@ -209,11 +225,11 @@ fn install_nvidia_drivers() -> Result<bool> {
 
 /// Prompt user to confirm driver installation
 fn prompt_user_for_driver_installation() -> Result<bool> {
-  bentley::info("Would you like to install NVIDIA drivers automatically? (y/N)");
-  bentley::info("This will:");
-  bentley::info("  1. Update package lists");
-  bentley::info("  2. Detect and install the recommended NVIDIA driver");
-  bentley::info("  3. Require a manual system reboot to take effect");
+  bentley::info!("Would you like to install NVIDIA drivers automatically? !(y/N)");
+  bentley::info!("This will:");
+  bentley::info!("  1. Update package lists");
+  bentley::info!("  2. Detect and install the recommended NVIDIA driver");
+  bentley::info!("  3. Require a manual system reboot to take effect");
 
   print!("Install drivers? [y/N]: ");
   io::stdout().flush()?;
@@ -227,7 +243,7 @@ fn prompt_user_for_driver_installation() -> Result<bool> {
 
 /// Update system package lists
 fn update_package_lists() -> Result<()> {
-  bentley::info("Updating package lists...");
+  bentley::info!("Updating package lists...");
   let status = Command::new("sudo").args(["apt", "update"]).status()?;
 
   if !status.success() {
@@ -239,22 +255,22 @@ fn update_package_lists() -> Result<()> {
 
 /// Try ubuntu-drivers autoinstall method
 fn try_ubuntu_drivers_autoinstall() -> Result<bool> {
-  bentley::info("Detecting recommended NVIDIA driver...");
+  bentley::info!("Detecting recommended NVIDIA driver...");
 
   let Ok(output) = Command::new("ubuntu-drivers").arg("devices").output() else {
-    bentley::warn("ubuntu-drivers not available, trying alternative method...");
+    bentley::warn!("ubuntu-drivers not available, trying alternative method...");
     return Ok(false);
   };
 
   if !output.status.success() {
-    bentley::warn("ubuntu-drivers not available, trying alternative method...");
+    bentley::warn!("ubuntu-drivers not available, trying alternative method...");
     return Ok(false);
   }
 
   show_available_drivers(&output.stdout);
 
   if !run_ubuntu_drivers_autoinstall()? {
-    bentley::warn("ubuntu-drivers autoinstall failed, trying fallback installation...");
+    bentley::warn!("ubuntu-drivers autoinstall failed, trying fallback installation...");
     return Ok(false);
   }
 
@@ -262,33 +278,33 @@ fn try_ubuntu_drivers_autoinstall() -> Result<bool> {
     return Ok(true);
   }
 
-  bentley::warn("ubuntu-drivers autoinstall completed but nvidia-smi still not working");
-  bentley::warn("This usually requires a reboot. Continuing with fallback installation...");
+  bentley::warn!("ubuntu-drivers autoinstall completed but nvidia-smi still not working");
+  bentley::warn!("This usually requires a reboot. Continuing with fallback installation...");
   Ok(false)
 }
 
 /// Show available NVIDIA drivers detected by ubuntu-drivers
 fn show_available_drivers(stdout: &[u8]) {
   let devices_output = String::from_utf8_lossy(stdout);
-  bentley::info("Available drivers detected:");
+  bentley::info!("Available drivers detected:");
 
   for line in devices_output.lines() {
     if line.contains("nvidia") || line.contains("recommended") {
-      bentley::info(&format!("  {line}"));
+      bentley::info!(&format!("  {line}"));
     }
   }
 }
 
 /// Run the ubuntu-drivers autoinstall command
 fn run_ubuntu_drivers_autoinstall() -> Result<bool> {
-  bentley::info("Installing recommended drivers automatically...");
+  bentley::info!("Installing recommended drivers automatically...");
   let status = Command::new("sudo").args(["ubuntu-drivers", "autoinstall"]).status()?;
   Ok(status.success())
 }
 
 /// Try fallback driver installation method
 fn try_fallback_driver_installation() -> Result<bool> {
-  bentley::info("Falling back to recent stable driver (nvidia-driver-580)...");
+  bentley::info!("Falling back to recent stable driver !(nvidia-driver-580)...");
   let status = Command::new("sudo").args(["apt", "install", "-y", "nvidia-driver-580"]).status()?;
 
   if !status.success() {
@@ -296,27 +312,27 @@ fn try_fallback_driver_installation() -> Result<bool> {
   }
 
   if is_nvidia_smi_working() {
-    bentley::info("Driver installation successful and nvidia-smi is working!");
+    bentley::info!("Driver installation successful and nvidia-smi is working!");
     Ok(true)
   } else {
-    bentley::warn("Driver packages installed but nvidia-smi not yet working");
-    bentley::warn("This is normal - drivers require a reboot to become active");
+    bentley::warn!("Driver packages installed but nvidia-smi not yet working");
+    bentley::warn!("This is normal - drivers require a reboot to become active");
     Ok(true) // Installation succeeded, just needs reboot
   }
 }
 
 /// Print manual driver installation instructions
 fn print_manual_driver_instructions() {
-  bentley::info("Manual NVIDIA driver installation:");
-  bentley::info("   sudo apt update");
-  bentley::info("   ubuntu-drivers devices  # see available drivers");
-  bentley::info("   sudo ubuntu-drivers autoinstall  # install recommended");
-  bentley::info("   # OR manually install specific version:");
-  bentley::info("   sudo apt install -y nvidia-driver-535  # or latest available");
-  bentley::info("   sudo reboot  # reboot required after driver installation");
-  bentley::info("");
-  bentley::info("Alternative: Install from NVIDIA's official repository:");
-  bentley::info("   https://developer.nvidia.com/cuda-downloads");
+  bentley::info!("Manual NVIDIA driver installation:");
+  bentley::info!("   sudo apt update");
+  bentley::info!("   ubuntu-drivers devices  # see available drivers");
+  bentley::info!("   sudo ubuntu-drivers autoinstall  # install recommended");
+  bentley::info!("   # OR manually install specific version:");
+  bentley::info!("   sudo apt install -y nvidia-driver-535  # or latest available");
+  bentley::info!("   sudo reboot  # reboot required after driver installation");
+  bentley::info!("");
+  bentley::info!("Alternative: Install from NVIDIA's official repository:");
+  bentley::info!("   https://developer.nvidia.com/cuda-downloads");
 }
 
 /// Check if LD_LIBRARY_PATH is configured for ONNX Runtime
@@ -340,11 +356,11 @@ fn is_ld_library_path_configured(ld_library_path: &str) -> bool {
 fn report_existing_library_path(ld_library_path: &str) {
   for path_part in ld_library_path.split(':') {
     if is_onnxruntime_lib_path(path_part) {
-      bentley::info(&format!("LD_LIBRARY_PATH configured: {path_part}"));
+      bentley::info!(&format!("LD_LIBRARY_PATH configured: {path_part}"));
       return;
     }
   }
-  bentley::info("LD_LIBRARY_PATH already configured for ONNX Runtime");
+  bentley::info!("LD_LIBRARY_PATH already configured for ONNX Runtime");
 }
 
 /// Check if a path part is an ONNX Runtime library path
@@ -358,7 +374,7 @@ fn check_for_unconfigured_libraries() -> Result<()> {
   let ort_cache_base = format!("{home}/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu");
 
   let Ok(entries) = std::fs::read_dir(&ort_cache_base) else {
-    bentley::info("ONNX Runtime GPU libraries not found - they'll be downloaded when needed");
+    bentley::info!("ONNX Runtime GPU libraries not found - they'll be downloaded when needed");
     return Ok(());
   };
 
@@ -370,17 +386,17 @@ fn check_for_unconfigured_libraries() -> Result<()> {
     }
   }
 
-  bentley::info("ONNX Runtime GPU libraries not found - they'll be downloaded when needed");
+  bentley::info!("ONNX Runtime GPU libraries not found - they'll be downloaded when needed");
   Ok(())
 }
 
 /// Suggest how to configure LD_LIBRARY_PATH for the found library
 fn suggest_library_path_configuration(lib_path: &std::path::Path) {
-  bentley::info("ONNX Runtime GPU libraries found but LD_LIBRARY_PATH not configured");
-  bentley::info("To enable GPU acceleration, add this to your ~/.zshrc (or ~/.bashrc):");
-  bentley::info(&format!("   export LD_LIBRARY_PATH=\"{}:$LD_LIBRARY_PATH\"", lib_path.display()));
-  bentley::info("   Then restart your shell or run: source ~/.zshrc");
-  bentley::info("Proceeding with CPU inference for now...");
+  bentley::info!("ONNX Runtime GPU libraries found but LD_LIBRARY_PATH not configured");
+  bentley::info!("To enable GPU acceleration, add this to your ~/.zshrc !(or ~/.bashrc):");
+  bentley::info!(&format!("   export LD_LIBRARY_PATH=\"{}:$LD_LIBRARY_PATH\"", lib_path.display()));
+  bentley::info!("   Then restart your shell or run: source ~/.zshrc");
+  bentley::info!("Proceeding with CPU inference for now...");
 }
 
 /// Check if we're on Ubuntu with apt package manager
@@ -418,7 +434,7 @@ fn get_cuda_version_from_driver() -> Result<String> {
       if line.contains("CUDA Version") {
         if let Some(colon_pos) = line.find(':') {
           let cuda_version = line[colon_pos + 1..].trim();
-          bentley::info(&format!("CUDA {cuda_version} detected"));
+          bentley::info!(&format!("CUDA {cuda_version} detected"));
           return Ok(cuda_version.to_string());
         }
       }
@@ -431,11 +447,11 @@ fn get_cuda_version_from_driver() -> Result<String> {
 /// Check cuDNN and install if missing
 fn check_cudnn(cuda_version: &str) -> Result<()> {
   if let Some(cudnn_info) = get_cudnn_info() {
-    bentley::info(&format!("cuDNN {cudnn_info} is already installed"));
+    bentley::info!(&format!("cuDNN {cudnn_info} is already installed"));
     return Ok(());
   }
 
-  bentley::info("cuDNN not found");
+  bentley::info!("cuDNN not found");
   install_appropriate_cudnn_package(cuda_version)
 }
 
@@ -443,11 +459,11 @@ fn check_cudnn(cuda_version: &str) -> Result<()> {
 fn install_appropriate_cudnn_package(cuda_version: &str) -> Result<()> {
   let cudnn_package = determine_cudnn_package(cuda_version);
 
-  bentley::info(&format!("Attempting to install {cudnn_package} for CUDA {cuda_version}..."));
+  bentley::info!(&format!("Attempting to install {cudnn_package} for CUDA {cuda_version}..."));
 
   match install_cudnn(cudnn_package) {
     Ok(_) => {
-      bentley::info(&format!("{cudnn_package} installed successfully"));
+      bentley::info!(&format!("{cudnn_package} installed successfully"));
       Ok(())
     }
     Err(e) => {
@@ -464,7 +480,7 @@ fn determine_cudnn_package(cuda_version: &str) -> &str {
     v if v.starts_with("12.") => "libcudnn9-cuda-12",
     v if v.starts_with("11.") => "libcudnn9-cuda-11",
     _ => {
-      bentley::info(&format!(
+      bentley::info!(&format!(
         "Unknown CUDA version {cuda_version}, defaulting to cuDNN for CUDA 12"
       ));
       "libcudnn9-cuda-12"
@@ -474,11 +490,11 @@ fn determine_cudnn_package(cuda_version: &str) -> &str {
 
 /// Show manual cuDNN installation instructions
 fn show_manual_cudnn_installation_instructions(cudnn_package: &str) {
-  bentley::info(&format!("Failed to install {cudnn_package}"));
-  bentley::info("Please install cuDNN manually:");
-  bentley::info("   sudo apt update");
-  bentley::info(&format!("   sudo apt install -y {cudnn_package}"));
-  bentley::info("   # Or download from NVIDIA's cuDNN page");
+  bentley::info!(&format!("Failed to install {cudnn_package}"));
+  bentley::info!("Please install cuDNN manually:");
+  bentley::info!("   sudo apt update");
+  bentley::info!(&format!("   sudo apt install -y {cudnn_package}"));
+  bentley::info!("   # Or download from NVIDIA's cuDNN page");
 }
 
 /// Get cuDNN information if installed, including version
@@ -577,15 +593,15 @@ fn install_cudnn(package_name: &str) -> Result<()> {
 
 /// Print manual installation instructions for non-Ubuntu systems
 fn print_manual_instructions() -> Result<()> {
-  println!("📋 Manual GPU setup instructions:");
-  println!("1. Ensure NVIDIA drivers are installed for your GPU");
-  println!("2. Install cuDNN library matching your CUDA driver version");
-  println!("3. Ensure cuDNN libraries are in your LD_LIBRARY_PATH");
-  println!();
-  println!("For detailed instructions, visit:");
-  println!("  NVIDIA Drivers: https://www.nvidia.com/drivers/");
-  println!("  cuDNN: https://docs.nvidia.com/deeplearning/cudnn/install-guide/");
-  println!();
-  println!("Note: CUDA toolkit is not required for GPU inference, only cuDNN.");
+  bentley::info!("📋 Manual GPU setup instructions:");
+  bentley::info!("1. Ensure NVIDIA drivers are installed for your GPU");
+  bentley::info!("2. Install cuDNN library matching your CUDA driver version");
+  bentley::info!("3. Ensure cuDNN libraries are in your LD_LIBRARY_PATH");
+  bentley::info!("");
+  bentley::info!("For detailed instructions, visit:");
+  bentley::info!("  NVIDIA Drivers: https://www.nvidia.com/drivers/");
+  bentley::info!("  cuDNN: https://docs.nvidia.com/deeplearning/cudnn/install-guide/");
+  bentley::info!("");
+  bentley::info!("Note: CUDA toolkit is not required for GPU inference, only cuDNN.");
   Ok(())
 }

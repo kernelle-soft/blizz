@@ -38,13 +38,13 @@ async fn main() -> Result<()> {
   };
 
   let socket_path = create_socket(&keeper_path)?;
-  bentley::info("daemon started - press ctrl+c to exit");
+  bentley::info!("daemon started - press ctrl+c to exit");
 
   let ipc_handle = spawn_handler(&socket_path, master_password);
 
   // Wait for shutdown signal
   signal::ctrl_c().await?;
-  bentley::info("\nshutting down daemon");
+  bentley::info!("\nshutting down daemon");
 
   // Clean up socket file
   let _ = fs::remove_file(&socket_path);
@@ -79,12 +79,12 @@ fn spawn_handler(socket: &PathBuf, pwd: String) -> JoinHandle<()> {
   let listener = match UnixListener::bind(socket) {
     Ok(listener) => listener,
     Err(e) => {
-      bentley::error(&format!("failed to bind socket: {e}"));
+      bentley::error!(&format!("failed to bind socket: {e}"));
       std::process::exit(1);
     }
   };
 
-  bentley::info(&format!("listening on socket: {}", socket.display()));
+  bentley::info!(&format!("listening on socket: {}", socket.display()));
 
   let handler = tokio::spawn(async move {
     loop {
@@ -96,7 +96,7 @@ fn spawn_handler(socket: &PathBuf, pwd: String) -> JoinHandle<()> {
           });
         }
         Err(e) => {
-          bentley::warn(&format!("failed to accept connection: {e}"));
+          bentley::warn!(&format!("failed to accept connection: {e}"));
         }
       }
     }
@@ -113,20 +113,20 @@ async fn handle_client(stream: tokio::net::UnixStream, password: String) {
     Ok(_) if line.trim() == "GET" => {
       let mut stream = reader.into_inner();
       if let Err(e) = stream.write_all(password.as_bytes()).await {
-        bentley::warn(&format!("failed to send password: {e}"));
+        bentley::warn!(&format!("failed to send password: {e}"));
         return;
       }
       if let Err(e) = stream.write_all(b"\n").await {
-        bentley::warn(&format!("failed to send newline: {e}"));
+        bentley::warn!(&format!("failed to send newline: {e}"));
         return;
       }
-      bentley::verbose("password sent to client");
+      bentley::verbose!("password sent to client");
     }
     Ok(_) => {
-      bentley::warn(&format!("invalid request: {}", line.trim()));
+      bentley::warn!(&format!("invalid request: {}", line.trim()));
     }
     Err(e) => {
-      bentley::warn(&format!("failed to read request: {e}"));
+      bentley::warn!(&format!("failed to read request: {e}"));
     }
   }
 }
@@ -1075,7 +1075,7 @@ mod tests {
 
     // Test that bentley::error macro exists and can be called with formatted strings
     // (we can't easily test the actual logging output, but we can verify it compiles)
-    bentley::error(&format!("test error message: {}", "test_value"));
+    bentley::error!(&format!("test error message: {}", "test_value"));
 
     // Error handling components verified by compilation and execution completing
   }

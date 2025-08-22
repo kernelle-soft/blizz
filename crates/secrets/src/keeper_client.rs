@@ -14,12 +14,12 @@ pub async fn start(
 
   // Check if already running
   if socket_path.exists() {
-    bentley::warn("agent appears to already be running");
-    bentley::info("use 'secrets agent status' to check or 'secrets agent restart' to restart");
+    bentley::warn!("agent appears to already be running");
+    bentley::info!("use 'secrets agent status' to check or 'secrets agent restart' to restart");
     return Ok(());
   }
 
-  bentley::info("starting agent...");
+  bentley::info!("starting agent...");
 
   // Spawn keeper binary as background process
   let mut cmd = Command::new("keeper");
@@ -49,16 +49,16 @@ pub async fn start(
         if let Ok(Some(status)) = child.try_wait() {
           let _ = fs::remove_file(pid_file);
           if status.success() {
-            bentley::error("keeper process exited unexpectedly");
+            bentley::error!("keeper process exited unexpectedly");
           } else {
-            bentley::error("keeper process failed to start");
+            bentley::error!("keeper process failed to start");
           }
           return Ok(());
         }
 
         // Check if socket exists
         if socket_path.exists() {
-          bentley::success("agent started successfully");
+          bentley::success!("agent started successfully");
           return Ok(());
         }
 
@@ -67,8 +67,8 @@ pub async fn start(
       }
     }
     Err(e) => {
-      bentley::error(&format!("failed to start agent: {e}"));
-      bentley::info("make sure the 'keeper' binary is in your PATH");
+      bentley::error!(&format!("failed to start agent: {e}"));
+      bentley::info!("make sure the 'keeper' binary is in your PATH");
     }
   }
 
@@ -78,8 +78,8 @@ pub async fn start(
 /// Check the status of the agent
 pub async fn status(socket_path: &std::path::Path) -> Result<()> {
   if !socket_path.exists() {
-    bentley::info("agent is not running");
-    bentley::info("use 'secrets agent start' to start the daemon");
+    bentley::info!("agent is not running");
+    bentley::info!("use 'secrets agent start' to start the daemon");
     return Ok(());
   }
 
@@ -87,20 +87,20 @@ pub async fn status(socket_path: &std::path::Path) -> Result<()> {
     Ok(mut stream) => {
       use tokio::io::{AsyncReadExt, AsyncWriteExt};
       if (stream.write_all(b"GET\n").await).is_err() {
-        bentley::warn("socket exists but failed to communicate");
+        bentley::warn!("socket exists but failed to communicate");
         return Ok(());
       }
 
       let mut response = String::new();
       if stream.read_to_string(&mut response).await.is_ok() && !response.trim().is_empty() {
-        bentley::success("keeper is running and responsive");
+        bentley::success!("keeper is running and responsive");
       } else {
-        bentley::error("keeper is running but not responding correctly");
+        bentley::error!("keeper is running but not responding correctly");
       }
     }
     Err(_) => {
-      bentley::error("socket file exists but connection failed");
-      bentley::error("agent may be starting up or in bad state");
+      bentley::error!("socket file exists but connection failed");
+      bentley::error!("agent may be starting up or in bad state");
     }
   }
 
@@ -112,14 +112,14 @@ pub async fn stop(socket_path: &std::path::Path, pid_file: &std::path::Path) -> 
   use std::{fs, process::Command};
 
   if !socket_path.exists() {
-    bentley::info("agent is not running");
+    bentley::info!("agent is not running");
     return Ok(());
   }
 
-  bentley::info("stopping agent...");
+  bentley::info!("stopping agent...");
 
   if !pid_file.exists() {
-    bentley::warn("PID file not found, cleaning up socket");
+    bentley::warn!("PID file not found, cleaning up socket");
     let _ = fs::remove_file(socket_path);
     return Ok(());
   }
@@ -127,14 +127,14 @@ pub async fn stop(socket_path: &std::path::Path, pid_file: &std::path::Path) -> 
   let pid_str = fs::read_to_string(pid_file).ok();
 
   if !pid_file.exists() || pid_str.is_none() {
-    bentley::warn("PID file not found or unreadable, cleaning up socket");
+    bentley::warn!("PID file not found or unreadable, cleaning up socket");
     let _ = fs::remove_file(socket_path);
     return Ok(());
   }
 
   let pid: u32 = pid_str.unwrap().trim().parse().unwrap_or(0);
   if pid == 0 {
-    bentley::warn("invalid PID, cleaning up socket");
+    bentley::warn!("invalid PID, cleaning up socket");
     let _ = fs::remove_file(socket_path);
     return Ok(());
   }
@@ -149,10 +149,10 @@ pub async fn stop(socket_path: &std::path::Path, pid_file: &std::path::Path) -> 
       let _ = fs::remove_file(socket_path);
       let _ = fs::remove_file(pid_file);
 
-      bentley::success("agent stopped");
+      bentley::success!("agent stopped");
     }
     _ => {
-      bentley::warn("failed to stop agent gracefully, cleaning up files");
+      bentley::warn!("failed to stop agent gracefully, cleaning up files");
       let _ = fs::remove_file(socket_path);
       let _ = fs::remove_file(pid_file);
     }

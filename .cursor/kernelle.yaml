@@ -6,9 +6,14 @@ git-cleanup:
   - git checkout dev 
   - git branch | grep -v \"dev\" | xargs git branch -D
 
-tweak: 
+check-tweak: 
   - do: tidy 
   - do: checks 
   - git add . 
   - git commit -m \"tweaks\" 
   - git push
+
+tweak:
+  - do: tidy
+  - git add .
+  - git commit --amend --no-edit

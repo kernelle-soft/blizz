@@ -21,7 +21,7 @@ pub async fn store(
   };
 
   if secret_value.trim().is_empty() {
-    bentley::error("Cannot store empty secret value");
+    bentley::error!("Cannot store empty secret value");
     return Ok(());
   }
 
@@ -47,7 +47,7 @@ pub async fn store(
       match store.decrypt_credentials(&master_password) {
         Ok(creds) => creds,
         Err(_) => {
-          bentley::error("invalid master password");
+          bentley::error!("invalid master password");
           return Ok(());
         }
       }
@@ -62,8 +62,8 @@ pub async fn store(
   if !force {
     if let Some(group_secrets) = all_credentials.get(group) {
       if group_secrets.contains_key(name) {
-        bentley::warn(&format!("Secret {group}/{name} already exists"));
-        bentley::info("Use --force to overwrite existing secret");
+        bentley::warn!(&format!("Secret {group}/{name} already exists"));
+        bentley::info!("Use --force to overwrite existing secret");
         return Ok(());
       }
     }
@@ -80,7 +80,7 @@ pub async fn store(
   let store = PasswordBasedCredentialStore::new(&all_credentials, &master_password)?;
   store.save_to_file(&credentials_path)?;
 
-  bentley::success(&format!("Stored secret: {group}/{name}"));
+  bentley::success!(&format!("Stored secret: {group}/{name}"));
   Ok(())
 }
 
@@ -100,7 +100,7 @@ pub async fn read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
 
   // Check if credentials file exists
   if !credentials_path.exists() {
-    bentley::error(&format!("Secret not found: {group}/{name}"));
+    bentley::error!(&format!("Secret not found: {group}/{name}"));
     std::process::exit(1);
   }
 
@@ -109,7 +109,7 @@ pub async fn read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
   let store = match PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
     Some(store) => store,
     None => {
-      bentley::warn(&format!("secret not found: {group}/{name}"));
+      bentley::warn!(&format!("secret not found: {group}/{name}"));
       std::process::exit(1);
     }
   };
@@ -121,7 +121,7 @@ pub async fn read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
   let all_credentials = match store.decrypt_credentials(&master_password) {
     Ok(creds) => creds,
     Err(_) => {
-      bentley::error("invalid master password or corrupted data");
+      bentley::error!("invalid master password or corrupted data");
       std::process::exit(1);
     }
   };
@@ -132,7 +132,7 @@ pub async fn read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
       println!("{value}");
     }
     None => {
-      bentley::warn(&format!("secret not found: {group}/{name}"));
+      bentley::warn!(&format!("secret not found: {group}/{name}"));
       std::process::exit(1);
     }
   }
@@ -160,7 +160,7 @@ pub async fn delete(
 
   // Check if credentials file exists
   if !credentials_path.exists() {
-    bentley::error("No secrets stored yet");
+    bentley::error!("No secrets stored yet");
     return Ok(());
   }
 
@@ -172,7 +172,7 @@ pub async fn delete(
   let store = match PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
     Some(store) => store,
     None => {
-      bentley::error("No secrets found");
+      bentley::error!("No secrets found");
       return Ok(());
     }
   };
@@ -181,7 +181,7 @@ pub async fn delete(
   let mut all_credentials = match store.decrypt_credentials(&master_password) {
     Ok(creds) => creds,
     Err(_) => {
-      bentley::error("Invalid master password or corrupted data");
+      bentley::error!("Invalid master password or corrupted data");
       return Ok(());
     }
   };
@@ -192,16 +192,16 @@ pub async fn delete(
       all_credentials.get(group).is_some_and(|group_secrets| group_secrets.contains_key(&name));
 
     if !secret_exists {
-      bentley::error(&format!("Secret not found: {group}/{name}"));
+      bentley::error!(&format!("Secret not found: {group}/{name}"));
       return Ok(());
     }
 
     if !force {
-      bentley::warn(&format!("This will delete the secret: {group}/{name}"));
+      bentley::warn!(&format!("This will delete the secret: {group}/{name}"));
       let confirm =
         crate::encryption::EncryptionManager::prompt_confirmation("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
-        bentley::info("Cancelled");
+        bentley::info!("Cancelled");
         return Ok(());
       }
     }
@@ -220,20 +220,20 @@ pub async fn delete(
     let updated_store = PasswordBasedCredentialStore::new(&all_credentials, &master_password)?;
     updated_store.save_to_file(&credentials_path)?;
 
-    bentley::success(&format!("Deleted secret: {group}/{name}"));
+    bentley::success!(&format!("Deleted secret: {group}/{name}"));
   } else {
     // Delete all secrets for group
     if !all_credentials.contains_key(group) {
-      bentley::info(&format!("No secrets found for group: {group}"));
+      bentley::info!(&format!("No secrets found for group: {group}"));
       return Ok(());
     }
 
     if !force {
-      bentley::warn(&format!("This will delete ALL secrets for group: {group}"));
+      bentley::warn!(&format!("This will delete ALL secrets for group: {group}"));
       let confirm =
         crate::encryption::EncryptionManager::prompt_confirmation("Type 'yes' to confirm: ")?;
       if confirm.trim().to_lowercase() != "yes" {
-        bentley::info("Cancelled");
+        bentley::info!("Cancelled");
         return Ok(());
       }
     }
@@ -248,7 +248,7 @@ pub async fn delete(
     let updated_store = PasswordBasedCredentialStore::new(&all_credentials, &master_password)?;
     updated_store.save_to_file(&credentials_path)?;
 
-    bentley::success(&format!("Deleted {secret_count} secrets for group: {group}"));
+    bentley::success!(&format!("Deleted {secret_count} secrets for group: {group}"));
   }
 
   Ok(())
@@ -274,7 +274,7 @@ pub async fn list(
 
   // Check if credentials file exists
   if !credentials_path.exists() {
-    bentley::info("no secrets stored yet");
+    bentley::info!("no secrets stored yet");
     return Ok(());
   }
 
@@ -283,7 +283,7 @@ pub async fn list(
   let store = match PasswordBasedCredentialStore::load_from_file(&credentials_path)? {
     Some(store) => store,
     None => {
-      bentley::info("no secrets found");
+      bentley::info!("no secrets found");
       return Ok(());
     }
   };
@@ -295,14 +295,14 @@ pub async fn list(
   let all_credentials = match store.decrypt_credentials(&master_password) {
     Ok(creds) => creds,
     Err(_) => {
-      bentley::error("invalid master password or corrupted data");
+      bentley::error!("invalid master password or corrupted data");
       return Ok(());
     }
   };
 
   // Display the contents
   if all_credentials.is_empty() {
-    bentley::info("vault is empty");
+    bentley::info!("vault is empty");
     return Ok(());
   }
 
@@ -316,9 +316,9 @@ pub async fn list(
 
   if credentials_to_show.is_empty() {
     if let Some(filter) = filter_group {
-      bentley::info(&format!("no secrets found for group: {filter}"));
+      bentley::info!(&format!("no secrets found for group: {filter}"));
     } else {
-      bentley::info("no secrets found");
+      bentley::info!("no secrets found");
     }
     return Ok(());
   }
@@ -327,9 +327,9 @@ pub async fn list(
   if show_keys {
     // Show detailed view with group/key pairs
     for (group, secrets_map) in credentials_to_show {
-      bentley::info(&format!("\n{group}/"));
+      bentley::info!(&format!("\n{group}/"));
       for key in secrets_map.keys() {
-        bentley::info(&format!("   {group}/{key}"));
+        bentley::info!(&format!("   {group}/{key}"));
       }
     }
   } else {
@@ -337,11 +337,11 @@ pub async fn list(
     for (group, secrets_map) in credentials_to_show {
       let count = secrets_map.len();
       let plural = if count == 1 { "secret" } else { "secrets" };
-      bentley::info(&format!("{group}: {count} {plural}"));
+      bentley::info!(&format!("{group}: {count} {plural}"));
     }
 
     if !quiet {
-      bentley::info("\nuse --keys to see individual secret names");
+      bentley::info!("\nuse --keys to see individual secret names");
     }
   }
 
@@ -349,18 +349,18 @@ pub async fn list(
 }
 
 pub async fn clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
-  bentley::warn("this will DELETE ALL SECRETS from the vault");
-  bentley::warn("this action cannot be undone!");
+  bentley::warn!("this will DELETE ALL SECRETS from the vault");
+  bentley::warn!("this action cannot be undone!");
 
   // If not forced, ask for confirmation
   if !force {
-    bentley::info("type 'yes' to confirm vault clearing:");
+    bentley::info!("type 'yes' to confirm vault clearing:");
     print!("> ");
     std::io::stdout().flush()?;
     let mut confirm = String::new();
     std::io::stdin().read_line(&mut confirm)?;
     if confirm.trim().to_lowercase() != "yes" {
-      bentley::info("cancelled - vault contents preserved");
+      bentley::info!("cancelled - vault contents preserved");
       return Ok(());
     }
   }
@@ -388,14 +388,14 @@ pub async fn clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
           // Password verified successfully
         }
         Err(_) => {
-          bentley::error("invalid master password - vault contents preserved");
+          bentley::error!("invalid master password - vault contents preserved");
           return Ok(());
         }
       }
     }
   }
 
-  bentley::verbose("clearing vault...");
+  bentley::verbose!("clearing vault...");
 
   // Get the credentials file path (same logic as PasswordBasedCryptoManager::new)
   let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
@@ -418,11 +418,11 @@ pub async fn clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
     let empty_store = PasswordBasedCredentialStore::new(&empty_credentials, &master_password)?;
     empty_store.save_to_file(&credentials_path)?;
   } else {
-    bentley::info("no action taken - nothing to clear");
+    bentley::info!("no action taken - nothing to clear");
   }
 
   if !quiet {
-    bentley::success("vault cleared");
+    bentley::success!("vault cleared");
   }
 
   Ok(())
@@ -440,23 +440,23 @@ async fn get_master_password(_secrets: &Secrets) -> Result<String> {
   // Existing vault - try to get password from daemon first
   match keeper_client::get(&base_path).await {
     Ok(password) => {
-      bentley::verbose("retrieved password from daemon");
+      bentley::verbose!("retrieved password from daemon");
       Ok(password)
     }
     Err(_) => {
       // Daemon not available - start it and try again
-      bentley::verbose("daemon not available, starting...");
+      bentley::verbose!("daemon not available, starting...");
       start_daemon_if_needed(&base_path).await?;
 
       // Try daemon again after starting
       match keeper_client::get(&base_path).await {
         Ok(password) => {
-          bentley::verbose("retrieved password from daemon after startup");
+          bentley::verbose!("retrieved password from daemon after startup");
           Ok(password)
         }
         Err(_) => {
           // Last resort - prompt directly
-          bentley::verbose("daemon unavailable, prompting directly");
+          bentley::verbose!("daemon unavailable, prompting directly");
           let cred_path = base_path.join("persistent").join("keeper").join("credentials.enc");
           let password = crate::encryption::EncryptionManager::get_master_password(&cred_path)?;
           Ok(password)
@@ -477,7 +477,7 @@ async fn start_daemon_if_needed(base_path: &Path) -> Result<()> {
     return Ok(());
   }
 
-  bentley::info("starting daemon...");
+  bentley::info!("starting daemon...");
   keeper_client::start(&socket_path, &pid_file, &keeper_path).await?;
 
   Ok(())
@@ -485,7 +485,7 @@ async fn start_daemon_if_needed(base_path: &Path) -> Result<()> {
 
 /// Reset the master password for the vault
 pub async fn reset_password(secrets: &Secrets, force: bool) -> Result<()> {
-  bentley::verbose("resetting master password...");
+  bentley::verbose!("resetting master password...");
 
   // Get the current master password from the daemon
   let current_password = get_master_password(secrets).await?;
@@ -534,7 +534,7 @@ pub async fn reset_password(secrets: &Secrets, force: bool) -> Result<()> {
     let input = input.trim().to_lowercase();
 
     if input != "y" && input != "yes" {
-      bentley::info("password reset cancelled");
+      bentley::info!("password reset cancelled");
       return Ok(());
     }
   }
@@ -559,8 +559,8 @@ pub async fn reset_password(secrets: &Secrets, force: bool) -> Result<()> {
   let new_store = PasswordBasedCredentialStore::new(&credentials, &new_password)?;
   new_store.save_to_file(&credentials_path)?;
 
-  bentley::success("master password reset successfully");
-  bentley::info("please restart the daemon for the new password to take effect");
+  bentley::success!("master password reset successfully");
+  bentley::info!("please restart the daemon for the new password to take effect");
 
   Ok(())
 }
@@ -656,7 +656,7 @@ mod tests {
     if let Ok(password) = std::env::var("SECRETS_MASTER_PASSWORD") {
       let trimmed = password.trim();
       if !trimmed.is_empty() {
-        bentley::verbose("using password from SECRETS_MASTER_PASSWORD environment variable");
+        bentley::verbose!("using password from SECRETS_MASTER_PASSWORD environment variable");
         return Ok(trimmed.to_string());
       }
     }
@@ -664,21 +664,21 @@ mod tests {
     // Use mock keeper_client instead of real one
     match mock_keeper_client::get(&base_path).await {
       Ok(password) => {
-        bentley::verbose("retrieved password from mock daemon");
+        bentley::verbose!("retrieved password from mock daemon");
         Ok(password)
       }
       Err(_) => {
-        bentley::warn("mock daemon not available, starting...");
+        bentley::warn!("mock daemon not available, starting...");
         start_daemon_if_needed_with_mock(&base_path).await?;
 
         // Try mock daemon again after starting
         match mock_keeper_client::get(&base_path).await {
           Ok(password) => {
-            bentley::verbose("retrieved password from mock daemon after startup");
+            bentley::verbose!("retrieved password from mock daemon after startup");
             Ok(password)
           }
           Err(e) => {
-            bentley::error("failed to get master password from mock daemon");
+            bentley::error!("failed to get master password from mock daemon");
             Err(e)
           }
         }
@@ -691,7 +691,7 @@ mod tests {
     let pid_file = base_path.join("persistent/keeper/keeper.pid");
     let keeper_path = base_path.join("persistent/keeper");
 
-    bentley::info("starting mock daemon...");
+    bentley::info!("starting mock daemon...");
     mock_keeper_client::start(&socket_path, &pid_file, &keeper_path).await?;
 
     Ok(())

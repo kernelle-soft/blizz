@@ -375,7 +375,7 @@ impl EncryptionManager {
 
   /// Create new vault with password confirmation
   pub fn create_new_vault(cred_path: &Path) -> Result<String> {
-    bentley::info("no vault found. creating new vault...");
+    bentley::info!("no vault found. creating new vault...");
     let password1 = Self::prompt_for_password("enter new master password:")?;
     if password1.trim().is_empty() {
       return Err(anyhow!("master password cannot be empty"));
@@ -395,7 +395,7 @@ impl EncryptionManager {
     }
     store.save_to_file(&cred_path.to_path_buf())?;
 
-    bentley::success("vault created successfully");
+    bentley::success!("vault created successfully");
     Ok(password1.trim().to_string())
   }
 
