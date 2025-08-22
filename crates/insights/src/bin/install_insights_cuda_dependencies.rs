@@ -29,7 +29,7 @@ fn main() -> Result<()> {
 
   check_and_install_cuda_dependencies()?;
   
-  bentley::info("CUDA dependency check complete!");
+  bentley::success("CUDA dependency check complete!");
   Ok(())
 }
 
@@ -67,6 +67,13 @@ fn check_library_path() -> Result<()> {
   let ort_cache_pattern = ".cache/ort.pyke.io/dfbin";
   
   if ld_library_path.contains(ort_cache_pattern) {
+    // Find and report the specific ONNX Runtime path
+    for path_part in ld_library_path.split(':') {
+      if path_part.contains(ort_cache_pattern) && path_part.contains("onnxruntime/lib") {
+        bentley::info(&format!("LD_LIBRARY_PATH configured: {}", path_part));
+        return Ok(());
+      }
+    }
     bentley::info("LD_LIBRARY_PATH already configured for ONNX Runtime");
     return Ok(());
   }
@@ -233,11 +240,11 @@ fn install_cuda_driver() -> Result<String> {
 
 /// Check cuDNN and install if missing
 fn check_cudnn(cuda_version: &str) -> Result<()> {
-    // Check if cuDNN is already installed
-    if is_cudnn_installed() {
-      bentley::info("cuDNN is already installed");
-      return Ok(());
-    }
+      // Check if cuDNN is already installed
+  if let Some(cudnn_info) = get_cudnn_info() {
+    bentley::info(&format!("cuDNN {} is already installed", cudnn_info));
+    return Ok(());
+  }
 
     bentley::info("cuDNN not found");
     
@@ -270,27 +277,53 @@ fn check_cudnn(cuda_version: &str) -> Result<()> {
     }
 }
 
-/// Check if cuDNN is installed by looking for the library
-fn is_cudnn_installed() -> bool {
-  // Check common locations for cuDNN
+/// Get cuDNN information if installed, including version
+fn get_cudnn_info() -> Option<String> {
+  // First try to get version from package manager (most reliable)
+  if let Ok(output) = Command::new("dpkg")
+    .args(["-l"])
+    .output() 
+  {
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    for line in output_str.lines() {
+      if line.contains("libcudnn9") {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 {
+          let package_name = parts[1];
+          let version = parts[2];
+          // Extract CUDA version from package name (e.g., libcudnn9-cuda-13)
+          if let Some(cuda_part) = package_name.strip_prefix("libcudnn9-cuda-") {
+            return Some(format!("v{} (CUDA {})", version, cuda_part));
+          } else {
+            return Some(format!("v{}", version));
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback: check file system for library existence
   let cudnn_paths = [
     "/lib/x86_64-linux-gnu/libcudnn.so.9",
-    "/usr/lib/x86_64-linux-gnu/libcudnn.so.9",
+    "/usr/lib/x86_64-linux-gnu/libcudnn.so.9", 
     "/usr/local/cuda/lib64/libcudnn.so.9",
   ];
 
   for path in &cudnn_paths {
     if std::path::Path::new(path).exists() {
-      return true;
+      return Some("detected (version unknown)".to_string());
     }
   }
 
-  // Also try to use ldconfig to check
-  Command::new("ldconfig")
-    .args(["-p"])
-    .output()
-    .map(|output| String::from_utf8_lossy(&output.stdout).contains("libcudnn"))
-    .unwrap_or(false)
+  // Also try ldconfig as final check
+  if let Ok(output) = Command::new("ldconfig").args(["-p"]).output() {
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    if output_str.contains("libcudnn") {
+      return Some("detected via ldconfig".to_string());
+    }
+  }
+
+  None
 }
 
 /// Install cuDNN package
