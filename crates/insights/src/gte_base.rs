@@ -157,8 +157,8 @@ impl GTEBase {
 }
 
 // Hardware detection
+#[cfg(not(tarpaulin_include))]
 impl GTEBase {
-  #[tarpaulin::skip] // No need to include OS-specific system checks.
   fn get_execution_providers() -> Vec<ExecutionProviderDispatch> {
     let mut providers = Vec::new();
 
