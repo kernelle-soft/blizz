@@ -182,7 +182,7 @@ impl GTEBase {
     
     // Only include token_type_ids if the model expects it
     let model_input_names: Vec<String> =
-      session.input.iter().map(|input| input.name.to_string()).collect();
+      session.inputs.iter().map(|input| input.name.to_string()).collect();
     
     if model_input_names.contains(&"token_type_ids".to_string()) {
       input.insert("token_type_ids".to_string(), token_type_ids_tensor);
