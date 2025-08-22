@@ -113,7 +113,7 @@ fn check_nvidia_drivers() -> Result<bool> {
       // Attempt automatic driver installation
       match install_nvidia_drivers() {
         Ok(true) => {
-          bentley::info("NVIDIA drivers installed successfully!");
+          bentley::success("NVIDIA drivers installed successfully!");
           bentley::warn("*** REBOOT REQUIRED ***");
           bentley::info("Please reboot your system and run this script again.");
           bentley::info("After reboot, GPU acceleration will be available.");
@@ -196,9 +196,21 @@ fn install_nvidia_drivers() -> Result<bool> {
         .status()?;
         
       if status.success() {
-        return Ok(true);
+        // Verify that nvidia-smi is actually working after installation
+        if Command::new("nvidia-smi")
+          .stdout(Stdio::null())
+          .stderr(Stdio::null()) 
+          .status()
+          .map(|s| s.success())
+          .unwrap_or(false)
+        {
+          return Ok(true);
+        } else {
+          bentley::warn("ubuntu-drivers autoinstall completed but nvidia-smi still not working");
+          bentley::warn("This usually requires a reboot. Continuing with fallback installation...");
+        }
       } else {
-        bentley::warn("ubuntu-drivers autoinstall failed, trying manual detection...");
+        bentley::warn("ubuntu-drivers autoinstall failed, trying fallback installation...");
       }
     }
     _ => {
@@ -206,14 +218,28 @@ fn install_nvidia_drivers() -> Result<bool> {
     }
   }
   
-  // Method 3: Fallback to recent stable version
+  // Method 2: Fallback to recent stable version
   bentley::info("Falling back to recent stable driver (nvidia-driver-580)...");
   let status = Command::new("sudo")
     .args(["apt", "install", "-y", "nvidia-driver-580"])
     .status()?;
     
   if status.success() {
-    Ok(true)
+    // Verify installation worked
+    if Command::new("nvidia-smi")
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .status()
+      .map(|s| s.success())
+      .unwrap_or(false)
+    {
+      bentley::info("Driver installation successful and nvidia-smi is working!");
+      Ok(true)
+    } else {
+      bentley::warn("Driver packages installed but nvidia-smi not yet working");
+      bentley::warn("This is normal - drivers require a reboot to become active");
+      Ok(true) // Installation succeeded, just needs reboot
+    }
   } else {
     Err(anyhow::anyhow!("Driver installation failed"))
   }
