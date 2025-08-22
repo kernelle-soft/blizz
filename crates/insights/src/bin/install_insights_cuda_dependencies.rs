@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::process::{Command, Stdio};
 use std::env;
+use std::io::{self, Write};
 
 fn main() -> Result<()> {
   // Skip entirely in CI environments
@@ -94,7 +95,7 @@ fn has_nvidia_gpu() -> Result<bool> {
   Ok(false)
 }
 
-/// Check if NVIDIA drivers are installed and suggest installation if needed
+/// Check if NVIDIA drivers are installed and attempt installation if needed
 fn check_nvidia_drivers() -> Result<bool> {
   // Check if nvidia-smi exists and works
   match Command::new("nvidia-smi")
@@ -108,16 +109,128 @@ fn check_nvidia_drivers() -> Result<bool> {
     }
     _ => {
       bentley::warn("NVIDIA GPU found but drivers not accessible (nvidia-smi failed)");
-      bentley::info("Please install NVIDIA drivers:");
-      bentley::info("   sudo apt update");
-      bentley::info("   sudo apt install -y nvidia-driver-580  # or latest available");
-      bentley::info("   sudo reboot  # reboot required after driver installation");
-      bentley::info("");
-      bentley::info("Alternative: Install from NVIDIA's official repository:");
-      bentley::info("   https://developer.nvidia.com/cuda-downloads");
-      Ok(false)
+      
+      // Attempt automatic driver installation
+      match install_nvidia_drivers() {
+        Ok(true) => {
+          bentley::info("NVIDIA drivers installed successfully!");
+          bentley::warn("*** REBOOT REQUIRED ***");
+          bentley::info("Please reboot your system and run this script again.");
+          bentley::info("After reboot, GPU acceleration will be available.");
+          Ok(false) // Return false so we don't continue (need reboot)
+        }
+        Ok(false) => {
+          bentley::info("Driver installation skipped by user");
+          print_manual_driver_instructions();
+          Ok(false)
+        }
+        Err(e) => {
+          bentley::warn(&format!("Automatic driver installation failed: {}", e));
+          print_manual_driver_instructions();
+          Ok(false)
+        }
+      }
     }
   }
+}
+
+/// Attempt to install NVIDIA drivers
+fn install_nvidia_drivers() -> Result<bool> {
+  // In CI environments, skip interactive prompts
+  if is_ci_environment() {
+    bentley::info("CI environment detected - skipping interactive driver installation");
+    return Ok(false);
+  }
+
+  bentley::info("Would you like to install NVIDIA drivers automatically? (y/N)");
+  bentley::info("This will:");
+  bentley::info("  1. Update package lists");
+  bentley::info("  2. Detect and install the recommended NVIDIA driver"); 
+  bentley::info("  3. Require a manual system reboot to take effect");
+  
+  // Read user input
+  print!("Install drivers? [y/N]: ");
+  io::stdout().flush()?;
+  
+  let mut input = String::new();
+  io::stdin().read_line(&mut input)?;
+  let input = input.trim().to_lowercase();
+  
+  if input != "y" && input != "yes" {
+    bentley::info("Driver installation skipped");
+    return Ok(false);
+  }
+  
+  bentley::info("Proceeding with automatic installation...");
+  
+  // Update package lists
+  bentley::info("Updating package lists...");
+  let status = Command::new("sudo")
+    .args(["apt", "update"])
+    .status()?;
+  
+  if !status.success() {
+    return Err(anyhow::anyhow!("Failed to update package lists"));
+  }
+
+  // Install NVIDIA drivers using Ubuntu's automatic detection
+  bentley::info("Detecting recommended NVIDIA driver...");
+  
+  // Method 1: Try ubuntu-drivers autoinstall (most automatic)
+  match Command::new("ubuntu-drivers")
+    .arg("devices")
+    .output()
+  {
+    Ok(output) if output.status.success() => {
+      let devices_output = String::from_utf8_lossy(&output.stdout);
+      bentley::info("Available drivers detected:");
+      for line in devices_output.lines() {
+        if line.contains("nvidia") || line.contains("recommended") {
+          bentley::info(&format!("  {}", line));
+        }
+      }
+      
+      bentley::info("Installing recommended drivers automatically...");
+      let status = Command::new("sudo")
+        .args(["ubuntu-drivers", "autoinstall"])
+        .status()?;
+        
+      if status.success() {
+        return Ok(true);
+      } else {
+        bentley::warn("ubuntu-drivers autoinstall failed, trying manual detection...");
+      }
+    }
+    _ => {
+      bentley::warn("ubuntu-drivers not available, trying alternative method...");
+    }
+  }
+  
+  // Method 3: Fallback to recent stable version
+  bentley::info("Falling back to recent stable driver (nvidia-driver-580)...");
+  let status = Command::new("sudo")
+    .args(["apt", "install", "-y", "nvidia-driver-580"])
+    .status()?;
+    
+  if status.success() {
+    Ok(true)
+  } else {
+    Err(anyhow::anyhow!("Driver installation failed"))
+  }
+}
+
+/// Print manual driver installation instructions
+fn print_manual_driver_instructions() {
+  bentley::info("Manual NVIDIA driver installation:");
+  bentley::info("   sudo apt update");
+  bentley::info("   ubuntu-drivers devices  # see available drivers");
+  bentley::info("   sudo ubuntu-drivers autoinstall  # install recommended");
+  bentley::info("   # OR manually install specific version:");
+  bentley::info("   sudo apt install -y nvidia-driver-535  # or latest available");
+  bentley::info("   sudo reboot  # reboot required after driver installation");
+  bentley::info("");
+  bentley::info("Alternative: Install from NVIDIA's official repository:");
+  bentley::info("   https://developer.nvidia.com/cuda-downloads");
 }
 
 /// Check if LD_LIBRARY_PATH is configured for ONNX Runtime
