@@ -105,41 +105,44 @@ fn spawn_handler(
   socket: &PathBuf,
   embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
 ) -> JoinHandle<()> {
-  let listener = match UnixListener::bind(socket) {
+  let listener = create_listener(socket);
+  bentley::info(&format!("listening on socket: {}", socket.display()));
+  tokio::spawn(async move {
+    handle_connections(listener, embedder).await;
+  })
+}
+
+fn create_listener(socket: &PathBuf) -> UnixListener {
+  match UnixListener::bind(socket) {
     Ok(listener) => listener,
     Err(e) => {
       bentley::error(&format!("failed to bind socket: {e}"));
       std::process::exit(1);
     }
-  };
-
-  bentley::info(&format!("listening on socket: {}", socket.display()));
-
-  let handler = tokio::spawn(async move {
-    loop {
-      match listener.accept().await {
-        Ok((stream, _)) => {
-          let embedder_for_task = embedder.as_ref().map(Arc::clone);
-          tokio::spawn(async move {
-            handle_client(stream, embedder_for_task).await;
-          });
-        }
-        Err(e) => {
-          bentley::warn(&format!("failed to accept connection: {e}"));
-        }
-      }
-    }
-  });
-
-  handler
+  }
 }
 
-async fn handle_client(
-  mut stream: tokio::net::UnixStream,
+async fn handle_connections(
+  listener: UnixListener,
   embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
 ) {
-  let response = process_client_request(&mut stream, embedder).await;
-  send_response_to_client(&mut stream, response).await;
+  loop {
+    let connection_result = listener.accept().await;
+  
+    let (mut stream, _) = match connection_result {
+      Ok(connection) => connection,
+      Err(e) => {
+        bentley::warn(&format!("failed to accept connection: {e}"));
+        return;
+      }
+    };
+  
+    let embedder_for_task = embedder.as_ref().map(Arc::clone);
+    tokio::spawn(async move {
+      let response = process_client_request(&mut stream, embedder_for_task).await;
+      send_response_to_client(&mut stream, response).await;
+    });
+  }
 }
 
 async fn process_client_request(
