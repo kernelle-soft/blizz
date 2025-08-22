@@ -208,11 +208,4 @@ impl GTEBase {
 
     Ok(embedding_vec)
   }
-
-  /// Cleanup resources (called on daemon shutdown)
-  pub fn unload(&self) {
-    bentley::info("Unloading GTE-Base model...");
-    // ONNX session and tokenizer will be dropped automatically
-    bentley::info("✓ Model unloaded successfully");
-  }
 }
