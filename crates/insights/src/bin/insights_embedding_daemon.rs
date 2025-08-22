@@ -139,67 +139,98 @@ fn spawn_handler(socket: &PathBuf, embedder: Option<Arc<tokio::sync::Mutex<GTEBa
 }
 
 async fn handle_client(mut stream: tokio::net::UnixStream, embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>) {
-  // Read the entire request as JSON
+  let response = process_client_request(&mut stream, embedder).await;
+  send_response_to_client(&mut stream, response).await;
+}
+
+async fn process_client_request(stream: &mut tokio::net::UnixStream, embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>) -> EmbeddingResponse {
+  let request_data = match read_request_data(stream).await {
+    Ok(data) => data,
+    Err(response) => return response,
+  };
+
+  let request_str = match parse_utf8_data(request_data) {
+    Ok(str) => str,
+    Err(response) => return response,
+  };
+
+  let request = match parse_json_request(&request_str) {
+    Ok(req) => req,
+    Err(response) => return response,
+  };
+
+  if request.request != "embed" {
+    bentley::warn(&format!("unsupported request type: {}", request.request));
+    return EmbeddingResponse::error(&format!("Unsupported request type: {}", request.request), "unsupported_request");
+  }
+
+  process_embedding_request(&request.body, embedder).await
+}
+
+async fn read_request_data(stream: &mut tokio::net::UnixStream) -> Result<Vec<u8>, EmbeddingResponse> {
   let mut buffer = Vec::new();
-  let response = match stream.read_to_end(&mut buffer).await {
-    Ok(_) => {
-      match String::from_utf8(buffer) {
-        Ok(request_str) => {
-          match serde_json::from_str::<EmbeddingRequest>(&request_str) {
-            Ok(request) => {
-              if request.request == "embed" {
-                match embedder {
-                  Some(ref embedder_arc) => {
-                    let mut embedder_guard = embedder_arc.lock().await;
-                    match embedder_guard.embed(&request.body) {
-                      Ok(embedding) => {
-                        bentley::verbose(&format!("generated embedding for text: {}", 
-                          request.body.chars().take(50).collect::<String>()));
-                        EmbeddingResponse::success(embedding)
-                      }
-                      Err(e) => {
-                        bentley::warn(&format!("embedding failed: {}", e));
-                        EmbeddingResponse::error(&format!("Failed to generate embedding: {}", e), "embedding_failed")
-                      }
-                    }
-                  }
-                  None => {
-                    bentley::warn("embedding requested but no model loaded");
-                    EmbeddingResponse::error("Embedding model not available", "model_not_loaded")
-                  }
-                }
-              } else {
-                bentley::warn(&format!("unsupported request type: {}", request.request));
-                EmbeddingResponse::error(&format!("Unsupported request type: {}", request.request), "unsupported_request")
-              }
-            }
-            Err(e) => {
-              bentley::warn(&format!("failed to parse JSON request: {}", e));
-              EmbeddingResponse::error(&format!("Invalid JSON request: {}", e), "invalid_json")
-            }
-          }
-        }
-        Err(_) => {
-          bentley::warn("received invalid UTF-8 data");
-          EmbeddingResponse::error("Invalid UTF-8 data in request", "invalid_utf8")
-        }
-      }
-    }
+  match stream.read_to_end(&mut buffer).await {
+    Ok(_) => Ok(buffer),
     Err(e) => {
       bentley::warn(&format!("failed to read from client: {}", e));
-      EmbeddingResponse::error(&format!("Failed to read request: {}", e), "read_failed")
+      Err(EmbeddingResponse::error(&format!("Failed to read request: {}", e), "read_failed"))
+    }
+  }
+}
+
+fn parse_utf8_data(buffer: Vec<u8>) -> Result<String, EmbeddingResponse> {
+  match String::from_utf8(buffer) {
+    Ok(s) => Ok(s),
+    Err(_) => {
+      bentley::warn("received invalid UTF-8 data");
+      Err(EmbeddingResponse::error("Invalid UTF-8 data in request", "invalid_utf8"))
+    }
+  }
+}
+
+fn parse_json_request(request_str: &str) -> Result<EmbeddingRequest, EmbeddingResponse> {
+  match serde_json::from_str::<EmbeddingRequest>(request_str) {
+    Ok(request) => Ok(request),
+    Err(e) => {
+      bentley::warn(&format!("failed to parse JSON request: {}", e));
+      Err(EmbeddingResponse::error(&format!("Invalid JSON request: {}", e), "invalid_json"))
+    }
+  }
+}
+
+async fn process_embedding_request(text: &str, embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>) -> EmbeddingResponse {
+  let embedder_arc = match embedder {
+    Some(arc) => arc,
+    None => {
+      bentley::warn("embedding requested but no model loaded");
+      return EmbeddingResponse::error("Embedding model not available", "model_not_loaded");
     }
   };
 
-  // Send JSON response back to client
-  match serde_json::to_string(&response) {
-    Ok(response_json) => {
-      if let Err(e) = stream.write_all(response_json.as_bytes()).await {
-        bentley::warn(&format!("failed to write response: {}", e));
-      }
+  let mut embedder_guard = embedder_arc.lock().await;
+  match embedder_guard.embed(text) {
+    Ok(embedding) => {
+      bentley::verbose(&format!("generated embedding for text: {}", 
+        text.chars().take(50).collect::<String>()));
+      EmbeddingResponse::success(embedding)
     }
     Err(e) => {
-      bentley::error(&format!("failed to serialize response: {}", e));
+      bentley::warn(&format!("embedding failed: {}", e));
+      EmbeddingResponse::error(&format!("Failed to generate embedding: {}", e), "embedding_failed")
     }
+  }
+}
+
+async fn send_response_to_client(stream: &mut tokio::net::UnixStream, response: EmbeddingResponse) {
+  let response_json = match serde_json::to_string(&response) {
+    Ok(json) => json,
+    Err(e) => {
+      bentley::error(&format!("failed to serialize response: {}", e));
+      return;
+    }
+  };
+
+  if let Err(e) = stream.write_all(response_json.as_bytes()).await {
+    bentley::warn(&format!("failed to write response: {}", e));
   }
 }
