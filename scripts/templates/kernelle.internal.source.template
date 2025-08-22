@@ -1,10 +1,30 @@
 #!/bin/sh
 
-
-# Ensure ~/.cargo/bin is in PATH for Kernelle binaries
-if [ -d "$HOME/.cargo/bin" ]; then
+# Makes blizz and blizz subtools visible to the terminal
+ensure_cargo_path() {
+  if [ -d "$HOME/.cargo/bin" ]; then
     case ":$PATH:" in
-        *":$HOME/.cargo/bin:"*) ;;
-        *) export PATH="$HOME/.cargo/bin:$PATH" ;;
+      *":$HOME/.cargo/bin:"*) ;;
+      *) export PATH="$HOME/.cargo/bin:$PATH" ;;
     esac
-fi
+  fi
+}
+
+# Used by the Insights CLI
+ensure_ld_library_path() {
+  # Auto-configure ONNX Runtime GPU libraries if available
+  if [ -d "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu" ]; then
+    # Find the most recent ONNX Runtime download with GPU libraries
+    LATEST_ORT_LIB=$(find "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu" -name "lib" -type d -path "*/onnxruntime/lib" 2>/dev/null | head -1)
+    if [ -n "$LATEST_ORT_LIB" ] && [ -f "$LATEST_ORT_LIB/libonnxruntime_providers_cuda.so" ]; then
+      # Only add if not already in LD_LIBRARY_PATH
+      case ":${LD_LIBRARY_PATH:-}:" in
+        *":$LATEST_ORT_LIB:"*) ;;
+        *) export LD_LIBRARY_PATH="$LATEST_ORT_LIB:${LD_LIBRARY_PATH:-}" ;;
+      esac
+    fi
+  fi
+}
+
+ensure_cargo_path
+ensure_ld_library_path

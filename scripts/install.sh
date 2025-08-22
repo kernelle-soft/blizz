@@ -266,7 +266,18 @@ else
 fi
 echo ""
 
+# Copy the internal source file to the KERNELLE_HOME and source it
 cp "$SCRIPT_DIR/templates/kernelle.internal.source.template" "$KERNELLE_HOME/kernelle.internal.source"
+source "$KERNELLE_HOME/kernelle.internal.source"
+
+echo "🎯 Configuring GPU acceleration dependencies..."
+# Run CUDA dependency checker if the binary was installed
+if command -v install_insights_cuda_dependencies >/dev/null 2>&1; then
+	install_insights_cuda_dependencies || echo "⚠️  GPU setup encountered issues - CPU inference will be used"
+else
+	echo "⚠️  CUDA dependency checker not found - skipping GPU setup"
+fi
+echo ""
 
 echo "📝 Setting up uninstaller..."
 # Copy uninstaller script to KERNELLE_HOME

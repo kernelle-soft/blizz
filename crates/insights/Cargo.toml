@@ -19,6 +19,10 @@ path = "src/main.rs"
 name = "insights_embedding_daemon"
 path = "src/bin/insights_embedding_daemon.rs"
 
+[[bin]]
+name = "install_insights_cuda_dependencies"
+path = "src/bin/install_insights_cuda_dependencies.rs"
+
 [dependencies]
 clap.workspace = true
 dirs.workspace = true
