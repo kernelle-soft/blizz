@@ -8,3 +8,4 @@ pub mod insight;
 pub mod search;
 pub mod semantic;
 pub mod similarity;
+pub mod gte_base;

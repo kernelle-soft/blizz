@@ -15,6 +15,10 @@ path = "src/lib.rs"
 name = "insights"
 path = "src/main.rs"
 
+[[bin]]
+name = "insights_embedding_daemon"
+path = "src/bin/insights_embedding_daemon.rs"
+
 [dependencies]
 clap.workspace = true
 dirs.workspace = true
@@ -39,6 +43,13 @@ uuid = { version = "1.18", features = ["v4"] }
 ort = { version = "2.0.0-rc.10", features = ["fetch-models"] }
 ndarray = { version = "0.16" }
 tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+
+# Candle embeddings (alternative to ONNX)
+candle-core = { git = "https://github.com/huggingface/candle.git" }
+candle-nn = { git = "https://github.com/huggingface/candle.git" }
+candle-transformers = { git = "https://github.com/huggingface/candle.git" }
+hf-hub = { version = "0.3", features = ["tokio"] }
+safetensors = "0.4"
 
 # Future: Neural embeddings when ecosystem stabilizes
 

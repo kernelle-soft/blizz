@@ -8,12 +8,24 @@ use tokio::net::UnixListener;
 use tokio::signal;
 use tokio::task::JoinHandle;
 
+use insights::gte_base::GTEBase;
+
 #[tokio::main]
 async fn main() -> Result<()> {
   let insights_path = get_base()?;
 
   // Ensure directory exists
   fs::create_dir_all(&insights_path)?;
+
+  // Load the embedder model
+  let embedder = match GTEBase::load().await {
+    Ok(embedder) => Some(embedder),
+    Err(e) => {
+      bentley::warn(&format!("Failed to load embedder model: {}", e));
+      bentley::warn("Daemon will run without embedding capabilities");
+      None
+    }
+  };
 
   let socket_path = create_socket(&insights_path)?;
   bentley::info("daemon started - press ctrl+c to exit");
@@ -23,6 +35,11 @@ async fn main() -> Result<()> {
   // Wait for shutdown signal
   signal::ctrl_c().await?;
   bentley::info("\nshutting down daemon");
+
+  // Unload the model if it was loaded
+  if let Some(ref embedder) = embedder {
+    embedder.unload();
+  }
 
   // Clean up socket file
   let _ = fs::remove_file(&socket_path);
