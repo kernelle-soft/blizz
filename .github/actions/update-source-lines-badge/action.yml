@@ -1,0 +1,37 @@
+name: 'Update Source Lines Badge'
+description: 'Counts source code lines and updates the badge in README.md'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Count source lines and generate badge
+      shell: bash
+      run: |
+        # Generate the new badge
+        NEW_BADGE=$(./scripts/count-source-lines.sh --badge-only)
+        
+        echo "Generated badge: $NEW_BADGE"
+        
+        # Replace or add the source lines badge in README.md
+        # Look for existing source lines badge and replace it
+        if grep -q "!\[Source Lines\]" README.md; then
+          echo "Updating existing source lines badge..."
+          # Replace the entire line containing the Source Lines badge
+          sed -i "/Source Lines/c\\$NEW_BADGE" README.md
+        else
+          echo "Adding new source lines badge after coverage badge..."
+          # Insert after the coverage badge line
+          sed -i "/^!\[Code Coverage\]/a\\$NEW_BADGE" README.md
+        fi
+        
+        # Check if there were changes
+        if git diff --quiet README.md; then
+          echo "No changes to README.md"
+        else
+          echo "Source lines badge updated in README.md"
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git commit -m "Update source lines badge [skip ci]"
+          git push
+        fi

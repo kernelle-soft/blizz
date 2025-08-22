@@ -35,3 +35,7 @@ jobs:
         with:
           report-coverage: 'true'
           update-badge: 'true'
+
+      - name: Update Source Lines Badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: ./.github/actions/update-source-lines-badge
