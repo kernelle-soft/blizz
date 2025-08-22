@@ -42,10 +42,9 @@ uuid = { version = "1.18", features = ["v4"] }
 # Neural embeddings via ONNX (v2 API!) with hardware acceleration
 ort = { version = "2.0.0-rc.10", features = [
   "fetch-models",
+  "download-binaries", # Download GPU-enabled ONNX Runtime binaries
   "cuda",      # NVIDIA GPU support
-  "rocm",      # AMD GPU support  
   "coreml",    # macOS CoreML support
-  "directml",  # Windows DirectML support
 ] }
 ndarray = { version = "0.16" }
 tokenizers = { version = "0.21", default-features = false, features = ["onig"] }

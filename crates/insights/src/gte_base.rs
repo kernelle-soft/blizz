@@ -1,13 +1,22 @@
 use anyhow::{anyhow, Result};
 use hf_hub::api::tokio::Api;
 use ndarray::Array2;
-use ort::{
-    session::Session, 
-    value::Value,
-    execution_providers::{ExecutionProviderDispatch, CPUExecutionProvider, CUDAExecutionProvider, ROCmExecutionProvider, CoreMLExecutionProvider}
-};
 use std::collections::HashMap;
 use tokenizers::Tokenizer;
+
+#[cfg(target_os = "linux")]
+use ort::{
+  session::Session, 
+  value::Value,
+  execution_providers::{ExecutionProviderDispatch, CPUExecutionProvider, CUDAExecutionProvider}
+};
+
+#[cfg(target_os = "macos")]
+use ort::{
+  session::Session, 
+  value::Value,
+  execution_providers::{ExecutionProviderDispatch, CPUExecutionProvider, CoreMLExecutionProvider}
+};
 
 pub struct GTEBase {
     session: Session,
@@ -73,14 +82,9 @@ impl GTEBase {
       
       #[cfg(target_os = "linux")]
       {
-        // Try CUDA first (most common)
         if Self::is_cuda_available() {
           bentley::info("CUDA detected - adding CUDA provider");
-          providers.push(CUDAExecutionProvider::default().into());
-        }
-        // Try ROCm for AMD GPUs
-        else if Self::is_rocm_available() {
-          providers.push(ROCmExecutionProvider::default().into());
+          providers.push(CUDAExecutionProvider::default().build().error_on_failure());
         }
       }
       
@@ -90,24 +94,16 @@ impl GTEBase {
       providers
     }
     
-    /// Check if CUDA is available
+    /// Check if CUDA is available using ONNX Runtime's ExecutionProvider::is_available()
     #[cfg(target_os = "linux")]
     fn is_cuda_available() -> bool {
-      // Check for nvidia-smi command
-      std::process::Command::new("nvidia-smi")
+      // First check if nvidia-smi exists (hardware level)
+      let nvidia_smi_available = std::process::Command::new("nvidia-smi")
         .output()
         .map(|output| output.status.success())
-        .unwrap_or(false)
-    }
-    
-    /// Check if ROCm is available  
-    #[cfg(target_os = "linux")]
-    fn is_rocm_available() -> bool {
-      // Check for rocm-smi command
-      std::process::Command::new("rocm-smi")
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
+        .unwrap_or(false);
+
+      nvidia_smi_available
     }
     
     /// Generate embeddings for a single text
