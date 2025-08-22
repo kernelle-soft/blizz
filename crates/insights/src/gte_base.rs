@@ -40,8 +40,7 @@ impl GTEBase {
 
     let model_files = Self::download_model().await?;
     let tokenizer = Self::load_tokenizer(model_files.tokenizer_file)?;
-    let session = Self::load_model
-(model_files.model_path)?;
+    let session = Self::load_model(model_files.model_path)?;
     Ok(Self { session, tokenizer })
   }
 
@@ -55,47 +54,32 @@ impl GTEBase {
 }
 
 // Model initialization
-// violet ignore chunk - this is about as simple and flat as it's going to get without breaking this into 
+// violet ignore chunk - this is about as simple and flat as it's going to get without breaking this into
 // singlet implementation blocks.
 impl GTEBase {
   async fn download_model() -> Result<ModelFiles> {
-    let api = Api::new()
-      .map_err(|e|
-        anyhow!("HF API initialization failed: {}", e)
-      )?;
+    let api = Api::new().map_err(|e| anyhow!("HF API initialization failed: {}", e))?;
 
     let repo = api.model(MODEL_NAME.to_string());
 
-    let tokenizer_file = repo
-      .get(TOKENIZER_FILE)
-      .await
-      .map_err(|e|
-        anyhow!("Failed to download tokenizer: {}", e)
-      )?;
+    let tokenizer_file =
+      repo.get(TOKENIZER_FILE).await.map_err(|e| anyhow!("Failed to download tokenizer: {}", e))?;
 
-    let model_path = repo
-      .get(MODEL_FILE)
-      .await
-      .map_err(|e|
-        anyhow!("Failed to download ONNX model: {}", e)
-      )?;
+    let model_path =
+      repo.get(MODEL_FILE).await.map_err(|e| anyhow!("Failed to download ONNX model: {}", e))?;
 
     Ok(ModelFiles { tokenizer_file, model_path })
   }
 
   fn load_tokenizer(path: std::path::PathBuf) -> Result<Tokenizer> {
-    Tokenizer::from_file(path)
-      .map_err(|e|
-        anyhow!("Failed to load tokenizer: {}", e)
-      )
+    Tokenizer::from_file(path).map_err(|e| anyhow!("Failed to load tokenizer: {}", e))
   }
 
   fn load_model(model_path: std::path::PathBuf) -> Result<Session> {
     let providers = Self::get_exe_providers();
 
-    let session = Session::builder()?
-      .with_execution_providers(providers)?
-      .commit_from_file(model_path)?;
+    let session =
+      Session::builder()?.with_execution_providers(providers)?.commit_from_file(model_path)?;
 
     Ok(session)
   }
@@ -140,7 +124,7 @@ impl GTEBase {
 impl GTEBase {
   fn tokenize(text: &str, tokenizer: &Tokenizer) -> Result<tokenizers::Encoding> {
     let tokens = tokenizer.encode(text, true).map_err(|e| anyhow!("Tokenization failed: {}", e))?;
-    
+
     let input_ids = tokens.get_ids();
     let token_count = input_ids.len();
     const MAX_SEQUENCE_LENGTH: usize = 511; // GTE-Base limit is 512
@@ -157,42 +141,45 @@ impl GTEBase {
   }
 
   /// Prepare model input tensors from tokens
-  fn prepare(tokens: &tokenizers::Encoding, session: &Session) -> Result<std::collections::HashMap<String, Value>> {
+  fn prepare(
+    tokens: &tokenizers::Encoding,
+    session: &Session,
+  ) -> Result<std::collections::HashMap<String, Value>> {
     let input_ids = tokens.get_ids();
     let attention_mask = tokens.get_attention_mask();
     let token_type_ids = tokens.get_type_ids();
-    
+
     // Convert to the format expected by ort v2
     let input_ids: Vec<i64> = input_ids.iter().map(|&x| x as i64).collect();
     let attention_mask: Vec<i64> = attention_mask.iter().map(|&x| x as i64).collect();
     let token_type_ids: Vec<i64> = token_type_ids.iter().map(|&x| x as i64).collect();
-    
+
     let seq_len = input_ids.len();
-    
+
     // Create ndarray arrays and convert to ort Values
     let input_ids_array: Array2<i64> = Array2::from_shape_vec((1, seq_len), input_ids)?;
     let attention_mask_array: Array2<i64> = Array2::from_shape_vec((1, seq_len), attention_mask)?;
     let token_type_ids_array: Array2<i64> = Array2::from_shape_vec((1, seq_len), token_type_ids)?;
-    
+
     let input_ids_tensor: Value = Value::from_array(input_ids_array)?.into();
     let attention_mask_tensor: Value = Value::from_array(attention_mask_array)?.into();
     let token_type_ids_tensor: Value = Value::from_array(token_type_ids_array)?.into();
-    
+
     // Create input based on what the model expects
     let mut input = HashMap::new();
     input.insert("input_ids".to_string(), input_ids_tensor);
     input.insert("attention_mask".to_string(), attention_mask_tensor);
-    
+
     // Only include token_type_ids if the model expects it
     let model_input_names: Vec<String> =
       session.inputs.iter().map(|input| input.name.to_string()).collect();
-    
+
     if model_input_names.contains(&"token_type_ids".to_string()) {
       input.insert("token_type_ids".to_string(), token_type_ids_tensor);
     } else {
       bentley::verbose("Model doesn't expect token_type_ids, skipping");
     }
-    
+
     Ok(input)
   }
 
@@ -212,10 +199,10 @@ impl GTEBase {
   /// Perform mean pooling over sequence dimension for sentence embeddings
   fn mean_pool(embedding: (&[i64], &[f32])) -> Result<Vec<f32>> {
     let (shape, data) = embedding;
-    
+
     let seq_length = shape[1] as usize;
     let hidden_size = shape[2] as usize;
-    
+
     let mut embedding = vec![0.0f32; hidden_size];
     for token_idx in 0..seq_length {
       let start = token_idx * hidden_size;

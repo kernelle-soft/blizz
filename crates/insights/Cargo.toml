@@ -53,14 +53,8 @@ ort = { version = "2.0.0-rc.10", features = [
 ndarray = { version = "0.16" }
 tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 
-# Candle embeddings (alternative to ONNX)
-candle-core = { git = "https://github.com/huggingface/candle.git" }
-candle-nn = { git = "https://github.com/huggingface/candle.git" }
-candle-transformers = { git = "https://github.com/huggingface/candle.git" }
 hf-hub = { version = "0.4", features = ["tokio"] }
 safetensors = "0.6"
-
-# Future: Neural embeddings when ecosystem stabilizes
 
 [dev-dependencies]
 assert_cmd = "2.0"

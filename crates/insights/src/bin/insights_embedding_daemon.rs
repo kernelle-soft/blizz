@@ -128,7 +128,7 @@ async fn handle_connections(
 ) {
   loop {
     let connection_result = listener.accept().await;
-  
+
     let (mut stream, _) = match connection_result {
       Ok(connection) => connection,
       Err(e) => {
@@ -136,7 +136,7 @@ async fn handle_connections(
         return;
       }
     };
-  
+
     let embedder_for_task = embedder.as_ref().map(Arc::clone);
     tokio::spawn(async move {
       let response = process_client_request(&mut stream, embedder_for_task).await;

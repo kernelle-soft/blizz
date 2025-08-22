@@ -86,7 +86,7 @@ fn check_nvidia_via_lspci() -> Result<bool> {
   };
 
   let output_str = String::from_utf8_lossy(&output.stdout);
-  
+
   for line in output_str.lines() {
     if is_nvidia_display_device(line) {
       bentley::info("NVIDIA GPU detected via lspci");
@@ -197,7 +197,7 @@ fn install_nvidia_drivers() -> Result<bool> {
   }
 
   bentley::info("Proceeding with automatic installation...");
-  
+
   update_package_lists()?;
 
   if try_ubuntu_drivers_autoinstall()? {
@@ -252,7 +252,7 @@ fn try_ubuntu_drivers_autoinstall() -> Result<bool> {
   }
 
   show_available_drivers(&output.stdout);
-  
+
   if !run_ubuntu_drivers_autoinstall()? {
     bentley::warn("ubuntu-drivers autoinstall failed, trying fallback installation...");
     return Ok(false);
@@ -271,7 +271,7 @@ fn try_ubuntu_drivers_autoinstall() -> Result<bool> {
 fn show_available_drivers(stdout: &[u8]) {
   let devices_output = String::from_utf8_lossy(stdout);
   bentley::info("Available drivers detected:");
-  
+
   for line in devices_output.lines() {
     if line.contains("nvidia") || line.contains("recommended") {
       bentley::info(&format!("  {line}"));
@@ -378,9 +378,7 @@ fn check_for_unconfigured_libraries() -> Result<()> {
 fn suggest_library_path_configuration(lib_path: &std::path::Path) {
   bentley::info("ONNX Runtime GPU libraries found but LD_LIBRARY_PATH not configured");
   bentley::info("To enable GPU acceleration, add this to your ~/.zshrc (or ~/.bashrc):");
-  bentley::info(
-    &format!("   export LD_LIBRARY_PATH=\"{}:$LD_LIBRARY_PATH\"", lib_path.display())
-  );
+  bentley::info(&format!("   export LD_LIBRARY_PATH=\"{}:$LD_LIBRARY_PATH\"", lib_path.display()));
   bentley::info("   Then restart your shell or run: source ~/.zshrc");
   bentley::info("Proceeding with CPU inference for now...");
 }
@@ -444,7 +442,7 @@ fn check_cudnn(cuda_version: &str) -> Result<()> {
 /// Install the appropriate cuDNN package for the given CUDA version
 fn install_appropriate_cudnn_package(cuda_version: &str) -> Result<()> {
   let cudnn_package = determine_cudnn_package(cuda_version);
-  
+
   bentley::info(&format!("Attempting to install {cudnn_package} for CUDA {cuda_version}..."));
 
   match install_cudnn(cudnn_package) {
@@ -463,10 +461,12 @@ fn install_appropriate_cudnn_package(cuda_version: &str) -> Result<()> {
 fn determine_cudnn_package(cuda_version: &str) -> &str {
   match cuda_version {
     v if v.starts_with("13.") => "libcudnn9-cuda-13",
-    v if v.starts_with("12.") => "libcudnn9-cuda-12", 
+    v if v.starts_with("12.") => "libcudnn9-cuda-12",
     v if v.starts_with("11.") => "libcudnn9-cuda-11",
     _ => {
-      bentley::info(&format!("Unknown CUDA version {cuda_version}, defaulting to cuDNN for CUDA 12"));
+      bentley::info(&format!(
+        "Unknown CUDA version {cuda_version}, defaulting to cuDNN for CUDA 12"
+      ));
       "libcudnn9-cuda-12"
     }
   }
@@ -501,7 +501,7 @@ fn get_cudnn_info_from_package_manager() -> Option<String> {
   };
 
   let output_str = String::from_utf8_lossy(&output.stdout);
-  
+
   for line in output_str.lines() {
     if let Some(info) = parse_cudnn_package_line(line) {
       return Some(info);
@@ -524,7 +524,7 @@ fn parse_cudnn_package_line(line: &str) -> Option<String> {
 
   let package_name = parts[1];
   let version = parts[2];
-  
+
   // Extract CUDA version from package name (e.g., libcudnn9-cuda-13)
   if let Some(cuda_part) = package_name.strip_prefix("libcudnn9-cuda-") {
     Some(format!("v{version} (CUDA {cuda_part})"))
@@ -537,7 +537,7 @@ fn parse_cudnn_package_line(line: &str) -> Option<String> {
 fn check_cudnn_filesystem_paths() -> Option<String> {
   let cudnn_paths = [
     "/lib/x86_64-linux-gnu/libcudnn.so.9",
-    "/usr/lib/x86_64-linux-gnu/libcudnn.so.9", 
+    "/usr/lib/x86_64-linux-gnu/libcudnn.so.9",
     "/usr/local/cuda/lib64/libcudnn.so.9",
   ];
 
