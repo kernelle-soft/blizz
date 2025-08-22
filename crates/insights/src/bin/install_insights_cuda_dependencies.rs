@@ -113,10 +113,10 @@ fn is_ubuntu_apt() -> bool {
     .unwrap_or(false)
 }
 
-/// Check and install CUDA dependencies
+/// Check and install CUDA dependencies  
 fn check_and_install_cuda_dependencies() -> Result<()> {
-  // Check CUDA driver
-  let cuda_version = check_cuda_driver()?;
+  // Get CUDA version from driver
+  let cuda_version = get_cuda_version_from_driver()?;
 
   // Check cuDNN
   check_cudnn(&cuda_version)?;
@@ -124,8 +124,8 @@ fn check_and_install_cuda_dependencies() -> Result<()> {
   Ok(())
 }
 
-/// Check CUDA driver and attempt installation if missing
-fn check_cuda_driver() -> Result<String> {
+/// Get CUDA version from NVIDIA driver
+fn get_cuda_version_from_driver() -> Result<String> {
   // Try to get CUDA version from nvidia-smi --version
   let output = Command::new("nvidia-smi")
     .arg("--version")
@@ -146,135 +146,46 @@ fn check_cuda_driver() -> Result<String> {
     }
   }
 
-  bentley::warn("Could not determine CUDA version from nvidia-smi --version");
-  
-  // Check if CUDA toolkit is installed
-  if Command::new("nvcc")
-    .arg("--version")
-    .stdout(Stdio::null())
-    .stderr(Stdio::null())
-    .status()
-    .map(|s| s.success())
-    .unwrap_or(false)
-  {
-    bentley::info("CUDA toolkit (nvcc) found");
-    // Try to extract version from nvcc
-    if let Ok(output) = Command::new("nvcc").arg("--version").output() {
-      let output_str = String::from_utf8_lossy(&output.stdout);
-      if let Some(version_line) = output_str.lines().find(|line| line.contains("release")) {
-        if let Some(version) = extract_version_from_nvcc_output(version_line) {
-          bentley::info(format!("CUDA toolkit version {} detected", version).as_str());
-          return Ok(version);
-        }
-      }
-    }
-    return Ok("unknown".to_string());
-  }
-
-  // No CUDA found - offer to install
-  bentley::info("No CUDA toolkit detected");
-  bentley::info("Attempting to install CUDA drivers...");
-  
-  match install_cuda_driver() {
-    Ok(version) => {
-      bentley::info(format!("CUDA {} installed successfully", version).as_str());
-      Ok(version)
-    }
-    Err(e) => {
-      bentley::info(format!("Failed to install CUDA driver: {}", e).as_str());
-      bentley::info("Please install CUDA manually:");
-      bentley::info("   sudo apt update");
-      bentley::info("   sudo apt install -y cuda-toolkit nvidia-cuda-toolkit");
-      bentley::info("   # Or install from NVIDIA's official repository");
-      Err(e)
-    }
-  }
-}
-
-/// Extract CUDA version from nvcc output
-fn extract_version_from_nvcc_output(line: &str) -> Option<String> {
-  // Look for pattern like "release 12.0, V12.0.140"
-  if let Some(start) = line.find("release ") {
-    let after_release = &line[start + 8..];
-    if let Some(end) = after_release.find(',') {
-      return Some(after_release[..end].to_string());
-    }
-  }
-  None
-}
-
-/// Install CUDA driver using Ubuntu's package manager
-fn install_cuda_driver() -> Result<String> {
-  bentley::info("Installing CUDA toolkit from Ubuntu repositories...");
-  
-  // Update package lists
-  let status = Command::new("sudo")
-    .args(["apt", "update"])
-    .status()?;
-  
-  if !status.success() {
-    return Err(anyhow!("Failed to update package lists"));
-  }
-
-  // Install CUDA toolkit
-  let status = Command::new("sudo")
-    .args(["apt", "install", "-y", "nvidia-cuda-toolkit"])
-    .status()?;
-  
-  if !status.success() {
-    return Err(anyhow!("Failed to install CUDA toolkit"));
-  }
-
-  // Try to determine installed version
-  if let Ok(output) = Command::new("nvcc").arg("--version").output() {
-    let output_str = String::from_utf8_lossy(&output.stdout);
-    if let Some(version_line) = output_str.lines().find(|line| line.contains("release")) {
-      if let Some(version) = extract_version_from_nvcc_output(version_line) {
-        return Ok(version);
-      }
-    }
-  }
-  
-  Ok("unknown".to_string())
+  Err(anyhow!("Could not determine CUDA version from NVIDIA driver"))
 }
 
 /// Check cuDNN and install if missing
 fn check_cudnn(cuda_version: &str) -> Result<()> {
-      // Check if cuDNN is already installed
+  // Check if cuDNN is already installed
   if let Some(cudnn_info) = get_cudnn_info() {
     bentley::info(&format!("cuDNN {} is already installed", cudnn_info));
     return Ok(());
   }
 
-    bentley::info("cuDNN not found");
-    
-    // Determine appropriate cuDNN package based on CUDA version
-    let cudnn_package = match cuda_version {
-      v if v.starts_with("13.") => "libcudnn9-cuda-13",
-      v if v.starts_with("12.") => "libcudnn9-cuda-12", 
-      v if v.starts_with("11.") => "libcudnn9-cuda-11",
-      _ => {
-        bentley::info(format!("Unknown CUDA version {}, defaulting to cuDNN for CUDA 12", cuda_version).as_str());
-        "libcudnn9-cuda-12"
-      }
-    };
-
-    bentley::info(format!("Attempting to install {} for CUDA {}...", cudnn_package, cuda_version).as_str());
-    
-    match install_cudnn(cudnn_package) {
-      Ok(_) => {
-        bentley::info(format!("{} installed successfully", cudnn_package).as_str());
-        Ok(())
-      }
-      Err(e) => {
-        bentley::info(format!("Failed to install {}: {}", cudnn_package, e).as_str());
-        bentley::info("Please install cuDNN manually:");
-        bentley::info("   sudo apt update");
-        bentley::info(format!("   sudo apt install -y {}", cudnn_package).as_str());
-        bentley::info("   # Or download from NVIDIA's cuDNN page");
-        Err(e)
-      }
+  bentley::info("cuDNN not found");
+  
+  // Determine appropriate cuDNN package based on CUDA version
+  let cudnn_package = match cuda_version {
+    v if v.starts_with("13.") => "libcudnn9-cuda-13",
+    v if v.starts_with("12.") => "libcudnn9-cuda-12", 
+    v if v.starts_with("11.") => "libcudnn9-cuda-11",
+    _ => {
+      bentley::info(format!("Unknown CUDA version {}, defaulting to cuDNN for CUDA 12", cuda_version).as_str());
+      "libcudnn9-cuda-12"
     }
+  };
+
+  bentley::info(format!("Attempting to install {} for CUDA {}...", cudnn_package, cuda_version).as_str());
+  
+  match install_cudnn(cudnn_package) {
+    Ok(_) => {
+      bentley::info(format!("{} installed successfully", cudnn_package).as_str());
+      Ok(())
+    }
+    Err(e) => {
+      bentley::info(format!("Failed to install {}: {}", cudnn_package, e).as_str());
+      bentley::info("Please install cuDNN manually:");
+      bentley::info("   sudo apt update");
+      bentley::info(format!("   sudo apt install -y {}", cudnn_package).as_str());
+      bentley::info("   # Or download from NVIDIA's cuDNN page");
+      Err(e)
+    }
+  }
 }
 
 /// Get cuDNN information if installed, including version
@@ -341,14 +252,15 @@ fn install_cudnn(package_name: &str) -> Result<()> {
 
 /// Print manual installation instructions for non-Ubuntu systems
 fn print_manual_instructions() -> Result<()> {
-  println!("📋 Manual CUDA setup instructions:");
-  println!("1. Install NVIDIA drivers for your GPU");
-  println!("2. Install CUDA toolkit compatible with your drivers");
-  println!("3. Install cuDNN library matching your CUDA version");
-  println!("4. Ensure libraries are in your LD_LIBRARY_PATH");
+  println!("📋 Manual GPU setup instructions:");
+  println!("1. Ensure NVIDIA drivers are installed for your GPU");
+  println!("2. Install cuDNN library matching your CUDA driver version");
+  println!("3. Ensure cuDNN libraries are in your LD_LIBRARY_PATH");
   println!();
   println!("For detailed instructions, visit:");
-  println!("  CUDA: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/");
+  println!("  NVIDIA Drivers: https://www.nvidia.com/drivers/");
   println!("  cuDNN: https://docs.nvidia.com/deeplearning/cudnn/install-guide/");
+  println!();
+  println!("Note: CUDA toolkit is not required for GPU inference, only cuDNN.");
   Ok(())
 }
