@@ -66,6 +66,13 @@ impl GTEBase {
         .with_execution_providers(providers)?
         .commit_from_file(model_path)?;
 
+      // Debug: Log the expected inputs
+      let inputs = &session.inputs;
+      bentley::info(&format!("Model expects {} inputs:", inputs.len()));
+      for (i, input) in inputs.iter().enumerate() {
+        bentley::info(&format!("  Input {}: {} (shape: {:?})", i, input.name, input.input_type));
+      }
+
       bentley::info("✓ GTE-Base model loaded successfully");
       Ok(Self {session, tokenizer})
     }
@@ -136,15 +143,30 @@ impl GTEBase {
       let attention_mask_tensor = Value::from_array(attention_mask_array)?;
       let token_type_ids_tensor = Value::from_array(token_type_ids_array)?;
       
-      // Create inputs
-      let inputs = HashMap::from([
-          ("input_ids", input_ids_tensor),
-          ("attention_mask", attention_mask_tensor),
-          ("token_type_ids", token_type_ids_tensor),
-      ]);
+      // Create inputs based on what the model expects
+      let mut inputs = HashMap::new();
+      inputs.insert("input_ids", input_ids_tensor);
+      inputs.insert("attention_mask", attention_mask_tensor);
+      
+      // Only include token_type_ids if the model expects it
+      let model_input_names: Vec<String> = self.session.inputs.iter()
+        .map(|input| input.name.to_string())
+        .collect();
+      
+      if model_input_names.contains(&"token_type_ids".to_string()) {
+        inputs.insert("token_type_ids", token_type_ids_tensor);
+      } else {
+        bentley::verbose("Model doesn't expect token_type_ids, skipping");
+      }
       
       // Run inference
       let outputs = self.session.run(inputs)?;
+      
+      // Debug: Log available outputs
+      bentley::verbose(&format!("Model returned {} outputs:", outputs.len()));
+      for (name, tensor) in outputs.iter() {
+        bentley::verbose(&format!("  Output: {} (shape: {:?})", name, tensor.shape()));
+      }
       
       // Extract the last hidden state output
       let embedding = outputs
