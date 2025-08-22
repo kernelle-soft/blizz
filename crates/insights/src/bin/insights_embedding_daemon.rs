@@ -9,6 +9,7 @@ use tokio::signal;
 use tokio::task::JoinHandle;
 
 use insights::gte_base::GTEBase;
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,7 +20,7 @@ async fn main() -> Result<()> {
 
   // Load the embedder model
   let embedder = match GTEBase::load().await {
-    Ok(embedder) => Some(embedder),
+    Ok(embedder) => Some(Arc::new(embedder)),
     Err(e) => {
       bentley::warn(&format!("Failed to load embedder model: {}", e));
       bentley::warn("Daemon will run without embedding capabilities");
@@ -30,16 +31,11 @@ async fn main() -> Result<()> {
   let socket_path = create_socket(&insights_path)?;
   bentley::info("daemon started - press ctrl+c to exit");
 
-  let ipc_handle = spawn_handler(&socket_path);
+  let ipc_handle = spawn_handler(&socket_path, embedder.map(|e| Arc::clone(&e)));
 
   // Wait for shutdown signal
   signal::ctrl_c().await?;
-  bentley::info("\nshutting down daemon");
-
-  // Unload the model if it was loaded
-  if let Some(ref embedder) = embedder {
-    embedder.unload();
-  }
+  bentley::verbose("\nshutting down daemon");
 
   // Clean up socket file
   let _ = fs::remove_file(&socket_path);
@@ -70,7 +66,7 @@ fn create_socket(insights_path: &Path) -> Result<PathBuf> {
   Ok(socket)
 }
 
-fn spawn_handler(socket: &PathBuf) -> JoinHandle<()> {
+fn spawn_handler(socket: &PathBuf, embedder: Option<Arc<GTEBase>>) -> JoinHandle<()> {
   let listener = match UnixListener::bind(socket) {
     Ok(listener) => listener,
     Err(e) => {
@@ -85,8 +81,9 @@ fn spawn_handler(socket: &PathBuf) -> JoinHandle<()> {
     loop {
       match listener.accept().await {
         Ok((stream, _)) => {
+          let embedder_for_task = embedder.as_ref().map(|e| Arc::clone(e));
           tokio::spawn(async move {
-            handle_client(stream).await;
+            handle_client(stream, embedder_for_task).await;
           });
         }
         Err(e) => {
@@ -99,13 +96,16 @@ fn spawn_handler(socket: &PathBuf) -> JoinHandle<()> {
   handler
 }
 
-async fn handle_client(stream: tokio::net::UnixStream) {
+async fn handle_client(stream: tokio::net::UnixStream, embedder: Option<Arc<GTEBase>>) {
   let mut reader = BufReader::new(stream);
   let mut line = String::new();
 
   match reader.read_line(&mut line).await {
     Ok(_) if line.trim() == "GET" => {
       bentley::verbose("password sent to client");
+      if let Some(_embedder) = embedder {
+        // TODO: Use embedder for actual embedding functionality
+      }
     }
     Ok(_) => {
       bentley::warn(&format!("invalid request: {}", line.trim()));

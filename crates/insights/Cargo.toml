@@ -48,8 +48,8 @@ tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 candle-core = { git = "https://github.com/huggingface/candle.git" }
 candle-nn = { git = "https://github.com/huggingface/candle.git" }
 candle-transformers = { git = "https://github.com/huggingface/candle.git" }
-hf-hub = { version = "0.3", features = ["tokio"] }
-safetensors = "0.4"
+hf-hub = { version = "0.4", features = ["tokio"] }
+safetensors = "0.6"
 
 # Future: Neural embeddings when ecosystem stabilizes
 
