@@ -147,7 +147,7 @@ impl GTEBase {
   }
 
   fn load_model(model_path: std::path::PathBuf) -> Result<Session> {
-    let providers = Self::get_exe_providers();
+    let providers = Self::get_execution_providers();
 
     let session =
       Session::builder()?.with_execution_providers(providers)?.commit_from_file(model_path)?;
@@ -158,7 +158,8 @@ impl GTEBase {
 
 // Hardware detection
 impl GTEBase {
-  fn get_exe_providers() -> Vec<ExecutionProviderDispatch> {
+  #[tarpaulin::skip] // No need to include OS-specific system checks.
+  fn get_execution_providers() -> Vec<ExecutionProviderDispatch> {
     let mut providers = Vec::new();
 
     // Platform-specific hardware acceleration
