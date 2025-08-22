@@ -11,9 +11,10 @@ fn main() -> Result<()> {
 
   bentley::info("Checking NVIDIA GPU and CUDA dependencies...");
 
-  // 1. Check if we can attempt to use CUDA
-  if !can_attempt_cuda()? {
-    bentley::info("No NVIDIA GPU detected or CUDA not feasible - using CPU inference");
+  // 1. Check if NVIDIA GPU hardware is present
+  if !has_nvidia_gpu()? {
+    bentley::info("No NVIDIA GPU detected in system - I'm no expert, but that's probably a more important dependency for using an NVIDIA GPU than having their drivers.");
+    bentley::info("Skipping script.");
     return Ok(());
   }
 
@@ -25,6 +26,11 @@ fn main() -> Result<()> {
     bentley::info("Non-Ubuntu system detected - please install CUDA dependencies manually if needed");
     print_manual_instructions()?;
     return Ok(());
+  }
+
+  // 4. Ensure NVIDIA drivers are installed and accessible
+  if !check_nvidia_drivers()? {
+    return Ok(()); // Error messages already printed
   }
 
   check_and_install_cuda_dependencies()?;
@@ -42,8 +48,54 @@ fn is_ci_environment() -> bool {
     || env::var("TRAVIS").unwrap_or_default() == "true"
 }
 
-/// Check if CUDA is worth attempting
-fn can_attempt_cuda() -> Result<bool> {
+/// Check if NVIDIA GPU hardware is present in the system
+fn has_nvidia_gpu() -> Result<bool> {
+  // Method 1: Check /proc/driver/nvidia/gpus/ (if NVIDIA drivers are installed)
+  if let Ok(entries) = std::fs::read_dir("/proc/driver/nvidia/gpus") {
+    if entries.count() > 0 {
+      bentley::info("NVIDIA GPU detected via /proc/driver/nvidia");
+      return Ok(true);
+    }
+  }
+
+  // Method 2: Use lspci to check for NVIDIA VGA devices  
+  if let Ok(output) = Command::new("lspci")
+    .args(["-nn"])
+    .output() 
+  {
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    for line in output_str.lines() {
+      if line.contains("VGA") || line.contains("3D") || line.contains("Display") {
+        if line.to_lowercase().contains("nvidia") || line.contains("[10de:") { // 10de is NVIDIA vendor ID
+          bentley::info("NVIDIA GPU detected via lspci");
+          return Ok(true);
+        }
+      }
+    }
+  }
+
+  // Method 3: Check /sys/class/drm for NVIDIA cards
+  if let Ok(entries) = std::fs::read_dir("/sys/class/drm") {
+    for entry in entries.flatten() {
+      if let Some(name) = entry.file_name().to_str() {
+        if name.starts_with("card") && name.len() > 4 {
+          let device_path = entry.path().join("device/vendor");
+          if let Ok(vendor) = std::fs::read_to_string(device_path) {
+            if vendor.trim() == "0x10de" { // NVIDIA vendor ID
+              bentley::info("NVIDIA GPU detected via sysfs");
+              return Ok(true);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  Ok(false)
+}
+
+/// Check if NVIDIA drivers are installed and suggest installation if needed
+fn check_nvidia_drivers() -> Result<bool> {
   // Check if nvidia-smi exists and works
   match Command::new("nvidia-smi")
       .stdout(Stdio::null())
@@ -51,11 +103,18 @@ fn can_attempt_cuda() -> Result<bool> {
       .status()
   {
     Ok(status) if status.success() => {
-      bentley::info("NVIDIA GPU detected");
+      bentley::info("NVIDIA drivers are installed and accessible");
       Ok(true)
     }
     _ => {
-      bentley::info("No NVIDIA GPU detected (nvidia-smi not found or failed)");
+      bentley::warn("NVIDIA GPU found but drivers not accessible (nvidia-smi failed)");
+      bentley::info("Please install NVIDIA drivers:");
+      bentley::info("   sudo apt update");
+      bentley::info("   sudo apt install -y nvidia-driver-580  # or latest available");
+      bentley::info("   sudo reboot  # reboot required after driver installation");
+      bentley::info("");
+      bentley::info("Alternative: Install from NVIDIA's official repository:");
+      bentley::info("   https://developer.nvidia.com/cuda-downloads");
       Ok(false)
     }
   }
