@@ -4,6 +4,10 @@ use ndarray::Array2;
 use std::collections::HashMap;
 use tokenizers::Tokenizer;
 
+const MODEL_NAME: &str = "Alibaba-NLP/gte-base-en-v1.5";
+const TOKENIZER_FILE: &str = "tokenizer.json";
+const MODEL_FILE: &str = "onnx/model.onnx";
+
 #[cfg(target_os = "linux")]
 use ort::{
   execution_providers::{CPUExecutionProvider, CUDAExecutionProvider, ExecutionProviderDispatch},
@@ -32,13 +36,12 @@ struct ModelFiles {
 impl GTEBase {
   /// Load the GTE-Base model from HuggingFace
   pub async fn load() -> Result<Self> {
-    bentley::info("Loading GTE-Base model...");
-    
+    bentley::info("loading model...");
+
     let model_files = Self::download_model().await?;
     let tokenizer = Self::load_tokenizer(model_files.tokenizer_file)?;
-    let session = Self::create_session(model_files.model_path)?;
-    
-    bentley::info("✓ GTE-Base model loaded successfully");
+    let session = Self::load_model
+(model_files.model_path)?;
     Ok(Self { session, tokenizer })
   }
 
@@ -52,44 +55,55 @@ impl GTEBase {
 }
 
 // Model initialization
+// violet ignore chunk - this is about as simple and flat as it's going to get without breaking this into 
+// singlet implementation blocks.
 impl GTEBase {
-  /// Download required model files from HuggingFace
   async fn download_model() -> Result<ModelFiles> {
-    let api = Api::new().map_err(|e| anyhow!("HF API initialization failed: {}", e))?;
-    let repo = api.model("Alibaba-NLP/gte-base-en-v1.5".to_string());
+    let api = Api::new()
+      .map_err(|e|
+        anyhow!("HF API initialization failed: {}", e)
+      )?;
+
+    let repo = api.model(MODEL_NAME.to_string());
 
     let tokenizer_file = repo
-      .get("tokenizer.json")
+      .get(TOKENIZER_FILE)
       .await
-      .map_err(|e| anyhow!("Failed to download tokenizer: {}", e))?;
+      .map_err(|e|
+        anyhow!("Failed to download tokenizer: {}", e)
+      )?;
 
     let model_path = repo
-      .get("onnx/model.onnx")
+      .get(MODEL_FILE)
       .await
-      .map_err(|e| anyhow!("Failed to download ONNX model: {}", e))?;
+      .map_err(|e|
+        anyhow!("Failed to download ONNX model: {}", e)
+      )?;
 
     Ok(ModelFiles { tokenizer_file, model_path })
   }
 
-  /// Load the tokenizer from the downloaded file
-  fn load_tokenizer(tokenizer_file: std::path::PathBuf) -> Result<Tokenizer> {
-    Tokenizer::from_file(tokenizer_file)
-      .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))
+  fn load_tokenizer(path: std::path::PathBuf) -> Result<Tokenizer> {
+    Tokenizer::from_file(path)
+      .map_err(|e|
+        anyhow!("Failed to load tokenizer: {}", e)
+      )
   }
 
-  /// Create the ONNX Runtime session with hardware-optimized execution providers
-  fn create_session(model_path: std::path::PathBuf) -> Result<Session> {
-    let providers = Self::get_execution_providers();
-    
-    let session = Session::builder()?.with_execution_providers(providers)?.commit_from_file(model_path)?;    
+  fn load_model(model_path: std::path::PathBuf) -> Result<Session> {
+    let providers = Self::get_exe_providers();
+
+    let session = Session::builder()?
+      .with_execution_providers(providers)?
+      .commit_from_file(model_path)?;
+
     Ok(session)
   }
 }
 
 // Hardware detection
 impl GTEBase {
-  /// Detect and configure the best available execution providers for the current platform
-  fn get_execution_providers() -> Vec<ExecutionProviderDispatch> {
+  fn get_exe_providers() -> Vec<ExecutionProviderDispatch> {
     let mut providers = Vec::new();
 
     // Platform-specific hardware acceleration
@@ -101,14 +115,11 @@ impl GTEBase {
     #[cfg(target_os = "linux")]
     {
       if Self::is_cuda_available() {
-        bentley::info("CUDA detected - adding CUDA provider");
         providers.push(CUDAExecutionProvider::default().build().error_on_failure());
       }
     }
 
-    // Always fallback to CPU
     providers.push(CPUExecutionProvider::default().into());
-
     providers
   }
 
@@ -124,20 +135,16 @@ impl GTEBase {
   }
 }
 
+// violet ignore chunk - this is about as simple and flat as it's going to get without being terse.
 // Embedding processing
 impl GTEBase {
-  /// Tokenize input text and validate length constraints
   fn tokenize(text: &str, tokenizer: &Tokenizer) -> Result<tokenizers::Encoding> {
     let tokens = tokenizer.encode(text, true).map_err(|e| anyhow!("Tokenization failed: {}", e))?;
     
     let input_ids = tokens.get_ids();
     let token_count = input_ids.len();
     const MAX_SEQUENCE_LENGTH: usize = 511; // GTE-Base limit is 512
-    
-    bentley::info(&format!(
-      "Token count check: {token_count} tokens (limit: {MAX_SEQUENCE_LENGTH})"
-    ));
-    
+
     if token_count > MAX_SEQUENCE_LENGTH {
       let error_msg = format!(
         "Input text contains {token_count} tokens, which exceeds the model's maximum sequence length of {MAX_SEQUENCE_LENGTH}. Please reduce the input size."
@@ -145,15 +152,11 @@ impl GTEBase {
       bentley::warn(&error_msg);
       return Err(anyhow!(error_msg));
     }
-    
-    bentley::info(&format!(
-      "✓ Processing {token_count} tokens (within {MAX_SEQUENCE_LENGTH} limit)"
-    ));
-    
+
     Ok(tokens)
   }
 
-  /// Prepare model input tensors from tokenization tokens
+  /// Prepare model input tensors from tokens
   fn prepare(tokens: &tokenizers::Encoding, session: &Session) -> Result<std::collections::HashMap<String, Value>> {
     let input_ids = tokens.get_ids();
     let attention_mask = tokens.get_attention_mask();
@@ -193,7 +196,7 @@ impl GTEBase {
     Ok(input)
   }
 
-  /// Extract and process embeddings from model output  
+  /// Extract and process output embeddings
   fn extract_embedding<'s>(output: ort::session::SessionOutputs<'s>) -> Result<Vec<f32>> {
     let tensor = output
       .get("last_hidden_state")
