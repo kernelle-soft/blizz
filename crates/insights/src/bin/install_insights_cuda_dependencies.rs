@@ -119,25 +119,27 @@ fn check_and_install_cuda_dependencies() -> Result<()> {
 
 /// Check CUDA driver and attempt installation if missing
 fn check_cuda_driver() -> Result<String> {
-  // Try to get CUDA version from nvidia-smi
+  // Try to get CUDA version from nvidia-smi --version
   let output = Command::new("nvidia-smi")
-    .arg("--query-gpu=driver_version,cuda_version")
-    .arg("--format=csv,noheader,nounits")
+    .arg("--version")
     .output()?;
 
   if output.status.success() {
     let output_str = String::from_utf8_lossy(&output.stdout);
-    if let Some(line) = output_str.lines().next() {
-      let parts: Vec<&str> = line.split(',').collect();
-      if parts.len() >= 2 {
-        let cuda_version = parts[1].trim();
-        bentley::info(format!("CUDA {} detected", cuda_version).as_str());
-        return Ok(cuda_version.to_string());
+    
+    // Look for the line containing "CUDA Version" and extract version
+    for line in output_str.lines() {
+      if line.contains("CUDA Version") {
+        if let Some(colon_pos) = line.find(':') {
+          let cuda_version = line[colon_pos + 1..].trim();
+          bentley::info(&format!("CUDA {} detected", cuda_version));
+          return Ok(cuda_version.to_string());
+        }
       }
     }
   }
 
-  bentley::warn("Could not determine CUDA version from nvidia-smi");
+  bentley::warn("Could not determine CUDA version from nvidia-smi --version");
   
   // Check if CUDA toolkit is installed
   if Command::new("nvcc")
