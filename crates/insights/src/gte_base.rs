@@ -1,7 +1,11 @@
 use anyhow::{anyhow, Result};
 use hf_hub::api::tokio::Api;
 use ndarray::Array2;
-use ort::{session::Session, value::Value};
+use ort::{
+    session::Session, 
+    value::Value,
+    execution_providers::{ExecutionProviderDispatch, CPUExecutionProvider, CUDAExecutionProvider, ROCmExecutionProvider, CoreMLExecutionProvider}
+};
 use std::collections::HashMap;
 use tokenizers::Tokenizer;
 
@@ -45,10 +49,65 @@ impl GTEBase {
       let tokenizer = Tokenizer::from_file(tokenizer_file)
         .map_err(|e| anyhow!("Failed to load tokenizer: {}", e))?;
 
+      // Configure hardware-specific execution providers
+      let providers = Self::get_execution_providers();
+      bentley::info(&format!("Using execution providers: {:?}", providers.iter().map(|p| format!("{:?}", p)).collect::<Vec<_>>()));
+      
       let session = Session::builder()?
+        .with_execution_providers(providers)?
         .commit_from_file(model_path)?;
 
+      bentley::info("✓ GTE-Base model loaded successfully");
       Ok(Self {session, tokenizer})
+    }
+    
+    /// Detect and configure the best available execution providers for the current platform
+    fn get_execution_providers() -> Vec<ExecutionProviderDispatch> {
+      let mut providers = Vec::new();
+
+      // Platform-specific hardware acceleration
+      #[cfg(target_os = "macos")]
+      {
+        providers.push(CoreMLExecutionProvider::default().into());
+      }
+      
+      #[cfg(target_os = "linux")]
+      {
+        // Try CUDA first (most common)
+        if Self::is_cuda_available() {
+          bentley::info("CUDA detected - adding CUDA provider");
+          providers.push(CUDAExecutionProvider::default().into());
+        }
+        // Try ROCm for AMD GPUs
+        else if Self::is_rocm_available() {
+          providers.push(ROCmExecutionProvider::default().into());
+        }
+      }
+      
+      // Always fallback to CPU
+      providers.push(CPUExecutionProvider::default().into());
+
+      providers
+    }
+    
+    /// Check if CUDA is available
+    #[cfg(target_os = "linux")]
+    fn is_cuda_available() -> bool {
+      // Check for nvidia-smi command
+      std::process::Command::new("nvidia-smi")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+    }
+    
+    /// Check if ROCm is available  
+    #[cfg(target_os = "linux")]
+    fn is_rocm_available() -> bool {
+      // Check for rocm-smi command
+      std::process::Command::new("rocm-smi")
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
     }
     
     /// Generate embeddings for a single text
@@ -123,5 +182,12 @@ impl GTEBase {
       bentley::verbose(&format!("Generated {}-dimensional embedding", embedding_vec.len()));
       
       Ok(embedding_vec)
+    }
+    
+    /// Cleanup resources (called on daemon shutdown)
+    pub fn unload(&self) {
+      bentley::info("Unloading GTE-Base model...");
+      // ONNX session and tokenizer will be dropped automatically
+      bentley::info("✓ Model unloaded successfully");
     }
 }
