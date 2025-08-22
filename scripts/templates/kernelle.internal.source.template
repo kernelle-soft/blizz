@@ -10,20 +10,31 @@ ensure_cargo_path() {
   fi
 }
 
-# Used by the Insights CLI
+find_onnx_lib() {
+  find "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu" -name "lib" -type d -path "*/onnxruntime/lib" 2>/dev/null | head -1
+}
+
+has_cuda_lib() {
+  [ -f "$1/libonnxruntime_providers_cuda.so" ]
+}
+
+is_ld_library_path_set() {
+  case ":${LD_LIBRARY_PATH:-}:" in
+    *":$1:"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 ensure_ld_library_path() {
-  # Auto-configure ONNX Runtime GPU libraries if available
-  if [ -d "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu" ]; then
-    # Find the most recent ONNX Runtime download with GPU libraries
-    LATEST_ORT_LIB=$(find "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu" -name "lib" -type d -path "*/onnxruntime/lib" 2>/dev/null | head -1)
-    if [ -n "$LATEST_ORT_LIB" ] && [ -f "$LATEST_ORT_LIB/libonnxruntime_providers_cuda.so" ]; then
-      # Only add if not already in LD_LIBRARY_PATH
-      case ":${LD_LIBRARY_PATH:-}:" in
-        *":$LATEST_ORT_LIB:"*) ;;
-        *) export LD_LIBRARY_PATH="$LATEST_ORT_LIB:${LD_LIBRARY_PATH:-}" ;;
-      esac
-    fi
-  fi
+  [ -d "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu" ] || return
+  
+  ONNX_LIB=$(find_onnx_lib)
+  [ -n "$ONNX_LIB" ] || return
+  
+  has_cuda_lib "$ONNX_LIB" || return
+  is_ld_library_path_set "$ONNX_LIB" && return
+  
+  export LD_LIBRARY_PATH="$ONNX_LIB:${LD_LIBRARY_PATH:-}"
 }
 
 ensure_cargo_path
