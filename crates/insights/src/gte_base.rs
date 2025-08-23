@@ -947,7 +947,6 @@ mod gte_base_tests {
       }
       Err(_) => {
         // Error is also acceptable for this edge case
-        assert!(true);
       }
     }
   }
