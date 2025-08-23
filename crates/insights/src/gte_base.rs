@@ -50,12 +50,14 @@ use ort::{
 };
 
 // Implementations for real ONNX types
+#[cfg(not(tarpaulin_include))]
 impl<'s> EmbeddingOutput for ort::session::SessionOutputs<'s> {
   fn get_tensor(&self, key: &str) -> Option<&dyn TensorData> {
     self.get(key).map(|v| v as &dyn TensorData)
   }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl TensorData for ort::value::Value {
   fn extract_f32_data(&self) -> Result<(&[i64], &[f32])> {
     let (shape, data) = self.try_extract_tensor::<f32>()?;
@@ -64,6 +66,7 @@ impl TensorData for ort::value::Value {
 }
 
 // Implementations for real types
+#[cfg(not(tarpaulin_include))]
 impl TokenEncoding for tokenizers::Encoding {
   fn get_ids(&self) -> &[u32] {
     self.get_ids()
@@ -76,6 +79,7 @@ impl TokenEncoding for tokenizers::Encoding {
   }
 }
 
+#[cfg(not(tarpaulin_include))]
 impl SessionInputs for Session {
   fn input_names(&self) -> Vec<String> {
     self.inputs.iter().map(|input| input.name.to_string()).collect()
@@ -83,6 +87,7 @@ impl SessionInputs for Session {
 }
 
 // Real tokenizer implementations
+#[cfg(not(tarpaulin_include))]
 impl TextTokenizer for Tokenizer {
   fn encode_text(&self, text: &str, add_special_tokens: bool) -> Result<Box<dyn TokenizerOutput>> {
     let encoding =
@@ -104,6 +109,7 @@ struct ModelFiles {
 }
 
 // Public API
+#[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for cross-platform loading/unloading
 impl GTEBase {
   /// Load the GTE-Base model from HuggingFace
   pub async fn load() -> Result<Self> {
@@ -127,6 +133,7 @@ impl GTEBase {
 // Model initialization
 // violet ignore chunk - this is about as simple and flat as it's going to get without breaking this into
 // singlet implementation blocks.
+#[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for cross-platform loading/unloading
 impl GTEBase {
   async fn download_model() -> Result<ModelFiles> {
     let api = Api::new().map_err(|e| anyhow!("HF API initialization failed: {}", e))?;
@@ -157,7 +164,7 @@ impl GTEBase {
 }
 
 // Hardware detection
-#[cfg(not(tarpaulin_include))]
+#[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for cross-platform loading/unloading
 impl GTEBase {
   fn get_execution_providers() -> Vec<ExecutionProviderDispatch> {
     let mut providers = Vec::new();
