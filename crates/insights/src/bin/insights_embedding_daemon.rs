@@ -191,39 +191,38 @@ async fn handle_connections(
   }
 }
 
-// LCOV exclusions below address the fact that we're monomorphizing this function,
-// so the success paths are hit by tests, just not reported as covered
+// LCOV exclusions the monomorphizing of this function
 async fn handle_request<R: AsyncReader, E: Embedder>(
   stream: &mut R,
   embedder: Option<Arc<tokio::sync::Mutex<E>>>,
 ) -> EmbeddingResponse {
-  let request_data = match read_request_data(stream).await {
+  let data = match read_request_data(stream).await {
     Ok(data) => data, // LCOV_EXCL_LINE
-    Err(response) => return response,
+    Err(res) => return res,
   };
 
-  let request_str = match parse_utf8_data(request_data) {
+  let str = match parse_raw(data) {
     Ok(str) => str, // LCOV_EXCL_LINE
-    Err(response) => return response,
+    Err(res) => return res,
   };
 
-  let request = match parse_json_request(&request_str) {
+  let json = match parse_json_request(&str) {
     Ok(req) => req, // LCOV_EXCL_LINE
-    Err(response) => return response,
+    Err(res) => return res,
   };
 
-  if request.request != "embed" {
-    bentley::warn!(&format!("unsupported request type: {}", request.request));
+  if json.request != "embed" {
+    bentley::warn!(&format!("unsupported request type: {}", json.request));
     return EmbeddingResponse::error(
-      &format!("Unsupported request type: {}", request.request),
+      &format!("Unsupported request type: {}", json.request),
       "unsupported_request",
     );
   }
 
   match embedder {
     Some(arc) => {
-      let mut embedder_guard = arc.lock().await;
-      embed(&request.body, &mut *embedder_guard)
+      let mut embedder_lock = arc.lock().await;
+      embed(&json.body, &mut *embedder_lock)
     }
     None => {
       bentley::warn!("embedding requested but no model loaded");
@@ -243,7 +242,7 @@ async fn read_request_data<R: AsyncReader>(stream: &mut R) -> Result<Vec<u8>, Em
   }
 }
 
-fn parse_utf8_data(buffer: Vec<u8>) -> Result<String, EmbeddingResponse> {
+fn parse_raw(buffer: Vec<u8>) -> Result<String, EmbeddingResponse> {
   match String::from_utf8(buffer) {
     Ok(s) => Ok(s),
     Err(_) => {
@@ -404,7 +403,7 @@ mod tests {
   fn test_parse_utf8_data_success() {
     let valid_utf8_bytes = "Hello, world! 🦀".as_bytes().to_vec();
 
-    let result = parse_utf8_data(valid_utf8_bytes);
+    let result = parse_raw(valid_utf8_bytes);
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), "Hello, world! 🦀");
@@ -415,7 +414,7 @@ mod tests {
     // Create invalid UTF-8 sequence
     let invalid_utf8_bytes = vec![0xFF, 0xFE, 0xFD];
 
-    let result = parse_utf8_data(invalid_utf8_bytes);
+    let result = parse_raw(invalid_utf8_bytes);
 
     assert!(result.is_err());
     let error_response = result.unwrap_err();

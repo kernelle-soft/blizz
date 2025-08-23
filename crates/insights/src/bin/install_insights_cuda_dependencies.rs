@@ -18,6 +18,7 @@ use std::process::{Command, Stdio};
 //
 // For setup/installation scripts like this, clear error messages and good
 // documentation provide more value than unit test coverage.
+// violet ignore chunk
 
 fn main() -> Result<()> {
   // Skip entirely in CI environments

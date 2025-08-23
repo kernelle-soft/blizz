@@ -164,12 +164,11 @@ impl GTEBase {
 }
 
 // Hardware detection
-#[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for cross-platform loading/unloading
+#[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for xplat
 impl GTEBase {
   fn get_execution_providers() -> Vec<ExecutionProviderDispatch> {
     let mut providers = Vec::new();
 
-    // Platform-specific hardware acceleration
     #[cfg(target_os = "macos")]
     {
       providers.push(CoreMLExecutionProvider::default().into());
