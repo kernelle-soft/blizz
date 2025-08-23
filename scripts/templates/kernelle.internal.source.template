@@ -10,31 +10,61 @@ ensure_cargo_path() {
   fi
 }
 
+get_target_triple() {
+  if [ "$(uname)" = "Darwin" ]; then
+    if [ "$(uname -m)" = "arm64" ]; then
+      echo "aarch64-apple-darwin"
+    else
+      echo "x86_64-apple-darwin"
+    fi
+  else
+    echo "x86_64-unknown-linux-gnu"
+  fi
+}
+
 find_onnx_lib() {
-  find "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu" -name "lib" -type d -path "*/onnxruntime/lib" 2>/dev/null | head -1
+  TARGET_TRIPLE=$(get_target_triple)
+  find "$HOME/.cache/ort.pyke.io/dfbin/$TARGET_TRIPLE" -name "lib" -type d -path "*/onnxruntime/lib" 2>/dev/null | head -1
 }
 
 has_cuda_lib() {
-  [ -f "$1/libonnxruntime_providers_cuda.so" ]
+  if [ "$(uname)" = "Darwin" ]; then
+    [ -f "$1/libonnxruntime_providers_cuda.dylib" ]
+  else
+    [ -f "$1/libonnxruntime_providers_cuda.so" ]
+  fi
 }
 
-is_ld_library_path_set() {
-  case ":${LD_LIBRARY_PATH:-}:" in
-    *":$1:"*) return 0 ;;
-    *) return 1 ;;
-  esac
+is_library_path_set() {
+  if [ "$(uname)" = "Darwin" ]; then
+    case ":${DYLD_LIBRARY_PATH:-}:" in
+      *":$1:"*) return 0 ;;
+      *) return 1 ;;
+    esac
+  else
+    case ":${LD_LIBRARY_PATH:-}:" in
+      *":$1:"*) return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
 }
 
 ensure_ld_library_path() {
-  [ -d "$HOME/.cache/ort.pyke.io/dfbin/x86_64-unknown-linux-gnu" ] || return
+  TARGET_TRIPLE=$(get_target_triple)
+  [ -d "$HOME/.cache/ort.pyke.io/dfbin/$TARGET_TRIPLE" ] || return
   
   ONNX_LIB=$(find_onnx_lib)
   [ -n "$ONNX_LIB" ] || return
   
   has_cuda_lib "$ONNX_LIB" || return
-  is_ld_library_path_set "$ONNX_LIB" && return
+  is_library_path_set "$ONNX_LIB" && return
   
-  export LD_LIBRARY_PATH="$ONNX_LIB:${LD_LIBRARY_PATH:-}"
+  # Use DYLD_LIBRARY_PATH on macOS, LD_LIBRARY_PATH on Linux
+  if [ "$(uname)" = "Darwin" ]; then
+    export DYLD_LIBRARY_PATH="$ONNX_LIB:${DYLD_LIBRARY_PATH:-}"
+  else
+    export LD_LIBRARY_PATH="$ONNX_LIB:${LD_LIBRARY_PATH:-}"
+  fi
 }
 
 ensure_cargo_path
