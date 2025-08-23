@@ -11,8 +11,11 @@ ensure_cargo_path() {
 }
 
 get_target_triple() {
-  if [ "$(uname)" = "Darwin" ]; then
-    if [ "$(uname -m)" = "arm64" ]; then
+  OS_NAME="$(uname)"
+  ARCH_NAME="$(uname -m)"
+  
+  if [ "$OS_NAME" = "Darwin" ]; then
+    if [ "$ARCH_NAME" = "arm64" ]; then
       echo "aarch64-apple-darwin"
     else
       echo "x86_64-apple-darwin"
@@ -24,10 +27,16 @@ get_target_triple() {
 
 find_onnx_lib() {
   TARGET_TRIPLE=$(get_target_triple)
-  find "$HOME/.cache/ort.pyke.io/dfbin/$TARGET_TRIPLE" -name "lib" -type d -path "*/onnxruntime/lib" 2>/dev/null | head -1
+  if [ -d "$HOME/.cache/ort.pyke.io/dfbin/$TARGET_TRIPLE" ]; then
+    find "$HOME/.cache/ort.pyke.io/dfbin/$TARGET_TRIPLE" -name "lib" -type d -path "*/onnxruntime/lib" 2>/dev/null | head -1
+  fi
 }
 
 has_cuda_lib() {
+  if [ -z "$1" ]; then
+    return 1
+  fi
+  
   if [ "$(uname)" = "Darwin" ]; then
     [ -f "$1/libonnxruntime_providers_cuda.dylib" ]
   else
@@ -36,6 +45,10 @@ has_cuda_lib() {
 }
 
 is_library_path_set() {
+  if [ -z "$1" ]; then
+    return 1
+  fi
+  
   if [ "$(uname)" = "Darwin" ]; then
     case ":${DYLD_LIBRARY_PATH:-}:" in
       *":$1:"*) return 0 ;;
@@ -67,5 +80,6 @@ ensure_ld_library_path() {
   fi
 }
 
-ensure_cargo_path
-ensure_ld_library_path
+# Call functions but don't fail on errors
+ensure_cargo_path || true
+ensure_ld_library_path || true

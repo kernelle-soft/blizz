@@ -27,7 +27,7 @@ show_install_usage() {
 handle_install_help_and_errors() {
 	local option="$1"
 
-	if [[ "$option" == "--help" || "$option" == "-h" ]]; then
+	if [ "$option" = "--help" ] || [ "$option" = "-h" ]; then
 		show_install_usage
 		exit 0
 	else
@@ -53,7 +53,7 @@ process_install_option() {
 parse_install_arguments() {
 	NON_INTERACTIVE=false
 
-	while [[ $# -gt 0 ]]; do
+	while [ $# -gt 0 ]; do
 		process_install_option "$1"
 		shift
 	done
@@ -255,7 +255,7 @@ fi
 echo ""
 
 # Copy kernelle.source template to ~/.kernelle/ only if it doesn't exist
-if [[ ! -f "$HOME/.kernelle.source" ]]; then
+if [ ! -f "$HOME/.kernelle.source" ]; then
 	echo "🔗 Setting up shell source files..."
 	cp "$SCRIPT_DIR/templates/kernelle.source.template" "$HOME/.kernelle.source"
 else
@@ -283,7 +283,7 @@ echo "📝 Setting up uninstaller..."
 # Copy uninstaller script to KERNELLE_HOME
 
 # Copy uninstaller script to KERNELLE_HOME only if it doesn't exist
-if [[ ! -f "$KERNELLE_HOME/uninstall.sh" ]]; then
+if [ ! -f "$KERNELLE_HOME/uninstall.sh" ]; then
 	cp "$SCRIPT_DIR/uninstall.sh" "$KERNELLE_HOME/uninstall.sh"
 	chmod +x "$KERNELLE_HOME/uninstall.sh"
 else
@@ -292,7 +292,7 @@ fi
 
 # Copy required template for uninstaller to volatile only if it doesn't exist
 mkdir -p "$KERNELLE_HOME/volatile"
-if [[ ! -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" ]]; then
+if [ ! -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" ]; then
 	cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template"
 else
 	echo "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template already exists - keeping existing file"
