@@ -1,6 +1,6 @@
 [tarpaulin]
-coverage-reports = ["Html", "Lcov", "Json"]
-output-dir = "target/coverage/"
+coverage-reports = ["Html", "Json"]
+output-dir = "coverage/"
 
 fail-under = 40.0
 ignore-panics = true
@@ -11,18 +11,10 @@ branch = true
 forward = true
 
 exclude-files = [
-  "adam/*",
-
   # File-level excludes
   "*/tests/*",
   "*/examples/*",
   "*/target/*",
-
-  # Auth module uses external credentials - hard to test
-  "*/auth.rs",
-
-  # Update module relies heavily on APIs and the file system - hard to test
-  "*/kernelle/src/update.rs",
 
   # Entrypoints and CLI routers are very simple and typically aren't useful to test
   "*/cli.rs",
@@ -36,10 +28,8 @@ exclude-files = [
 
 timeout = "120s"
 
-run-types = ["Tests"]
-release = true
+release = false
 
-all-features = true
 engine = "Llvm"
-out = ["Html", "Xml", "Json"]
+out = ["Html", "Json"]
 print = "branch"

@@ -37,3 +37,29 @@ watch = ["crates/"]
 command = ["cargo", "clippy", "--workspace", "--", "-D", "warnings"]
 need_stdout = false
 watch = ["crates/"] 
+
+# Coverage jobs
+[jobs.test-all]
+command = ["cargo tarpaulin --workspace -o Html --output-dir coverage --config tarpaulin.toml"]
+watch = ["crates/"]
+need_stdout = true
+
+[jobs.test-insights]
+command = ["cargo", "tarpaulin", "-p", "insights", "--config", "crates/insights/tarpaulin.toml"]
+watch = ["crates/insights/"]
+need_stdout = true
+
+[jobs.test-secrets]
+command = ["cargo", "tarpaulin", "-p", "secrets", "--config", "crates/secrets/tarpaulin.toml"]
+watch = ["crates/secrets/"]
+need_stdout = true
+
+[jobs.test-kernelle]
+command = ["cargo", "tarpaulin", "-p", "kernelle", "--config", "crates/kernelle/tarpaulin.toml"]
+watch = ["crates/kernelle/"]
+need_stdout = true
+
+[jobs.test-violet]
+command = ["cargo", "tarpaulin", "-p", "violet", "--config", "crates/violet/tarpaulin.toml"]
+watch = ["crates/violet/"]
+need_stdout = true

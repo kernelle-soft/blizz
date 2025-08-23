@@ -15,40 +15,56 @@ path = "src/lib.rs"
 name = "insights"
 path = "src/main.rs"
 
+[[bin]]
+name = "insights_embedding_daemon"
+path = "src/bin/insights_embedding_daemon.rs"
+
+[[bin]]
+name = "install_insights_cuda_dependencies"
+path = "src/bin/install_insights_cuda_dependencies.rs"
+
 [dependencies]
 clap.workspace = true
-
 dirs.workspace = true
-
 chrono.workspace = true
-
 anyhow.workspace = true
 thiserror.workspace = true
-
 colored.workspace = true
 console.workspace = true
-
 tracing.workspace = true
 tracing-subscriber.workspace = true
-
 serde.workspace = true
 serde_json.workspace = true
+bentley.workspace = true
+cargo-tarpaulin.workspace = true
+
 serde_yaml = "0.9"
 
 # Async runtime for daemon IPC
 tokio = { version = "1.47", features = ["full"] }
 uuid = { version = "1.18", features = ["v4"] }
 
-# Neural embeddings via ONNX (v2 API!)
-ort = { version = "2.0.0-rc.10", features = ["fetch-models"] }
+# Neural embeddings via ONNX (v2 API!) with hardware acceleration
+ort = { version = "2.0.0-rc.10", features = [
+  "fetch-models",
+  "download-binaries", # Download GPU-enabled ONNX Runtime binaries
+  "cuda",      # NVIDIA GPU support
+  "coreml",    # macOS CoreML support
+] }
 ndarray = { version = "0.16" }
 tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 
-# Future: Neural embeddings when ecosystem stabilizes
+hf-hub = { version = "0.4", features = ["tokio"] }
+safetensors = "0.6"
 
 [dev-dependencies]
 assert_cmd = "2.0"
 assert_fs = "1.1"
 predicates = "3.1"
 serial_test = "3.2"
-tempfile.workspace = true 
+tempfile.workspace = true
+mockall.workspace = true
+cargo-tarpaulin.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

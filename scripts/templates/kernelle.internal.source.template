@@ -1,10 +1,85 @@
 #!/bin/sh
 
-
-# Ensure ~/.cargo/bin is in PATH for Kernelle binaries
-if [ -d "$HOME/.cargo/bin" ]; then
+# Makes blizz and blizz subtools visible to the terminal
+ensure_cargo_path() {
+  if [ -d "$HOME/.cargo/bin" ]; then
     case ":$PATH:" in
-        *":$HOME/.cargo/bin:"*) ;;
-        *) export PATH="$HOME/.cargo/bin:$PATH" ;;
+      *":$HOME/.cargo/bin:"*) ;;
+      *) export PATH="$HOME/.cargo/bin:$PATH" ;;
     esac
-fi
+  fi
+}
+
+get_target_triple() {
+  OS_NAME="$(uname)"
+  ARCH_NAME="$(uname -m)"
+  
+  if [ "$OS_NAME" = "Darwin" ]; then
+    if [ "$ARCH_NAME" = "arm64" ]; then
+      echo "aarch64-apple-darwin"
+    else
+      echo "x86_64-apple-darwin"
+    fi
+  else
+    echo "x86_64-unknown-linux-gnu"
+  fi
+}
+
+find_onnx_lib() {
+  TARGET_TRIPLE=$(get_target_triple)
+  if [ -d "$HOME/.cache/ort.pyke.io/dfbin/$TARGET_TRIPLE" ]; then
+    find "$HOME/.cache/ort.pyke.io/dfbin/$TARGET_TRIPLE" -name "lib" -type d -path "*/onnxruntime/lib" 2>/dev/null | head -1
+  fi
+}
+
+has_cuda_lib() {
+  if [ -z "$1" ]; then
+    return 1
+  fi
+  
+  if [ "$(uname)" = "Darwin" ]; then
+    [ -f "$1/libonnxruntime_providers_cuda.dylib" ]
+  else
+    [ -f "$1/libonnxruntime_providers_cuda.so" ]
+  fi
+}
+
+is_library_path_set() {
+  if [ -z "$1" ]; then
+    return 1
+  fi
+  
+  if [ "$(uname)" = "Darwin" ]; then
+    case ":${DYLD_LIBRARY_PATH:-}:" in
+      *":$1:"*) return 0 ;;
+      *) return 1 ;;
+    esac
+  else
+    case ":${LD_LIBRARY_PATH:-}:" in
+      *":$1:"*) return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
+}
+
+ensure_ld_library_path() {
+  TARGET_TRIPLE=$(get_target_triple)
+  [ -d "$HOME/.cache/ort.pyke.io/dfbin/$TARGET_TRIPLE" ] || return
+  
+  ONNX_LIB=$(find_onnx_lib)
+  [ -n "$ONNX_LIB" ] || return
+  
+  has_cuda_lib "$ONNX_LIB" || return
+  is_library_path_set "$ONNX_LIB" && return
+  
+  # Use DYLD_LIBRARY_PATH on macOS, LD_LIBRARY_PATH on Linux
+  if [ "$(uname)" = "Darwin" ]; then
+    export DYLD_LIBRARY_PATH="$ONNX_LIB:${DYLD_LIBRARY_PATH:-}"
+  else
+    export LD_LIBRARY_PATH="$ONNX_LIB:${LD_LIBRARY_PATH:-}"
+  fi
+}
+
+# Call functions but don't fail on errors
+ensure_cargo_path || true
+ensure_ld_library_path || true

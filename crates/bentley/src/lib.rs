@@ -174,3 +174,109 @@ pub fn flourish(message: &str) {
 pub fn showstopper(message: &str) {
   as_banner(|msg| log(&msg.bright_red().bold().to_string()), message, Some(60), Some('*'));
 }
+
+/// Macros for coverage-excluded logging - these expand with LCOV_EXCL_LINE at call sites
+#[macro_export]
+macro_rules! info {
+  ($msg:expr) => {
+    $crate::info($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! warn {
+  ($msg:expr) => {
+    $crate::warn($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! error {
+  ($msg:expr) => {
+    $crate::error($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! verbose {
+  ($msg:expr) => {
+    $crate::verbose($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! debug {
+  ($msg:expr) => {
+    $crate::debug($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! success {
+  ($msg:expr) => {
+    $crate::success($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! announce {
+  ($msg:expr) => {
+    $crate::announce($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! event_info {
+  ($msg:expr) => {
+    $crate::event_info($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! event_warn {
+  ($msg:expr) => {
+    $crate::event_warn($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! event_error {
+  ($msg:expr) => {
+    $crate::event_error($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! event_debug {
+  ($msg:expr) => {
+    $crate::event_debug($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! event_success {
+  ($msg:expr) => {
+    $crate::event_success($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! spotlight {
+  ($msg:expr) => {
+    $crate::spotlight($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! flourish {
+  ($msg:expr) => {
+    $crate::flourish($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! showstopper {
+  ($msg:expr) => {
+    $crate::showstopper($msg); // LCOV_EXCL_LINE
+  };
+}

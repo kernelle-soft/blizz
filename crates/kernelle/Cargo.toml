@@ -28,3 +28,6 @@ bentley = { path = "../bentley" }
 [dev-dependencies]
 tempfile = "3.0"
 mockito = "1.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
