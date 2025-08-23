@@ -156,6 +156,7 @@ fn spawn_handler(
   })
 }
 
+#[cfg(not(tarpaulin_include))]
 fn create_listener(socket: &PathBuf) -> UnixListener {
   match UnixListener::bind(socket) {
     Ok(listener) => listener,
