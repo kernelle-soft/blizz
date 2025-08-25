@@ -117,13 +117,20 @@ jobs:
           "${{ steps.version.outputs.tag }}" \
           "${{ steps.version.outputs.version }}"
 
-      - name: Create GitHub Release
+      - name: Create Draft GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Kernelle ${{ steps.version.outputs.version }}
           body_path: release_notes.md
-          draft: false
+          draft: true
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify about draft release
+        run: |
+          echo "Draft GitHub release created: ${{ steps.version.outputs.tag }}"
+          echo "The release-build workflow will now build and attach cross-platform binaries"
+          echo "Check the Actions tab to monitor binary build progress"
+          echo "The release will be published automatically once all binaries are built successfully"

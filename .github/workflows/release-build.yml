@@ -1,0 +1,208 @@
+name: release-build
+
+# Trigger on release tags (v*)
+on:
+  push:
+    tags: ['v*']
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-binaries:
+    name: Build Release Binaries
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact-name: kernelle-linux-x86_64
+            platform-name: "Linux x86_64"
+          - os: macos-15
+            target: aarch64-apple-darwin  
+            artifact-name: kernelle-macos-aarch64
+            platform-name: "macOS ARM64 (15+)"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          cache-on-failure: true
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y libssl-dev pkg-config
+
+      - name: Build release binaries
+        run: cargo build --workspace --release --target ${{ matrix.target }}
+
+      - name: Prepare binary package
+        shell: bash
+        run: |
+          echo "📦 Packaging binaries for ${{ matrix.platform-name }}..."
+          
+          # Create distribution directory
+          mkdir -p dist
+          
+          # Define binary names (without .exe extension)
+          BINARIES=(
+            "kernelle"
+            "insights" 
+            "insights_embedding_daemon"
+            "install_insights_cuda_dependencies"
+            "secrets"
+            "keeper"
+            "violet"
+            "adam"
+          )
+          
+          # Copy binaries to dist directory
+          TARGET_DIR="target/${{ matrix.target }}/release"
+          for binary in "${BINARIES[@]}"; do
+            if [ -f "$TARGET_DIR/$binary" ]; then
+              cp "$TARGET_DIR/$binary" dist/
+              echo "✅ Packaged: $binary"
+            else
+              echo "⚠️  Binary not found: $binary"
+            fi
+          done
+          
+          # Verify we have at least some binaries
+          BINARY_COUNT=$(ls -1 dist/ | wc -l)
+          if [ "$BINARY_COUNT" -eq 0 ]; then
+            echo "❌ No binaries found to package!"
+            exit 1
+          fi
+          
+          echo "📋 Packaged $BINARY_COUNT binaries"
+          ls -la dist/
+
+      - name: Create release archive
+        shell: bash
+        run: |
+          cd dist
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+            # Use zip for Windows (for future Windows support)
+            zip -r ../kernelle-${{ matrix.target }}.zip *
+            echo "archive-name=kernelle-${{ matrix.target }}.zip" >> $GITHUB_ENV
+          else
+            # Use tar.gz for Unix-like systems  
+            tar -czf ../kernelle-${{ matrix.target }}.tar.gz *
+            echo "archive-name=kernelle-${{ matrix.target }}.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ env.archive-name }}
+          retention-days: 30
+
+  attach-to-release:
+    name: Attach Binaries to Release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Display downloaded artifacts
+        run: |
+          echo "📦 Downloaded artifacts:"
+          find artifacts/ -type f -name "*.tar.gz" -o -name "*.zip" | sort
+          
+      - name: Get release info
+        id: release-info
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG_NAME#v}
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📋 Release tag: $TAG_NAME"
+          echo "📋 Version: $VERSION"
+
+      - name: Attach binaries to draft release  
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-info.outputs.tag }}
+          files: |
+            artifacts/kernelle-linux-x86_64/kernelle-x86_64-unknown-linux-gnu.tar.gz
+            artifacts/kernelle-macos-aarch64/kernelle-aarch64-apple-darwin.tar.gz
+          append_body: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify all binaries attached
+        run: |
+          echo "🔍 Verifying all expected binaries were attached..."
+          
+          # List the binaries we expect to have attached
+          EXPECTED_BINARIES=(
+            "kernelle-x86_64-unknown-linux-gnu.tar.gz"
+            "kernelle-aarch64-apple-darwin.tar.gz"
+          )
+          
+          # Check that all artifact files exist
+          ALL_FOUND=true
+          for binary in "${EXPECTED_BINARIES[@]}"; do
+            if find artifacts/ -name "*$binary" -type f | grep -q .; then
+              echo "✅ Found: $binary"
+            else
+              echo "❌ Missing: $binary"
+              ALL_FOUND=false
+            fi
+          done
+          
+          if [ "$ALL_FOUND" = "false" ]; then
+            echo "❌ Not all expected binaries were found!"
+            exit 1
+          fi
+          
+          echo "✅ All expected binaries confirmed present"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-info.outputs.tag }}
+          draft: false
+          append_body: true
+          body: |
+            
+            ## 📦 Pre-built Binaries Available
+            
+            This release includes pre-built binaries for:
+            - **Linux x86_64** (`kernelle-x86_64-unknown-linux-gnu.tar.gz`) - Compatible with Ubuntu, Debian, and most Linux distributions
+            - **macOS ARM64** (`kernelle-aarch64-apple-darwin.tar.gz`) - For Apple Silicon Macs (macOS 15+)
+            
+            Each archive contains all Kernelle binaries: `kernelle`, `insights`, `secrets`, `keeper`, `violet`, `adam`, and support tools.
+            
+            💡 **Tip**: The install script will automatically detect your platform and use these pre-built binaries for faster installation!
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "🎉 Release published successfully!"
+          echo "Tag: ${{ steps.release-info.outputs.tag }}"
+          echo "Platform binaries attached and release published"
+          echo "Release is now live at: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release-info.outputs.tag }}"
