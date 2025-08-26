@@ -1,6 +1,6 @@
-<div style="display: flex; justify-content: center; margin-bottom: 1rem; aspect-ratio: 1;">
+<p align="center">
   <img src="assets/blizz.png" height="743">
-</div>
+</p>
 
 ![Code Coverage](https://img.shields.io/badge/Code%20Coverage-50%25-critical?style=flat)
 ![Linux](https://github.com/TravelSizedLions/kernelle/actions/workflows/linux.yml/badge.svg?branch=dev)
