@@ -19,10 +19,10 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact-name: kernelle-linux-x86_64
             platform-name: "Linux x86_64"
-          - os: macos-latest
+          - os: macos-15
             target: aarch64-apple-darwin  
             artifact-name: kernelle-macos-aarch64
-            platform-name: "macOS ARM64"
+            platform-name: "macOS ARM64 (15+)"
 
     runs-on: ${{ matrix.os }}
 
@@ -192,7 +192,7 @@ jobs:
             
             This release includes pre-built binaries for:
             - **Linux x86_64** (`kernelle-x86_64-unknown-linux-gnu.tar.gz`) - Compatible with Ubuntu, Debian, and most Linux distributions
-            - **macOS ARM64** (`kernelle-aarch64-apple-darwin.tar.gz`) - For Apple Silicon Macs
+            - **macOS ARM64** (`kernelle-aarch64-apple-darwin.tar.gz`) - For Apple Silicon Macs (macOS 15+)
             
             Each archive contains all Kernelle binaries: `kernelle`, `insights`, `secrets`, `keeper`, `violet`, `adam`, and support tools.
             
