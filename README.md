@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/blizz.png" height="743">
+  <img src="assets/blizz.png" height="372">
 </p>
 
 ![Code Coverage](https://img.shields.io/badge/Code%20Coverage-50%25-critical?style=flat)
