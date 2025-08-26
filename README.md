@@ -1,5 +1,5 @@
 <div style="display: flex; justify-content: center; margin-bottom: 1rem; aspect-ratio: 1;">
-  <img src="assets/blizz.png" height="100%">
+  <img src="assets/blizz.png" height="743">
 </div>
 
 ![Code Coverage](https://img.shields.io/badge/Code%20Coverage-50%25-critical?style=flat)
