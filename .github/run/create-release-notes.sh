@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generate release notes for kernelle releases
+# Generate release notes for Blizz releases
 # Usage: generate-release-notes.sh <tag> <version>
 
 if [ $# -ne 2 ]; then
@@ -30,7 +30,7 @@ fi
 
 # Start writing release notes
 cat > "$OUTPUT_FILE" << EOF
-# Kernelle $VERSION
+# Blizz $VERSION
 
 EOF
 
@@ -52,7 +52,7 @@ else
   # First release
   echo "## What's New" >> "$OUTPUT_FILE"
   echo "" >> "$OUTPUT_FILE"  
-  echo "Initial release of the Kernelle toolshed." >> "$OUTPUT_FILE"
+  echo "Initial release of the Blizz toolshed." >> "$OUTPUT_FILE"
   echo "" >> "$OUTPUT_FILE"
 fi
 
@@ -62,7 +62,7 @@ cat >> "$OUTPUT_FILE" << EOF
 
 \`\`\`bash
 # Download and extract source
-curl -L https://github.com/TravelSizedLions/kernelle/archive/$TAG.tar.gz | tar xz
+curl -L https://github.com/kernelle-soft/blizz/archive/$TAG.tar.gz | tar xz
 cd kernelle-$TAG-source
 
 # Install using included script
@@ -77,7 +77,7 @@ DOT="%2E"
 # Add changelog link if we have a previous tag
 if [ ! -z "$PREV_TAG" ]; then
   echo "" >> "$OUTPUT_FILE"
-  echo "**Full Changelog**: https://github.com/TravelSizedLions/kernelle/compare/${PREV_TAG}${DOT}${DOT}${DOT}${TAG}" >> "$OUTPUT_FILE"
+  echo "**Full Changelog**: https://github.com/kernelle-soft/blizz/compare/${PREV_TAG}${DOT}${DOT}${DOT}${TAG}" >> "$OUTPUT_FILE"
 fi
 
 echo "✅ Release notes generated: $OUTPUT_FILE"

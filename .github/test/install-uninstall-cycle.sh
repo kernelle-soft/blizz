@@ -10,7 +10,7 @@ echo "🚀 Testing full install-uninstall lifecycle"
 echo "==========================================="
 
 # PHASE 1: Install on clean system
-echo "📦 Phase 1: Installing kernelle on clean system..."
+echo "📦 Phase 1: Installing blizz on clean system..."
 ./scripts/install.sh --non-interactive || fail "Install script failed"
 
  # Verify installation worked
@@ -22,12 +22,10 @@ test -d ~/.kernelle/volatile/.cursor || fail "~/.kernelle/volatile/.cursor not f
 test -f ~/.kernelle/uninstall.sh || fail "~/.kernelle/uninstall.sh not found after install"
 test -f ~/.kernelle/volatile/kernelle.internal.source.gone.template || fail "~/.kernelle/volatile/kernelle.internal.source.gone.template not found after install"
 
-
 # Check that binaries were installed (bentley is library-only, so exclude it)
 ls -la "$HOME/.cargo/bin/" | grep -E "(kernelle|blizz|violet|adam|sentinel)" || fail "Expected binaries not found in ~/.cargo/bin"
 
-
-# Test that kernelle binary works
+# Test that Blizz works
 "$HOME/.cargo/bin/kernelle" --help > /dev/null || fail "kernelle --help failed"
 
 echo "✅ Installation verified successfully"

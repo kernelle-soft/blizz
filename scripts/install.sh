@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Kernelle Installation Script - Phase 1
-# This script installs Kernelle and sets up the basic lifecycle infrastructure
-
 # Show usage information
 show_install_usage() {
 	echo "Usage: $0 [--non-interactive]"
 	echo ""
-	echo "This script installs Kernelle and its dependencies. It will check for"
+	echo "This script installs Blizz and its dependencies. It will check for"
 	echo "required system packages (OpenSSL development libraries, pkg-config)"
 	echo "and install them automatically."
 	echo ""
@@ -189,7 +186,7 @@ install_system_dependencies() {
 # Parse arguments
 parse_install_arguments "$@"
 
-echo "🚀 Installing Kernelle..."
+echo "🚀 Installing Blizz..."
 
 # Check system dependencies first
 check_system_dependencies
@@ -214,7 +211,7 @@ else
 fi
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
-echo "🔨 Installing Kernelle tools..."
+echo "🔨 Installing Blizz tools..."
 echo "Script directory: $SCRIPT_DIR"
 echo "Repository root: $REPO_ROOT"
 echo "Current directory: $(pwd)"
@@ -298,19 +295,19 @@ else
 	echo "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template already exists - keeping existing file"
 fi
 
-echo "✅ Kernelle installed successfully!"
+echo "✅ You've installed me successfully!"
 echo ""
 echo "📝 Next steps:"
 echo "1. Add the following line to your shell configuration (~/.bashrc, ~/.zshrc, etc.):"
-echo "   source ~/.kernelle.source"
+echo "   source ~/.blizz.source"
 echo ""
-echo "2. Reload your shell or run: source ~/.kernelle.source"
+echo "2. Reload your shell or run: source ~/.blizz.source"
 echo ""
 echo "3. Test the installation:"
-echo "   kernelle --help"
-echo "   kernelle add .  # (in a project directory)"
+echo "   blizz --help"
+echo "   blizz add .  # (in a project directory)"
 echo ""
 echo "4. To uninstall later, run:"
-echo "   ~/.kernelle/uninstall.sh"
+echo "   ~/.blizz/uninstall.sh"
 echo ""
-echo "🎉 Enjoy your time using Kernelle!"
+echo "Let's get some stuff done!"

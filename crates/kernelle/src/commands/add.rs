@@ -52,7 +52,7 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
   if !cursor_source.exists() {
     anyhow::bail!(
-            "Kernelle cursor workflows not found at {}/volatile/.cursor/rules/kernelle\nPlease run the Kernelle setup script first.",
+            "Blizz cursor workflows not found at {}/volatile/.cursor/rules/blizz\nPlease run the Blizz setup script first.",
             kernelle_home.display()
         );
   }
@@ -63,12 +63,12 @@ pub async fn execute(target_dir: &str) -> Result<()> {
   fs::create_dir_all(&rules_target)
     .with_context(|| format!("Failed to create directory: {}", rules_target.display()))?;
 
-  println!("Adding Kernelle cursor workflows to {}...", target_path.display());
+  println!("Adding Blizz cursor workflows to {}...", target_path.display());
 
-  // Create single symlink: .cursor/rules/kernelle/ -> ~/.kernelle/volatile/.cursor/rules/kernelle/
+  // Create single symlink: .cursor/rules/blizz/ -> ~/.kernelle/volatile/.cursor/rules/blizz/
   let kernelle_link = rules_target.join("kernelle");
 
-  // Remove existing kernelle symlink/directory if it exists
+  // Remove existing blizz symlink/directory if it exists
   // Use symlink_metadata to detect symlinks even if they're broken
   if let Ok(metadata) = fs::symlink_metadata(&kernelle_link) {
     if metadata.is_symlink() {
@@ -76,10 +76,10 @@ pub async fn execute(target_dir: &str) -> Result<()> {
         format!("Failed to remove existing symlink: {}", kernelle_link.display())
       })?;
     } else if metadata.is_dir() {
-      anyhow::bail!("Directory .cursor/rules/kernelle/ already exists and is not a symlink. Please remove it manually.");
+      anyhow::bail!("Directory .cursor/rules/blizz/ already exists and is not a symlink. Please remove it manually.");
     } else {
       anyhow::bail!(
-        "File .cursor/rules/kernelle already exists and is not a symlink. Please remove it manually."
+        "File .cursor/rules/blizz already exists and is not a symlink. Please remove it manually."
       );
     }
   }
@@ -91,7 +91,7 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
   println!("  Linked: .cursor/rules/kernelle/ -> {}", cursor_source.display());
   println!("Cursor workflows added successfully!");
-  println!("Open this project in Cursor to access Kernelle workflows.");
+  println!("Open this project in Cursor to access Blizz rules and workflows.");
 
   Ok(())
 }

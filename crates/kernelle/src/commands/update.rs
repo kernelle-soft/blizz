@@ -840,7 +840,7 @@ mod tests {
     let mock_response = format!(
       r#"{{
       "tag_name": "v{current_version}",
-      "tarball_url": "https://api.github.com/repos/TravelSizedLions/kernelle/tarball/v{current_version}"
+      "tarball_url": "https://api.github.com/repos/kernelle-soft/blizz/tarball/v{current_version}"
     }}"#
     );
 
@@ -926,15 +926,15 @@ mod tests {
     );
 
     // This test demonstrates that persistent data is available in snapshots
-    // for manual recovery if ~/.kernelle/persistent gets accidentally deleted
+    // for manual recovery if ~/.blizz/persistent gets accidentally deleted
   }
 
   #[tokio::test]
   async fn test_complete_backup_and_rollback_workflow() {
     // Test the complete workflow described in the issue:
-    // 1. take snapshot of entire ~/.kernelle folder
-    // 2. perform update, but don't touch ~/.kernelle/persistent
-    // 3. if rollback is needed, perform rollback, but STILL do not touch ~/.kernelle/persistent
+    // 1. take snapshot of entire ~/.blizz folder
+    // 2. perform update, but don't touch ~/.blizz/persistent
+    // 3. if rollback is needed, perform rollback, but STILL do not touch ~/.blizz/persistent
 
     let temp_dir = TempDir::new().unwrap();
     let kernelle_home = temp_dir.path().join(".kernelle");

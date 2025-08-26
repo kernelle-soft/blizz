@@ -9,8 +9,7 @@ mod commands;
 #[command(name = "kernelle")]
 #[command(about = "It takes a village.
 
-Kernelle is a tool for managing projects from a personal perspective, and enabling them to work together with AI agents.
-")]
+Blizz is a tool for managing projects from a personal perspective, enabling you to work together with AI agents more effectively")]
 #[command(version)]
 struct Cli {
   #[command(subcommand)]
@@ -19,13 +18,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-  /// Add kernelle rules and workflows to a directory
+  /// Add Blizz rules and workflows to a directory
   Add {
     /// Target directory (defaults to current directory)
     #[arg(default_value = ".")]
     dir: String,
   },
-  /// Remove kernelle rules and workflows from a directory
+  /// Remove Blizz rules and workflows from a directory
   Remove {
     /// Target directory (defaults to current directory)
     #[arg(default_value = ".")]

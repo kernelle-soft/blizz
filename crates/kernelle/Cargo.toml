@@ -3,7 +3,7 @@ name = "kernelle"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Kernelle toolshed package manager and workflow orchestrator"
+description = "Blizz toolchain package manager and workflow orchestrator"
 
 [[bin]]
 name = "kernelle"

@@ -1,6 +1,6 @@
 #!/bin/sh
-# Kernelle Cursor Workflows Integration
+# Blizz CLI Integration
 
-# Please do not remove or move these lines. It is used to do manage internal setup for kernelle.
+# Please do not remove or move these lines. It is used to do manage internal setup for Blizz.
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
 source "$KERNELLE_HOME/kernelle.internal.source"

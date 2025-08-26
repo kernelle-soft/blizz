@@ -85,7 +85,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Kernelle Dependencies
+      - name: Setup Blizz Dependencies
         uses: ./.github/actions/setup-kernelle
         with:
           # Skip the slow bootstrapping step. Not needed for release
@@ -139,7 +139,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Kernelle ${{ steps.version.outputs.version }}
+          name: Blizz ${{ steps.version.outputs.version }}
           body_path: release_notes.md
           draft: true
           prerelease: false
@@ -164,11 +164,11 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact-name: kernelle-linux-x86_64
+            artifact-name: blizz-linux-x86_64
             platform-name: "Linux x86_64"
           - os: macos-15
             target: aarch64-apple-darwin  
-            artifact-name: kernelle-macos-aarch64
+            artifact-name: blizz-macos-aarch64
             platform-name: "macOS ARM64 (15+)"
 
     runs-on: ${{ matrix.os }}
@@ -242,13 +242,13 @@ jobs:
         shell: bash
         run: |
           cd dist
-          tar -czf ../kernelle-${{ matrix.target }}.tar.gz *
+          tar -czf ../blizz-${{ matrix.target }}.tar.gz *
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact-name }}
-          path: kernelle-${{ matrix.target }}.tar.gz
+          path: blizz-${{ matrix.target }}.tar.gz
           retention-days: 30
 
   publish-release:
@@ -276,8 +276,8 @@ jobs:
           
           # List the binaries we expect to have
           EXPECTED_BINARIES=(
-            "kernelle-x86_64-unknown-linux-gnu.tar.gz"
-            "kernelle-aarch64-apple-darwin.tar.gz"
+            "blizz-x86_64-unknown-linux-gnu.tar.gz"
+            "blizz-aarch64-apple-darwin.tar.gz"
           )
           
           # Check that all artifact files exist
@@ -303,8 +303,8 @@ jobs:
         with:
           tag_name: ${{ needs.trigger-release.outputs.release-tag }}
           files: |
-            artifacts/kernelle-linux-x86_64/kernelle-x86_64-unknown-linux-gnu.tar.gz
-            artifacts/kernelle-macos-aarch64/kernelle-aarch64-apple-darwin.tar.gz
+            artifacts/blizz-linux-x86_64/blizz-x86_64-unknown-linux-gnu.tar.gz
+            artifacts/blizz-macos-aarch64/blizz-aarch64-apple-darwin.tar.gz
           draft: false
           append_body: true
           body: |
@@ -312,10 +312,10 @@ jobs:
             ## 📦 Pre-built Binaries Available
             
             This release includes pre-built binaries for:
-            - **Linux x86_64** (`kernelle-x86_64-unknown-linux-gnu.tar.gz`) - Compatible with Ubuntu, Debian, and most Linux distributions
-            - **macOS ARM64** (`kernelle-aarch64-apple-darwin.tar.gz`) - For Apple Silicon Macs
+            - **Linux x86_64** (`blizz-x86_64-unknown-linux-gnu.tar.gz`) - Compatible with Ubuntu, Debian, and most Linux distributions
+            - **macOS ARM64** (`blizz-aarch64-apple-darwin.tar.gz`) - For Apple Silicon Macs
             
-            Each archive contains all Kernelle binaries: `kernelle`, `insights`, `secrets`, `keeper`, `violet`, `adam`, and support tools.
+            Each archive contains all Blizz binaries: `kernelle`, `insights`, `secrets`, `keeper`, `violet`, `adam`, and support tools.
             
             💡 **Tip**: The install script will automatically detect your platform and use these pre-built binaries for faster installation!
         env:

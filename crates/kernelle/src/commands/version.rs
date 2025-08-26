@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::io::Write;
 
-const GITHUB_RELEASE_API: &str = "https://api.github.com/repos/TravelSizedLions/kernelle/releases";
+const GITHUB_RELEASE_API: &str = "https://api.github.com/repos/kernelle-soft/blizz/releases";
 
 #[derive(Debug, Deserialize)]
 struct Release {

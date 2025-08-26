@@ -12,7 +12,7 @@ mod similarity;
 #[command(
   about = "Insights - Knowledge Management System\nHigh-speed insight storage and retrieval for development workflows"
 )]
-#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
+#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of Blizz and Kernelle Software"))]
 struct Cli {
   #[command(subcommand)]
   command: Command,

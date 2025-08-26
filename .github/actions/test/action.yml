@@ -1,5 +1,5 @@
 name: 'Test with Optional Coverage'
-description: 'Runs Kernelle tests and optionally generates coverage reports with PR comments and badge updates'
+description: 'Runs Blizz tests and optionally generates coverage reports with PR comments and badge updates'
 
 inputs:
   report-coverage:

@@ -1,14 +1,14 @@
 #!/bin/sh
 
-# Kernelle Uninstalled Warning
-# This file is left behind when Kernelle is uninstalled to notify users
+# Blizz Uninstalled Warning
+# This file is left behind when Blizz is uninstalled to notify users
 # that they should update their shell configuration files
 
-echo "WARNING: Kernelle has been uninstalled from this system."
+echo "WARNING: Blizz has been uninstalled from this system."
 echo ""
-echo "You are sourcing 'kernelle.source' but Kernelle is no longer available."
+echo "You are sourcing 'blizz.source' but Blizz is no longer available."
 echo "Please update your shell configuration files (.bashrc, .zshrc, etc.) to remove"
-echo "any references to 'kernelle.source' or the Kernelle installation."
+echo "any references to 'blizz.source' or the Blizz installation."
 echo ""
 echo "Common locations to check:"
 echo "  - ~/.bashrc"
@@ -17,7 +17,7 @@ echo "  - ~/.profile"
 echo "  - ~/.bash_profile"
 echo ""
 echo "Look for lines like:"
-echo "  source ~/.kernelle.source"
+echo "  source ~/.blizz.source"
 echo ""
 echo "Remove or comment out these lines to stop seeing this warning." 
 echo ""

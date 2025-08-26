@@ -20,7 +20,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup Kernelle Dependencies
+      - name: Setup Blizz Dependencies
         uses: ./.github/actions/setup-kernelle
         with:
           rust-components: rustfmt,clippy

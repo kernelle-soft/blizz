@@ -5,7 +5,7 @@ use clap::Parser;
 #[command(
   about = "Adam - Insight Management & Scoring\nKnowledge curation, scoring, and consolidation for development teams"
 )]
-#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
+#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of Blizz and Kernelle Software"))]
 struct Cli {
   // For now, we'll just accept the version flag and show the under construction message
   // Additional commands can be added later as the tool is developed

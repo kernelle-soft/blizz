@@ -5,7 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Theatrical logging and output formatting library - the town crier of Kernelle"
+description = "Theatrical logging and output formatting library"
 
 [lib]
 name = "bentley"

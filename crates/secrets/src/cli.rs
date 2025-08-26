@@ -8,8 +8,8 @@ use std::env;
 #[derive(Parser)]
 #[command(name = "secrets")]
 #[command(
-  about = "Secrets management for Kernelle, the AI toolshed.",
-  long_about = "Secure secret storage for Kernelle tools. Secrets are organized into groups for better management."
+  about = "Secrets management for Blizz.",
+  long_about = "Secure secret storage for Blizz's toolchain. Secrets are organized into groups for better management."
 )]
 #[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
 pub struct Cli {

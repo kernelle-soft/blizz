@@ -1,5 +1,5 @@
-name: "Setup Kernelle Dependencies"
-description: "Sets up Rust toolchain, installs dependencies, and bootstraps Kernelle CLI tools"
+name: "Setup Blizz Dependencies"
+description: "Sets up Rust toolchain, installs dependencies, and bootstraps Blizz CLI tools"
 
 inputs:
   rust-components:
@@ -7,7 +7,7 @@ inputs:
     required: false
     default: "rustfmt,clippy"
   skip-bootstrap:
-    description: 'If "true", skip running the kernelle bootstrap/install script and related caching/verification steps'
+    description: 'If "true", skip running the blizz bootstrap/install script and related caching/verification steps'
     required: false
     default: "false"
 
