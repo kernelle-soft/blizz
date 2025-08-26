@@ -2,6 +2,13 @@ name: release-check
 
 on:
   workflow_run:
+    workflows:
+      - linux
+      - mac-os
+      - windows
+      - code-quality
+      - test-install-cleanup
+      - test-updates
     types:
       - completed
     branches:
