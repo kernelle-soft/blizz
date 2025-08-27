@@ -3,9 +3,9 @@
 </p>
 
 ![Code Coverage](https://img.shields.io/badge/Code%20Coverage-50%25-critical?style=flat)
-![Linux](https://github.com/TravelSizedLions/kernelle/actions/workflows/linux.yml/badge.svg?branch=dev)
-![Mac OS](https://github.com/TravelSizedLions/kernelle/actions/workflows/macos.yml/badge.svg?branch=dev)
-![Windows](https://github.com/TravelSizedLions/kernelle/actions/workflows/windows.yml/badge.svg?branch=dev)
+![Linux](https://github.com/kernelle-soft/blizz/actions/workflows/linux.yml/badge.svg?branch=dev)
+![Mac OS](https://github.com/kernelle-soft/blizz/actions/workflows/macos.yml/badge.svg?branch=dev)
+![Windows](https://github.com/kernelle-soft/blizz/actions/workflows/windows.yml/badge.svg?branch=dev)
 
 **A Rust-powered, investigation-to-merge AI development toolshed**
 
@@ -17,23 +17,12 @@ This suite provides semantically programmed agent rulesets that leverage a host 
 
 This toolshed's been designed and tested with strict standards to keep real-world development needs in mind, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts.
 
-Most importantly, Kernelle is designed to have effectively no footprint on existing repositories. Everything needed to supercharge AI to work with a repository lives either under a single folder at the project level that can be added to the project's `.gitignore`, or under `~/.kernelle`, where it can be carried from project to project as needed.
+Most importantly, Blizz is designed to have effectively no footprint on existing repositories. Everything needed to supercharge AI to work with a repository lives either under a single folder at the project level that can be added to the project's `.gitignore`, or under `~/.blizz`, where it can be carried from project to project as needed.
 
 ## Setup
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd kernelle
-
-# Install all tools initially
-./scripts/install.sh
-
-# Add ~/.kernelle.source to your shell configs
-echo "source ~/.kernelle.source" >> ~/.zshrc && source ~/.zshrc
-
-# CLIs are now globally available
-kernelle -h
+curl -fsSL https://raw.githubusercontent.com/kernelle-soft/blizz/refs/heads/dev/scripts/install.sh | sh
 ```
 
 ## Development
@@ -50,7 +39,7 @@ The project uses `bacon` for rapid development iteration, configured to make tha
 bacon [crate name]
 
 # Example
-bacon kernelle  # watches kernelle crate
+bacon blizz  # watches blizz crate
 bacon insights   # watches insights crate
 bacon violet    # etc
 ```
