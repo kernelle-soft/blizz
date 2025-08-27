@@ -3,21 +3,21 @@ set -euo pipefail
 
 # Show usage information
 show_install_usage() {
-	echo "Usage: $0 [--non-interactive]"
+	echo "Usage: $0 [--non-interactive] [--from-source]"
 	echo ""
-	echo "This script installs Blizz and its dependencies. It will check for"
-	echo "required system packages (OpenSSL development libraries, pkg-config)"
-	echo "and install them automatically."
+	echo "This script installs Blizz using pre-built binaries when available,"
+	echo "or falls back to building from source if needed."
 	echo ""
 	echo "Options:"
 	echo "  --non-interactive    Install dependencies automatically without prompts"
 	echo "                       (suitable for CI/automation)"
+	echo "  --from-source        Force building from source instead of using pre-built binaries"
 	echo "  --help, -h          Show this help message"
 	echo ""
 	echo "System Requirements:"
-	echo "  - Rust toolchain (cargo)"
-	echo "  - OpenSSL development libraries (installed automatically)"
-	echo "  - pkg-config (installed automatically)"
+	echo "  - curl or wget (for downloading pre-built binaries)"
+	echo "  - tar (for extracting archives)"
+	echo "  - For source builds: Rust toolchain, OpenSSL dev libraries, pkg-config"
 }
 
 # Handle help and unknown options
@@ -40,6 +40,9 @@ process_install_option() {
 	--non-interactive)
 		NON_INTERACTIVE=true
 		;;
+	--from-source)
+		FORCE_SOURCE_BUILD=true
+		;;
 	--help | -h | *)
 		handle_install_help_and_errors "$1"
 		;;
@@ -49,6 +52,7 @@ process_install_option() {
 # Parse command line arguments
 parse_install_arguments() {
 	NON_INTERACTIVE=false
+	FORCE_SOURCE_BUILD=false
 
 	while [ $# -gt 0 ]; do
 		process_install_option "$1"
@@ -183,13 +187,157 @@ install_system_dependencies() {
 	echo "✅ System dependencies installed successfully"
 }
 
+# Detect the current platform and return the appropriate binary archive name
+detect_platform() {
+	local os
+	local arch
+	
+	os=$(uname -s | tr '[:upper:]' '[:lower:]')
+	arch=$(uname -m)
+	
+	case "$os-$arch" in
+	linux-x86_64)
+		echo "blizz-x86_64-unknown-linux-gnu.tar.gz"
+		return 0
+		;;
+	darwin-arm64)
+		echo "blizz-aarch64-apple-darwin.tar.gz"
+		return 0
+		;;
+	*)
+		echo "Unsupported platform: $os-$arch" >&2
+		return 1
+		;;
+	esac
+}
+
+# Get the latest release version from GitHub
+get_latest_version() {
+	local version
+	
+	if command -v curl >/dev/null 2>&1; then
+		version=$(curl -s https://api.github.com/repos/kernelle-soft/blizz/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+	elif command -v wget >/dev/null 2>&1; then
+		version=$(wget -qO- https://api.github.com/repos/kernelle-soft/blizz/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+	else
+		echo "❌ Neither curl nor wget found. Cannot download pre-built binaries." >&2
+		return 1
+	fi
+	
+	if [ -z "$version" ]; then
+		echo "❌ Failed to get latest version from GitHub API" >&2
+		return 1
+	fi
+	
+	echo "$version"
+}
+
+# Download and extract pre-built binaries
+download_prebuilt_binaries() {
+	local platform_archive
+	local version
+	local download_url
+	local temp_dir
+	
+	echo "🔍 Detecting platform..."
+	platform_archive=$(detect_platform) || return 1
+	echo "✅ Detected platform archive: $platform_archive"
+	
+	echo "🔍 Getting latest release version..."
+	version=$(get_latest_version) || return 1
+	echo "✅ Latest version: $version"
+	
+	download_url="https://github.com/kernelle-soft/blizz/releases/download/$version/$platform_archive"
+	echo "📥 Downloading: $download_url"
+	
+	temp_dir=$(mktemp -d)
+	trap "rm -rf '$temp_dir'" EXIT
+	
+	if command -v curl >/dev/null 2>&1; then
+		curl -L "$download_url" -o "$temp_dir/$platform_archive" || {
+			echo "❌ Failed to download $download_url" >&2
+			return 1
+		}
+	elif command -v wget >/dev/null 2>&1; then
+		wget "$download_url" -O "$temp_dir/$platform_archive" || {
+			echo "❌ Failed to download $download_url" >&2
+			return 1
+		}
+	else
+		echo "❌ Neither curl nor wget found. Cannot download pre-built binaries." >&2
+		return 1
+	fi
+	
+	echo "📦 Extracting binaries to $INSTALL_DIR/bin..."
+	mkdir -p "$INSTALL_DIR/bin"
+	tar -xzf "$temp_dir/$platform_archive" -C "$INSTALL_DIR/bin" || {
+		echo "❌ Failed to extract $platform_archive" >&2
+		return 1
+	}
+	
+	echo "✅ Pre-built binaries installed successfully"
+	return 0
+}
+
+# Build from source using cargo
+build_from_source() {
+	echo "🔨 Building from source..."
+	
+	# Check system dependencies for source build
+	check_system_dependencies
+	
+	# For source builds, we need the repo
+	if [ ! -f "$REPO_ROOT/Cargo.toml" ]; then
+		echo "❌ Error: Cargo.toml not found at $REPO_ROOT/Cargo.toml"
+		echo "Contents of $REPO_ROOT:"
+		ls -la "$REPO_ROOT"
+		return 1
+	fi
+	
+	cd "$REPO_ROOT"
+	
+	echo "📦 Installing binaries from source..."
+	
+	# Install all binary crates using cargo install --path
+	for crate_dir in crates/*/; do
+		if [ -d "$crate_dir" ]; then
+			crate=$(basename "$crate_dir")
+			# Check if this crate has binary targets by looking for [[bin]] in Cargo.toml
+			if grep -q '\[\[bin\]\]' "$crate_dir/Cargo.toml"; then
+				echo "  Installing: $crate"
+				cargo install --path "$crate_dir" --force --root "$INSTALL_DIR"
+			else
+				echo "  Skipped: $crate (library only)"
+			fi
+		fi
+	done
+	
+	echo "✅ Source build completed successfully"
+}
+
+# Install binaries using the best available method
+install_binaries() {
+	if [ "$FORCE_SOURCE_BUILD" = true ]; then
+		echo "🔧 Forced source build requested"
+		build_from_source
+		return $?
+	fi
+	
+	echo "🚀 Attempting to install pre-built binaries..."
+	if download_prebuilt_binaries; then
+		echo "✅ Pre-built binaries installed successfully"
+		return 0
+	else
+		echo "⚠️  Pre-built binaries not available, falling back to source build"
+		build_from_source
+		return $?
+	fi
+}
+
 # Parse arguments
 parse_install_arguments "$@"
 
 echo "🚀 Installing Blizz..."
-
-# Check system dependencies first
-check_system_dependencies
 
 # Configuration
 KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
@@ -200,8 +348,7 @@ echo "📁 Creating directories..."
 mkdir -p "$KERNELLE_HOME/persistent/keeper"
 mkdir -p "$KERNELLE_HOME/volatile"
 
-# For Phase 1, we'll assume we're running from the source directory
-# In Phase 2+, this would clone from a repo
+# Get script and repo directory info (needed for source builds and templates)
 # Portable way to get script directory (works in bash and zsh)
 if [ -n "${BASH_SOURCE[0]}" ]; then
 	SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -215,32 +362,12 @@ echo "🔨 Installing Blizz tools..."
 echo "Script directory: $SCRIPT_DIR"
 echo "Repository root: $REPO_ROOT"
 echo "Current directory: $(pwd)"
-echo "Looking for Cargo.toml at: $REPO_ROOT/Cargo.toml"
 
-if [ ! -f "$REPO_ROOT/Cargo.toml" ]; then
-	echo "❌ Error: Cargo.toml not found at $REPO_ROOT/Cargo.toml"
-	echo "Contents of $REPO_ROOT:"
-	ls -la "$REPO_ROOT"
+# Install binaries (pre-built or from source)
+install_binaries || {
+	echo "❌ Failed to install binaries"
 	exit 1
-fi
-
-cd "$REPO_ROOT"
-
-echo "📦 Installing binaries..."
-
-# Install all binary crates using cargo install --path
-for crate_dir in crates/*/; do
-	if [ -d "$crate_dir" ]; then
-		crate=$(basename "$crate_dir")
-		# Check if this crate has binary targets by looking for [[bin]] in Cargo.toml
-		if grep -q '\[\[bin\]\]' "$crate_dir/Cargo.toml"; then
-			echo "  Installing: $crate"
-			cargo install --path "$crate_dir" --force --root "$INSTALL_DIR"
-		else
-			echo "  Skipped: $crate (library only)"
-		fi
-	fi
-done
+}
 
 echo "📋 Setting up workflows..."
 # Copy .cursor rules to ~/.kernelle/volatile/.cursor
@@ -295,19 +422,20 @@ else
 	echo "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template already exists - keeping existing file"
 fi
 
-echo "✅ You've installed me successfully!"
+echo "✅ Blizz installed successfully!"
 echo ""
 echo "📝 Next steps:"
 echo "1. Add the following line to your shell configuration (~/.bashrc, ~/.zshrc, etc.):"
-echo "   source ~/.blizz.source"
+echo "   source ~/.kernelle.source"
 echo ""
-echo "2. Reload your shell or run: source ~/.blizz.source"
+echo "2. Reload your shell or run: source ~/.kernelle.source"
 echo ""
 echo "3. Test the installation:"
-echo "   blizz --help"
-echo "   blizz add .  # (in a project directory)"
+echo "   kernelle --help"
+echo "   insights --help"
+echo "   violet --help"
 echo ""
 echo "4. To uninstall later, run:"
-echo "   ~/.blizz/uninstall.sh"
+echo "   ~/.kernelle/uninstall.sh"
 echo ""
 echo "Let's get some stuff done!"

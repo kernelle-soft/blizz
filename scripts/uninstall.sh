@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Blizz Cleanup Script - Phase 1
+# Blizz Cleanup Script
 # This script safely removes Blizz while preserving user data
 
 # Show usage information
@@ -32,7 +32,7 @@ if [ -d "$KERNELLE_HOME" ]; then
 fi
 
 echo "🔗 Removing cursor workflow symlinks..."
-# Find all symlinks that point to ~/.blizz/volatile/.cursor (updated path)
+# Find all symlinks that point to ~/.kernelle/volatile/.cursor
 find . -type l -lname "$KERNELLE_HOME/volatile/.cursor" 2>/dev/null | while read -r link; do
 	rm -f "$link"
 	echo "  Removed: $link"
@@ -44,7 +44,7 @@ find . -type l -lname "$KERNELLE_HOME/volatile/.cursor" 2>/dev/null | while read
 	fi
 done || true
 
-echo "🗂️  Cleaning ~/.blizz directory..."
+echo "🗂️  Cleaning ~/.kernelle directory..."
 if [ -d "$KERNELLE_HOME" ]; then
 	# Clean up uninstaller files (but keep persistent data)
 	rm -f "$KERNELLE_HOME/uninstall.sh" 2>/dev/null || true
@@ -56,7 +56,7 @@ if [ -d "$KERNELLE_HOME" ]; then
 fi
 
 echo "🗑️  Removing binaries from $INSTALL_DIR..."
-for tool in kernelle blizz insights violet adam sentinel; do
+for tool in kernelle insights insights_embedding_daemon install_insights_cuda_dependencies secrets keeper violet adam; do
 	if [ -f "$INSTALL_DIR/$tool" ]; then
 		rm -f "$INSTALL_DIR/$tool"
 		echo "  Removed: $tool"
@@ -67,10 +67,10 @@ echo ""
 echo "✅ Blizz cleanup completed!"
 echo ""
 echo "📝 Don't forget to:"
-echo "1. Remove 'source ~/.blizz.source' from your shell configuration"
+echo "1. Remove 'source ~/.kernelle.source' from your shell configuration"
 echo "2. Reload your shell to stop seeing the warning message"
 echo ""
-echo "Your insights and other customizations remain safely stored in ~/.blizz/persistent/"
+echo "Your insights and other customizations remain safely stored in ~/.kernelle/persistent/"
 echo ""
 echo "👋 Goodbye!"
 
