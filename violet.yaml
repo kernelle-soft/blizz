@@ -6,6 +6,8 @@ ignore_files:
   #  [tsl-voxel] - Future cleanup project
   - "crates/secrets/**"
   - "crates/kernelle/**"
+  - LICENSE
+  - README
 
 ignore_patterns:
   - \[cfg\(test\)\] # ignore rust inline test code
