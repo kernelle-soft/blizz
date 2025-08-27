@@ -33,9 +33,14 @@ jobs:
               repo: context.repo.repo
             });
             
-            // Filter out release-gatekeeper workflow and any disabled workflows
+            // Filter out release-gatekeeper workflow, disabled workflows, Dependabot, and Copilot
             const workflows = allWorkflows.workflows
-              .filter(wf => wf.name !== 'release' && wf.state === 'active')
+              .filter(wf => 
+                wf.name !== 'release' && 
+                wf.state === 'active' &&
+                !wf.name.toLowerCase().includes('dependabot') &&
+                !wf.name.toLowerCase().includes('copilot')
+              )
               .map(wf => wf.name);
               
             console.log('Required workflows for release:', workflows);
