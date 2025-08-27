@@ -169,105 +169,139 @@ install_binaries() {
 	fi
 }
 
-# Parse arguments
-parse_install_arguments "$@"
-
-echo "🚀 Installing Blizz..."
-
-# Configuration
-KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo}"
-
-# Create directories
-echo "📁 Creating directories..."
-mkdir -p "$KERNELLE_HOME/persistent/keeper"
-mkdir -p "$KERNELLE_HOME/volatile"
-
-# Get script and repo directory info (needed for templates and configuration files)
-# Portable way to get script directory (works in bash and zsh)
-if [ -n "${BASH_SOURCE[0]}" ]; then
-	SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-else
-	# zsh and other shells
-	SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-fi
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-
-echo "🔨 Installing Blizz tools..."
-
-# Install pre-built binaries
-install_binaries || {
-	echo "❌ Failed to install binaries"
-	exit 1
+# Setup configuration variables
+setup_configuration() {
+	KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
+	INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo}"
 }
 
-echo "📋 Setting up workflows..."
-# Copy .cursor rules to ~/.kernelle/volatile/.cursor
-if [ -d "$REPO_ROOT/.cursor" ]; then
-	cp -r "$REPO_ROOT/.cursor" "$KERNELLE_HOME/volatile/"
-else
-	echo "⚠️  No .cursor directory found - workflows will not be available"
-fi
-echo ""
+# Create necessary directories
+create_directories() {
+	echo "📁 Creating directories..."
+	mkdir -p "$KERNELLE_HOME/persistent/keeper"
+	mkdir -p "$KERNELLE_HOME/volatile"
+}
 
-# Copy kernelle.source template to ~/.kernelle/ only if it doesn't exist
-if [ ! -f "$HOME/.kernelle.source" ]; then
-	echo "🔗 Setting up shell source files..."
-	cp "$SCRIPT_DIR/templates/kernelle.source.template" "$HOME/.kernelle.source"
-else
-	echo "~/.kernelle.source already exists - keeping existing file"
-	if ! grep -q "kernelle.internal.source" "$HOME/.kernelle.source"; then
-		echo "⚠️ If the line $(source \"$KERNELLE_HOME/kernelle.internal.source\") does not exist in this file already, please add it."
+# Get script and repo directory paths
+get_script_paths() {
+	# Portable way to get script directory (works in bash and zsh)
+	if [ -n "${BASH_SOURCE[0]}" ]; then
+		SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	else
+		# zsh and other shells
+		SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 	fi
-fi
-echo ""
+	REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+}
 
-# Copy the internal source file to the KERNELLE_HOME and source it
-cp "$SCRIPT_DIR/templates/kernelle.internal.source.template" "$KERNELLE_HOME/kernelle.internal.source"
-source "$KERNELLE_HOME/kernelle.internal.source"
+# Setup workflow configuration files
+setup_workflows() {
+	echo "📋 Setting up workflows..."
+	# Copy .cursor rules to ~/.kernelle/volatile/.cursor
+	if [ -d "$REPO_ROOT/.cursor" ]; then
+		cp -r "$REPO_ROOT/.cursor" "$KERNELLE_HOME/volatile/"
+	else
+		echo "⚠️  No .cursor directory found - workflows will not be available"
+	fi
+	echo ""
+}
 
-echo "🎯 Configuring GPU acceleration dependencies..."
-# Run CUDA dependency checker if the binary was installed
-if command -v install_insights_cuda_dependencies >/dev/null 2>&1; then
-	install_insights_cuda_dependencies || echo "⚠️  GPU setup encountered issues - CPU inference will be used"
-else
-	echo "⚠️  CUDA dependency checker not found - skipping GPU setup"
-fi
-echo ""
+# Setup shell integration files
+setup_shell_integration() {
+	# Copy kernelle.source template to ~/.kernelle/ only if it doesn't exist
+	if [ ! -f "$HOME/.kernelle.source" ]; then
+		echo "🔗 Setting up shell source files..."
+		cp "$SCRIPT_DIR/templates/kernelle.source.template" "$HOME/.kernelle.source"
+	else
+		echo "~/.kernelle.source already exists - keeping existing file"
+		if ! grep -q "kernelle.internal.source" "$HOME/.kernelle.source"; then
+			echo "⚠️ If the line $(source \"$KERNELLE_HOME/kernelle.internal.source\") does not exist in this file already, please add it."
+		fi
+	fi
+	echo ""
 
-echo "📝 Setting up uninstaller..."
-# Copy uninstaller script to KERNELLE_HOME
+	# Copy the internal source file to the KERNELLE_HOME and source it
+	cp "$SCRIPT_DIR/templates/kernelle.internal.source.template" "$KERNELLE_HOME/kernelle.internal.source"
+	source "$KERNELLE_HOME/kernelle.internal.source"
+}
 
-# Copy uninstaller script to KERNELLE_HOME only if it doesn't exist
-if [ ! -f "$KERNELLE_HOME/uninstall.sh" ]; then
-	cp "$SCRIPT_DIR/uninstall.sh" "$KERNELLE_HOME/uninstall.sh"
-	chmod +x "$KERNELLE_HOME/uninstall.sh"
-else
-	echo "$KERNELLE_HOME/uninstall.sh already exists - keeping existing file"
-fi
+# Configure GPU acceleration dependencies
+configure_gpu_acceleration() {
+	echo "🎯 Configuring GPU acceleration dependencies..."
+	# Run CUDA dependency checker if the binary was installed
+	if command -v install_insights_cuda_dependencies >/dev/null 2>&1; then
+		install_insights_cuda_dependencies || echo "⚠️  GPU setup encountered issues - CPU inference will be used"
+	else
+		echo "⚠️  CUDA dependency checker not found - skipping GPU setup"
+	fi
+	echo ""
+}
 
-# Copy required template for uninstaller to volatile only if it doesn't exist
-mkdir -p "$KERNELLE_HOME/volatile"
-if [ ! -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" ]; then
-	cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template"
-else
-	echo "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template already exists - keeping existing file"
-fi
+# Setup uninstaller and related templates
+setup_uninstaller() {
+	echo "📝 Setting up uninstaller..."
+	
+	# Copy uninstaller script to KERNELLE_HOME only if it doesn't exist
+	if [ ! -f "$KERNELLE_HOME/uninstall.sh" ]; then
+		cp "$SCRIPT_DIR/uninstall.sh" "$KERNELLE_HOME/uninstall.sh"
+		chmod +x "$KERNELLE_HOME/uninstall.sh"
+	else
+		echo "$KERNELLE_HOME/uninstall.sh already exists - keeping existing file"
+	fi
 
-echo "✅ Blizz installed successfully!"
-echo ""
-echo "📝 Next steps:"
-echo "1. Add the following line to your shell configuration (~/.bashrc, ~/.zshrc, etc.):"
-echo "   source ~/.kernelle.source"
-echo ""
-echo "2. Reload your shell or run: source ~/.kernelle.source"
-echo ""
-echo "3. Test the installation:"
-echo "   kernelle --help"
-echo "   insights --help"
-echo "   violet --help"
-echo ""
-echo "4. To uninstall later, run:"
-echo "   ~/.kernelle/uninstall.sh"
-echo ""
-echo "Let's get some stuff done!"
+	# Copy required template for uninstaller to volatile only if it doesn't exist
+	mkdir -p "$KERNELLE_HOME/volatile"
+	if [ ! -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" ]; then
+		cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template"
+	else
+		echo "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template already exists - keeping existing file"
+	fi
+}
+
+# Show installation success message
+show_success_message() {
+	echo "✅ Blizz installed successfully!"
+	echo ""
+	echo "📝 Next steps:"
+	echo "1. Add the following line to your shell configuration (~/.bashrc, ~/.zshrc, etc.):"
+	echo "   source ~/.kernelle.source"
+	echo ""
+	echo "2. Reload your shell or run: source ~/.kernelle.source"
+	echo ""
+	echo "3. Test the installation:"
+	echo "   kernelle --help"
+	echo "   insights --help"
+	echo "   violet --help"
+	echo ""
+	echo "4. To uninstall later, run:"
+	echo "   ~/.kernelle/uninstall.sh"
+	echo ""
+	echo "Let's get some stuff done!"
+}
+
+# Main installation function
+main() {
+	echo "🚀 Installing Blizz..."
+	
+	setup_configuration
+	create_directories
+	get_script_paths
+	
+	echo "🔨 Installing Blizz tools..."
+	
+	# Install pre-built binaries
+	install_binaries || {
+		echo "❌ Failed to install binaries"
+		exit 1
+	}
+	
+	setup_workflows
+	setup_shell_integration
+	configure_gpu_acceleration
+	setup_uninstaller
+	show_success_message
+}
+
+# Parse arguments and run main function
+parse_install_arguments "$@"
+main
