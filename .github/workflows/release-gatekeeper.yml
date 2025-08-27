@@ -86,90 +86,10 @@ jobs:
               core.setOutput('should-release', 'false');
             }
 
-  trigger-release:
-    needs: check-all-workflows
-    runs-on: ubuntu-latest
-    if: needs.check-all-workflows.outputs.should-release == 'true'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
-      - name: Setup Blizz Dependencies
-        uses: ./.github/actions/setup-kernelle
-        with:
-          # Skip the slow bootstrapping step. Not needed for release
-          skip-bootstrap: "true"
-
-      - name: Configure Git
-        run: |
-          git config --local user.email "actions@github.com"
-          git config --local user.name "GitHub Actions"
-
-      - name: Bump and Tag Version
-        run: |
-          .github/run/bump-version.sh patch
-          .github/run/tag-version.sh
-
-      - name: Push Changes
-        run: |
-          git push origin dev
-          # Push the newly created tag (if any) to trigger release workflow
-          NEW_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
-          if [ ! -z "$NEW_TAG" ]; then
-            echo "🏷️ Pushing tag: $NEW_TAG"
-            git push origin "$NEW_TAG"
-          else
-            echo "ℹ️ No tag found on current commit"
-          fi
-
-      - name: Get Release Version
-        id: version
-        run: |
-          # Get the tag that was just created
-          NEW_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
-          if [ ! -z "$NEW_TAG" ]; then
-            echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
-            echo "version=${NEW_TAG#v}" >> $GITHUB_OUTPUT
-          else
-            echo "❌ No tag found on current commit"
-            exit 1
-          fi
-
-      - name: Verify Release Version Matches Cargo.toml
-        run: .github/run/assert-version-match.sh \
-          "${{ steps.version.outputs.version }}"
-
-      - name: Generate Release Notes
-        run: .github/run/create-release-notes.sh \
-          "${{ steps.version.outputs.tag }}" \
-          "${{ steps.version.outputs.version }}"
-
-      - name: Create Draft GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: Blizz ${{ steps.version.outputs.version }}
-          body_path: release_notes.md
-          draft: true
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Notify about draft release
-        run: |
-          echo "Draft GitHub release created: ${{ steps.version.outputs.tag }}"
-          echo "Now building cross-platform binaries..."
-
-    outputs:
-      release-tag: ${{ steps.version.outputs.tag }}
-      release-version: ${{ steps.version.outputs.version }}
-
   build-binaries:
     name: Build Release Binaries
-    needs: trigger-release
+    needs: check-all-workflows
+    if: needs.check-all-workflows.outputs.should-release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -263,9 +183,90 @@ jobs:
           path: blizz-${{ matrix.target }}.tar.gz
           retention-days: 30
 
+  create-release:
+    name: Create Release and Tag
+    needs: build-binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Blizz Dependencies
+        uses: ./.github/actions/setup-kernelle
+        with:
+          # Skip the slow bootstrapping step. Not needed for release
+          skip-bootstrap: "true"
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+
+      - name: Bump and Tag Version
+        run: |
+          .github/run/bump-version.sh patch
+          .github/run/tag-version.sh
+
+      - name: Push Changes
+        run: |
+          git push origin dev
+          # Push the newly created tag (if any) to trigger release workflow
+          NEW_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
+          if [ ! -z "$NEW_TAG" ]; then
+            echo "🏷️ Pushing tag: $NEW_TAG"
+            git push origin "$NEW_TAG"
+          else
+            echo "ℹ️ No tag found on current commit"
+          fi
+
+      - name: Get Release Version
+        id: version
+        run: |
+          # Get the tag that was just created
+          NEW_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
+          if [ ! -z "$NEW_TAG" ]; then
+            echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+            echo "version=${NEW_TAG#v}" >> $GITHUB_OUTPUT
+          else
+            echo "❌ No tag found on current commit"
+            exit 1
+          fi
+
+      - name: Verify Release Version Matches Cargo.toml
+        run: .github/run/assert-version-match.sh \
+          "${{ steps.version.outputs.version }}"
+
+      - name: Generate Release Notes
+        run: .github/run/create-release-notes.sh \
+          "${{ steps.version.outputs.tag }}" \
+          "${{ steps.version.outputs.version }}"
+
+      - name: Create Draft GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Blizz ${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify about draft release
+        run: |
+          echo "✅ Builds succeeded! Draft GitHub release created: ${{ steps.version.outputs.tag }}"
+          echo "Now attaching binaries and publishing..."
+
+    outputs:
+      release-tag: ${{ steps.version.outputs.tag }}
+      release-version: ${{ steps.version.outputs.version }}
+
   publish-release:
     name: Publish Release with Binaries
-    needs: [trigger-release, build-binaries]
+    needs: [create-release, build-binaries]
     runs-on: ubuntu-latest
 
     steps:
@@ -313,7 +314,7 @@ jobs:
       - name: Attach binaries and publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.trigger-release.outputs.release-tag }}
+          tag_name: ${{ needs.create-release.outputs.release-tag }}
           files: |
             artifacts/blizz-linux-x86_64/blizz-x86_64-unknown-linux-gnu.tar.gz
             artifacts/blizz-macos-aarch64/blizz-aarch64-apple-darwin.tar.gz
@@ -336,6 +337,6 @@ jobs:
       - name: Release Summary
         run: |
           echo "🎉 Release published successfully!"
-          echo "🎯 Tag: ${{ needs.trigger-release.outputs.release-tag }}"
+          echo "🎯 Tag: ${{ needs.create-release.outputs.release-tag }}"
           echo "📦 Platform binaries attached and release published"
           echo "🚀 Release is now live!"
