@@ -89,10 +89,11 @@ detect_platform() {
 get_latest_version() {
 	local version
 	
+  latest_url="https://api.github.com/repos/kernelle-soft/blizz/releases/latest"
 	if command -v curl >/dev/null 2>&1; then
-		version=$(curl -s https://api.github.com/repos/kernelle-soft/blizz/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+		version=$(curl -s $latest_url | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 	elif command -v wget >/dev/null 2>&1; then
-		version=$(wget -qO- https://api.github.com/repos/kernelle-soft/blizz/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+		version=$(wget -qO- $latest_url | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 	else
 		echo "❌ Neither curl nor wget found. Cannot download pre-built binaries." >&2
 		return 1
