@@ -3,18 +3,20 @@ set -euo pipefail
 
 # Show usage information
 show_install_usage() {
-	echo "Usage: $0 [--non-interactive]"
+	echo "Usage: $0 [--non-interactive] [--from-source]"
 	echo ""
 	echo "This script installs Blizz using pre-built binaries from GitHub releases."
 	echo ""
 	echo "Options:"
 	echo "  --non-interactive    Install dependencies automatically without prompts"
 	echo "                       (suitable for CI/automation)"
+	echo "  --from-source        Build from source (for CI/development environments)"
 	echo "  --help, -h          Show this help message"
 	echo ""
 	echo "System Requirements:"
 	echo "  - curl or wget (for downloading pre-built binaries)"
 	echo "  - tar (for extracting archives)"
+	echo "  - For --from-source: Rust toolchain, OpenSSL dev libraries, pkg-config"
 }
 
 # Handle help and unknown options
@@ -37,6 +39,9 @@ process_install_option() {
 	--non-interactive)
 		NON_INTERACTIVE=true
 		;;
+	--from-source)
+		FORCE_SOURCE_BUILD=true
+		;;
 	--help | -h | *)
 		handle_install_help_and_errors "$1"
 		;;
@@ -46,6 +51,7 @@ process_install_option() {
 # Parse command line arguments
 parse_install_arguments() {
 	NON_INTERACTIVE=false
+	FORCE_SOURCE_BUILD=false
 
 	while [ $# -gt 0 ]; do
 		process_install_option "$1"
@@ -149,8 +155,38 @@ download_prebuilt_binaries() {
 
 
 
-# Install pre-built binaries from GitHub releases
+# Build from source using cargo (minimal version for CI)
+build_from_source() {
+	echo "🔨 Building from source..."
+	
+	cd "$REPO_ROOT"
+	
+	echo "📦 Installing binaries from source..."
+	# Install all binary crates using cargo install --path
+	for crate_dir in crates/*/; do
+		if [ -d "$crate_dir" ]; then
+			crate=$(basename "$crate_dir")
+			# Check if this crate has binary targets
+			if grep -q '\[\[bin\]\]' "$crate_dir/Cargo.toml"; then
+				echo "  Installing: $crate"
+				cargo install --path "$crate_dir" --force --root "$INSTALL_DIR"
+			else
+				echo "  Skipped: $crate (library only)"
+			fi
+		fi
+	done
+	
+	echo "✅ Source build completed successfully"
+}
+
+# Install binaries using pre-built binaries or source build
 install_binaries() {
+	if [ "$FORCE_SOURCE_BUILD" = true ]; then
+		echo "🔧 Building from source (requested via --from-source)"
+		build_from_source
+		return $?
+	fi
+	
 	echo "🚀 Installing pre-built binaries..."
 	if download_prebuilt_binaries; then
 		echo "✅ Pre-built binaries installed successfully"
@@ -165,6 +201,8 @@ install_binaries() {
 		echo ""
 		echo "If you continue to have issues, please visit:"
 		echo "  https://github.com/kernelle-soft/blizz/releases"
+		echo ""
+		echo "For CI/development environments, try: $0 --from-source"
 		return 1
 	fi
 }

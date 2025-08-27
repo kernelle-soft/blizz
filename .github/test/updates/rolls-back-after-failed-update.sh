@@ -20,7 +20,7 @@ cleanup_server() {
 trap cleanup_server EXIT
 
 # 1) Install current version
-./scripts/install.sh --non-interactive || fail "Install script failed"
+./scripts/install.sh --non-interactive --from-source || fail "Install script failed"
 
 # Record current version
 BASE_VERSION=$("$HOME/.cargo/bin/kernelle" --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -n1)

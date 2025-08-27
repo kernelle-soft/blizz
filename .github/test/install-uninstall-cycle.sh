@@ -11,7 +11,7 @@ echo "==========================================="
 
 # PHASE 1: Install on clean system
 echo "📦 Phase 1: Installing blizz on clean system..."
-./scripts/install.sh --non-interactive || fail "Install script failed"
+./scripts/install.sh --non-interactive --from-source || fail "Install script failed"
 
  # Verify installation worked
 echo "🔍 Verifying installation..."
