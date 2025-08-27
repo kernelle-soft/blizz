@@ -3,21 +3,20 @@ set -euo pipefail
 
 # Show usage information
 show_install_usage() {
-	echo "Usage: $0 [--non-interactive]"
+	echo "Usage: $0 [--non-interactive] [--from-source]"
 	echo ""
-	echo "This script installs Blizz and its dependencies. It will check for"
-	echo "required system packages (OpenSSL development libraries, pkg-config)"
-	echo "and install them automatically."
+	echo "This script installs Blizz using pre-built binaries from GitHub releases."
 	echo ""
 	echo "Options:"
 	echo "  --non-interactive    Install dependencies automatically without prompts"
 	echo "                       (suitable for CI/automation)"
+	echo "  --from-source        Build from source (for CI/development environments)"
 	echo "  --help, -h          Show this help message"
 	echo ""
 	echo "System Requirements:"
-	echo "  - Rust toolchain (cargo)"
-	echo "  - OpenSSL development libraries (installed automatically)"
-	echo "  - pkg-config (installed automatically)"
+	echo "  - curl or wget (for downloading pre-built binaries)"
+	echo "  - tar (for extracting archives)"
+	echo "  - For --from-source: Rust toolchain, OpenSSL dev libraries, pkg-config"
 }
 
 # Handle help and unknown options
@@ -40,6 +39,9 @@ process_install_option() {
 	--non-interactive)
 		NON_INTERACTIVE=true
 		;;
+	--from-source)
+		FORCE_SOURCE_BUILD=true
+		;;
 	--help | -h | *)
 		handle_install_help_and_errors "$1"
 		;;
@@ -49,6 +51,7 @@ process_install_option() {
 # Parse command line arguments
 parse_install_arguments() {
 	NON_INTERACTIVE=false
+	FORCE_SOURCE_BUILD=false
 
 	while [ $# -gt 0 ]; do
 		process_install_option "$1"
@@ -56,258 +59,288 @@ parse_install_arguments() {
 	done
 }
 
-# Check for required system dependencies
-check_system_dependencies() {
-	echo "🔍 Checking system dependencies..."
 
-	local missing_deps=()
 
-	# Check for pkg-config
-	if ! command -v pkg-config >/dev/null 2>&1; then
-		missing_deps+=("pkg-config")
-	fi
-
-	# Check for OpenSSL development libraries
-	if ! pkg-config --exists openssl 2>/dev/null; then
-		local openssl_pkg
-		openssl_pkg=$(get_openssl_package_name)
-		if [ -n "$openssl_pkg" ]; then
-			missing_deps+=("$openssl_pkg")
-		fi
-	fi
-
-	if [ ${#missing_deps[@]} -gt 0 ]; then
-		handle_missing_dependencies "${missing_deps[@]}"
-	else
-		echo "✅ All system dependencies are satisfied"
-	fi
-}
-
-# Get the appropriate OpenSSL package name for the current system
-get_openssl_package_name() {
-	if command -v apt-get >/dev/null 2>&1; then
-		echo "libssl-dev"
-	elif command -v yum >/dev/null 2>&1; then
-		echo "openssl-devel"
-	elif command -v dnf >/dev/null 2>&1; then
-		echo "openssl-devel"
-	elif command -v pacman >/dev/null 2>&1; then
-		echo "openssl"
-	elif command -v brew >/dev/null 2>&1; then
-		echo "openssl"
-	else
-		echo "⚠️  Could not determine package manager. Please install OpenSSL development libraries manually."
-		return 1
-	fi
-}
-
-# Handle missing dependencies based on interactive/non-interactive mode
-handle_missing_dependencies() {
-	local deps=("$@")
-	echo "❌ Missing required dependencies: ${deps[*]}"
-	echo ""
-
-	if [ "$NON_INTERACTIVE" = true ]; then
-		echo "Running in non-interactive mode. Installing dependencies automatically..."
-		install_system_dependencies "${deps[@]}"
-	else
-		prompt_for_dependency_installation "${deps[@]}"
-	fi
-}
-
-# Prompt user for dependency installation in interactive mode
-prompt_for_dependency_installation() {
-	local deps=("$@")
-	echo "Would you like to install these dependencies automatically? (y/N)"
-	read -r response
-	case "$response" in
-	[yY][eE][sS] | [yY])
-		install_system_dependencies "${deps[@]}"
+# Detect the current platform and return the appropriate binary archive name
+detect_platform() {
+	local os
+	local arch
+	
+	os=$(uname -s | tr '[:upper:]' '[:lower:]')
+	arch=$(uname -m)
+	
+	case "$os-$arch" in
+	linux-x86_64)
+		echo "blizz-x86_64-unknown-linux-gnu.tar.gz"
+		return 0
+		;;
+	darwin-arm64)
+		echo "blizz-aarch64-apple-darwin.tar.gz"
+		return 0
 		;;
 	*)
-		show_manual_installation_commands "${deps[@]}"
-		exit 1
+		echo "Unsupported platform: $os-$arch" >&2
+		return 1
 		;;
 	esac
 }
 
-# Show manual installation commands for dependencies
-show_manual_installation_commands() {
-	local deps=("$@")
-	echo "Please install the dependencies manually and run the install script again."
-	echo ""
-	echo "Manual installation commands:"
-
-	if command -v apt-get >/dev/null 2>&1; then
-		echo "  sudo apt update && sudo apt install -y ${deps[*]}"
-	elif command -v yum >/dev/null 2>&1; then
-		echo "  sudo yum install -y ${deps[*]}"
-	elif command -v dnf >/dev/null 2>&1; then
-		echo "  sudo dnf install -y ${deps[*]}"
-	elif command -v pacman >/dev/null 2>&1; then
-		echo "  sudo pacman -S ${deps[*]}"
-	elif command -v brew >/dev/null 2>&1; then
-		echo "  brew install ${deps[*]}"
-	fi
-}
-
-# Install system dependencies based on the detected package manager
-install_system_dependencies() {
-	local deps=("$@")
-	echo "📦 Installing system dependencies: ${deps[*]}"
-
-	# Log for CI/debugging purposes
-	if [ "${CI:-}" = "true" ] || [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-		echo "🔍 CI environment detected - logging package manager and OS info"
-		echo "OS: $(uname -a)"
-		if command -v lsb_release >/dev/null 2>&1; then
-			echo "Distribution: $(lsb_release -d)"
-		fi
-	fi
-
-	if command -v apt-get >/dev/null 2>&1; then
-		sudo apt update && sudo apt install -y "${deps[@]}"
-	elif command -v yum >/dev/null 2>&1; then
-		sudo yum install -y "${deps[@]}"
-	elif command -v dnf >/dev/null 2>&1; then
-		sudo dnf install -y "${deps[@]}"
-	elif command -v pacman >/dev/null 2>&1; then
-		sudo pacman -S "${deps[@]}"
-	elif command -v brew >/dev/null 2>&1; then
-		brew install "${deps[@]}"
+# Get the latest release version from GitHub
+get_latest_version() {
+	local version
+	
+  latest_url="https://api.github.com/repos/kernelle-soft/blizz/releases/latest"
+	if command -v curl >/dev/null 2>&1; then
+		version=$(curl -s $latest_url | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+	elif command -v wget >/dev/null 2>&1; then
+		version=$(wget -qO- $latest_url | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 	else
-		echo "❌ Could not determine package manager. Please install dependencies manually."
-		exit 1
+		echo "❌ Neither curl nor wget found. Cannot download pre-built binaries." >&2
+		return 1
 	fi
-
-	echo "✅ System dependencies installed successfully"
+	
+	if [ -z "$version" ]; then
+		echo "❌ Failed to get latest version from GitHub API" >&2
+		return 1
+	fi
+	
+	echo "$version"
 }
 
-# Parse arguments
-parse_install_arguments "$@"
+# Download and extract pre-built binaries
+download_prebuilt_binaries() {
+	local platform_archive
+	local version
+	local download_url
+	local temp_dir
+	
+	echo "🔍 Detecting platform..."
+	platform_archive=$(detect_platform) || return 1
+	echo "✅ Detected platform archive: $platform_archive"
+	
+	echo "🔍 Getting latest release version..."
+	version=$(get_latest_version) || return 1
+	echo "✅ Latest version: $version"
+	
+	download_url="https://github.com/kernelle-soft/blizz/releases/download/$version/$platform_archive"
+	echo "📥 Downloading: $download_url"
+	
+	temp_dir=$(mktemp -d)
+	trap "rm -rf '$temp_dir'" EXIT
+	
+	if command -v curl >/dev/null 2>&1; then
+		curl -L "$download_url" -o "$temp_dir/$platform_archive" || {
+			echo "❌ Failed to download $download_url" >&2
+			return 1
+		}
+	elif command -v wget >/dev/null 2>&1; then
+		wget "$download_url" -O "$temp_dir/$platform_archive" || {
+			echo "❌ Failed to download $download_url" >&2
+			return 1
+		}
+	else
+		echo "❌ Neither curl nor wget found. Cannot download pre-built binaries." >&2
+		return 1
+	fi
+	
+	echo "📦 Extracting binaries to $INSTALL_DIR/bin..."
+	mkdir -p "$INSTALL_DIR/bin"
+	tar -xzf "$temp_dir/$platform_archive" -C "$INSTALL_DIR/bin" || {
+		echo "❌ Failed to extract $platform_archive" >&2
+		return 1
+	}
+	
+	echo "✅ Pre-built binaries installed successfully"
+	return 0
+}
 
-echo "🚀 Installing Blizz..."
 
-# Check system dependencies first
-check_system_dependencies
 
-# Configuration
-KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo}"
+# Build from source using cargo (minimal version for CI)
+build_from_source() {
+	echo "🔨 Building from source..."
+	
+	cd "$REPO_ROOT"
+	
+	echo "📦 Installing binaries from source..."
+	# Install all binary crates using cargo install --path
+	for crate_dir in crates/*/; do
+		if [ -d "$crate_dir" ]; then
+			crate=$(basename "$crate_dir")
+			# Check if this crate has binary targets
+			if grep -q '\[\[bin\]\]' "$crate_dir/Cargo.toml"; then
+				echo "  Installing: $crate"
+				cargo install --path "$crate_dir" --force --root "$INSTALL_DIR"
+			else
+				echo "  Skipped: $crate (library only)"
+			fi
+		fi
+	done
+	
+	echo "✅ Source build completed successfully"
+}
 
-# Create directories
-echo "📁 Creating directories..."
-mkdir -p "$KERNELLE_HOME/persistent/keeper"
-mkdir -p "$KERNELLE_HOME/volatile"
+# Install binaries using pre-built binaries or source build
+install_binaries() {
+	if [ "$FORCE_SOURCE_BUILD" = true ]; then
+		echo "🔧 Building from source (requested via --from-source)"
+		build_from_source
+		return $?
+	fi
+	
+	echo "🚀 Installing pre-built binaries..."
+	if download_prebuilt_binaries; then
+		echo "✅ Pre-built binaries installed successfully"
+		return 0
+	else
+		echo "❌ Failed to install pre-built binaries"
+		echo ""
+		echo "Please ensure:"
+		echo "  - Your platform is supported (Linux x86_64 or macOS ARM64)"
+		echo "  - You have internet connectivity"
+		echo "  - curl or wget is installed"
+		echo ""
+		echo "If you continue to have issues, please visit:"
+		echo "  https://github.com/kernelle-soft/blizz/releases"
+		echo ""
+		echo "For CI/development environments, try: $0 --from-source"
+		return 1
+	fi
+}
 
-# For Phase 1, we'll assume we're running from the source directory
-# In Phase 2+, this would clone from a repo
-# Portable way to get script directory (works in bash and zsh)
-if [ -n "${BASH_SOURCE[0]}" ]; then
-	SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-else
-	# zsh and other shells
-	SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-fi
-REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+# Setup configuration variables
+setup_configuration() {
+	KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
+	INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo}"
+}
 
-echo "🔨 Installing Blizz tools..."
-echo "Script directory: $SCRIPT_DIR"
-echo "Repository root: $REPO_ROOT"
-echo "Current directory: $(pwd)"
-echo "Looking for Cargo.toml at: $REPO_ROOT/Cargo.toml"
+# Create necessary directories
+create_directories() {
+	echo "📁 Creating directories..."
+	mkdir -p "$KERNELLE_HOME/persistent/keeper"
+	mkdir -p "$KERNELLE_HOME/volatile"
+}
 
-if [ ! -f "$REPO_ROOT/Cargo.toml" ]; then
-	echo "❌ Error: Cargo.toml not found at $REPO_ROOT/Cargo.toml"
-	echo "Contents of $REPO_ROOT:"
-	ls -la "$REPO_ROOT"
-	exit 1
-fi
+# Get script and repo directory paths
+get_script_paths() {
+	# Portable way to get script directory (works in bash and zsh)
+	if [ -n "${BASH_SOURCE[0]}" ]; then
+		SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	else
+		# zsh and other shells
+		SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+	fi
+	REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+}
 
-cd "$REPO_ROOT"
+# Setup workflow configuration files
+setup_workflows() {
+	echo "📋 Setting up workflows..."
+	# Copy .cursor rules to ~/.kernelle/volatile/.cursor
+	if [ -d "$REPO_ROOT/.cursor" ]; then
+		cp -r "$REPO_ROOT/.cursor" "$KERNELLE_HOME/volatile/"
+	else
+		echo "⚠️  No .cursor directory found - workflows will not be available"
+	fi
+	echo ""
+}
 
-echo "📦 Installing binaries..."
-
-# Install all binary crates using cargo install --path
-for crate_dir in crates/*/; do
-	if [ -d "$crate_dir" ]; then
-		crate=$(basename "$crate_dir")
-		# Check if this crate has binary targets by looking for [[bin]] in Cargo.toml
-		if grep -q '\[\[bin\]\]' "$crate_dir/Cargo.toml"; then
-			echo "  Installing: $crate"
-			cargo install --path "$crate_dir" --force --root "$INSTALL_DIR"
-		else
-			echo "  Skipped: $crate (library only)"
+# Setup shell integration files
+setup_shell_integration() {
+	# Copy kernelle.source template to ~/.kernelle/ only if it doesn't exist
+	if [ ! -f "$HOME/.kernelle.source" ]; then
+		echo "🔗 Setting up shell source files..."
+		cp "$SCRIPT_DIR/templates/kernelle.source.template" "$HOME/.kernelle.source"
+	else
+		echo "~/.kernelle.source already exists - keeping existing file"
+		if ! grep -q "kernelle.internal.source" "$HOME/.kernelle.source"; then
+			echo "⚠️ If the line $(source \"$KERNELLE_HOME/kernelle.internal.source\") does not exist in this file already, please add it."
 		fi
 	fi
-done
+	echo ""
 
-echo "📋 Setting up workflows..."
-# Copy .cursor rules to ~/.kernelle/volatile/.cursor
-if [ -d "$REPO_ROOT/.cursor" ]; then
-	cp -r "$REPO_ROOT/.cursor" "$KERNELLE_HOME/volatile/"
-else
-	echo "⚠️  No .cursor directory found - workflows will not be available"
-fi
-echo ""
+	# Copy the internal source file to the KERNELLE_HOME and source it
+	cp "$SCRIPT_DIR/templates/kernelle.internal.source.template" "$KERNELLE_HOME/kernelle.internal.source"
+	source "$KERNELLE_HOME/kernelle.internal.source"
+}
 
-# Copy kernelle.source template to ~/.kernelle/ only if it doesn't exist
-if [ ! -f "$HOME/.kernelle.source" ]; then
-	echo "🔗 Setting up shell source files..."
-	cp "$SCRIPT_DIR/templates/kernelle.source.template" "$HOME/.kernelle.source"
-else
-	echo "~/.kernelle.source already exists - keeping existing file"
-	if ! grep -q "kernelle.internal.source" "$HOME/.kernelle.source"; then
-		echo "⚠️ If the line $(source \"$KERNELLE_HOME/kernelle.internal.source\") does not exist in this file already, please add it."
+# Configure GPU acceleration dependencies
+configure_gpu_acceleration() {
+	echo "🎯 Configuring GPU acceleration dependencies..."
+	# Run CUDA dependency checker if the binary was installed
+	if command -v install_insights_cuda_dependencies >/dev/null 2>&1; then
+		install_insights_cuda_dependencies || echo "⚠️  GPU setup encountered issues - CPU inference will be used"
+	else
+		echo "⚠️  CUDA dependency checker not found - skipping GPU setup"
 	fi
-fi
-echo ""
+	echo ""
+}
 
-# Copy the internal source file to the KERNELLE_HOME and source it
-cp "$SCRIPT_DIR/templates/kernelle.internal.source.template" "$KERNELLE_HOME/kernelle.internal.source"
-source "$KERNELLE_HOME/kernelle.internal.source"
+# Setup uninstaller and related templates
+setup_uninstaller() {
+	echo "📝 Setting up uninstaller..."
+	
+	# Copy uninstaller script to KERNELLE_HOME only if it doesn't exist
+	if [ ! -f "$KERNELLE_HOME/uninstall.sh" ]; then
+		cp "$SCRIPT_DIR/uninstall.sh" "$KERNELLE_HOME/uninstall.sh"
+		chmod +x "$KERNELLE_HOME/uninstall.sh"
+	else
+		echo "$KERNELLE_HOME/uninstall.sh already exists - keeping existing file"
+	fi
 
-echo "🎯 Configuring GPU acceleration dependencies..."
-# Run CUDA dependency checker if the binary was installed
-if command -v install_insights_cuda_dependencies >/dev/null 2>&1; then
-	install_insights_cuda_dependencies || echo "⚠️  GPU setup encountered issues - CPU inference will be used"
-else
-	echo "⚠️  CUDA dependency checker not found - skipping GPU setup"
-fi
-echo ""
+	# Copy required template for uninstaller to volatile only if it doesn't exist
+	mkdir -p "$KERNELLE_HOME/volatile"
+	if [ ! -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" ]; then
+		cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template"
+	else
+		echo "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template already exists - keeping existing file"
+	fi
+}
 
-echo "📝 Setting up uninstaller..."
-# Copy uninstaller script to KERNELLE_HOME
+# Show installation success message
+show_success_message() {
+	echo "✅ Blizz installed successfully!"
+	echo ""
+	echo "📝 Next steps:"
+	echo "1. Add the following line to your shell configuration (~/.bashrc, ~/.zshrc, etc.):"
+	echo "   source ~/.kernelle.source"
+	echo ""
+	echo "2. Reload your shell or run: source ~/.kernelle.source"
+	echo ""
+	echo "3. Test the installation:"
+	echo "   kernelle --help"
+	echo "   insights --help"
+	echo "   violet --help"
+	echo ""
+	echo "4. To uninstall later, run:"
+	echo "   ~/.kernelle/uninstall.sh"
+	echo ""
+	echo "Let's get some stuff done!"
+}
 
-# Copy uninstaller script to KERNELLE_HOME only if it doesn't exist
-if [ ! -f "$KERNELLE_HOME/uninstall.sh" ]; then
-	cp "$SCRIPT_DIR/uninstall.sh" "$KERNELLE_HOME/uninstall.sh"
-	chmod +x "$KERNELLE_HOME/uninstall.sh"
-else
-	echo "$KERNELLE_HOME/uninstall.sh already exists - keeping existing file"
-fi
+# Main installation function
+main() {
+	echo "🚀 Installing Blizz..."
+	
+	setup_configuration
+	create_directories
+	get_script_paths
+	
+	echo "🔨 Installing Blizz tools..."
+	
+	# Install pre-built binaries
+	install_binaries || {
+		echo "❌ Failed to install binaries"
+		exit 1
+	}
+	
+	setup_workflows
+	setup_shell_integration
+	configure_gpu_acceleration
+	setup_uninstaller
+	show_success_message
+}
 
-# Copy required template for uninstaller to volatile only if it doesn't exist
-mkdir -p "$KERNELLE_HOME/volatile"
-if [ ! -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" ]; then
-	cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template"
-else
-	echo "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template already exists - keeping existing file"
-fi
-
-echo "✅ You've installed me successfully!"
-echo ""
-echo "📝 Next steps:"
-echo "1. Add the following line to your shell configuration (~/.bashrc, ~/.zshrc, etc.):"
-echo "   source ~/.blizz.source"
-echo ""
-echo "2. Reload your shell or run: source ~/.blizz.source"
-echo ""
-echo "3. Test the installation:"
-echo "   blizz --help"
-echo "   blizz add .  # (in a project directory)"
-echo ""
-echo "4. To uninstall later, run:"
-echo "   ~/.blizz/uninstall.sh"
-echo ""
-echo "Let's get some stuff done!"
+# Parse arguments and run main function
+parse_install_arguments "$@"
+main

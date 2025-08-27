@@ -71,7 +71,7 @@ runs:
 
     - name: Bootstrap kernelle
       if: ${{ inputs.skip-bootstrap != 'true' }}
-      run: ./scripts/install.sh --non-interactive
+      run: ./scripts/install.sh --non-interactive --from-source
       shell: bash
 
     - name: Add kernelle to PATH (Unix)

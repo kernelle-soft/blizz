@@ -12,7 +12,7 @@ set -x
 source "$(dirname "$0")/../isolate.sh"
 
 # Install once to provision the isolated env
-./scripts/install.sh --non-interactive || fail "Install script failed"
+./scripts/install.sh --non-interactive --from-source || fail "Install script failed"
 
 # Get the installed version (normalize to plain semver)
 INSTALLED_VERSION=$("$HOME/.cargo/bin/kernelle" --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -n1)

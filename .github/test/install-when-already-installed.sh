@@ -14,7 +14,7 @@ mkdir -p ~/.kernelle
 echo "🔧 Simulated existing directories for 'already installed' test"
 
 # Test install
-./scripts/install.sh --non-interactive || fail "Install script failed"
+./scripts/install.sh --non-interactive --from-source || fail "Install script failed"
 
 # Verify uninstaller and template were installed
 test -f ~/.kernelle/uninstall.sh || fail "~/.kernelle/uninstall.sh not found after install"

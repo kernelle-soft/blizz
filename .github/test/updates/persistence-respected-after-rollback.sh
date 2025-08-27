@@ -11,7 +11,7 @@ set -x
 
 source "$(dirname "$0")/../isolate.sh"
 
-./scripts/install.sh --non-interactive || fail "Install script failed"
+./scripts/install.sh --non-interactive --from-source || fail "Install script failed"
 
 # Seed persistent data
 mkdir -p "$HOME/.kernelle/persistent"
