@@ -5,7 +5,6 @@
 ![Code Coverage](https://img.shields.io/badge/Code%20Coverage-50%25-critical?style=flat)
 ![Linux](https://github.com/kernelle-soft/blizz/actions/workflows/linux.yml/badge.svg?branch=dev)
 ![Mac OS](https://github.com/kernelle-soft/blizz/actions/workflows/macos.yml/badge.svg?branch=dev)
-![Windows](https://github.com/kernelle-soft/blizz/actions/workflows/windows.yml/badge.svg?branch=dev)
 
 **A Rust-powered, investigation-to-merge AI development toolshed**
 
