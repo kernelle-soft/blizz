@@ -3,21 +3,18 @@ set -euo pipefail
 
 # Show usage information
 show_install_usage() {
-	echo "Usage: $0 [--non-interactive] [--from-source]"
+	echo "Usage: $0 [--non-interactive]"
 	echo ""
-	echo "This script installs Blizz using pre-built binaries when available,"
-	echo "or falls back to building from source if needed."
+	echo "This script installs Blizz using pre-built binaries from GitHub releases."
 	echo ""
 	echo "Options:"
 	echo "  --non-interactive    Install dependencies automatically without prompts"
 	echo "                       (suitable for CI/automation)"
-	echo "  --from-source        Force building from source instead of using pre-built binaries"
 	echo "  --help, -h          Show this help message"
 	echo ""
 	echo "System Requirements:"
 	echo "  - curl or wget (for downloading pre-built binaries)"
 	echo "  - tar (for extracting archives)"
-	echo "  - For source builds: Rust toolchain, OpenSSL dev libraries, pkg-config"
 }
 
 # Handle help and unknown options
@@ -40,9 +37,6 @@ process_install_option() {
 	--non-interactive)
 		NON_INTERACTIVE=true
 		;;
-	--from-source)
-		FORCE_SOURCE_BUILD=true
-		;;
 	--help | -h | *)
 		handle_install_help_and_errors "$1"
 		;;
@@ -52,7 +46,6 @@ process_install_option() {
 # Parse command line arguments
 parse_install_arguments() {
 	NON_INTERACTIVE=false
-	FORCE_SOURCE_BUILD=false
 
 	while [ $# -gt 0 ]; do
 		process_install_option "$1"
@@ -60,132 +53,7 @@ parse_install_arguments() {
 	done
 }
 
-# Check for required system dependencies
-check_system_dependencies() {
-	echo "🔍 Checking system dependencies..."
 
-	local missing_deps=()
-
-	# Check for pkg-config
-	if ! command -v pkg-config >/dev/null 2>&1; then
-		missing_deps+=("pkg-config")
-	fi
-
-	# Check for OpenSSL development libraries
-	if ! pkg-config --exists openssl 2>/dev/null; then
-		local openssl_pkg
-		openssl_pkg=$(get_openssl_package_name)
-		if [ -n "$openssl_pkg" ]; then
-			missing_deps+=("$openssl_pkg")
-		fi
-	fi
-
-	if [ ${#missing_deps[@]} -gt 0 ]; then
-		handle_missing_dependencies "${missing_deps[@]}"
-	else
-		echo "✅ All system dependencies are satisfied"
-	fi
-}
-
-# Get the appropriate OpenSSL package name for the current system
-get_openssl_package_name() {
-	if command -v apt-get >/dev/null 2>&1; then
-		echo "libssl-dev"
-	elif command -v yum >/dev/null 2>&1; then
-		echo "openssl-devel"
-	elif command -v dnf >/dev/null 2>&1; then
-		echo "openssl-devel"
-	elif command -v pacman >/dev/null 2>&1; then
-		echo "openssl"
-	elif command -v brew >/dev/null 2>&1; then
-		echo "openssl"
-	else
-		echo "⚠️  Could not determine package manager. Please install OpenSSL development libraries manually."
-		return 1
-	fi
-}
-
-# Handle missing dependencies based on interactive/non-interactive mode
-handle_missing_dependencies() {
-	local deps=("$@")
-	echo "❌ Missing required dependencies: ${deps[*]}"
-	echo ""
-
-	if [ "$NON_INTERACTIVE" = true ]; then
-		echo "Running in non-interactive mode. Installing dependencies automatically..."
-		install_system_dependencies "${deps[@]}"
-	else
-		prompt_for_dependency_installation "${deps[@]}"
-	fi
-}
-
-# Prompt user for dependency installation in interactive mode
-prompt_for_dependency_installation() {
-	local deps=("$@")
-	echo "Would you like to install these dependencies automatically? (y/N)"
-	read -r response
-	case "$response" in
-	[yY][eE][sS] | [yY])
-		install_system_dependencies "${deps[@]}"
-		;;
-	*)
-		show_manual_installation_commands "${deps[@]}"
-		exit 1
-		;;
-	esac
-}
-
-# Show manual installation commands for dependencies
-show_manual_installation_commands() {
-	local deps=("$@")
-	echo "Please install the dependencies manually and run the install script again."
-	echo ""
-	echo "Manual installation commands:"
-
-	if command -v apt-get >/dev/null 2>&1; then
-		echo "  sudo apt update && sudo apt install -y ${deps[*]}"
-	elif command -v yum >/dev/null 2>&1; then
-		echo "  sudo yum install -y ${deps[*]}"
-	elif command -v dnf >/dev/null 2>&1; then
-		echo "  sudo dnf install -y ${deps[*]}"
-	elif command -v pacman >/dev/null 2>&1; then
-		echo "  sudo pacman -S ${deps[*]}"
-	elif command -v brew >/dev/null 2>&1; then
-		echo "  brew install ${deps[*]}"
-	fi
-}
-
-# Install system dependencies based on the detected package manager
-install_system_dependencies() {
-	local deps=("$@")
-	echo "📦 Installing system dependencies: ${deps[*]}"
-
-	# Log for CI/debugging purposes
-	if [ "${CI:-}" = "true" ] || [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-		echo "🔍 CI environment detected - logging package manager and OS info"
-		echo "OS: $(uname -a)"
-		if command -v lsb_release >/dev/null 2>&1; then
-			echo "Distribution: $(lsb_release -d)"
-		fi
-	fi
-
-	if command -v apt-get >/dev/null 2>&1; then
-		sudo apt update && sudo apt install -y "${deps[@]}"
-	elif command -v yum >/dev/null 2>&1; then
-		sudo yum install -y "${deps[@]}"
-	elif command -v dnf >/dev/null 2>&1; then
-		sudo dnf install -y "${deps[@]}"
-	elif command -v pacman >/dev/null 2>&1; then
-		sudo pacman -S "${deps[@]}"
-	elif command -v brew >/dev/null 2>&1; then
-		brew install "${deps[@]}"
-	else
-		echo "❌ Could not determine package manager. Please install dependencies manually."
-		exit 1
-	fi
-
-	echo "✅ System dependencies installed successfully"
-}
 
 # Detect the current platform and return the appropriate binary archive name
 detect_platform() {
@@ -279,58 +147,25 @@ download_prebuilt_binaries() {
 	return 0
 }
 
-# Build from source using cargo
-build_from_source() {
-	echo "🔨 Building from source..."
-	
-	# Check system dependencies for source build
-	check_system_dependencies
-	
-	# For source builds, we need the repo
-	if [ ! -f "$REPO_ROOT/Cargo.toml" ]; then
-		echo "❌ Error: Cargo.toml not found at $REPO_ROOT/Cargo.toml"
-		echo "Contents of $REPO_ROOT:"
-		ls -la "$REPO_ROOT"
-		return 1
-	fi
-	
-	cd "$REPO_ROOT"
-	
-	echo "📦 Installing binaries from source..."
-	
-	# Install all binary crates using cargo install --path
-	for crate_dir in crates/*/; do
-		if [ -d "$crate_dir" ]; then
-			crate=$(basename "$crate_dir")
-			# Check if this crate has binary targets by looking for [[bin]] in Cargo.toml
-			if grep -q '\[\[bin\]\]' "$crate_dir/Cargo.toml"; then
-				echo "  Installing: $crate"
-				cargo install --path "$crate_dir" --force --root "$INSTALL_DIR"
-			else
-				echo "  Skipped: $crate (library only)"
-			fi
-		fi
-	done
-	
-	echo "✅ Source build completed successfully"
-}
 
-# Install binaries using the best available method
+
+# Install pre-built binaries from GitHub releases
 install_binaries() {
-	if [ "$FORCE_SOURCE_BUILD" = true ]; then
-		echo "🔧 Forced source build requested"
-		build_from_source
-		return $?
-	fi
-	
-	echo "🚀 Attempting to install pre-built binaries..."
+	echo "🚀 Installing pre-built binaries..."
 	if download_prebuilt_binaries; then
 		echo "✅ Pre-built binaries installed successfully"
 		return 0
 	else
-		echo "⚠️  Pre-built binaries not available, falling back to source build"
-		build_from_source
-		return $?
+		echo "❌ Failed to install pre-built binaries"
+		echo ""
+		echo "Please ensure:"
+		echo "  - Your platform is supported (Linux x86_64 or macOS ARM64)"
+		echo "  - You have internet connectivity"
+		echo "  - curl or wget is installed"
+		echo ""
+		echo "If you continue to have issues, please visit:"
+		echo "  https://github.com/kernelle-soft/blizz/releases"
+		return 1
 	fi
 }
 
@@ -348,7 +183,7 @@ echo "📁 Creating directories..."
 mkdir -p "$KERNELLE_HOME/persistent/keeper"
 mkdir -p "$KERNELLE_HOME/volatile"
 
-# Get script and repo directory info (needed for source builds and templates)
+# Get script and repo directory info (needed for templates and configuration files)
 # Portable way to get script directory (works in bash and zsh)
 if [ -n "${BASH_SOURCE[0]}" ]; then
 	SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -359,11 +194,8 @@ fi
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "🔨 Installing Blizz tools..."
-echo "Script directory: $SCRIPT_DIR"
-echo "Repository root: $REPO_ROOT"
-echo "Current directory: $(pwd)"
 
-# Install binaries (pre-built or from source)
+# Install pre-built binaries
 install_binaries || {
 	echo "❌ Failed to install binaries"
 	exit 1
