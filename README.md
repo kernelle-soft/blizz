@@ -2,7 +2,7 @@
   <img src="assets/blizz.png" height="600">
 </p>
 
-![Code Coverage](https://img.shields.io/badge/Code%20Coverage-49%25-critical?style=flat)
+![Code Coverage](https://img.shields.io/badge/Code%20Coverage-50%25-critical?style=flat)
 ![Linux](https://github.com/TravelSizedLions/kernelle/actions/workflows/linux.yml/badge.svg?branch=dev)
 ![Mac OS](https://github.com/TravelSizedLions/kernelle/actions/workflows/macos.yml/badge.svg?branch=dev)
 ![Windows](https://github.com/TravelSizedLions/kernelle/actions/workflows/windows.yml/badge.svg?branch=dev)
