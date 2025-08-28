@@ -194,7 +194,7 @@ mod tests {
 
       // First, create a vault interactively using rexpect
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
@@ -214,7 +214,7 @@ mod tests {
       temp_env::with_var("SECRETS_AUTH", Some(""), || {
         let mut cmd = Command::cargo_bin("keeper").unwrap();
         cmd
-          .env("KERNELLE_HOME", temp_dir.path())
+          .env("BLIZZ_HOME", temp_dir.path())
           .timeout(std::time::Duration::from_secs(2))
           .assert()
           .failure()
@@ -225,7 +225,7 @@ mod tests {
       temp_env::with_var("SECRETS_AUTH", Some("   \n  \t  "), || {
         let mut cmd = Command::cargo_bin("keeper").unwrap();
         cmd
-          .env("KERNELLE_HOME", temp_dir.path())
+          .env("BLIZZ_HOME", temp_dir.path())
           .timeout(std::time::Duration::from_secs(2))
           .assert()
           .failure()
@@ -241,7 +241,7 @@ mod tests {
       // (e.g., when run from a script or test environment)
       let mut cmd = Command::cargo_bin("keeper").unwrap();
       let output = cmd
-        .env("KERNELLE_HOME", temp_dir.path())
+        .env("BLIZZ_HOME", temp_dir.path())
         .timeout(std::time::Duration::from_secs(3))
         .output()
         .expect("Failed to execute keeper command");
@@ -267,7 +267,7 @@ mod tests {
 
       // Test successful vault creation with matching passwords
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
@@ -289,7 +289,7 @@ mod tests {
 
       // Test password mismatch during vault creation
       let mut cmd2 = StdCommand::cargo_bin("keeper").unwrap();
-      cmd2.env("KERNELLE_HOME", temp_dir.path().join("mismatch_test"));
+      cmd2.env("BLIZZ_HOME", temp_dir.path().join("mismatch_test"));
 
       let mut session2 = spawn_command(cmd2, Some(5000)).unwrap();
 
@@ -315,7 +315,7 @@ mod tests {
 
       // Create vault - should create parent directories
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
@@ -349,7 +349,7 @@ mod tests {
 
       // First, create a vault with a known password
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
@@ -435,7 +435,7 @@ mod tests {
 
       // Create a vault and start daemon
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
