@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Test Isolation Framework for Kernelle
+# Test Isolation Framework for Blizz
 # Source this script at the beginning of any test that needs isolated install/uninstall testing
 
 # Ensure we exit on any error

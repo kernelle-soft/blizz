@@ -6,33 +6,32 @@ pub async fn execute(target_dir: &str) -> Result<()> {
   let target_path = Path::new(target_dir);
   let cursor_dir = target_path.join(".cursor");
   let rules_dir = cursor_dir.join("rules");
-  let kernelle_home = get_kernelle_home()?;
+  let blizz_home = get_blizz_home()?;
 
   if !cursor_dir.exists() {
     println!("No .cursor directory found in {}", target_path.display());
     return Ok(());
   }
 
-  println!("Removing Kernelle cursor workflows from {}...", target_path.display());
+  println!("Removing Blizz cursor workflows from {}...", target_path.display());
 
-  // Check for the kernelle symlink in .cursor/rules/
-  let kernelle_link = rules_dir.join("kernelle");
-  let kernelle_cursor_path =
-    kernelle_home.join("volatile").join(".cursor").join("rules").join("kernelle");
+  // Check for the blizz symlink in .cursor/rules/
+  let blizz_link = rules_dir.join("blizz");
+  let blizz_cursor_path = blizz_home.join("volatile").join(".cursor").join("rules").join("blizz");
 
-  if kernelle_link.exists() && kernelle_link.is_symlink() {
-    // Check if it points to ~/.kernelle/volatile/.cursor/rules/kernelle
-    if let Ok(target) = fs::read_link(&kernelle_link) {
-      if target == kernelle_cursor_path {
-        fs::remove_file(&kernelle_link)
-          .with_context(|| format!("Failed to remove symlink: {}", kernelle_link.display()))?;
-        println!("  Removed: .cursor/rules/kernelle/");
+  if blizz_link.exists() && blizz_link.is_symlink() {
+    // Check if it points to ~/.blizz/volatile/.cursor/rules/blizz
+    if let Ok(target) = fs::read_link(&blizz_link) {
+      if target == blizz_cursor_path {
+        fs::remove_file(&blizz_link)
+          .with_context(|| format!("Failed to remove symlink: {}", blizz_link.display()))?;
+        println!("  Removed: .cursor/rules/blizz/");
       } else {
-        println!("  Skipped: .cursor/rules/kernelle/ points to {}, not Kernelle", target.display());
+        println!("  Skipped: .cursor/rules/blizz/ points to {}, not Blizz", target.display());
       }
     }
-  } else if kernelle_link.exists() {
-    println!("  Skipped: .cursor/rules/kernelle/ exists but is not a symlink");
+  } else if blizz_link.exists() {
+    println!("  Skipped: .cursor/rules/blizz/ exists but is not a symlink");
   }
 
   // Remove .cursor/rules directory if it's empty
@@ -54,11 +53,11 @@ pub async fn execute(target_dir: &str) -> Result<()> {
   Ok(())
 }
 
-fn get_kernelle_home() -> Result<PathBuf> {
-  if let Ok(home) = std::env::var("KERNELLE_HOME") {
+fn get_blizz_home() -> Result<PathBuf> {
+  if let Ok(home) = std::env::var("BLIZZ_HOME") {
     Ok(PathBuf::from(home))
   } else if let Some(user_home) = dirs::home_dir() {
-    Ok(user_home.join(".kernelle"))
+    Ok(user_home.join(".blizz"))
   } else {
     anyhow::bail!("Could not determine home directory")
   }

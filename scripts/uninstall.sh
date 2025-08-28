@@ -49,7 +49,7 @@ parse_cleanup_arguments() {
 
 # Setup configuration variables
 setup_cleanup_configuration() {
-	KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
+	BLIZZ_HOME="${BLIZZ_HOME:-$HOME/.blizz}"
 	INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo/bin}"
 }
 
@@ -57,11 +57,11 @@ setup_cleanup_configuration() {
 cleanup_shell_source_files() {
 	echo "Soft deleting blizz shell source files..."
 	# Replace internal source with gone template from volatile, keep directory structure
-	if [ -d "$KERNELLE_HOME" ]; then
-		if [ -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" ]; then
-			cp "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" "$KERNELLE_HOME/kernelle.internal.source" || true
+	if [ -d "$BLIZZ_HOME" ]; then
+		if [ -f "$BLIZZ_HOME/volatile/blizz.internal.source.gone.template" ]; then
+			cp "$BLIZZ_HOME/volatile/blizz.internal.source.gone.template" "$BLIZZ_HOME/blizz.internal.source" || true
 		else
-			echo "⚠️  Could not find gone template in volatile - kernelle.internal.source not updated"
+			echo "⚠️  Could not find gone template in volatile - blizz.internal.source not updated"
 		fi
 	fi
 }
@@ -69,8 +69,8 @@ cleanup_shell_source_files() {
 # Remove cursor workflow symlinks
 remove_cursor_symlinks() {
 	echo "🔗 Removing cursor workflow symlinks..."
-	# Find all symlinks that point to ~/.kernelle/volatile/.cursor
-	find . -type l -lname "$KERNELLE_HOME/volatile/.cursor" 2>/dev/null | while read -r link; do
+	# Find all symlinks that point to ~/.blizz/volatile/.cursor
+	find . -type l -lname "$BLIZZ_HOME/volatile/.cursor" 2>/dev/null | while read -r link; do
 		rm -f "$link"
 		echo "  Removed: $link"
 
@@ -82,16 +82,16 @@ remove_cursor_symlinks() {
 	done || true
 }
 
-# Clean up the kernelle directory
-cleanup_kernelle_directory() {
-	echo "🗂️  Cleaning ~/.kernelle directory..."
-	if [ -d "$KERNELLE_HOME" ]; then
+# Clean up the blizz directory
+cleanup_blizz_directory() {
+	echo "🗂️  Cleaning ~/.blizz directory..."
+	if [ -d "$BLIZZ_HOME" ]; then
 		# Clean up uninstaller files (but keep persistent data)
-		rm -f "$KERNELLE_HOME/uninstall.sh" 2>/dev/null || true
+		rm -f "$BLIZZ_HOME/uninstall.sh" 2>/dev/null || true
 		
 		# Remove volatile directory - it contains no user data
-		if [ -d "$KERNELLE_HOME/volatile" ]; then
-			rm -rf "$KERNELLE_HOME/volatile" 2>/dev/null || true
+		if [ -d "$BLIZZ_HOME/volatile" ]; then
+			rm -rf "$BLIZZ_HOME/volatile" 2>/dev/null || true
 		fi
 	fi
 }
@@ -99,7 +99,7 @@ cleanup_kernelle_directory() {
 # Remove installed binaries
 remove_binaries() {
 	echo "🗑️  Removing binaries from $INSTALL_DIR..."
-	for tool in kernelle insights insights_embedding_daemon install_insights_cuda_dependencies secrets keeper violet adam; do
+	for tool in blizz insights insights_embedding_daemon install_insights_cuda_dependencies secrets keeper violet adam; do
 		if [ -f "$INSTALL_DIR/$tool" ]; then
 			rm -f "$INSTALL_DIR/$tool"
 			echo "  Removed: $tool"
@@ -113,10 +113,10 @@ show_cleanup_completion() {
 	echo "✅ Blizz cleanup completed!"
 	echo ""
 	echo "📝 Don't forget to:"
-	echo "1. Remove 'source ~/.kernelle.source' from your shell configuration"
+	echo "1. Remove 'source ~/.blizz.source' from your shell configuration"
 	echo "2. Reload your shell to stop seeing the warning message"
 	echo ""
-	echo "Your insights and other customizations remain safely stored in ~/.kernelle/persistent/"
+	echo "Your insights and other customizations remain safely stored in ~/.blizz/persistent/"
 	echo ""
 	echo "👋 Goodbye!"
 }
@@ -129,7 +129,7 @@ main() {
 	setup_cleanup_configuration
 	cleanup_shell_source_files
 	remove_cursor_symlinks
-	cleanup_kernelle_directory
+	cleanup_blizz_directory
 	remove_binaries
 	show_cleanup_completion
 }

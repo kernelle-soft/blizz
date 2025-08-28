@@ -22,7 +22,7 @@ exclude-files = [
   "*/auth.rs",
 
   # Update module relies heavily on APIs and the file system - hard to test
-  "*/kernelle/src/update.rs",
+  "*/blizz/src/update.rs",
 
   # Entrypoints and CLI routers are very simple and typically aren't useful to test
   "*/cli.rs",

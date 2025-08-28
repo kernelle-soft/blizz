@@ -83,8 +83,8 @@ struct GitHubRelease {
 fn updates_api_base() -> String {
   // Allow overriding the releases API base for testing via env var
   // Default to GitHub repo API
-  env::var("KERNELLE_UPDATES_API_BASE")
-    .unwrap_or_else(|_| "https://api.github.com/repos/TravelSizedLions/kernelle".to_string())
+  env::var("BLIZZ_UPDATES_API_BASE")
+    .unwrap_or_else(|_| "https://api.github.com/repos/kernelle-soft/blizz".to_string())
 }
 
 pub async fn execute(version: Option<&str>) -> Result<()> {
@@ -110,8 +110,8 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
   }
 
   let staging_dir = TempDir::new().context("Failed to create staging directory")?;
-  let kernelle_staging = staging_dir.path().join("kernelle_home");
-  fs::create_dir_all(&kernelle_staging)?;
+  let blizz_staging = staging_dir.path().join("blizz_home");
+  fs::create_dir_all(&blizz_staging)?;
   println!("staging in: {}", staging_dir.path().display());
 
   println!("downloading {target_version}...");
@@ -125,7 +125,7 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
   let output = Command::new("bash")
     .arg(&install_script)
     .arg("--non-interactive")
-    .env("KERNELLE_HOME", &kernelle_staging)
+    .env("BLIZZ_HOME", &blizz_staging)
     .env("RUST_MIN_STACK", "1000000000")
     .env("CARGO_NET_RETRY", "3")
     .env("RUSTFLAGS", "-C opt-level=1 -C codegen-units=16")
@@ -151,13 +151,13 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     }
   }
 
-  // Verify installation using the temp KERNELLE_HOME
-  println!("verifying installation with temp KERNELLE_HOME...");
-  let verify_output = Command::new("kernelle")
+  // Verify installation using the temp BLIZZ_HOME
+  println!("verifying installation with temp BLIZZ_HOME...");
+  let verify_output = Command::new("blizz")
     .arg("--version")
-    .env("KERNELLE_HOME", &kernelle_staging)
+    .env("BLIZZ_HOME", &blizz_staging)
     .output()
-    .context("failed to test kernelle after installation")?;
+    .context("failed to test blizz after installation")?;
 
   if !verify_output.status.success() {
     let stderr = String::from_utf8_lossy(&verify_output.stderr);
@@ -178,34 +178,34 @@ pub async fn execute(version: Option<&str>) -> Result<()> {
     }
   }
 
-  let real_kernelle_home = env::var("KERNELLE_HOME").unwrap_or_else(|_| {
-    format!("{}/.kernelle", dirs::home_dir().unwrap_or_default().to_string_lossy())
+  let real_blizz_home = env::var("BLIZZ_HOME").unwrap_or_else(|_| {
+    format!("{}/.blizz", dirs::home_dir().unwrap_or_default().to_string_lossy())
   });
-  let real_kernelle_home = Path::new(&real_kernelle_home);
-  let new_kernelle_home = &kernelle_staging;
+  let real_blizz_home = Path::new(&real_blizz_home);
+  let new_blizz_home = &blizz_staging;
 
-  let volatile_path = real_kernelle_home.join("volatile");
+  let volatile_path = real_blizz_home.join("volatile");
   if volatile_path.exists() {
     fs::remove_dir_all(&volatile_path)?;
   }
-  let source_path = real_kernelle_home.join("kernelle.internal.source");
+  let source_path = real_blizz_home.join("blizz.internal.source");
   if source_path.exists() {
     fs::remove_file(&source_path)?;
   }
 
-  let new_volatile = new_kernelle_home.join("volatile");
+  let new_volatile = new_blizz_home.join("volatile");
   if new_volatile.exists() {
     copy_dir_recursive(&new_volatile, &volatile_path)?;
   }
 
-  let new_source = new_kernelle_home.join("kernelle.internal.source");
+  let new_source = new_blizz_home.join("blizz.internal.source");
   if new_source.exists() {
     fs::copy(&new_source, &source_path)?;
   }
 
   // Update the uninstaller script
-  let uninstall_path = real_kernelle_home.join("uninstall.sh");
-  let new_uninstall = new_kernelle_home.join("uninstall.sh");
+  let uninstall_path = real_blizz_home.join("uninstall.sh");
+  let new_uninstall = new_blizz_home.join("uninstall.sh");
   if new_uninstall.exists() {
     fs::copy(&new_uninstall, &uninstall_path)?;
     // Ensure it's executable
@@ -239,7 +239,7 @@ async fn get_latest_version_from_url(url: &str) -> Result<String> {
 
   let response = client
     .get(url)
-    .header("User-Agent", "kernelle-updater")
+    .header("User-Agent", "blizz-updater")
     .send()
     .await
     .context("failed to fetch latest release from GitHub")?;
@@ -284,7 +284,7 @@ async fn download_and_extract_from_api(
 
   let response = client
     .get(&release_url)
-    .header("User-Agent", "kernelle-updater")
+    .header("User-Agent", "blizz-updater")
     .send()
     .await
     .context("failed to fetch release info")?;
@@ -300,7 +300,7 @@ async fn download_and_extract_from_api(
   println!("downloading from: {}", release.tarball_url);
   let tarball_response = client
     .get(&release.tarball_url)
-    .header("User-Agent", "kernelle-updater")
+    .header("User-Agent", "blizz-updater")
     .send()
     .await
     .context("failed to download release tarball")?;
@@ -315,7 +315,7 @@ async fn download_and_extract_from_api(
     );
   }
 
-  let tarball_path = staging_path.join("kernelle.tar.gz");
+  let tarball_path = staging_path.join("blizz.tar.gz");
   let tarball_bytes = tarball_response.bytes().await.context("Failed to read tarball content")?;
 
   fs::write(&tarball_path, &tarball_bytes).context("Failed to write tarball to disk")?;
@@ -360,29 +360,38 @@ async fn download_and_extract_from_api(
 }
 
 async fn create_snapshot() -> Result<std::path::PathBuf> {
-  let kernelle_home = env::var("KERNELLE_HOME").unwrap_or_else(|_| {
-    format!("{}/.kernelle", dirs::home_dir().unwrap_or_default().to_string_lossy())
+  let blizz_home = env::var("BLIZZ_HOME").unwrap_or_else(|_| {
+    format!("{}/.blizz", dirs::home_dir().unwrap_or_default().to_string_lossy())
   });
   let install_dir = env::var("INSTALL_DIR").unwrap_or_else(|_| {
     format!("{}/.cargo/bin", dirs::home_dir().unwrap_or_default().to_string_lossy())
   });
 
-  let snapshot_base = Path::new(&kernelle_home).join("snapshots");
+  let snapshot_base = Path::new(&blizz_home).join("snapshots");
   fs::create_dir_all(&snapshot_base).context("Failed to create snapshots directory")?;
 
   let timestamp = chrono::Utc::now().timestamp();
   let snapshot_dir = snapshot_base.join(timestamp.to_string());
   fs::create_dir_all(&snapshot_dir)?;
 
-  // Snapshot the entire kernelle_home directory (including persistent for backup purposes)
-  let kernelle_home_snapshot = snapshot_dir.join("kernelle_home");
-  copy_dir_recursive(Path::new(&kernelle_home), &kernelle_home_snapshot)?;
+  // Snapshot the entire blizz_home directory (including persistent for backup purposes)
+  let blizz_home_snapshot = snapshot_dir.join("blizz_home");
+  copy_dir_recursive(Path::new(&blizz_home), &blizz_home_snapshot)?;
 
   // Snapshot binaries
   let bins_snapshot = snapshot_dir.join("bins");
   fs::create_dir_all(&bins_snapshot)?;
 
-  let binaries = ["kernelle", "jerrod", "insights", "violet", "adam", "secrets"];
+  let binaries = [
+    "blizz",
+    "insights",
+    "insights_embedding_daemon",
+    "install_insights_cuda_dependencies",
+    "secrets",
+    "keeper",
+    "violet",
+    "adam",
+  ];
   for binary in &binaries {
     let src = Path::new(&install_dir).join(binary);
     if src.exists() {
@@ -395,27 +404,27 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
 }
 
 async fn verify_installation() -> Result<()> {
-  // Get the install directory and verify kernelle binary exists there
+  // Get the install directory and verify blizz binary exists there
   let install_dir = env::var("INSTALL_DIR")
     .unwrap_or_else(|_| format!("{}/.cargo/bin", env::var("HOME").unwrap_or_default()));
 
-  let kernelle_path = Path::new(&install_dir).join("kernelle");
+  let blizz_path = Path::new(&install_dir).join("blizz");
 
-  if !kernelle_path.exists() {
+  if !blizz_path.exists() {
     return Err(anyhow::anyhow!(
-      "kernelle binary not found at expected location: {}",
-      kernelle_path.display()
+      "blizz binary not found at expected location: {}",
+      blizz_path.display()
     ));
   }
 
-  // Test that kernelle works
-  let output = Command::new(&kernelle_path)
+  // Test that blizz works
+  let output = Command::new(&blizz_path)
     .arg("--version")
     .output()
-    .context("Failed to test kernelle after installation")?;
+    .context("Failed to test blizz after installation")?;
 
   if !output.status.success() {
-    return Err(anyhow::anyhow!("kernelle failed version check after installation"));
+    return Err(anyhow::anyhow!("blizz failed version check after installation"));
   }
 
   println!("installation verified");
@@ -464,8 +473,8 @@ fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<
 async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
   println!("Rolling back from snapshot: {}", snapshot_path.display());
 
-  let kernelle_home = env::var("KERNELLE_HOME")
-    .unwrap_or_else(|_| format!("{}/.kernelle", env::var("HOME").unwrap_or_default()));
+  let blizz_home = env::var("BLIZZ_HOME")
+    .unwrap_or_else(|_| format!("{}/.blizz", env::var("HOME").unwrap_or_default()));
   let install_dir = env::var("INSTALL_DIR")
     .unwrap_or_else(|_| format!("{}/.cargo/bin", env::var("HOME").unwrap_or_default()));
 
@@ -479,13 +488,13 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
     );
   }
 
-  // Check if we have a full kernelle_home backup
-  let kernelle_home_backup = snapshot_path.join("kernelle_home");
-  if kernelle_home_backup.exists() {
-    let kernelle_home_path = Path::new(&kernelle_home);
+  // Check if we have a full blizz_home backup
+  let blizz_home_backup = snapshot_path.join("blizz_home");
+  if blizz_home_backup.exists() {
+    let blizz_home_path = Path::new(&blizz_home);
 
-    // Remove everything from kernelle_home except snapshots and persistent
-    for entry in fs::read_dir(kernelle_home_path)? {
+    // Remove everything from blizz_home except snapshots and persistent
+    for entry in fs::read_dir(blizz_home_path)? {
       let entry = entry?;
       let path = entry.path();
 
@@ -507,10 +516,10 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
     }
 
     // Restore everything from backup except persistent and snapshots
-    for entry in fs::read_dir(&kernelle_home_backup)? {
+    for entry in fs::read_dir(&blizz_home_backup)? {
       let entry = entry?;
       let src_path = entry.path();
-      let dst_path = kernelle_home_path.join(entry.file_name());
+      let dst_path = blizz_home_path.join(entry.file_name());
 
       // Skip restoring persistent directory - it should never be touched
       if entry.file_name() == "persistent" {
@@ -529,12 +538,12 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
       }
     }
 
-    println!("restored kernelle home from full backup (persistent directory left untouched)");
+    println!("restored blizz home from full backup (persistent directory left untouched)");
   } else {
     // Fallback to legacy volatile-only restore for older snapshots
     let volatile_backup = snapshot_path.join("volatile");
     if volatile_backup.exists() {
-      let volatile_path = Path::new(&kernelle_home).join("volatile");
+      let volatile_path = Path::new(&blizz_home).join("volatile");
 
       // Remove current volatile directory if it exists
       if volatile_path.exists() {
@@ -544,14 +553,23 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
       // Restore volatile directory from backup
       copy_dir_recursive(&volatile_backup, &volatile_path)?;
 
-      println!("restored .kernelle/volatile/ (legacy backup format)");
+      println!("restored .blizz/volatile/ (legacy backup format)");
     }
   }
 
   // Restore binaries
   let bins_backup = snapshot_path.join("bins");
   if bins_backup.exists() {
-    let binaries = ["kernelle", "jerrod", "insights", "violet", "adam", "secrets"];
+    let binaries = [
+      "blizz",
+      "insights",
+      "insights_embedding_daemon",
+      "install_insights_cuda_dependencies",
+      "secrets",
+      "keeper",
+      "violet",
+      "adam",
+    ];
     for binary in &binaries {
       let backup_bin = bins_backup.join(binary);
       let install_bin = Path::new(&install_dir).join(binary);
@@ -585,7 +603,7 @@ mod tests {
     let mut server = Server::new_async().await;
     let mock_response = r#"{
             "tag_name": "v1.2.3",
-            "tarball_url": "https://api.github.com/repos/TravelSizedLions/kernelle/tarball/v1.2.3"
+            "tarball_url": "https://api.github.com/repos/TravelSizedLions/blizz/tarball/v1.2.3"
         }"#;
 
     let _mock = server
@@ -905,8 +923,8 @@ mod tests {
     // Test scenario: verify that persistent data can be manually recovered from snapshots
     let temp_dir = TempDir::new().unwrap();
     let snapshot_dir = temp_dir.path().join("snapshot");
-    let kernelle_home_backup = snapshot_dir.join("kernelle_home");
-    let snapshot_persistent = kernelle_home_backup.join("persistent");
+    let blizz_home_backup = snapshot_dir.join("blizz_home");
+    let snapshot_persistent = blizz_home_backup.join("persistent");
 
     // Create a mock snapshot with persistent data
     fs::create_dir_all(&snapshot_persistent).unwrap();
@@ -937,35 +955,35 @@ mod tests {
     // 3. if rollback is needed, perform rollback, but STILL do not touch ~/.blizz/persistent
 
     let temp_dir = TempDir::new().unwrap();
-    let kernelle_home = temp_dir.path().join(".kernelle");
-    let volatile_dir = kernelle_home.join("volatile");
-    let persistent_dir = kernelle_home.join("persistent");
+    let blizz_home = temp_dir.path().join(".blizz");
+    let volatile_dir = blizz_home.join("volatile");
+    let persistent_dir = blizz_home.join("persistent");
 
     // Set up initial state
     fs::create_dir_all(&volatile_dir).unwrap();
     fs::create_dir_all(&persistent_dir).unwrap();
     fs::write(volatile_dir.join("old_volatile.txt"), "old volatile").unwrap();
     fs::write(persistent_dir.join("user_data.txt"), "important user data").unwrap();
-    fs::write(kernelle_home.join("config.toml"), "old config").unwrap();
+    fs::write(blizz_home.join("config.toml"), "old config").unwrap();
 
     // Set environment
-    std::env::set_var("KERNELLE_HOME", kernelle_home.to_string_lossy().to_string());
+    std::env::set_var("BLIZZ_HOME", blizz_home.to_string_lossy().to_string());
     std::env::set_var("INSTALL_DIR", "/tmp/non_existent_bin_dir");
 
-    // Step 1: Create snapshot of entire ~/.kernelle folder (including persistent)
+    // Step 1: Create snapshot of entire ~/.blizz folder (including persistent)
     let snapshot_path = create_snapshot().await.unwrap();
-    let kernelle_home_backup = snapshot_path.join("kernelle_home");
+    let blizz_home_backup = snapshot_path.join("blizz_home");
 
-    // Verify entire ~/.kernelle was snapshotted including persistent
-    assert!(kernelle_home_backup.join("volatile").exists());
-    assert!(kernelle_home_backup.join("persistent").exists());
-    assert!(kernelle_home_backup.join("config.toml").exists());
-    assert!(kernelle_home_backup.join("persistent").join("user_data.txt").exists());
+    // Verify entire ~/.blizz was snapshotted including persistent
+    assert!(blizz_home_backup.join("volatile").exists());
+    assert!(blizz_home_backup.join("persistent").exists());
+    assert!(blizz_home_backup.join("config.toml").exists());
+    assert!(blizz_home_backup.join("persistent").join("user_data.txt").exists());
 
     // Step 2: Simulate update that changes volatile and config but doesn't touch persistent
     fs::write(volatile_dir.join("new_volatile.txt"), "new volatile").unwrap();
     fs::remove_file(volatile_dir.join("old_volatile.txt")).unwrap();
-    fs::write(kernelle_home.join("config.toml"), "new config").unwrap();
+    fs::write(blizz_home.join("config.toml"), "new config").unwrap();
     // Note: persistent directory is intentionally left untouched during "update"
 
     // Verify update didn't affect persistent
@@ -975,19 +993,19 @@ mod tests {
     );
 
     // Step 3: Test the rollback logic manually to avoid verification issues
-    // (We can't test the full perform_rollback function because it tries to verify the kernelle binary)
-    let kernelle_home_str = kernelle_home.to_string_lossy().to_string();
-    let kernelle_home_path = std::path::Path::new(&kernelle_home_str);
-    let kernelle_home_backup = snapshot_path.join("kernelle_home");
+    // (We can't test the full perform_rollback function because it tries to verify the blizz binary)
+    let blizz_home_str = blizz_home.to_string_lossy().to_string();
+    let blizz_home_path = std::path::Path::new(&blizz_home_str);
+    let blizz_home_backup = snapshot_path.join("blizz_home");
 
     // Preserve the persistent directory by moving it temporarily
-    let persistent_path = kernelle_home_path.join("persistent");
+    let persistent_path = blizz_home_path.join("persistent");
     let temp_dir_for_persistent = tempfile::TempDir::new().unwrap();
     let temp_persistent_path = temp_dir_for_persistent.path().join("persistent");
     copy_dir_recursive(&persistent_path, &temp_persistent_path).unwrap();
 
-    // Remove everything from kernelle_home except snapshots
-    for entry in fs::read_dir(kernelle_home_path).unwrap() {
+    // Remove everything from blizz_home except snapshots
+    for entry in fs::read_dir(blizz_home_path).unwrap() {
       let entry = entry.unwrap();
       let path = entry.path();
 
@@ -1004,10 +1022,10 @@ mod tests {
     }
 
     // Restore everything from backup except persistent
-    for entry in fs::read_dir(&kernelle_home_backup).unwrap() {
+    for entry in fs::read_dir(&blizz_home_backup).unwrap() {
       let entry = entry.unwrap();
       let src_path = entry.path();
-      let dst_path = kernelle_home_path.join(entry.file_name());
+      let dst_path = blizz_home_path.join(entry.file_name());
 
       // Skip restoring persistent directory
       if entry.file_name() == "persistent" {
@@ -1038,7 +1056,7 @@ mod tests {
       !volatile_dir.join("new_volatile.txt").exists(),
       "new_volatile.txt should not exist after rollback"
     );
-    assert_eq!(fs::read_to_string(kernelle_home.join("config.toml")).unwrap(), "old config");
+    assert_eq!(fs::read_to_string(blizz_home.join("config.toml")).unwrap(), "old config");
 
     // Verify persistent data was STILL not touched during rollback
     assert!(persistent_dir.join("user_data.txt").exists());
@@ -1048,12 +1066,12 @@ mod tests {
     );
 
     // Verify recovery path exists: persistent data is available in snapshot for manual recovery
-    let snapshot_persistent_data = kernelle_home_backup.join("persistent").join("user_data.txt");
+    let snapshot_persistent_data = blizz_home_backup.join("persistent").join("user_data.txt");
     assert!(snapshot_persistent_data.exists());
     assert_eq!(fs::read_to_string(&snapshot_persistent_data).unwrap(), "important user data");
 
     // Clean up
-    std::env::remove_var("KERNELLE_HOME");
+    std::env::remove_var("BLIZZ_HOME");
     std::env::remove_var("INSTALL_DIR");
   }
 }

@@ -126,10 +126,10 @@ async fn main() -> Result<()> {
 }
 
 fn get_base() -> Result<PathBuf> {
-  let base = if let Ok(dir) = env::var("KERNELLE_HOME") {
+  let base = if let Ok(dir) = env::var("BLIZZ_HOME") {
     PathBuf::from(dir)
   } else {
-    dirs::home_dir().ok_or_else(|| anyhow!("failed to determine home directory"))?.join(".kernelle")
+    dirs::home_dir().ok_or_else(|| anyhow!("failed to determine home directory"))?.join(".blizz")
   };
 
   let insights_path = base.join("persistent").join("insights");
@@ -859,29 +859,29 @@ mod tests {
 
   /// Test get_base() function with environment variable scenarios
   #[test]
-  fn test_get_base_with_kernelle_home() {
-    // Test with KERNELLE_HOME set
-    std::env::set_var("KERNELLE_HOME", "/custom/kernelle/path");
+  fn test_get_base_with_blizz_home() {
+    // Test with BLIZZ_HOME set
+    std::env::set_var("BLIZZ_HOME", "/custom/blizz/path");
 
     let result = get_base().unwrap();
     let expected =
-      std::path::PathBuf::from("/custom/kernelle/path").join("persistent").join("insights");
+      std::path::PathBuf::from("/custom/blizz/path").join("persistent").join("insights");
 
     assert_eq!(result, expected);
 
     // Clean up
-    std::env::remove_var("KERNELLE_HOME");
+    std::env::remove_var("BLIZZ_HOME");
   }
 
   #[test]
-  fn test_get_base_without_kernelle_home() {
-    // Ensure KERNELLE_HOME is not set
-    std::env::remove_var("KERNELLE_HOME");
+  fn test_get_base_without_blizz_home() {
+    // Ensure BLIZZ_HOME is not set
+    std::env::remove_var("BLIZZ_HOME");
 
     let result = get_base().unwrap();
 
-    // Should fallback to home directory + .kernelle
-    let expected_prefix = dirs::home_dir().unwrap().join(".kernelle");
+    // Should fallback to home directory + .blizz
+    let expected_prefix = dirs::home_dir().unwrap().join(".blizz");
     let expected = expected_prefix.join("persistent").join("insights");
 
     assert_eq!(result, expected);
@@ -890,7 +890,7 @@ mod tests {
   #[test]
   fn test_get_base_path_construction() {
     // Test that the path construction always includes persistent/insights
-    std::env::set_var("KERNELLE_HOME", "/test/base");
+    std::env::set_var("BLIZZ_HOME", "/test/base");
 
     let result = get_base().unwrap();
 
@@ -899,7 +899,7 @@ mod tests {
     assert!(result.to_string_lossy().contains("/test/base"));
 
     // Clean up
-    std::env::remove_var("KERNELLE_HOME");
+    std::env::remove_var("BLIZZ_HOME");
   }
 
   /// Test create_socket() happy path

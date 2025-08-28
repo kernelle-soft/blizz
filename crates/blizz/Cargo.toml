@@ -1,12 +1,12 @@
 [package]
-name = "kernelle"
+name = "blizz"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 description = "Blizz toolchain package manager and workflow orchestrator"
 
 [[bin]]
-name = "kernelle"
+name = "blizz"
 path = "src/main.rs"
 
 [dependencies]

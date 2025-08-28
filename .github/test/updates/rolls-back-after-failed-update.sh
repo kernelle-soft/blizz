@@ -23,12 +23,12 @@ trap cleanup_server EXIT
 ./scripts/install.sh --non-interactive --from-source || fail "Install script failed"
 
 # Record current version
-BASE_VERSION=$("$HOME/.cargo/bin/kernelle" --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -n1)
-[ -n "${BASE_VERSION:-}" ] || fail "Could not determine installed kernelle version"
+BASE_VERSION=$("$HOME/.cargo/bin/blizz" --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -n1)
+[ -n "${BASE_VERSION:-}" ] || fail "Could not determine installed blizz version"
 
 # Seed persistent data we must never lose
-mkdir -p "$HOME/.kernelle/persistent"
-echo "secret=shhh" > "$HOME/.kernelle/persistent/keeper.env"
+mkdir -p "$HOME/.blizz/persistent"
+echo "secret=shhh" > "$HOME/.blizz/persistent/keeper.env"
 
 # 2) Prepare a fake update server that returns a tarball whose install.sh fails
 WORKDIR=$(mktemp -d)
@@ -37,16 +37,16 @@ mkdir -p releases/tags artifacts
 
 # Pick a fake version to request
 FAKE_VERSION="999.9.9"
-TARBALL_URL_FILE="artifacts/kernelle.tar.gz"
+TARBALL_URL_FILE="artifacts/blizz.tar.gz"
 
 # Create a fake release JSON at /releases/tags/v9.9.9
 cat > "releases/tags/v$FAKE_VERSION" <<JSON
 {"tag_name":"v$FAKE_VERSION","tarball_url":"http://127.0.0.1:7777/$TARBALL_URL_FILE"}
 JSON
 
-# Build a tarball with a top-level dir containing "kernelle" and a failing install.sh
-ROOT_DIR="fake-kernelle-src"
-mkdir -p "$ROOT_DIR/scripts" "$ROOT_DIR/kernelle_home/volatile"
+# Build a tarball with a top-level dir containing "blizz" and a failing install.sh
+ROOT_DIR="fake-blizz-src"
+mkdir -p "$ROOT_DIR/scripts" "$ROOT_DIR/blizz_home/volatile"
 cat > "$ROOT_DIR/scripts/install.sh" <<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -69,7 +69,7 @@ sleep 0.5
 
 # 3) Run the update pointing to our fake server
 set +e
-OUT=$({ KERNELLE_UPDATES_API_BASE="http://127.0.0.1:$PORT" "$HOME/.cargo/bin/kernelle" update --version "$FAKE_VERSION"; } 2>&1)
+OUT=$({ BLIZZ_UPDATES_API_BASE="http://127.0.0.1:$PORT" "$HOME/.cargo/bin/blizz" update --version "$FAKE_VERSION"; } 2>&1)
 STATUS=$?
 set -e
 
@@ -80,16 +80,16 @@ echo "$OUT" | grep -qi "rollback completed successfully" || fail "Expected rollb
 
 # 4) Validate state after rollback
 # - Version unchanged
-AFTER_VERSION=$("$HOME/.cargo/bin/kernelle" --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -n1)
+AFTER_VERSION=$("$HOME/.cargo/bin/blizz" --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -n1)
 [ "$AFTER_VERSION" = "$BASE_VERSION" ] || fail "Version changed after failed update (expected $BASE_VERSION, got $AFTER_VERSION)"
 
 # - Persistent data preserved
-[ -f "$HOME/.kernelle/persistent/keeper.env" ] || fail "Persistent file missing after rollback"
-grep -q "secret=shhh" "$HOME/.kernelle/persistent/keeper.env" || fail "Persistent file contents changed"
+[ -f "$HOME/.blizz/persistent/keeper.env" ] || fail "Persistent file missing after rollback"
+grep -q "secret=shhh" "$HOME/.blizz/persistent/keeper.env" || fail "Persistent file contents changed"
 
 # - A snapshot should have been created
-[ -d "$HOME/.kernelle/snapshots" ] || fail "Snapshots directory missing"
-SNAP_COUNT=$(ls -1 "$HOME/.kernelle/snapshots" | wc -l | tr -d ' ')
+[ -d "$HOME/.blizz/snapshots" ] || fail "Snapshots directory missing"
+SNAP_COUNT=$(ls -1 "$HOME/.blizz/snapshots" | wc -l | tr -d ' ')
 [ "$SNAP_COUNT" -ge 1 ] || fail "Expected at least one snapshot to exist"
 
 echo "✅ Rolls-back-after-failed-update verified"

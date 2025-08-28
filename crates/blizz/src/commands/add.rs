@@ -47,13 +47,13 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 
 pub async fn execute(target_dir: &str) -> Result<()> {
   let target_path = Path::new(target_dir);
-  let kernelle_home = get_kernelle_home()?;
-  let cursor_source = kernelle_home.join("volatile").join(".cursor").join("rules").join("kernelle");
+  let blizz_home = get_blizz_home()?;
+  let cursor_source = blizz_home.join("volatile").join(".cursor").join("rules").join("blizz");
 
   if !cursor_source.exists() {
     anyhow::bail!(
             "Blizz cursor workflows not found at {}/volatile/.cursor/rules/blizz\nPlease run the Blizz setup script first.",
-            kernelle_home.display()
+            blizz_home.display()
         );
   }
 
@@ -65,16 +65,15 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
   println!("Adding Blizz cursor workflows to {}...", target_path.display());
 
-  // Create single symlink: .cursor/rules/blizz/ -> ~/.kernelle/volatile/.cursor/rules/blizz/
-  let kernelle_link = rules_target.join("kernelle");
+  // Create single symlink: .cursor/rules/blizz/ -> ~/.blizz/volatile/.cursor/rules/blizz/
+  let blizz_link = rules_target.join("blizz");
 
   // Remove existing blizz symlink/directory if it exists
   // Use symlink_metadata to detect symlinks even if they're broken
-  if let Ok(metadata) = fs::symlink_metadata(&kernelle_link) {
+  if let Ok(metadata) = fs::symlink_metadata(&blizz_link) {
     if metadata.is_symlink() {
-      fs::remove_file(&kernelle_link).with_context(|| {
-        format!("Failed to remove existing symlink: {}", kernelle_link.display())
-      })?;
+      fs::remove_file(&blizz_link)
+        .with_context(|| format!("Failed to remove existing symlink: {}", blizz_link.display()))?;
     } else if metadata.is_dir() {
       anyhow::bail!("Directory .cursor/rules/blizz/ already exists and is not a symlink. Please remove it manually.");
     } else {
@@ -85,22 +84,22 @@ pub async fn execute(target_dir: &str) -> Result<()> {
   }
 
   // Create the symlink (cross-platform)
-  create_cross_platform_symlink(&cursor_source, &kernelle_link).with_context(|| {
-    format!("Failed to create symlink: {} -> {}", cursor_source.display(), kernelle_link.display())
+  create_cross_platform_symlink(&cursor_source, &blizz_link).with_context(|| {
+    format!("Failed to create symlink: {} -> {}", cursor_source.display(), blizz_link.display())
   })?;
 
-  println!("  Linked: .cursor/rules/kernelle/ -> {}", cursor_source.display());
+  println!("  Linked: .cursor/rules/blizz/ -> {}", cursor_source.display());
   println!("Cursor workflows added successfully!");
   println!("Open this project in Cursor to access Blizz rules and workflows.");
 
   Ok(())
 }
 
-fn get_kernelle_home() -> Result<PathBuf> {
-  if let Ok(home) = std::env::var("KERNELLE_HOME") {
+fn get_blizz_home() -> Result<PathBuf> {
+  if let Ok(home) = std::env::var("BLIZZ_HOME") {
     Ok(PathBuf::from(home))
   } else if let Some(user_home) = dirs::home_dir() {
-    Ok(user_home.join(".kernelle"))
+    Ok(user_home.join(".blizz"))
   } else {
     anyhow::bail!("Could not determine home directory")
   }

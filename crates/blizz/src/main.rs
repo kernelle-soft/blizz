@@ -6,7 +6,7 @@ use std::process;
 mod commands;
 
 #[derive(Parser)]
-#[command(name = "kernelle")]
+#[command(name = "blizz")]
 #[command(about = "It takes a village.
 
 Blizz is a tool for managing projects from a personal perspective, enabling you to work together with AI agents more effectively")]
@@ -29,11 +29,6 @@ enum Commands {
     /// Target directory (defaults to current directory)
     #[arg(default_value = ".")]
     dir: String,
-  },
-  /// Manage daemon processes for MCPs
-  Daemon {
-    #[command(subcommand)]
-    action: DaemonActions,
   },
   /// Store a credential or secret
   Store {
@@ -82,7 +77,7 @@ enum Commands {
     #[arg(long)]
     list: bool,
   },
-  /// Update kernelle to the latest or specified version
+  /// Update blizz to the latest or specified version
   Update {
     /// Specific version to update to (defaults to latest)
     #[arg(long, short)]
@@ -98,14 +93,6 @@ enum Commands {
   },
 }
 
-#[derive(Subcommand)]
-enum DaemonActions {
-  /// Start daemon processes
-  Up,
-  /// Stop daemon processes
-  Down,
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
   let cli = Cli::parse();
@@ -113,10 +100,6 @@ async fn main() -> Result<()> {
   match cli.command {
     Commands::Add { dir } => commands::add::execute(&dir).await,
     Commands::Remove { dir } => commands::remove::execute(&dir).await,
-    Commands::Daemon { action } => match action {
-      DaemonActions::Up => commands::daemon::up().await,
-      DaemonActions::Down => commands::daemon::down().await,
-    },
     Commands::Store { key, value } => commands::store::execute(&key, value.as_deref()).await,
     Commands::Retrieve { key } => commands::retrieve::execute(&key).await,
     Commands::Do { name, args, silent, file, color, no_color } => {

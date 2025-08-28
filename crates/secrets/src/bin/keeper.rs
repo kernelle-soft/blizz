@@ -58,10 +58,10 @@ async fn main() -> Result<()> {
 }
 
 fn get_base() -> Result<PathBuf> {
-  let base = if let Ok(dir) = env::var("KERNELLE_HOME") {
+  let base = if let Ok(dir) = env::var("BLIZZ_HOME") {
     PathBuf::from(dir)
   } else {
-    dirs::home_dir().ok_or_else(|| anyhow!("failed to determine home directory"))?.join(".kernelle")
+    dirs::home_dir().ok_or_else(|| anyhow!("failed to determine home directory"))?.join(".blizz")
   };
 
   let keeper_path = base.join("persistent").join("keeper");
@@ -156,7 +156,7 @@ mod tests {
     F: FnOnce(&TempDir) -> R,
   {
     let temp_dir = TempDir::new().unwrap();
-    temp_env::with_var("KERNELLE_HOME", Some(temp_dir.path().to_str().unwrap()), || f(&temp_dir))
+    temp_env::with_var("BLIZZ_HOME", Some(temp_dir.path().to_str().unwrap()), || f(&temp_dir))
   }
 
   #[test]
@@ -171,16 +171,16 @@ mod tests {
   fn test_get_base_fallback_behavior() {
     use temp_env::with_vars;
 
-    // Test fallback behavior when KERNELLE_HOME is not set (line 53-56)
+    // Test fallback behavior when BLIZZ_HOME is not set (line 53-56)
     // The dirs crate is robust and uses system calls as fallbacks, so this rarely fails
     // This test verifies the fallback path works correctly
-    with_vars([("KERNELLE_HOME", None::<String>)], || {
+    with_vars([("BLIZZ_HOME", None::<String>)], || {
       let result = get_base();
       assert!(result.is_ok(), "get_base should fallback to home directory successfully");
 
       let keeper_path = result.unwrap();
       // Should end with the expected path structure
-      assert!(keeper_path.to_string_lossy().ends_with("/.kernelle/persistent/keeper"));
+      assert!(keeper_path.to_string_lossy().ends_with("/.blizz/persistent/keeper"));
 
       // Verify it's an absolute path
       assert!(keeper_path.is_absolute(), "Fallback path should be absolute");
@@ -194,7 +194,7 @@ mod tests {
 
       // First, create a vault interactively using rexpect
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
@@ -214,7 +214,7 @@ mod tests {
       temp_env::with_var("SECRETS_AUTH", Some(""), || {
         let mut cmd = Command::cargo_bin("keeper").unwrap();
         cmd
-          .env("KERNELLE_HOME", temp_dir.path())
+          .env("BLIZZ_HOME", temp_dir.path())
           .timeout(std::time::Duration::from_secs(2))
           .assert()
           .failure()
@@ -225,7 +225,7 @@ mod tests {
       temp_env::with_var("SECRETS_AUTH", Some("   \n  \t  "), || {
         let mut cmd = Command::cargo_bin("keeper").unwrap();
         cmd
-          .env("KERNELLE_HOME", temp_dir.path())
+          .env("BLIZZ_HOME", temp_dir.path())
           .timeout(std::time::Duration::from_secs(2))
           .assert()
           .failure()
@@ -241,7 +241,7 @@ mod tests {
       // (e.g., when run from a script or test environment)
       let mut cmd = Command::cargo_bin("keeper").unwrap();
       let output = cmd
-        .env("KERNELLE_HOME", temp_dir.path())
+        .env("BLIZZ_HOME", temp_dir.path())
         .timeout(std::time::Duration::from_secs(3))
         .output()
         .expect("Failed to execute keeper command");
@@ -267,7 +267,7 @@ mod tests {
 
       // Test successful vault creation with matching passwords
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
@@ -289,7 +289,7 @@ mod tests {
 
       // Test password mismatch during vault creation
       let mut cmd2 = StdCommand::cargo_bin("keeper").unwrap();
-      cmd2.env("KERNELLE_HOME", temp_dir.path().join("mismatch_test"));
+      cmd2.env("BLIZZ_HOME", temp_dir.path().join("mismatch_test"));
 
       let mut session2 = spawn_command(cmd2, Some(5000)).unwrap();
 
@@ -315,7 +315,7 @@ mod tests {
 
       // Create vault - should create parent directories
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
@@ -349,7 +349,7 @@ mod tests {
 
       // First, create a vault with a known password
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 
@@ -435,7 +435,7 @@ mod tests {
 
       // Create a vault and start daemon
       let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
-      cmd.env("KERNELLE_HOME", temp_dir.path());
+      cmd.env("BLIZZ_HOME", temp_dir.path());
 
       let mut session = spawn_command(cmd, Some(5000)).unwrap();
 

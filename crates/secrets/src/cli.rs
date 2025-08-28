@@ -11,7 +11,7 @@ use std::env;
   about = "Secrets management for Blizz.",
   long_about = "Secure secret storage for Blizz's toolchain. Secrets are organized into groups for better management."
 )]
-#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
+#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of blizz"))]
 pub struct Cli {
   #[command(subcommand)]
   pub command: Commands,
@@ -135,12 +135,12 @@ pub async fn handle_command(command: Commands) -> Result<()> {
 async fn handle_agent(action: AgentAction) -> Result<()> {
   use dirs;
 
-  let base = if let Ok(dir) = std::env::var("KERNELLE_HOME") {
+  let base = if let Ok(dir) = std::env::var("BLIZZ_HOME") {
     std::path::PathBuf::from(dir)
   } else {
     dirs::home_dir()
       .ok_or_else(|| anyhow::anyhow!("Failed to determine home directory"))?
-      .join(".kernelle")
+      .join(".blizz")
   };
 
   let keeper_path = base.join("persistent").join("keeper");

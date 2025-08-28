@@ -14,7 +14,7 @@ const PADDING: usize = 2;
 #[derive(Parser)]
 #[command(name = "violet")]
 #[command(about = "Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool")]
-#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of kernelle"))]
+#[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of blizz"))]
 struct Cli {
   #[arg(value_name = "PATH")]
   paths: Vec<PathBuf>,

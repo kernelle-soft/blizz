@@ -99,7 +99,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Blizz Dependencies
-        uses: ./.github/actions/setup-kernelle
+        uses: ./.github/actions/setup-blizz
         with:
           # Skip the slow bootstrapping step. Not needed for release
           skip-bootstrap: "true"
@@ -255,7 +255,7 @@ jobs:
           
           # Define binary names (without .exe extension)
           BINARIES=(
-            "kernelle"
+            "blizz"
             "insights" 
             "insights_embedding_daemon"
             "install_insights_cuda_dependencies"
@@ -363,7 +363,7 @@ jobs:
             - **Linux x86_64** (`blizz-x86_64-unknown-linux-gnu.tar.gz`) - Compatible with Ubuntu, Debian, and most Linux distributions
             - **macOS ARM64** (`blizz-aarch64-apple-darwin.tar.gz`) - For Apple Silicon Macs
             
-            Each archive contains all Blizz binaries: `kernelle`, `insights`, `secrets`, `keeper`, `violet`, `adam`, and support tools.
+            Each archive contains all Blizz binaries: `blizz`, `insights`, `secrets`, `keeper`, `violet`, `adam`, and support tools.
             
             💡 **Tip**: The install script will automatically detect your platform and use these pre-built binaries for faster installation!
         env:

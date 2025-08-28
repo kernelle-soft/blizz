@@ -7,8 +7,8 @@ alwaysApply: false
 This workflow is designed to gather insights in preparation to tackle a task from sources like JIRA, Trello, etc, such as a bug, feature addition, testing, or other basic unit of work.
 
 ## Read Also
-- [use-insights](mdc:.cursor/rules/kernelle/behaviors/use-insights.mdc)
-- [rate-confidence](mdc:.cursor/rules/kernelle/behaviors/rate-confidence.mdc)
+- [use-insights](mdc:.cursor/rules/blizz/behaviors/use-insights.mdc)
+- [rate-confidence](mdc:.cursor/rules/blizz/behaviors/rate-confidence.mdc)
 
 ## Inputs:
 - Url: to point to a task description

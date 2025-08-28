@@ -5,7 +5,7 @@ complexity:
 ignore_files:
   #  [tsl-voxel] - Future cleanup project
   - "crates/secrets/**"
-  - "crates/kernelle/**"
+  - "crates/blizz/**"
   - LICENSE
   - README.md
 

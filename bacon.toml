@@ -3,10 +3,10 @@ command = ["cargo", "check", "--workspace"]
 need_stdout = false
 watch = ["crates/"]
 
-[jobs.kernelle]
-command = ["cargo", "install", "--path", "crates/kernelle", "--force"]
+[jobs.blizz]
+command = ["cargo", "install", "--path", "crates/blizz", "--force"]
 need_stdout = false
-watch = ["crates/kernelle/"]
+watch = ["crates/blizz/"]
 
 [jobs.violet]
 command = ["cargo", "install", "--path", "crates/violet", "--force"]
@@ -54,9 +54,9 @@ command = ["cargo", "tarpaulin", "-p", "secrets", "--config", "crates/secrets/ta
 watch = ["crates/secrets/"]
 need_stdout = true
 
-[jobs.test-kernelle]
-command = ["cargo", "tarpaulin", "-p", "kernelle", "--config", "crates/kernelle/tarpaulin.toml"]
-watch = ["crates/kernelle/"]
+[jobs.test-blizz]
+command = ["cargo", "tarpaulin", "-p", "blizz", "--config", "crates/blizz/tarpaulin.toml"]
+watch = ["crates/blizz/"]
 need_stdout = true
 
 [jobs.test-violet]
