@@ -111,7 +111,22 @@ jobs:
 
       - name: Bump and Tag Version
         run: |
-          .github/run/bump-version.sh patch
+          # Detect version bump type from commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "🔍 Commit message: $COMMIT_MSG"
+          
+          if [[ "$COMMIT_MSG" =~ \[bump:minor\] ]]; then
+            echo "Minor version bump requested"
+            BUMP_TYPE="minor"
+          elif [[ "$COMMIT_MSG" =~ \[bump:major\] ]]; then
+            echo "Major version bump requested"
+            BUMP_TYPE="major"
+          else
+            echo "Patch version bump (default)"
+            BUMP_TYPE="patch"
+          fi
+          
+          .github/run/bump-version.sh "$BUMP_TYPE"
           .github/run/tag-version.sh
 
       - name: Push Changes
