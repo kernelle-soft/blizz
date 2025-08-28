@@ -29,10 +29,10 @@ pub async fn store(
   let master_password = get_master_password(_secrets).await?;
 
   // Load existing credentials or create new ones
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-    PathBuf::from(kernelle_dir)
+  let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+    PathBuf::from(blizz_dir)
   } else {
-    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
   };
 
   let mut credentials_path = base_path;
@@ -87,10 +87,10 @@ pub async fn store(
 /// Read a secret from the vault
 pub async fn read(secrets: &Secrets, group: &str, name: &str) -> Result<()> {
   // Get the credentials file path
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-    PathBuf::from(kernelle_dir)
+  let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+    PathBuf::from(blizz_dir)
   } else {
-    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
   };
 
   let mut credentials_path = base_path.clone();
@@ -147,10 +147,10 @@ pub async fn delete(
   force: bool,
 ) -> Result<()> {
   // Get the credentials file path
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-    PathBuf::from(kernelle_dir)
+  let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+    PathBuf::from(blizz_dir)
   } else {
-    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
   };
 
   let mut credentials_path = base_path.clone();
@@ -261,10 +261,10 @@ pub async fn list(
   quiet: bool,
 ) -> Result<()> {
   // Get the credentials file path (same logic as PasswordBasedCryptoManager::new)
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-    PathBuf::from(kernelle_dir)
+  let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+    PathBuf::from(blizz_dir)
   } else {
-    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
   };
 
   let mut credentials_path = base_path.clone();
@@ -369,10 +369,10 @@ pub async fn clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
   let master_password = get_master_password(secrets).await?;
 
   // Try to verify the password by attempting to decrypt existing secrets
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-    PathBuf::from(kernelle_dir)
+  let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+    PathBuf::from(blizz_dir)
   } else {
-    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
   };
 
   let mut credentials_path = base_path;
@@ -398,10 +398,10 @@ pub async fn clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
   bentley::verbose!("clearing vault...");
 
   // Get the credentials file path (same logic as PasswordBasedCryptoManager::new)
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-    PathBuf::from(kernelle_dir)
+  let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+    PathBuf::from(blizz_dir)
   } else {
-    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
   };
 
   let mut credentials_path = base_path;
@@ -431,10 +431,10 @@ pub async fn clear(secrets: &Secrets, force: bool, quiet: bool) -> Result<()> {
 /// Helper function to get master password, first trying daemon, then fallback to direct prompt
 async fn get_master_password(_secrets: &Secrets) -> Result<String> {
   // Check if credentials file exists
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-    PathBuf::from(kernelle_dir)
+  let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+    PathBuf::from(blizz_dir)
   } else {
-    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
   };
 
   // Existing vault - try to get password from daemon first
@@ -491,10 +491,10 @@ pub async fn reset_password(secrets: &Secrets, force: bool) -> Result<()> {
   let current_password = get_master_password(secrets).await?;
 
   // Load current credentials store
-  let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-    PathBuf::from(kernelle_dir)
+  let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+    PathBuf::from(blizz_dir)
   } else {
-    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+    dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
   };
 
   let mut credentials_path = base_path;
@@ -647,7 +647,7 @@ mod tests {
 
   // Test-specific versions of functions that use mock keeper_client
   async fn get_master_password_with_mock(_secrets: &Secrets) -> Result<String> {
-    let base_path = match std::env::var("KERNELLE_DIR") {
+    let base_path = match std::env::var("BLIZZ_DIR") {
       Ok(dir) => PathBuf::from(dir),
       Err(_) => dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()),
     };
@@ -699,7 +699,7 @@ mod tests {
 
   fn setup_test_env() -> TempDir {
     let temp_dir = TempDir::new().unwrap();
-    std::env::set_var("KERNELLE_DIR", temp_dir.path());
+    std::env::set_var("BLIZZ_DIR", temp_dir.path());
     // Set master password via environment variable to avoid prompts
     std::env::set_var("SECRETS_MASTER_PASSWORD", "test_password_123");
     temp_dir

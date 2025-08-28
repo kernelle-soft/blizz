@@ -246,10 +246,10 @@ impl CryptoProvider for PasswordBasedCryptoManager {
 
 impl PasswordBasedCryptoManager {
   fn new() -> Self {
-    let base_path = if let Ok(kernelle_dir) = std::env::var("KERNELLE_DIR") {
-      std::path::PathBuf::from(kernelle_dir)
+    let base_path = if let Ok(blizz_dir) = std::env::var("BLIZZ_DIR") {
+      std::path::PathBuf::from(blizz_dir)
     } else {
-      dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".kernelle")
+      dirs::home_dir().unwrap_or_else(|| std::env::current_dir().unwrap()).join(".blizz")
     };
 
     let mut credentials_path = base_path;
@@ -327,14 +327,14 @@ impl SecretProvider for Secrets {
 }
 
 impl Secrets {
-  /// Create a new Secrets instance for the Kernelle toolset
+  /// Create a new Secrets instance for the Blizz toolset
   pub fn new() -> Self {
     Self::with_crypto_provider(Box::new(PasswordBasedCryptoManager::new()))
   }
 
   /// Create a Secrets instance with a custom crypto provider for dependency injection
   pub fn with_crypto_provider(crypto: Box<dyn CryptoProvider>) -> Self {
-    Self { service_name: "kernelle".to_string(), crypto }
+    Self { service_name: "blizz".to_string(), crypto }
   }
 
   /// Store a secret securely using Argon2-based encryption
@@ -695,7 +695,7 @@ mod tests {
       std::process::id(),
       SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()
     );
-    let temp_dir = std::env::temp_dir().join("kernelle_test").join(&unique_id);
+    let temp_dir = std::env::temp_dir().join("blizz_test").join(&unique_id);
 
     // Create a custom PasswordBasedCryptoManager with isolated path
     let mut credentials_path = temp_dir.clone();
@@ -703,7 +703,7 @@ mod tests {
     credentials_path.push("credentials.enc");
     let crypto = PasswordBasedCryptoManager { credentials_path };
 
-    Secrets { service_name: format!("test_kernelle_{unique_id}"), crypto: Box::new(crypto) }
+    Secrets { service_name: format!("test_blizz_{unique_id}"), crypto: Box::new(crypto) }
   }
 
   #[test]
@@ -723,7 +723,7 @@ mod tests {
   #[test]
   fn test_secrets_creation() {
     let secrets = Secrets::new();
-    assert_eq!(secrets.service_name, "kernelle");
+    assert_eq!(secrets.service_name, "blizz");
 
     let default_secrets = Secrets::default();
     assert_eq!(default_secrets.service_name, "kernelle");

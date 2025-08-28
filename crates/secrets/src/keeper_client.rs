@@ -28,8 +28,8 @@ pub async fn start(
   cmd.envs(env::vars());
 
   // Forward environment variables that the keeper needs explicitly
-  if let Ok(kernelle_home) = env::var("KERNELLE_HOME") {
-    cmd.env("KERNELLE_HOME", kernelle_home);
+  if let Ok(blizz_home) = env::var("BLIZZ_HOME") {
+    cmd.env("BLIZZ_HOME", blizz_home);
   }
   if let Ok(secrets_auth) = env::var("SECRETS_AUTH") {
     cmd.env("SECRETS_AUTH", secrets_auth);
@@ -250,7 +250,7 @@ mod tests {
     fs::write(&socket_path, "").unwrap();
 
     // Test with environment variables set (though they won't be used due to early return)
-    std::env::set_var("KERNELLE_HOME", temp_dir.path());
+    std::env::set_var("BLIZZ_HOME", temp_dir.path());
     std::env::set_var("SECRETS_AUTH", "test_password");
 
     // This should return early due to existing socket, avoiding process spawn
@@ -258,7 +258,7 @@ mod tests {
     assert!(result.is_ok(), "Should handle environment variables gracefully");
 
     // Clean up
-    std::env::remove_var("KERNELLE_HOME");
+    std::env::remove_var("BLIZZ_HOME");
     std::env::remove_var("SECRETS_AUTH");
   }
 
@@ -754,7 +754,7 @@ mod tests {
 
     // Clean up environment
     std::env::set_var("PATH", original_path);
-    std::env::remove_var("KERNELLE_HOME");
+    std::env::remove_var("BLIZZ_HOME");
     std::env::remove_var("SECRETS_AUTH");
 
     assert!(result.is_ok(), "Should handle spawn failure gracefully");

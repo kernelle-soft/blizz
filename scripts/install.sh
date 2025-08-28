@@ -210,15 +210,15 @@ install_binaries() {
 
 # Setup configuration variables
 setup_configuration() {
-	KERNELLE_HOME="${KERNELLE_HOME:-$HOME/.kernelle}"
+	BLIZZ_HOME="${BLIZZ_HOME:-$HOME/.blizz}"
 	INSTALL_DIR="${INSTALL_DIR:-$HOME/.cargo}"
 }
 
 # Create necessary directories
 create_directories() {
 	echo "📁 Creating directories..."
-	mkdir -p "$KERNELLE_HOME/persistent/keeper"
-	mkdir -p "$KERNELLE_HOME/volatile"
+	mkdir -p "$BLIZZ_HOME/persistent/keeper"
+	mkdir -p "$BLIZZ_HOME/volatile"
 }
 
 # Get script and repo directory paths
@@ -236,9 +236,9 @@ get_script_paths() {
 # Setup workflow configuration files
 setup_workflows() {
 	echo "📋 Setting up workflows..."
-	# Copy .cursor rules to ~/.kernelle/volatile/.cursor
+	# Copy .cursor rules to ~/.blizz/volatile/.cursor
 	if [ -d "$REPO_ROOT/.cursor" ]; then
-		cp -r "$REPO_ROOT/.cursor" "$KERNELLE_HOME/volatile/"
+		cp -r "$REPO_ROOT/.cursor" "$BLIZZ_HOME/volatile/"
 	else
 		echo "⚠️  No .cursor directory found - workflows will not be available"
 	fi
@@ -247,21 +247,21 @@ setup_workflows() {
 
 # Setup shell integration files
 setup_shell_integration() {
-	# Copy kernelle.source template to ~/.kernelle/ only if it doesn't exist
-	if [ ! -f "$HOME/.kernelle.source" ]; then
+	# Copy blizz.source template to ~/.blizz/ only if it doesn't exist
+	if [ ! -f "$HOME/.blizz.source" ]; then
 		echo "🔗 Setting up shell source files..."
-		cp "$SCRIPT_DIR/templates/kernelle.source.template" "$HOME/.kernelle.source"
+		cp "$SCRIPT_DIR/templates/blizz.source.template" "$HOME/.blizz.source"
 	else
-		echo "~/.kernelle.source already exists - keeping existing file"
-		if ! grep -q "kernelle.internal.source" "$HOME/.kernelle.source"; then
-			echo "⚠️ If the line $(source \"$KERNELLE_HOME/kernelle.internal.source\") does not exist in this file already, please add it."
+		echo "~/.blizz.source already exists - keeping existing file"
+		if ! grep -q "blizz.internal.source" "$HOME/.blizz.source"; then
+			echo "⚠️ If the line $(source \"$BLIZZ_HOME/blizz.internal.source\") does not exist in this file already, please add it."
 		fi
 	fi
 	echo ""
 
-	# Copy the internal source file to the KERNELLE_HOME and source it
-	cp "$SCRIPT_DIR/templates/kernelle.internal.source.template" "$KERNELLE_HOME/kernelle.internal.source"
-	source "$KERNELLE_HOME/kernelle.internal.source"
+	# Copy the internal source file to the BLIZZ_HOME and source it
+	cp "$SCRIPT_DIR/templates/blizz.internal.source.template" "$BLIZZ_HOME/blizz.internal.source"
+	source "$BLIZZ_HOME/blizz.internal.source"
 }
 
 # Configure GPU acceleration dependencies
@@ -280,20 +280,20 @@ configure_gpu_acceleration() {
 setup_uninstaller() {
 	echo "📝 Setting up uninstaller..."
 	
-	# Copy uninstaller script to KERNELLE_HOME only if it doesn't exist
-	if [ ! -f "$KERNELLE_HOME/uninstall.sh" ]; then
-		cp "$SCRIPT_DIR/uninstall.sh" "$KERNELLE_HOME/uninstall.sh"
-		chmod +x "$KERNELLE_HOME/uninstall.sh"
+	# Copy uninstaller script to BLIZZ_HOME only if it doesn't exist
+	if [ ! -f "$BLIZZ_HOME/uninstall.sh" ]; then
+		cp "$SCRIPT_DIR/uninstall.sh" "$BLIZZ_HOME/uninstall.sh"
+		chmod +x "$BLIZZ_HOME/uninstall.sh"
 	else
-		echo "$KERNELLE_HOME/uninstall.sh already exists - keeping existing file"
+		echo "$BLIZZ_HOME/uninstall.sh already exists - keeping existing file"
 	fi
 
 	# Copy required template for uninstaller to volatile only if it doesn't exist
-	mkdir -p "$KERNELLE_HOME/volatile"
-	if [ ! -f "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template" ]; then
-		cp "$SCRIPT_DIR/templates/kernelle.internal.source.gone.template" "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template"
+	mkdir -p "$BLIZZ_HOME/volatile"
+	if [ ! -f "$BLIZZ_HOME/volatile/blizz.internal.source.gone.template" ]; then
+		cp "$SCRIPT_DIR/templates/blizz.internal.source.gone.template" "$BLIZZ_HOME/volatile/blizz.internal.source.gone.template"
 	else
-		echo "$KERNELLE_HOME/volatile/kernelle.internal.source.gone.template already exists - keeping existing file"
+		echo "$BLIZZ_HOME/volatile/blizz.internal.source.gone.template already exists - keeping existing file"
 	fi
 }
 
@@ -303,17 +303,17 @@ show_success_message() {
 	echo ""
 	echo "📝 Next steps:"
 	echo "1. Add the following line to your shell configuration (~/.bashrc, ~/.zshrc, etc.):"
-	echo "   source ~/.kernelle.source"
+	echo "   source ~/.blizz.source"
 	echo ""
-	echo "2. Reload your shell or run: source ~/.kernelle.source"
+	echo "2. Reload your shell or run: source ~/.blizz.source"
 	echo ""
 	echo "3. Test the installation:"
-	echo "   kernelle --help"
+	echo "   blizz --help"
 	echo "   insights --help"
 	echo "   violet --help"
 	echo ""
 	echo "4. To uninstall later, run:"
-	echo "   ~/.kernelle/uninstall.sh"
+	echo "   ~/.blizz/uninstall.sh"
 	echo ""
 	echo "Let's get some stuff done!"
 }

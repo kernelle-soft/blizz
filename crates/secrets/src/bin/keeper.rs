@@ -58,10 +58,10 @@ async fn main() -> Result<()> {
 }
 
 fn get_base() -> Result<PathBuf> {
-  let base = if let Ok(dir) = env::var("KERNELLE_HOME") {
+  let base = if let Ok(dir) = env::var("BLIZZ_HOME") {
     PathBuf::from(dir)
   } else {
-    dirs::home_dir().ok_or_else(|| anyhow!("failed to determine home directory"))?.join(".kernelle")
+    dirs::home_dir().ok_or_else(|| anyhow!("failed to determine home directory"))?.join(".blizz")
   };
 
   let keeper_path = base.join("persistent").join("keeper");

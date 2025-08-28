@@ -6,7 +6,7 @@
 
 echo "WARNING: Blizz has been uninstalled from this system."
 echo ""
-echo "You are sourcing 'blizz.source' but Blizz is no longer available."
+echo "You are sourcing 'blizz.source' but Blizz is no longer around."
 echo "Please update your shell configuration files (.bashrc, .zshrc, etc.) to remove"
 echo "any references to 'blizz.source' or the Blizz installation."
 echo ""
