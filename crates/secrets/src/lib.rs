@@ -726,7 +726,7 @@ mod tests {
     assert_eq!(secrets.service_name, "blizz");
 
     let default_secrets = Secrets::default();
-    assert_eq!(default_secrets.service_name, "kernelle");
+    assert_eq!(default_secrets.service_name, "blizz");
   }
 
   #[test]

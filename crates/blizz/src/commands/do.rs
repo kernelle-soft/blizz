@@ -38,7 +38,7 @@ impl<'de> Deserialize<'de> for TaskCommand {
                   ) = (key, value)
                   {
                     if key_str == "do" {
-                      return Ok(format!("kernelle do {value_str}"));
+                      return Ok(format!("blizz do {value_str}"));
                     }
                   }
                 }
@@ -165,7 +165,7 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
                   if let Some((key, value)) = map.iter().next() {
                     if let (Some(key_str), Some(value_str)) = (key.as_str(), value.as_str()) {
                       if key_str == "do" {
-                        return Ok(format!("kernelle do {value_str}"));
+                        return Ok(format!("blizz do {value_str}"));
                       }
                     }
                   }
@@ -194,8 +194,8 @@ fn load_tasks_file(path: &str) -> Result<TasksFile> {
 }
 
 fn load_merged_tasks_file() -> Result<TasksFile> {
-  let cursor_path = "./.cursor/kernelle.yaml";
-  let root_path = "./kernelle.yaml";
+  let cursor_path = "./.cursor/blizz.yaml";
+  let root_path = "./blizz.yaml";
 
   let cursor_exists = Path::new(cursor_path).exists();
   let root_exists = Path::new(root_path).exists();
@@ -641,10 +641,10 @@ mixed_commands:
     let tasks = result.unwrap();
     assert_eq!(tasks.len(), 3);
 
-    // Check that "do:" syntax gets converted to "kernelle do"
+    // Check that "do:" syntax gets converted to "blizz do"
     if let Some(TaskCommand::Array(cmds)) = tasks.get("chain_with_do") {
       assert_eq!(cmds.len(), 2);
-      assert_eq!(cmds[0], "kernelle do basic_task");
+      assert_eq!(cmds[0], "blizz do basic_task");
       assert_eq!(cmds[1], "echo \"after basic task\"");
     } else {
       panic!("Expected TaskCommand::Array for 'chain_with_do' task");
@@ -654,7 +654,7 @@ mixed_commands:
     if let Some(TaskCommand::Array(cmds)) = tasks.get("mixed_commands") {
       assert_eq!(cmds.len(), 3);
       assert_eq!(cmds[0], "echo first command");
-      assert_eq!(cmds[1], "kernelle do basic_task");
+      assert_eq!(cmds[1], "blizz do basic_task");
       assert_eq!(cmds[2], "echo third command");
     } else {
       panic!("Expected TaskCommand::Array for 'mixed_commands' task");
@@ -663,11 +663,11 @@ mixed_commands:
     // Verify the command string generation works correctly
     assert_eq!(
       tasks.get("chain_with_do").unwrap().to_command_string(),
-      "kernelle do basic_task && echo \"after basic task\""
+      "blizz do basic_task && echo \"after basic task\""
     );
     assert_eq!(
       tasks.get("mixed_commands").unwrap().to_command_string(),
-      "echo first command && kernelle do basic_task && echo third command"
+      "echo first command && blizz do basic_task && echo third command"
     );
   }
 

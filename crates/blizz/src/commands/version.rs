@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::io::Write;
 
-const GITHUB_RELEASE_API: &str = "https://api.github.com/repos/kernelle-soft/blizz/releases";
+const GITHUB_RELEASE_API: &str = "https://api.github.com/repos/blizz-soft/blizz/releases";
 
 #[derive(Debug, Deserialize)]
 struct Release {
@@ -23,13 +23,13 @@ pub async fn execute(list: bool) -> Result<()> {
 
 async fn show_current_version<W: Write>(writer: &mut W) -> Result<()> {
   let version = env!("CARGO_PKG_VERSION");
-  writeln!(writer, "kernelle {version}")?;
+  writeln!(writer, "blizz {version}")?;
   Ok(())
 }
 
 async fn show_available_versions<W: Write>(writer: &mut W) -> Result<()> {
   let current_version = env!("CARGO_PKG_VERSION");
-  writeln!(writer, "Current version: kernelle {current_version}")?;
+  writeln!(writer, "Current version: blizz {current_version}")?;
   writeln!(writer)?;
 
   // Fetch releases from GitHub API
@@ -90,7 +90,7 @@ async fn fetch_releases_from_url(url: &str) -> Result<Vec<Release>> {
   let client = reqwest::Client::new();
   let response = client
     .get(url)
-    .header("User-Agent", "kernelle")
+    .header("User-Agent", "blizz")
     .header("Accept", "application/vnd.github.v3+json")
     .send()
     .await
@@ -139,7 +139,7 @@ mod tests {
     assert!(result.is_ok());
     let output_str = String::from_utf8(output)?;
     let expected_version = env!("CARGO_PKG_VERSION");
-    assert!(output_str.contains(&format!("kernelle {expected_version}")));
+    assert!(output_str.contains(&format!("blizz {expected_version}")));
     Ok(())
   }
 
@@ -152,7 +152,7 @@ mod tests {
     assert!(result.is_ok());
     let output_str = String::from_utf8(output)?;
     let expected_version = env!("CARGO_PKG_VERSION");
-    assert!(output_str.contains(&format!("Current version: kernelle {expected_version}")));
+    assert!(output_str.contains(&format!("Current version: blizz {expected_version}")));
     assert!(output_str.contains("Available versions:"));
     Ok(())
   }

@@ -6,7 +6,7 @@ use std::process;
 mod commands;
 
 #[derive(Parser)]
-#[command(name = "kernelle")]
+#[command(name = "blizz")]
 #[command(about = "It takes a village.
 
 Blizz is a tool for managing projects from a personal perspective, enabling you to work together with AI agents more effectively")]
@@ -77,7 +77,7 @@ enum Commands {
     #[arg(long)]
     list: bool,
   },
-  /// Update kernelle to the latest or specified version
+  /// Update blizz to the latest or specified version
   Update {
     /// Specific version to update to (defaults to latest)
     #[arg(long, short)]
