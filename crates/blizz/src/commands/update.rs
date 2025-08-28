@@ -84,7 +84,7 @@ fn updates_api_base() -> String {
   // Allow overriding the releases API base for testing via env var
   // Default to GitHub repo API
   env::var("BLIZZ_UPDATES_API_BASE")
-    .unwrap_or_else(|_| "https://api.github.com/repos/TravelSizedLions/blizz".to_string())
+    .unwrap_or_else(|_| "https://api.github.com/repos/kernelle-soft/blizz".to_string())
 }
 
 pub async fn execute(version: Option<&str>) -> Result<()> {
@@ -840,7 +840,7 @@ mod tests {
     let mock_response = format!(
       r#"{{
       "tag_name": "v{current_version}",
-      "tarball_url": "https://api.github.com/repos/blizz-soft/blizz/tarball/v{current_version}"
+      "tarball_url": "https://api.github.com/repos/kernelle-soft/blizz/tarball/v{current_version}"
     }}"#
     );
 

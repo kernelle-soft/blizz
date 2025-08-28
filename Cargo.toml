@@ -14,10 +14,10 @@ version = "0.6.0"
 edition = "2021"
 authors = ["Voxel <travelsizedlions@gmail.com>"]
 license = "Private"
-repository = "https://github.com/grand-cluster/blizz"
+repository = "https://github.com/kernelle-soft/blizz"
 
 [workspace.metadata]
-updates_api_base = "https://api.github.com/repos/grand-cluster/blizz"
+updates_api_base = "https://api.github.com/repos/kernelle-soft/blizz"
 
 [workspace.dependencies]
 bentley = { path = "crates/bentley" }
