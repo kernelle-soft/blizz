@@ -29,10 +29,7 @@ else
 fi
 
 # Start writing release notes
-cat > "$OUTPUT_FILE" << EOF
-# Blizz $VERSION
-
-EOF
+touch "$OUTPUT_FILE"
 
 # Add changelog section
 if [ ! -z "$PREV_TAG" ]; then
@@ -61,12 +58,7 @@ cat >> "$OUTPUT_FILE" << EOF
 ## Installation
 
 \`\`\`bash
-# Download and extract source
-curl -L https://github.com/kernelle-soft/blizz/archive/$TAG.tar.gz | tar xz
-cd kernelle-$TAG-source
-
-# Install using included script
-./scripts/install.sh
+curl -fsSL https://raw.githubusercontent.com/kernelle-soft/blizz/refs/heads/dev/scripts/install.sh | sh
 \`\`\`
 
 All tools are unified at version $VERSION.
