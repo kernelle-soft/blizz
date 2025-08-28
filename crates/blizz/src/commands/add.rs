@@ -72,9 +72,8 @@ pub async fn execute(target_dir: &str) -> Result<()> {
   // Use symlink_metadata to detect symlinks even if they're broken
   if let Ok(metadata) = fs::symlink_metadata(&blizz_link) {
     if metadata.is_symlink() {
-      fs::remove_file(&blizz_link).with_context(|| {
-        format!("Failed to remove existing symlink: {}", blizz_link.display())
-      })?;
+      fs::remove_file(&blizz_link)
+        .with_context(|| format!("Failed to remove existing symlink: {}", blizz_link.display()))?;
     } else if metadata.is_dir() {
       anyhow::bail!("Directory .cursor/rules/blizz/ already exists and is not a symlink. Please remove it manually.");
     } else {

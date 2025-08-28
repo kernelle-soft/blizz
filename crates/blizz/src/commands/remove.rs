@@ -17,8 +17,7 @@ pub async fn execute(target_dir: &str) -> Result<()> {
 
   // Check for the blizz symlink in .cursor/rules/
   let blizz_link = rules_dir.join("blizz");
-  let blizz_cursor_path =
-    blizz_home.join("volatile").join(".cursor").join("rules").join("blizz");
+  let blizz_cursor_path = blizz_home.join("volatile").join(".cursor").join("rules").join("blizz");
 
   if blizz_link.exists() && blizz_link.is_symlink() {
     // Check if it points to ~/.blizz/volatile/.cursor/rules/blizz

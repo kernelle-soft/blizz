@@ -382,7 +382,16 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
   let bins_snapshot = snapshot_dir.join("bins");
   fs::create_dir_all(&bins_snapshot)?;
 
-  let binaries = ["blizz", "insights", "insights_embedding_daemon", "install_insights_cuda_dependencies", "secrets", "keeper", "violet", "adam"];
+  let binaries = [
+    "blizz",
+    "insights",
+    "insights_embedding_daemon",
+    "install_insights_cuda_dependencies",
+    "secrets",
+    "keeper",
+    "violet",
+    "adam",
+  ];
   for binary in &binaries {
     let src = Path::new(&install_dir).join(binary);
     if src.exists() {
@@ -551,7 +560,16 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
   // Restore binaries
   let bins_backup = snapshot_path.join("bins");
   if bins_backup.exists() {
-    let binaries = ["blizz", "insights", "insights_embedding_daemon", "install_insights_cuda_dependencies", "secrets", "keeper", "violet", "adam"];
+    let binaries = [
+      "blizz",
+      "insights",
+      "insights_embedding_daemon",
+      "install_insights_cuda_dependencies",
+      "secrets",
+      "keeper",
+      "violet",
+      "adam",
+    ];
     for binary in &binaries {
       let backup_bin = bins_backup.join(binary);
       let install_bin = Path::new(&install_dir).join(binary);
