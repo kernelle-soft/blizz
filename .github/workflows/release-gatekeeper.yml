@@ -111,21 +111,39 @@ jobs:
 
       - name: Bump and Tag Version
         run: |
-          # Detect version bump type from commit message
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          echo "🔍 Commit message: $COMMIT_MSG"
-          
-          if [[ "$COMMIT_MSG" =~ \[bump:minor\] ]]; then
-            echo "Minor version bump requested"
-            BUMP_TYPE="minor"
-          elif [[ "$COMMIT_MSG" =~ \[bump:major\] ]]; then
+          # Get current version from Cargo.toml
+          CURRENT_VERSION=$(grep -A 10 '^\[workspace\.package\]' Cargo.toml | grep '^version = ' | sed 's/version = "//' | sed 's/"//' | tr -d ' \t\r\n')
+          echo "📦 Current version: $CURRENT_VERSION"
+
+          # Find the git tag for current version
+          CURRENT_TAG="v$CURRENT_VERSION"
+
+          # Get all commits since the current version tag (or all commits if no tag exists)
+          if git rev-parse "$CURRENT_TAG" >/dev/null 2>&1; then
+            echo "🔍 Looking for version bump instructions since $CURRENT_TAG"
+            COMMIT_RANGE="$CURRENT_TAG..HEAD"
+          else
+            echo "🔍 No current version tag found, checking all commits"
+            COMMIT_RANGE="HEAD"
+          fi
+
+          # Get all commit messages in range
+          COMMIT_MSGS=$(git log --pretty=%B $COMMIT_RANGE)
+          echo "Commits since last version:"
+          echo "$COMMIT_MSGS"
+
+          # Check for version bump instructions (major takes precedence over minor)
+          if [[ "$COMMIT_MSGS" =~ \[bump:major\] ]]; then
             echo "Major version bump requested"
             BUMP_TYPE="major"
+          elif [[ "$COMMIT_MSGS" =~ \[bump:minor\] ]]; then
+            echo "Minor version bump requested"
+            BUMP_TYPE="minor"
           else
             echo "Patch version bump (default)"
             BUMP_TYPE="patch"
           fi
-          
+
           .github/run/bump-version.sh "$BUMP_TYPE"
           .github/run/tag-version.sh
 
