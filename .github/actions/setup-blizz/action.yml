@@ -40,25 +40,25 @@ runs:
       uses: actions/cache@v4
       with:
         path: target
-        key: ${{ runner.os }}-kernelle-target-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-blizz-target-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-kernelle-target-
+          ${{ runner.os }}-blizz-target-
 
-    # Cache kernelle bootstrap artifacts
-    - name: Cache kernelle bootstrap
+    # Cache blizz bootstrap artifacts
+    - name: Cache blizz bootstrap
       if: ${{ inputs.skip-bootstrap != 'true' }}
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/kernelle
+          ~/.cargo/bin/blizz
           ~/.cargo/bin/insights
           ~/.cargo/bin/violet
           ~/.cargo/bin/adam
           ~/.cargo/bin/secrets
-          ~/.kernelle
-        key: ${{ runner.os }}-kernelle-bootstrap-${{ hashFiles('crates/**/Cargo.toml', 'Cargo.lock') }}
+          ~/.blizz
+        key: ${{ runner.os }}-blizz-bootstrap-${{ hashFiles('crates/**/Cargo.toml', 'Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-kernelle-bootstrap-
+          ${{ runner.os }}-blizz-bootstrap-
 
     - name: Install cargo-audit for security auditing
       run: cargo install cargo-audit --locked
@@ -69,25 +69,25 @@ runs:
       run: cargo install cargo-tarpaulin --locked
       shell: bash
 
-    - name: Bootstrap kernelle
+    - name: Bootstrap blizz
       if: ${{ inputs.skip-bootstrap != 'true' }}
       run: ./scripts/install.sh --non-interactive --from-source
       shell: bash
 
-    - name: Add kernelle to PATH (Unix)
+    - name: Add blizz to PATH (Unix)
       if: ${{ runner.os != 'Windows' && inputs.skip-bootstrap != 'true' }}
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
       shell: bash
 
-    - name: Add kernelle to PATH (Windows)
+    - name: Add blizz to PATH (Windows)
       if: ${{ runner.os == 'Windows' && inputs.skip-bootstrap != 'true' }}
       run: echo "$env:USERPROFILE\.cargo\bin" >> $env:GITHUB_PATH
       shell: pwsh
 
-    - name: Verify kernelle installation
+    - name: Verify blizz installation
       if: ${{ inputs.skip-bootstrap != 'true' }}
       run: |
-        kernelle --help
+        blizz --help
         insights --help
         violet --help
       shell: bash

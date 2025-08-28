@@ -21,9 +21,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Blizz Dependencies
-        uses: ./.github/actions/setup-kernelle
+        uses: ./.github/actions/setup-blizz
         with:
           rust-components: rustfmt,clippy
 
       - name: Check Tidiness
-        run: kernelle do check-tidy
+        run: blizz do check-tidy

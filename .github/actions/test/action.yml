@@ -26,13 +26,13 @@ runs:
     - name: Run tests
       if: inputs.report-coverage != 'true'
       shell: bash
-      run: kernelle do test
+      run: blizz do test
 
     # Coverage Case: Run tests with coverage reporting
     - name: Run tests with coverage reporting
       if: inputs.report-coverage == 'true'
       shell: bash
-      run: kernelle do coverage
+      run: blizz do coverage
 
     - name: Upload Coverage Reports
       if: inputs.report-coverage == 'true'
