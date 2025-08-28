@@ -156,7 +156,7 @@ mod tests {
     F: FnOnce(&TempDir) -> R,
   {
     let temp_dir = TempDir::new().unwrap();
-    temp_env::with_var("KERNELLE_HOME", Some(temp_dir.path().to_str().unwrap()), || f(&temp_dir))
+    temp_env::with_var("BLIZZ_HOME", Some(temp_dir.path().to_str().unwrap()), || f(&temp_dir))
   }
 
   #[test]
@@ -171,16 +171,16 @@ mod tests {
   fn test_get_base_fallback_behavior() {
     use temp_env::with_vars;
 
-    // Test fallback behavior when KERNELLE_HOME is not set (line 53-56)
+    // Test fallback behavior when BLIZZ_HOME is not set (line 53-56)
     // The dirs crate is robust and uses system calls as fallbacks, so this rarely fails
     // This test verifies the fallback path works correctly
-    with_vars([("KERNELLE_HOME", None::<String>)], || {
+    with_vars([("BLIZZ_HOME", None::<String>)], || {
       let result = get_base();
       assert!(result.is_ok(), "get_base should fallback to home directory successfully");
 
       let keeper_path = result.unwrap();
       // Should end with the expected path structure
-      assert!(keeper_path.to_string_lossy().ends_with("/.kernelle/persistent/keeper"));
+      assert!(keeper_path.to_string_lossy().ends_with("/.blizz/persistent/keeper"));
 
       // Verify it's an absolute path
       assert!(keeper_path.is_absolute(), "Fallback path should be absolute");

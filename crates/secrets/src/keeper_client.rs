@@ -743,7 +743,7 @@ mod tests {
     assert!(!socket_path.exists());
 
     // Set test environment variables to ensure the env var forwarding code is hit
-    std::env::set_var("KERNELLE_HOME", "/test/kernelle/home");
+    std::env::set_var("BLIZZ_HOME", "/test/blizz/home");
     std::env::set_var("SECRETS_AUTH", "test_auth_value");
 
     // Use empty PATH to guarantee spawn failure (so test doesn't get stuck)
