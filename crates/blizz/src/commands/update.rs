@@ -385,7 +385,7 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
   let binaries = [
     "blizz",
     "insights",
-    "insights_embedding_daemon",
+    "insights_daemon",
     "install_insights_cuda_dependencies",
     "secrets",
     "keeper",
@@ -563,7 +563,7 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
     let binaries = [
       "blizz",
       "insights",
-      "insights_embedding_daemon",
+      "insights_daemon",
       "install_insights_cuda_dependencies",
       "secrets",
       "keeper",
