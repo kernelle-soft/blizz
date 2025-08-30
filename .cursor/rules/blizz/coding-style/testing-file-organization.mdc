@@ -1,0 +1,9 @@
+---
+description: How to organize javascript/typescript test files.
+globs: *.spec.ts, *.karma.ts, *.test.ts, *.spec.tsx, *.karma.tsx, *.test.tsx, *.spec.js, *.karma.js, *.test.js, *.spec.jsx, *.karma.jsx, *.test.jsx
+alwaysApply: false
+---
+
+Test files do not require a root describe block; it can be removed for simplicity. For test files, the maximum function length can be set to 50 or even 100 lines, as longer test functions are acceptable compared to production code.
+
+Test files should be held to the same code quality and readability standards as production code. Do not use more lenient rules for test files; maintain consistent standards across the codebase for simplicity and maintainability.
