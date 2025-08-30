@@ -9,9 +9,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-// ============================================================================
-// TYPES AND DATA STRUCTURES
-// ============================================================================
+// Types and Data Structures
+// =========================
 
 /// A structured log entry for daemon operations
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -58,9 +57,8 @@ pub struct DaemonLogs {
   inner: std::sync::Arc<tokio::sync::Mutex<DaemonLogsInner>>,
 }
 
-// ============================================================================
-// CONSTRUCTOR FUNCTIONS
-// ============================================================================
+// Constructor Functions
+// =====================
 
 #[cfg(not(tarpaulin_include))]
 impl LogsResponse {
@@ -118,7 +116,12 @@ impl DaemonLogsInner {
 
     Ok(())
   }
+}
 
+// Log Operations
+// ==============
+
+impl DaemonLogsInner {
   /// Retrieve logs with optional filtering and limiting (reads from JSONL file)
   #[cfg(not(tarpaulin_include))]
   fn get_logs(
@@ -193,9 +196,8 @@ impl DaemonLogsInner {
   }
 }
 
-// ============================================================================
-// PUBLIC DAEMON LOGS API
-// ============================================================================
+// Core API
+// ========
 
 #[cfg(not(tarpaulin_include))]
 impl DaemonLogs {
@@ -251,7 +253,13 @@ impl DaemonLogs {
     let guard = self.inner.lock().await;
     guard.file_size()
   }
+}
 
+// Standard Logging Wrappers
+// =========================
+
+#[cfg(not(tarpaulin_include))]
+impl DaemonLogs {
   /// Log an info message (to disk + console unless silent)
   pub async fn info(&self, message: &str, component: &str) {
     self.log("info", message, component).await;
@@ -311,7 +319,13 @@ impl DaemonLogs {
       crate::success!(message);
     }
   }
+}
 
+// Theatrical Logging Wrappers  
+// ============================
+
+#[cfg(not(tarpaulin_include))]
+impl DaemonLogs {
   /// Log an announcement message (to disk + console unless silent)
   pub async fn announce(&self, message: &str, component: &str) {
     self.log("announce", message, component).await;
@@ -353,9 +367,8 @@ impl DaemonLogs {
   }
 }
 
-// ============================================================================
-// TESTS
-// ============================================================================
+// Tests
+// =====
 
 #[cfg(test)]
 mod tests {
@@ -370,9 +383,8 @@ mod tests {
     (temp_dir, log_path)
   }
 
-  // ============================================================================
-  // CONSTRUCTOR TESTS
-  // ============================================================================
+  // Constructor Tests
+  // =================
 
   #[tokio::test]
   async fn test_daemon_logs_new_creates_file() {
@@ -414,9 +426,8 @@ mod tests {
     assert!(nested_path.exists());
   }
 
-  // ============================================================================
-  // BASIC LOGGING TESTS
-  // ============================================================================
+  // Basic Logging Tests
+  // ===================
 
   #[tokio::test]
   async fn test_add_log_writes_to_file() {
@@ -480,9 +491,8 @@ mod tests {
     assert_eq!(entry3.message, "Third message");
   }
 
-  // ============================================================================
-  // LOG RETRIEVAL AND FILTERING TESTS
-  // ============================================================================
+  // Log Retrieval Tests
+  // ===================
 
   #[tokio::test]
   async fn test_get_logs_empty_file() {
@@ -614,9 +624,8 @@ another bad line
     assert!(messages.contains(&"Also valid"));
   }
 
-  // ============================================================================
-  // FILE OPERATIONS TESTS
-  // ============================================================================
+  // File Operations Tests
+  // =====================
 
   #[tokio::test]
   async fn test_has_logs() {
@@ -659,9 +668,8 @@ another bad line
     assert_eq!(returned_path, log_path);
   }
 
-  // ============================================================================
-  // CONCURRENCY TESTS
-  // ============================================================================
+  // Concurrency Tests
+  // =================
 
   #[tokio::test]
   async fn test_concurrent_writes() {
@@ -716,9 +724,8 @@ another bad line
     assert_eq!(messages1, messages2);
   }
 
-  // ============================================================================
-  // WRAPPER METHOD TESTS
-  // ============================================================================
+  // Wrapper Method Tests
+  // ====================
 
   // Note: Testing the actual console output is difficult in unit tests,
   // but we can at least verify that the methods work and log to disk
@@ -761,9 +768,8 @@ another bad line
     }
   }
 
-  // ============================================================================
-  // ERROR HANDLING TESTS
-  // ============================================================================
+  // Error Handling Tests
+  // ====================
 
   #[tokio::test]
   async fn test_get_logs_nonexistent_file() {
@@ -781,9 +787,8 @@ another bad line
     assert_eq!(result.len(), 0);
   }
 
-  // ============================================================================
-  // RESPONSE CONSTRUCTOR TESTS
-  // ============================================================================
+  // Response Constructor Tests
+  // ==========================
 
   #[test]
   fn test_logs_response_success() {

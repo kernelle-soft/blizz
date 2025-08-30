@@ -17,9 +17,8 @@
 
 use colored::*;
 
-// ============================================================================
-// CONSTANTS
-// ============================================================================
+// Constants
+// ========
 
 /// Default banner width for theatrical functions
 const DEFAULT_BANNER_WIDTH: usize = 50;
@@ -27,9 +26,8 @@ const DEFAULT_BANNER_WIDTH: usize = 50;
 /// Default prefix width for standard logging
 const PREFIX_WIDTH: usize = 7;
 
-// ============================================================================
-// CORE FUNCTIONS
-// ============================================================================
+// Core Functions  
+// ==============
 
 /// Core logging function that handles the actual output
 pub fn log(message: &str) {
@@ -38,9 +36,8 @@ pub fn log(message: &str) {
   }
 }
 
-// ============================================================================
-// UTILITY FUNCTIONS AND HELPERS
-// ============================================================================
+// Utility Functions
+// =================
 
 /// Format a colored prefix for log messages
 fn format_prefix(color: Color, prefix: &str) -> String {
@@ -69,9 +66,8 @@ where
   log_fn(&banner);
 }
 
-// ============================================================================
-// STANDARD LOGGING FUNCTIONS
-// ============================================================================
+// Logging Functions
+// =================
 
 /// Info level logging - general information
 #[cfg(not(tarpaulin_include))]
@@ -157,9 +153,8 @@ pub fn showstopper(message: &str) {
   as_banner(|msg| log(&msg.bright_red().bold().to_string()), message, Some(60), Some('*'));
 }
 
-// ============================================================================
-// EXPORTED MACROS
-// ============================================================================
+// Exported Macros
+// ===============
 
 /// Macros for coverage-excluded logging - these expand with LCOV_EXCL_LINE at call sites
 #[macro_export]
@@ -232,9 +227,8 @@ macro_rules! showstopper {
   };
 }
 
-// ============================================================================
-// DAEMON LOGGING INFRASTRUCTURE
-// ============================================================================
+// Daemon Logging
+// ==============
 
 /// Daemon logging infrastructure - available with "daemon-logs" feature
 #[cfg(feature = "daemon-logs")]
@@ -244,18 +238,16 @@ pub mod daemon_logs;
 #[cfg(feature = "daemon-logs")]
 pub use daemon_logs::{DaemonLogs, ErrorInfo, LogEntry, LogsRequest, LogsResponse};
 
-// ============================================================================
-// TESTS
-// ============================================================================
+// Tests
+// =====
 
 #[cfg(test)]
 mod tests {
   use super::*;
   use colored::Color;
 
-  // ============================================================================
-  // UTILITY FUNCTION TESTS
-  // ============================================================================
+  // Utility Function Tests
+  // ======================
 
   #[test]
   fn test_format_prefix_basic() {
@@ -342,9 +334,8 @@ mod tests {
     assert_eq!(banner_line(4, '▲'), "▲▲▲▲");
   }
 
-  // ============================================================================
-  // BANNER FORMATTING TESTS
-  // ============================================================================
+  // Banner Formatting Tests
+  // =======================
 
   #[test]
   fn test_as_banner_calls_function() {
@@ -405,9 +396,8 @@ mod tests {
     assert_eq!(captured[2], "@@@@@@@@@@@@@@@"); // 15 '@' characters
   }
 
-  // ============================================================================
-  // CONSTANTS TESTS
-  // ============================================================================
+  // Constants Tests
+  // ===============
 
   #[test]
   fn test_constants_are_reasonable() {
