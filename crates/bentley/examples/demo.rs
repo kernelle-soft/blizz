@@ -12,7 +12,6 @@ fn main() {
 
   println!(); // spacing
 
-  // event_* functions removed - using standard logging instead
   
   println!(); // spacing
 

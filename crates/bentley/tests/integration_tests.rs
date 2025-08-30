@@ -10,8 +10,6 @@ fn test_basic_logging_functions() {
   success("Test success message");
 }
 
-// init() function removed - no longer needed
-
 #[test]
 fn test_multiline_messages() {
   // Test multiline message handling
@@ -22,5 +20,3 @@ fn test_multiline_messages() {
   debug(multiline_msg);
   success(multiline_msg);
 }
-
-// event_* functions removed - no longer needed
