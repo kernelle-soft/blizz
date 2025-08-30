@@ -262,7 +262,7 @@ async fn handle_request<R: AsyncReader, E: Embedder>(
       match logs.get_logs(logs_request.limit, logs_request.level.as_deref()).await {
         Ok(filtered_logs) => return DaemonResponse::Logs(LogsResponse::success(filtered_logs)),
         Err(e) => return DaemonResponse::Logs(LogsResponse::error(
-          &format!("Failed to read logs: {}", e),
+          &format!("Failed to read logs: {e}"),
           "read_logs_failed"
         )),
       }

@@ -162,7 +162,6 @@ pub fn showstopper(message: &str) {
 // ============================================================================
 
 /// Macros for coverage-excluded logging - these expand with LCOV_EXCL_LINE at call sites
-
 #[macro_export]
 macro_rules! info {
   ($msg:expr) => {
@@ -413,13 +412,18 @@ mod tests {
   #[test]
   fn test_constants_are_reasonable() {
     // Verify our constants have reasonable values
-    assert!(DEFAULT_BANNER_WIDTH > 0);
-    assert!(PREFIX_WIDTH > 0);
+    // Note: These are compile-time constants, but we test them for documentation
+    const _: () = assert!(DEFAULT_BANNER_WIDTH > 0);
+    const _: () = assert!(PREFIX_WIDTH > 0);
     
     // PREFIX_WIDTH should be reasonable for our prefixes
-    assert!(PREFIX_WIDTH >= 7); // "[info] " = 7 chars
+    const _: () = assert!(PREFIX_WIDTH >= 7); // "[info] " = 7 chars
     
-    // DEFAULT_BANNER_WIDTH should be reasonable for banners
-    assert!(DEFAULT_BANNER_WIDTH >= 20);
+    // DEFAULT_BANNER_WIDTH should be reasonable for banners  
+    const _: () = assert!(DEFAULT_BANNER_WIDTH >= 20);
+    
+    // Runtime verification that constants are accessible
+    assert_eq!(DEFAULT_BANNER_WIDTH, 50);
+    assert_eq!(PREFIX_WIDTH, 7);
   }
 }

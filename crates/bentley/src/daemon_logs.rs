@@ -53,6 +53,7 @@ struct DaemonLogsInner {
 }
 
 /// Thread-safe disk-based log storage for daemons using JSONL format
+#[derive(Clone)]
 pub struct DaemonLogs {
   inner: std::sync::Arc<tokio::sync::Mutex<DaemonLogsInner>>,
 }
@@ -118,7 +119,7 @@ impl DaemonLogsInner {
       .append(true)
       .open(&self.log_file_path)?;
     
-    writeln!(file, "{}", json_line)?;
+    writeln!(file, "{json_line}")?;
     file.flush()?;
     
     Ok(())
@@ -148,7 +149,7 @@ impl DaemonLogsInner {
       match serde_json::from_str::<LogEntry>(&line) {
         Ok(entry) => {
           // Apply level filter
-          let matches_level = level_filter.map_or(true, |filter| {
+          let matches_level = level_filter.is_none_or(|filter| {
             filter == "all" || entry.level == filter
           });
           
@@ -251,12 +252,7 @@ impl DaemonLogs {
     guard.file_size()
   }
 
-  /// Clone the DaemonLogs handle (cheap Arc clone)
-  pub fn clone(&self) -> Self {
-    Self {
-      inner: std::sync::Arc::clone(&self.inner),
-    }
-  }
+
 
   /// Log an info message (to disk + console unless silent)
   pub async fn info(&self, message: &str, component: &str) {
@@ -560,7 +556,7 @@ mod tests {
     
     // Add 5 logs
     for i in 1..=5 {
-      logs.add_log("info", &format!("Message {}", i), "comp").await.unwrap();
+      logs.add_log("info", &format!("Message {i}"), "comp").await.unwrap();
     }
     
     // Test limit of 3
@@ -677,7 +673,7 @@ another bad line
     for i in 0..10 {
       let logs_clone = logs.clone();
       let handle = tokio::spawn(async move {
-        logs_clone.add_log("info", &format!("Message {}", i), "concurrent").await.unwrap();
+        logs_clone.add_log("info", &format!("Message {i}"), "concurrent").await.unwrap();
       });
       handles.push(handle);
     }
@@ -748,10 +744,10 @@ another bad line
     assert_eq!(result.len(), 9);
     
     // Check that we have all the expected levels
-    let levels: std::collections::HashSet<_> = result.iter().map(|e| &e.level).collect();
+    let levels: std::collections::HashSet<_> = result.iter().map(|e| e.level.as_str()).collect();
     let expected_levels = vec!["info", "warn", "error", "debug", "success", "announce", "spotlight", "flourish", "showstopper"];
     for expected in expected_levels {
-      assert!(levels.contains(&expected.to_string()), "Missing level: {}", expected);
+      assert!(levels.contains(expected), "Missing level: {expected}");
     }
   }
 
