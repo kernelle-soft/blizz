@@ -464,70 +464,6 @@ mod tests {
     assert_eq!(error.tag, "invalid_utf8");
   }
 
-  #[test]
-  fn test_parse_json_request_success() {
-    let valid_json = r#"{"request": "embed", "body": "test text content"}"#;
-
-    let result = parse_json_request(valid_json);
-
-    assert!(result.is_ok());
-    let request = result.unwrap();
-    assert_eq!(request.request, "embed");
-    assert_eq!(request.body, "test text content");
-  }
-
-  #[test]
-  fn test_parse_json_request_invalid_json() {
-    let invalid_json = r#"{"request": "embed", "body": "unclosed string"#;
-
-    let result = parse_json_request(invalid_json);
-
-    assert!(result.is_err());
-    let error_response = result.unwrap_err();
-    assert!(!error_response.success);
-    assert!(error_response.body.is_empty());
-    assert!(error_response.error.is_some());
-
-    let error = error_response.error.unwrap();
-    assert!(error.message.starts_with("Invalid JSON request:"));
-    assert_eq!(error.tag, "invalid_json");
-  }
-
-  #[test]
-  fn test_parse_json_request_missing_fields() {
-    let missing_fields_json = r#"{"request": "embed"}"#; // Missing "body" field
-
-    let result = parse_json_request(missing_fields_json);
-
-    assert!(result.is_err());
-    let error_response = result.unwrap_err();
-    assert!(!error_response.success);
-    assert!(error_response.body.is_empty());
-    assert!(error_response.error.is_some());
-
-    let error = error_response.error.unwrap();
-    assert!(error.message.starts_with("Invalid JSON request:"));
-    assert!(error.message.contains("missing field"));
-    assert_eq!(error.tag, "invalid_json");
-  }
-
-  #[test]
-  fn test_parse_json_request_wrong_types() {
-    let wrong_types_json = r#"{"request": 123, "body": true}"#; // Wrong field types
-
-    let result = parse_json_request(wrong_types_json);
-
-    assert!(result.is_err());
-    let error_response = result.unwrap_err();
-    assert!(!error_response.success);
-    assert!(error_response.body.is_empty());
-    assert!(error_response.error.is_some());
-
-    let error = error_response.error.unwrap();
-    assert!(error.message.starts_with("Invalid JSON request:"));
-    assert_eq!(error.tag, "invalid_json");
-  }
-
   #[tokio::test]
   async fn test_read_request_data_success() {
     let mut mock_reader = MockAsyncReader::new();
@@ -571,6 +507,11 @@ mod tests {
 
   #[tokio::test]
   async fn test_process_client_request_success() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     let request_json = r#"{"request": "embed", "body": "test text to embed"}"#;
 
@@ -593,15 +534,25 @@ mod tests {
         .returning(|_| Ok(vec![0.1, 0.2, 0.3]));
     }
 
-    let result = handle_request(&mut mock_reader, Some(mock_embedder)).await;
+    let result = handle_request(&mut mock_reader, Some(mock_embedder), mock_logs).await;
 
-    assert!(result.success);
-    assert_eq!(result.body, vec![0.1, 0.2, 0.3]);
-    assert!(result.error.is_none());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(response.success);
+        assert_eq!(response.body, vec![0.1, 0.2, 0.3]);
+        assert!(response.error.is_none());
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_read_failure() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
 
     mock_reader
@@ -609,19 +560,29 @@ mod tests {
       .times(1)
       .returning(|_| Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, "Pipe broken")));
 
-    let result = handle_request::<_, GTEBase>(&mut mock_reader, None).await;
+    let result = handle_request::<_, GTEBase>(&mut mock_reader, None, mock_logs).await;
 
-    assert!(!result.success);
-    assert!(result.body.is_empty());
-    assert!(result.error.is_some());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(!response.success);
+        assert!(response.body.is_empty());
+        assert!(response.error.is_some());
 
-    let error = result.error.unwrap();
-    assert!(error.message.starts_with("Failed to read request:"));
-    assert_eq!(error.tag, "read_failed");
+        let error = response.error.unwrap();
+        assert!(error.message.starts_with("Failed to read request:"));
+        assert_eq!(error.tag, "read_failed");
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_utf8_failure() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     let invalid_utf8 = vec![0xFF, 0xFE, 0xFD]; // Invalid UTF-8 bytes
 
@@ -633,19 +594,29 @@ mod tests {
       }
     });
 
-    let result = handle_request::<_, GTEBase>(&mut mock_reader, None).await;
+    let result = handle_request::<_, GTEBase>(&mut mock_reader, None, mock_logs).await;
 
-    assert!(!result.success);
-    assert!(result.body.is_empty());
-    assert!(result.error.is_some());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(!response.success);
+        assert!(response.body.is_empty());
+        assert!(response.error.is_some());
 
-    let error = result.error.unwrap();
-    assert_eq!(error.message, "Invalid UTF-8 data in request");
-    assert_eq!(error.tag, "invalid_utf8");
+        let error = response.error.unwrap();
+        assert_eq!(error.message, "Invalid UTF-8 data in request");
+        assert_eq!(error.tag, "invalid_utf8");
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_json_failure() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     let invalid_json = r#"{"request": "embed", "body": unclosed"#; // Invalid JSON
 
@@ -657,19 +628,29 @@ mod tests {
       }
     });
 
-    let result = handle_request::<_, GTEBase>(&mut mock_reader, None).await;
+    let result = handle_request::<_, GTEBase>(&mut mock_reader, None, mock_logs).await;
 
-    assert!(!result.success);
-    assert!(result.body.is_empty());
-    assert!(result.error.is_some());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(!response.success);
+        assert!(response.body.is_empty());
+        assert!(response.error.is_some());
 
-    let error = result.error.unwrap();
-    assert!(error.message.starts_with("Invalid JSON request:"));
-    assert_eq!(error.tag, "invalid_json");
+        let error = response.error.unwrap();
+        assert_eq!(error.message, "Unsupported or malformed request");
+        assert_eq!(error.tag, "unsupported_request");
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_unsupported_request_type() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     let request_json = r#"{"request": "summarize", "body": "some text"}"#; // Wrong request type
 
@@ -681,19 +662,29 @@ mod tests {
       }
     });
 
-    let result = handle_request::<_, GTEBase>(&mut mock_reader, None).await;
+    let result = handle_request::<_, GTEBase>(&mut mock_reader, None, mock_logs).await;
 
-    assert!(!result.success);
-    assert!(result.body.is_empty());
-    assert!(result.error.is_some());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(!response.success);
+        assert!(response.body.is_empty());
+        assert!(response.error.is_some());
 
-    let error = result.error.unwrap();
-    assert_eq!(error.message, "Unsupported request type: summarize");
-    assert_eq!(error.tag, "unsupported_request");
+        let error = response.error.unwrap();
+        assert_eq!(error.message, "Unsupported or malformed request");
+        assert_eq!(error.tag, "unsupported_request");
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_no_embedder() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     let request_json = r#"{"request": "embed", "body": "test text"}"#;
 
@@ -705,19 +696,29 @@ mod tests {
       }
     });
 
-    let result = handle_request::<_, GTEBase>(&mut mock_reader, None).await;
+    let result = handle_request::<_, GTEBase>(&mut mock_reader, None, mock_logs).await;
 
-    assert!(!result.success);
-    assert!(result.body.is_empty());
-    assert!(result.error.is_some());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(!response.success);
+        assert!(response.body.is_empty());
+        assert!(response.error.is_some());
 
-    let error = result.error.unwrap();
-    assert_eq!(error.message, "Embedding model not available");
-    assert_eq!(error.tag, "model_not_loaded");
+        let error = response.error.unwrap();
+        assert_eq!(error.message, "Embedding model not available");
+        assert_eq!(error.tag, "model_not_loaded");
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_embedding_failure() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     let request_json = r#"{"request": "embed", "body": "test text"}"#;
 
@@ -740,19 +741,29 @@ mod tests {
         .returning(|_| Err(anyhow::anyhow!("GPU out of memory")));
     }
 
-    let result = handle_request(&mut mock_reader, Some(mock_embedder)).await;
+    let result = handle_request(&mut mock_reader, Some(mock_embedder), mock_logs).await;
 
-    assert!(!result.success);
-    assert!(result.body.is_empty());
-    assert!(result.error.is_some());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(!response.success);
+        assert!(response.body.is_empty());
+        assert!(response.error.is_some());
 
-    let error = result.error.unwrap();
-    assert_eq!(error.message, "Failed to generate embedding: GPU out of memory");
-    assert_eq!(error.tag, "embedding_failed");
+        let error = response.error.unwrap();
+        assert_eq!(error.message, "Failed to generate embedding: GPU out of memory");
+        assert_eq!(error.tag, "embedding_failed");
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_exact_embed_type() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     // Test with exact "embed" request type to ensure branch coverage
     let request_json = r#"{"request": "embed", "body": "precise test text"}"#;
@@ -776,15 +787,25 @@ mod tests {
         .returning(|_| Ok(vec![0.5, 0.6, 0.7, 0.8]));
     }
 
-    let result = handle_request(&mut mock_reader, Some(mock_embedder)).await;
+    let result = handle_request(&mut mock_reader, Some(mock_embedder), mock_logs).await;
 
-    assert!(result.success);
-    assert_eq!(result.body, vec![0.5, 0.6, 0.7, 0.8]);
-    assert!(result.error.is_none());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(response.success);
+        assert_eq!(response.body, vec![0.5, 0.6, 0.7, 0.8]);
+        assert!(response.error.is_none());
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_empty_body() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     // Test with empty body to hit success path but with edge case
     let request_json = r#"{"request": "embed", "body": ""}"#;
@@ -804,15 +825,25 @@ mod tests {
       // Empty embedding for empty text
     }
 
-    let result = handle_request(&mut mock_reader, Some(mock_embedder)).await;
+    let result = handle_request(&mut mock_reader, Some(mock_embedder), mock_logs).await;
 
-    assert!(result.success);
-    assert!(result.body.is_empty());
-    assert!(result.error.is_none());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(response.success);
+        assert!(response.body.is_empty());
+        assert!(response.error.is_none());
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_case_sensitive_request_type() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     // Test case sensitivity of request type
     let request_json = r#"{"request": "EMBED", "body": "test"}"#; // Uppercase should fail
@@ -825,19 +856,29 @@ mod tests {
       }
     });
 
-    let result = handle_request::<_, GTEBase>(&mut mock_reader, None).await;
+    let result = handle_request::<_, GTEBase>(&mut mock_reader, None, mock_logs).await;
 
-    assert!(!result.success);
-    assert!(result.body.is_empty());
-    assert!(result.error.is_some());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(!response.success);
+        assert!(response.body.is_empty());
+        assert!(response.error.is_some());
 
-    let error = result.error.unwrap();
-    assert_eq!(error.message, "Unsupported request type: EMBED");
-    assert_eq!(error.tag, "unsupported_request");
+        let error = response.error.unwrap();
+        assert_eq!(error.message, "Unsupported or malformed request");
+        assert_eq!(error.tag, "unsupported_request");
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_minimal_json() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     // Test with minimal valid JSON to ensure all success paths are hit
     let request_json = r#"{"request":"embed","body":"x"}"#; // Minimal JSON
@@ -856,15 +897,25 @@ mod tests {
       embedder_guard.expect_embed().with(eq("x")).times(1).returning(|_| Ok(vec![1.0]));
     }
 
-    let result = handle_request(&mut mock_reader, Some(mock_embedder)).await;
+    let result = handle_request(&mut mock_reader, Some(mock_embedder), mock_logs).await;
 
-    assert!(result.success);
-    assert_eq!(result.body, vec![1.0]);
-    assert!(result.error.is_none());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(response.success);
+        assert_eq!(response.body, vec![1.0]);
+        assert!(response.error.is_none());
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   #[tokio::test]
   async fn test_process_client_request_unicode_content() {
+    use tempfile::TempDir;
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    let mock_logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+
     let mut mock_reader = MockAsyncReader::new();
     // Test with Unicode content to ensure UTF-8 parsing works correctly
     let request_json = r#"{"request": "embed", "body": "Hello 世界 🌍"}"#;
@@ -887,11 +938,16 @@ mod tests {
         .returning(|_| Ok(vec![0.1, 0.2, 0.3]));
     }
 
-    let result = handle_request(&mut mock_reader, Some(mock_embedder)).await;
+    let result = handle_request(&mut mock_reader, Some(mock_embedder), mock_logs).await;
 
-    assert!(result.success);
-    assert_eq!(result.body, vec![0.1, 0.2, 0.3]);
-    assert!(result.error.is_none());
+    match result {
+      DaemonResponse::Embedding(response) => {
+        assert!(response.success);
+        assert_eq!(response.body, vec![0.1, 0.2, 0.3]);
+        assert!(response.error.is_none());
+      }
+      DaemonResponse::Logs(_) => panic!("Expected embedding response, got logs response"),
+    }
   }
 
   /// Test get_base() function with environment variable scenarios
