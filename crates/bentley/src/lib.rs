@@ -261,7 +261,7 @@ mod tests {
 
     // Should be longer than just the prefix text due to brackets and formatting
     assert!(result.len() > "info".len());
-    
+
     // Should produce a reasonable minimum size (at least 6 chars for "[info]")
     assert!(result.len() >= 6);
   }
