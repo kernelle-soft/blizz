@@ -16,12 +16,8 @@
 //!
 //! Event logging: `event_info()`, `event_warn()`, `event_error()`, `event_debug()`, `event_success()`
 
-use chrono::{DateTime, Local, Utc};
+use chrono::Local;
 use colored::*;
-use serde::{Deserialize, Serialize};
-
-#[cfg(feature = "daemon-logs")]
-use std::collections::VecDeque;
 
 /// Initialize Bentley - sets up any necessary state
 pub fn init() {
@@ -288,7 +284,8 @@ macro_rules! showstopper {
 /// Daemon logging infrastructure - available with "daemon-logs" feature
 #[cfg(feature = "daemon-logs")]
 pub mod daemon_logs {
-  use super::*;
+  use serde::{Deserialize, Serialize};
+  use chrono::{DateTime, Utc};
 
   /// A structured log entry for daemon operations
   #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -340,47 +337,98 @@ pub mod daemon_logs {
     }
   }
 
-  /// In-memory log storage for daemons
-  pub struct DaemonLogs {
-    entries: VecDeque<LogEntry>,
-    max_entries: usize,
+  /// Internal log storage implementation
+  struct DaemonLogsInner {
+    log_file_path: std::path::PathBuf,
   }
 
-  impl DaemonLogs {
-    /// Create a new daemon log storage with the specified capacity
-    pub fn new(max_entries: usize) -> Self {
-      Self {
-        entries: VecDeque::with_capacity(max_entries),
-        max_entries,
+  /// Thread-safe disk-based log storage for daemons using JSONL format
+  pub struct DaemonLogs {
+    inner: std::sync::Arc<tokio::sync::Mutex<DaemonLogsInner>>,
+  }
+
+  impl DaemonLogsInner {
+    /// Create a new daemon log storage that writes to the specified file path
+    fn new<P: AsRef<std::path::Path>>(log_file_path: P) -> std::io::Result<Self> {
+      let log_file_path = log_file_path.as_ref().to_path_buf();
+      
+      // Ensure parent directory exists
+      if let Some(parent) = log_file_path.parent() {
+        std::fs::create_dir_all(parent)?;
       }
+      
+      // Create file if it doesn't exist (but don't truncate if it does)
+      if !log_file_path.exists() {
+        std::fs::File::create(&log_file_path)?;
+      }
+
+      Ok(Self { log_file_path })
     }
 
-    /// Add a log entry to the storage
-    pub fn add_log(&mut self, level: &str, message: &str, component: &str) {
-      if self.entries.len() >= self.max_entries {
-        self.entries.pop_front(); // Remove oldest
-      }
-
-      self.entries.push_back(LogEntry {
+    /// Add a log entry to storage (appends to JSONL file)
+    fn add_log(&mut self, level: &str, message: &str, component: &str) -> std::io::Result<()> {
+      let entry = LogEntry {
         timestamp: Utc::now(),
         level: level.to_string(),
         message: message.to_string(),
         component: component.to_string(),
-      });
+      };
+
+      // Serialize to JSON and append to file
+      let json_line = serde_json::to_string(&entry)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+      
+      use std::fs::OpenOptions;
+      use std::io::Write;
+      
+      let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&self.log_file_path)?;
+      
+      writeln!(file, "{}", json_line)?;
+      file.flush()?;
+      
+      Ok(())
     }
 
-    /// Retrieve logs with optional filtering and limiting
-    pub fn get_logs(&self, limit: Option<usize>, level_filter: Option<&str>) -> Vec<LogEntry> {
-      let mut logs: Vec<LogEntry> = self
-        .entries
-        .iter()
-        .filter(|entry| {
-          level_filter.map_or(true, |filter| {
-            filter == "all" || entry.level == filter
-          })
-        })
-        .cloned()
-        .collect();
+    /// Retrieve logs with optional filtering and limiting (reads from JSONL file)
+    fn get_logs(&self, limit: Option<usize>, level_filter: Option<&str>) -> std::io::Result<Vec<LogEntry>> {
+      use std::fs::File;
+      use std::io::{BufRead, BufReader};
+
+      if !self.log_file_path.exists() {
+        return Ok(Vec::new());
+      }
+
+      let file = File::open(&self.log_file_path)?;
+      let reader = BufReader::new(file);
+      
+      let mut logs = Vec::new();
+      
+      for line_result in reader.lines() {
+        let line = line_result?;
+        if line.trim().is_empty() {
+          continue;
+        }
+        
+        match serde_json::from_str::<LogEntry>(&line) {
+          Ok(entry) => {
+            // Apply level filter
+            let matches_level = level_filter.map_or(true, |filter| {
+              filter == "all" || entry.level == filter
+            });
+            
+            if matches_level {
+              logs.push(entry);
+            }
+          },
+          Err(_) => {
+            // Skip malformed lines
+            continue;
+          }
+        }
+      }
 
       // Sort by timestamp (newest first)
       logs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
@@ -390,22 +438,73 @@ pub mod daemon_logs {
         logs.truncate(limit);
       }
 
-      logs
+      Ok(logs)
     }
 
-    /// Get the current number of stored log entries
-    pub fn len(&self) -> usize {
-      self.entries.len()
+    /// Get the path to the log file
+    fn log_file_path(&self) -> &std::path::Path {
+      &self.log_file_path
     }
 
-    /// Check if the log storage is empty
-    pub fn is_empty(&self) -> bool {
-      self.entries.is_empty()
+    /// Check if the log file exists and has content
+    fn has_logs(&self) -> bool {
+      self.log_file_path.exists() && 
+        std::fs::metadata(&self.log_file_path)
+          .map(|m| m.len() > 0)
+          .unwrap_or(false)
     }
 
-    /// Get the maximum number of entries this storage can hold
-    pub fn max_capacity(&self) -> usize {
-      self.max_entries
+    /// Get the size of the log file in bytes
+    fn file_size(&self) -> std::io::Result<u64> {
+      let metadata = std::fs::metadata(&self.log_file_path)?;
+      Ok(metadata.len())
+    }
+  }
+
+  impl DaemonLogs {
+    /// Create a new thread-safe daemon log storage
+    pub fn new<P: AsRef<std::path::Path>>(log_file_path: P) -> std::io::Result<Self> {
+      let inner = DaemonLogsInner::new(log_file_path)?;
+      Ok(Self {
+        inner: std::sync::Arc::new(tokio::sync::Mutex::new(inner)),
+      })
+    }
+
+    /// Add a log entry (handles locking internally)
+    pub async fn add_log(&self, level: &str, message: &str, component: &str) -> std::io::Result<()> {
+      let mut guard = self.inner.lock().await;
+      guard.add_log(level, message, component)
+    }
+
+    /// Retrieve logs with optional filtering and limiting (handles locking internally)
+    pub async fn get_logs(&self, limit: Option<usize>, level_filter: Option<&str>) -> std::io::Result<Vec<LogEntry>> {
+      let guard = self.inner.lock().await;
+      guard.get_logs(limit, level_filter)
+    }
+
+    /// Get the path to the log file
+    pub async fn log_file_path(&self) -> std::path::PathBuf {
+      let guard = self.inner.lock().await;
+      guard.log_file_path().to_path_buf()
+    }
+
+    /// Check if the log file exists and has content
+    pub async fn has_logs(&self) -> bool {
+      let guard = self.inner.lock().await;
+      guard.has_logs()
+    }
+
+    /// Get the size of the log file in bytes
+    pub async fn file_size(&self) -> std::io::Result<u64> {
+      let guard = self.inner.lock().await;
+      guard.file_size()
+    }
+
+    /// Clone the DaemonLogs handle (cheap Arc clone)
+    pub fn clone(&self) -> Self {
+      Self {
+        inner: std::sync::Arc::clone(&self.inner),
+      }
     }
   }
 }

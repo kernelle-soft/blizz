@@ -105,30 +105,25 @@ async fn main() -> Result<()> {
   // Ensure directory exists
   fs::create_dir_all(&insights_path)?;
 
-  // Initialize daemon logs (keep last 1000 entries)
-  let logs = Arc::new(tokio::sync::Mutex::new(DaemonLogs::new(1000)));
+    // Initialize daemon logs to disk
+  let log_file_path = insights_path.join("daemon.logs.jsonl");
+  let logs = DaemonLogs::new(&log_file_path)
+    .map_err(|e| anyhow!("Failed to initialize daemon logs: {}", e))?;
   
   // Log daemon startup
-  {
-    let mut logs_guard = logs.lock().await;
-    logs_guard.add_log("info", "Daemon starting up", "startup");
+  if let Err(e) = logs.add_log("info", "Daemon starting up", "startup").await {
+    bentley::warn!(&format!("Failed to write startup log: {}", e));
   }
 
   // Load the embedder model
   let embedder = match GTEBase::load().await {
     Ok(embedder) => {
-      {
-        let mut logs_guard = logs.lock().await;
-        logs_guard.add_log("info", "Successfully loaded GTE-Base embedding model", "embedder");
-      }
+      let _ = logs.add_log("info", "Successfully loaded GTE-Base embedding model", "embedder").await;
       Some(Arc::new(tokio::sync::Mutex::new(embedder)))
     }
     Err(e) => {
-      {
-        let mut logs_guard = logs.lock().await;
-        logs_guard.add_log("warn", &format!("Failed to load embedder model: {e}"), "embedder");
-        logs_guard.add_log("info", "Daemon will run without embedding capabilities", "embedder");
-      }
+      let _ = logs.add_log("warn", &format!("Failed to load embedder model: {e}"), "embedder").await;
+      let _ = logs.add_log("info", "Daemon will run without embedding capabilities", "embedder").await;
       bentley::warn!(&format!("Failed to load embedder model: {e}"));
       bentley::warn!("Daemon will run without embedding capabilities");
       None
@@ -136,24 +131,18 @@ async fn main() -> Result<()> {
   };
 
   let socket_path = create_socket(&insights_path)?;
-  
-  {
-    let mut logs_guard = logs.lock().await;
-    logs_guard.add_log("info", &format!("Socket created: {}", socket_path.display()), "ipc");
-  }
-  
+
+  let _ = logs.add_log("info", &format!("Socket created: {}", socket_path.display()), "ipc").await;
+
   bentley::info!("daemon started - press ctrl+c to exit");
 
-  let ipc_handle = spawn_handler(&socket_path, embedder.map(|e| Arc::clone(&e)), Arc::clone(&logs));
+  let ipc_handle = spawn_handler(&socket_path, embedder.map(|e| Arc::clone(&e)), logs.clone());
 
   // Wait for shutdown signal
   signal::ctrl_c().await?;
   bentley::verbose!("\nshutting down daemon");
 
-  {
-    let mut logs_guard = logs.lock().await;
-    logs_guard.add_log("info", "Received shutdown signal", "shutdown");
-  }
+  let _ = logs.add_log("info", "Received shutdown signal", "shutdown").await;
 
   // Clean up socket file
   let _ = fs::remove_file(&socket_path);
@@ -189,7 +178,7 @@ fn create_socket(insights_path: &Path) -> Result<PathBuf> {
 fn spawn_handler(
   socket: &PathBuf,
   embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
-  logs: Arc<tokio::sync::Mutex<DaemonLogs>>,
+  logs: DaemonLogs,
 ) -> JoinHandle<()> {
   let listener = create_listener(socket);
   bentley::info!(&format!("listening on socket: {}", socket.display()));
@@ -213,7 +202,7 @@ fn create_listener(socket: &PathBuf) -> UnixListener {
 async fn handle_connections(
   listener: UnixListener,
   embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
-  logs: Arc<tokio::sync::Mutex<DaemonLogs>>,
+  logs: DaemonLogs,
 ) {
   loop {
     let connection_result = listener.accept().await;
@@ -227,7 +216,7 @@ async fn handle_connections(
     };
 
     let embedder_for_task = embedder.as_ref().map(Arc::clone);
-    let logs_for_task = Arc::clone(&logs);
+    let logs_for_task = logs.clone();
     tokio::spawn(async move {
       let response = handle_request::<_, GTEBase>(&mut stream, embedder_for_task, logs_for_task).await;
       send_response(&mut stream, response).await;
@@ -239,7 +228,7 @@ async fn handle_connections(
 async fn handle_request<R: AsyncReader, E: Embedder>(
   stream: &mut R,
   embedder: Option<Arc<tokio::sync::Mutex<E>>>,
-  logs: Arc<tokio::sync::Mutex<DaemonLogs>>,
+  logs: DaemonLogs,
 ) -> DaemonResponse {
   let data = match read_request_data(stream).await {
     Ok(data) => data, // LCOV_EXCL_LINE
@@ -254,10 +243,7 @@ async fn handle_request<R: AsyncReader, E: Embedder>(
   // Try parsing as EmbeddingRequest first
   if let Ok(embedding_request) = serde_json::from_str::<EmbeddingRequest>(&str) {
     if embedding_request.request == "embed" {
-      {
-        let mut logs_guard = logs.lock().await;
-        logs_guard.add_log("info", "Processing embedding request", "embedder");
-      }
+      let _ = logs.add_log("info", "Processing embedding request", "embedder").await;
       
       let response = match embedder {
         Some(arc) => {
@@ -277,14 +263,15 @@ async fn handle_request<R: AsyncReader, E: Embedder>(
   // Try parsing as LogsRequest
   if let Ok(logs_request) = serde_json::from_str::<LogsRequest>(&str) {
     if logs_request.request == "logs" {
-      {
-        let mut logs_guard = logs.lock().await;
-        logs_guard.add_log("info", "Processing logs request", "logs");
-      }
+      let _ = logs.add_log("info", "Processing logs request", "logs").await;
       
-      let logs_guard = logs.lock().await;
-      let filtered_logs = logs_guard.get_logs(logs_request.limit, logs_request.level.as_deref());
-      return DaemonResponse::Logs(LogsResponse::success(filtered_logs));
+      match logs.get_logs(logs_request.limit, logs_request.level.as_deref()).await {
+        Ok(filtered_logs) => return DaemonResponse::Logs(LogsResponse::success(filtered_logs)),
+        Err(e) => return DaemonResponse::Logs(LogsResponse::error(
+          &format!("Failed to read logs: {}", e),
+          "read_logs_failed"
+        )),
+      }
     }
   }
 
