@@ -505,14 +505,14 @@ mod tests {
 
     let result = merge(global, Some(project));
 
-    assert_eq!(result.complexity.thresholds.default, 8.0);
+    assert_eq!(result.complexity.thresholds.default, 6.0);
   }
 
   #[test]
   fn test_default_global_config() {
     let config = default_global_config();
 
-    assert_eq!(config.complexity.thresholds.default, 6.0);
+    assert_eq!(config.complexity.thresholds.default, 7.0);
 
     assert!(config.ignore_files.contains(&"node_modules/**".to_string()));
     assert!(config.ignore_files.contains(&"target/**".to_string()));
@@ -528,14 +528,14 @@ mod tests {
   #[test]
   fn test_threshold_config_default() {
     let config = ThresholdConfig::default();
-    assert_eq!(config.default, 6.0);
+    assert_eq!(config.default, 7.0);
     assert!(config.extensions.is_empty());
   }
 
   #[test]
   fn test_config_file_default() {
     let config = VioletConfig::default();
-    assert_eq!(config.complexity.thresholds.default, 6.0);
+    assert_eq!(config.complexity.thresholds.default, 7.0);
     assert!(config.ignore_files.is_empty());
   }
 
@@ -665,13 +665,13 @@ mod tests {
 
   #[test]
   fn test_default_threshold_value() {
-    assert_eq!(default_threshold(), 6.0);
+    assert_eq!(default_threshold(), 7.0);
 
     let config = ThresholdConfig::default();
-    assert_eq!(config.default, 6.0);
+    assert_eq!(config.default, 7.0);
 
     let global_config = default_global_config();
-    assert_eq!(global_config.complexity.thresholds.default, 6.0);
+    assert_eq!(global_config.complexity.thresholds.default, 7.0);
   }
 
   #[test]
@@ -720,7 +720,7 @@ mod tests {
   fn test_default_global_config_comprehensive() {
     let config = default_global_config();
 
-    assert_eq!(config.complexity.thresholds.default, 6.0);
+    assert_eq!(config.complexity.thresholds.default, 7.0);
     assert!(config.complexity.thresholds.extensions.is_empty());
     assert!(!config.ignore_files.is_empty());
 
@@ -951,12 +951,12 @@ ignore_files:
   #[test]
   fn test_config_file_serde_edge_cases() {
     let minimal = VioletConfig::default();
-    assert_eq!(minimal.complexity.thresholds.default, 6.0);
+    assert_eq!(minimal.complexity.thresholds.default, 7.0);
     assert!(minimal.complexity.thresholds.extensions.is_empty());
     assert!(minimal.ignore_files.is_empty());
 
     let threshold_config = ThresholdConfig::default();
-    assert_eq!(threshold_config.default, 6.0);
+    assert_eq!(threshold_config.default, 7.0);
     assert!(threshold_config.extensions.is_empty());
   }
 
