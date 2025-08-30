@@ -4,7 +4,7 @@ use std::{env, path::PathBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
-use bentley::daemon_logs::{LogEntry, LogsRequest, LogsResponse};
+use bentley::daemon_logs::{LogsRequest, LogsResponse};
 use crate::insight::InsightMetaData;
 use crate::insight::{self, Insight};
 

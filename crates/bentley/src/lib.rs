@@ -476,6 +476,11 @@ pub mod daemon_logs {
       guard.add_log(level, message, component)
     }
 
+    /// Add a log entry (fire-and-forget, ignores errors)
+    pub async fn log(&self, level: &str, message: &str, component: &str) {
+      let _ = self.add_log(level, message, component).await;
+    }
+
     /// Retrieve logs with optional filtering and limiting (handles locking internally)
     pub async fn get_logs(&self, limit: Option<usize>, level_filter: Option<&str>) -> std::io::Result<Vec<LogEntry>> {
       let guard = self.inner.lock().await;
