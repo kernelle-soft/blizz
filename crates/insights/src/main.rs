@@ -120,10 +120,7 @@ fn handle(command: Command) -> Result<()> {
     Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force),
     Command::Topics => commands::list_topics(),
     Command::Index { force } => commands::index_insights(force),
-    Command::Logs { limit, level } => {
-      eprintln!("DEBUG: Logs command matched, calling query_daemon_logs");
-      commands::query_daemon_logs(limit, &level)
-    },
+    Command::Logs { limit, level } => commands::query_daemon_logs(limit, &level),
   }
 }
 

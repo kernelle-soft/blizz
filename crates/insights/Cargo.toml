@@ -44,9 +44,6 @@ serde_yaml = "0.9"
 tokio = { version = "1.47", features = ["full"] }
 uuid = { version = "1.18", features = ["v4"] }
 
-# File system watching
-notify = "6.1"
-
 # Neural embeddings via ONNX (v2 API!) with hardware acceleration
 ort = { version = "2.0.0-rc.10", features = [
   "fetch-models",

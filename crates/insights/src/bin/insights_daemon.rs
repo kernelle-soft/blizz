@@ -1,14 +1,14 @@
 use anyhow::anyhow;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tokio::signal;
 use tokio::task::JoinHandle;
-use tokio::sync::mpsc;
-use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+
 use bentley::daemon_logs::{DaemonLogs, LogsRequest, LogsResponse};
 use insights::gte_base::GTEBase;
 use std::sync::Arc;
@@ -126,11 +126,11 @@ async fn main() -> Result<()> {
 
   let socket_path = create_socket(&insights_path)?;
 
-  log_diagnostics(&logs, &socket_path).await;
+  logs.info(&format!("Socket created: {}", socket_path.display()), "ipc").await;
+
   bentley::info!("daemon started - press ctrl+c to exit");
 
   let ipc_handle = spawn_handler(&socket_path, embedder.map(|e| Arc::clone(&e)), logs.clone());
-  let watcher_handle = spawn_file_watcher(&insights_path, logs.clone()).await?;
 
   // Wait for shutdown signal
   signal::ctrl_c().await?;
@@ -146,123 +146,7 @@ async fn main() -> Result<()> {
   let _ = fs::remove_file(&pid_file);
 
   ipc_handle.abort();
-  watcher_handle.abort(); 
   Ok(())
-}
-
-async fn log_diagnostics(logs: &DaemonLogs, socket_path: &PathBuf) {  
-  let version = env!("CARGO_PKG_VERSION");
-  logs.info(&format!("Insights daemon version: {}", version), "startup").await;
-  
-  if let Ok(exe_path) = std::env::current_exe() {
-    logs.info(&format!("Daemon executable path: {}", exe_path.display()), "startup").await;
-  } else {
-    logs.warn("Could not determine daemon executable path", "startup").await;
-  }
-
-  logs.info(&format!("Daemon socket path: {}", socket_path.display()), "startup").await;
-}
-
-#[cfg(not(tarpaulin_include))]
-async fn spawn_file_watcher(insights_path: &Path, logs: DaemonLogs) -> Result<JoinHandle<()>> {
-  let (tx, rx) = mpsc::unbounded_channel();
-  let insights_path = insights_path.to_path_buf();
-  
-  // Set up the file watcher
-  let mut watcher = RecommendedWatcher::new(
-    move |res: Result<Event, notify::Error>| {
-      if let Err(e) = tx.send(res) {
-        bentley::warn!(&format!("Failed to send file event: {}", e));
-      }
-    },
-    Config::default(),
-  )?;
-
-  // Watch the insights directory recursively
-  watcher.watch(&insights_path, RecursiveMode::Recursive)?;
-
-  logs.info(&format!("File watcher started for: {}", insights_path.display()), "file_watcher").await;
-
-  // Spawn the event handling task
-  let handle = spawn_file_event_handler(rx, watcher, logs);
-
-  Ok(handle)
-}
-
-#[cfg(not(tarpaulin_include))]
-fn spawn_file_event_handler(
-  mut rx: mpsc::UnboundedReceiver<Result<Event, notify::Error>>,
-  watcher: RecommendedWatcher,
-  logs: DaemonLogs,
-) -> JoinHandle<()> {
-  tokio::spawn(async move {
-    // Keep watcher alive by moving it into the task
-    let _watcher = watcher;
-
-    while let Some(event_result) = rx.recv().await {
-      match event_result {
-        Ok(event) => {
-          handle_file_event(event, &logs).await;
-        }
-        Err(e) => {
-          logs.error(&format!("File watcher error: {}", e), "file_watcher").await;
-        }
-      }
-    }
-
-    logs.info("File watcher task ended", "file_watcher").await;
-  })
-}
-
-async fn handle_file_event(event: Event, logs: &DaemonLogs) {
-  let event_kind = describe_event_kind(&event.kind);
-  let paths: Vec<String> = event.paths.iter()
-    .filter_map(|p| p.to_str())
-    .filter(|path| !should_ignore_file(path)) // Filter out files we should ignore
-    .map(|s| s.to_string())
-    .collect();
-  
-  if paths.is_empty() {
-    return;
-  }
-  
-  let message = if paths.len() == 1 {
-    format!("File {}: {}", event_kind, paths[0])
-  } else {
-    format!("Files {} ({}): {}", event_kind, paths.len(), paths.join(", "))
-  };
-  
-  logs.info(&message, "file_change").await;
-}
-
-fn should_ignore_file(path: &str) -> bool {
-  // Ignore daemon log files to prevent feedback loops
-  if path.ends_with("daemon.logs.jsonl") {
-    return true;
-  }
-  
-  // Ignore daemon socket and PID files  
-  if path.ends_with("daemon.sock") || path.ends_with("daemon.pid") {
-    return true;
-  }
-  
-  // Ignore temporary and swap files
-  if path.contains(".tmp") || path.contains("~") || path.ends_with(".swp") {
-    return true;
-  }
-  
-  false
-}
-
-fn describe_event_kind(kind: &EventKind) -> &'static str {
-  match kind {
-    EventKind::Create(_) => "created",
-    EventKind::Modify(_) => "modified", 
-    EventKind::Remove(_) => "removed",
-    EventKind::Access(_) => "accessed",
-    EventKind::Any => "changed",
-    EventKind::Other => "changed (other)",
-  }
 }
 
 fn get_base() -> Result<PathBuf> {
@@ -331,18 +215,6 @@ async fn handle_connections(
       let response =
         handle_request::<_, GTEBase>(&mut stream, embedder_for_task, logs_for_task).await;
       send_response(&mut stream, response).await;
-      
-      // Flush to ensure data is sent
-      if let Err(e) = tokio::io::AsyncWriteExt::flush(&mut stream).await {
-        bentley::warn!(&format!("failed to flush stream: {e}"));
-      }
-      
-      // Properly shutdown the stream so client's read_to_end() will complete
-      if let Err(e) = stream.shutdown().await {
-        bentley::warn!(&format!("failed to shutdown stream: {e}"));
-      }
-      
-      bentley::debug!("Connection handling completed");
     });
   }
 }
@@ -454,14 +326,9 @@ async fn send_response<W: AsyncWriter, R: serde::Serialize>(stream: &mut W, resp
     }
   };
 
-  bentley::debug!(&format!("Sending response: {}", response_json));
-  
   if let Err(e) = stream.write_all(response_json.as_bytes()).await {
     bentley::warn!(&format!("failed to write response: {e}"));
-    return;
   }
-  
-  bentley::debug!("Response sent successfully");
 }
 
 #[cfg(test)]
