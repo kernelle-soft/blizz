@@ -321,7 +321,7 @@ impl DaemonLogs {
   }
 }
 
-// Theatrical Logging Wrappers  
+// Theatrical Logging Wrappers
 // ============================
 
 #[cfg(not(tarpaulin_include))]

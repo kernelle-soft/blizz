@@ -26,7 +26,7 @@ const DEFAULT_BANNER_WIDTH: usize = 50;
 /// Default prefix width for standard logging
 const PREFIX_WIDTH: usize = 7;
 
-// Core Functions  
+// Core Functions
 // ==============
 
 /// Core logging function that handles the actual output
