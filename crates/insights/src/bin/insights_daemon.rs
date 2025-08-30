@@ -9,8 +9,8 @@ use tokio::net::UnixListener;
 use tokio::signal;
 use tokio::task::JoinHandle;
 
-use insights::gte_base::GTEBase;
 use bentley::daemon_logs::{DaemonLogs, LogsRequest, LogsResponse};
+use insights::gte_base::GTEBase;
 use std::sync::Arc;
 
 // Trait to abstract async I/O for testability
@@ -103,11 +103,11 @@ async fn main() -> Result<()> {
   // Ensure directory exists
   fs::create_dir_all(&insights_path)?;
 
-    // Initialize daemon logs to disk
+  // Initialize daemon logs to disk
   let log_file_path = insights_path.join("daemon.logs.jsonl");
   let logs = DaemonLogs::new(&log_file_path)
     .map_err(|e| anyhow!("Failed to initialize daemon logs: {}", e))?;
-  
+
   // Log daemon startup
   logs.info("Daemon starting up", "startup").await;
 
@@ -212,7 +212,8 @@ async fn handle_connections(
     let embedder_for_task = embedder.as_ref().map(Arc::clone);
     let logs_for_task = logs.clone();
     tokio::spawn(async move {
-      let response = handle_request::<_, GTEBase>(&mut stream, embedder_for_task, logs_for_task).await;
+      let response =
+        handle_request::<_, GTEBase>(&mut stream, embedder_for_task, logs_for_task).await;
       send_response(&mut stream, response).await;
     });
   }
@@ -249,7 +250,7 @@ async fn handle_request<R: AsyncReader, E: Embedder>(
           EmbeddingResponse::error("Embedding model not available", "model_not_loaded")
         }
       };
-      
+
       return DaemonResponse::Embedding(response);
     }
   }
@@ -258,20 +259,25 @@ async fn handle_request<R: AsyncReader, E: Embedder>(
   if let Ok(logs_request) = serde_json::from_str::<LogsRequest>(&str) {
     if logs_request.request == "logs" {
       logs.info("Processing logs request", "logs").await;
-      
+
       match logs.get_logs(logs_request.limit, logs_request.level.as_deref()).await {
         Ok(filtered_logs) => return DaemonResponse::Logs(LogsResponse::success(filtered_logs)),
-        Err(e) => return DaemonResponse::Logs(LogsResponse::error(
-          &format!("Failed to read logs: {e}"),
-          "read_logs_failed"
-        )),
+        Err(e) => {
+          return DaemonResponse::Logs(LogsResponse::error(
+            &format!("Failed to read logs: {e}"),
+            "read_logs_failed",
+          ))
+        }
       }
     }
   }
 
   // If we get here, it's an unsupported request type
   bentley::warn!("received unsupported or malformed request");
-  DaemonResponse::Embedding(EmbeddingResponse::error("Unsupported or malformed request", "unsupported_request"))
+  DaemonResponse::Embedding(EmbeddingResponse::error(
+    "Unsupported or malformed request",
+    "unsupported_request",
+  ))
 }
 
 async fn read_request_data<R: AsyncReader>(stream: &mut R) -> Result<Vec<u8>, EmbeddingResponse> {
@@ -294,8 +300,6 @@ fn parse_raw(buffer: Vec<u8>) -> Result<String, EmbeddingResponse> {
     }
   }
 }
-
-
 
 fn embed<E: Embedder>(text: &str, embedder: &mut E) -> EmbeddingResponse {
   match embedder.embed(text) {

@@ -12,7 +12,6 @@ fn main() {
 
   println!(); // spacing
 
-  
   println!(); // spacing
 
   // Theatrical functions - the real showstoppers!

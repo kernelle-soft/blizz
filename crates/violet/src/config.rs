@@ -60,7 +60,7 @@ impl Default for ThresholdConfig {
 }
 
 fn default_threshold() -> f64 {
-  6.0
+  7.0
 }
 
 fn default_depth_penalty() -> f64 {

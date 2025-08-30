@@ -233,7 +233,7 @@ macro_rules! showstopper {
 }
 
 // ============================================================================
-// DAEMON LOGGING INFRASTRUCTURE 
+// DAEMON LOGGING INFRASTRUCTURE
 // ============================================================================
 
 /// Daemon logging infrastructure - available with "daemon-logs" feature
@@ -242,7 +242,7 @@ pub mod daemon_logs;
 
 // Re-export daemon_logs module contents for convenience
 #[cfg(feature = "daemon-logs")]
-pub use daemon_logs::{LogEntry, LogsRequest, LogsResponse, ErrorInfo, DaemonLogs};
+pub use daemon_logs::{DaemonLogs, ErrorInfo, LogEntry, LogsRequest, LogsResponse};
 
 // ============================================================================
 // TESTS
@@ -260,16 +260,16 @@ mod tests {
   #[test]
   fn test_format_prefix_basic() {
     let result = format_prefix(Color::Blue, "info");
-    
+
     // Should contain the prefix text
     assert!(result.contains("info"));
-    
+
     // Should start with opening bracket
     assert!(result.starts_with('['));
-    
+
     // Should be longer than base PREFIX_WIDTH due to color codes
     assert!(result.len() > PREFIX_WIDTH);
-    
+
     // Should contain ANSI color codes (the colored string is longer than plain text)
     assert!(result.len() > "info".len());
   }
@@ -280,17 +280,17 @@ mod tests {
     let info_prefix = format_prefix(Color::Blue, "info");
     let warn_prefix = format_prefix(Color::Yellow, "warn");
     let error_prefix = format_prefix(Color::Red, "error");
-    
+
     // All should be longer than base text due to color codes
     assert!(info_prefix.len() > "info".len());
     assert!(warn_prefix.len() > "warn".len());
     assert!(error_prefix.len() > "error".len());
-    
+
     // Each should contain their respective text
     assert!(info_prefix.contains("info"));
     assert!(warn_prefix.contains("warn"));
     assert!(error_prefix.contains("error"));
-    
+
     // All should start with brackets
     assert!(info_prefix.starts_with('['));
     assert!(warn_prefix.starts_with('['));
@@ -302,15 +302,15 @@ mod tests {
     // Test prefixes of different lengths
     let short_prefix = format_prefix(Color::Green, "ok");
     let long_prefix = format_prefix(Color::Red, "error");
-    
+
     // Both should be longer than their base text due to color codes and formatting
     assert!(short_prefix.len() > "ok".len());
     assert!(long_prefix.len() > "error".len());
-    
+
     // Should contain the text
     assert!(short_prefix.contains("ok"));
     assert!(long_prefix.contains("error"));
-    
+
     // Both should have consistent bracket formatting
     assert!(short_prefix.starts_with('['));
     assert!(long_prefix.starts_with('['));
@@ -329,7 +329,7 @@ mod tests {
     // Test edge cases
     assert_eq!(banner_line(0, '='), "");
     assert_eq!(banner_line(10, '~'), "~~~~~~~~~~");
-    
+
     // Different characters
     assert_eq!(banner_line(4, '#'), "####");
     assert_eq!(banner_line(7, '.'), ".......");
@@ -350,16 +350,16 @@ mod tests {
   fn test_as_banner_calls_function() {
     // Test that as_banner calls the provided function correctly
     use std::sync::{Arc, Mutex};
-    
+
     let messages = Arc::new(Mutex::new(Vec::new()));
     let messages_clone = Arc::clone(&messages);
-    
+
     let capture_fn = |msg: &str| {
       messages_clone.lock().unwrap().push(msg.to_string());
     };
-    
+
     as_banner(capture_fn, "Test Message", Some(10), Some('*'));
-    
+
     let captured = messages.lock().unwrap();
     assert_eq!(captured.len(), 3); // border + message + border
     assert_eq!(captured[0], "**********"); // top border
@@ -370,16 +370,16 @@ mod tests {
   #[test]
   fn test_as_banner_default_values() {
     use std::sync::{Arc, Mutex};
-    
+
     let messages = Arc::new(Mutex::new(Vec::new()));
     let messages_clone = Arc::clone(&messages);
-    
+
     let capture_fn = |msg: &str| {
       messages_clone.lock().unwrap().push(msg.to_string());
     };
-    
+
     as_banner(capture_fn, "Test", None, None); // Use defaults
-    
+
     let captured = messages.lock().unwrap();
     assert_eq!(captured.len(), 3);
     assert_eq!(captured[0].len(), DEFAULT_BANNER_WIDTH); // Should use default width (50)
@@ -389,16 +389,16 @@ mod tests {
   #[test]
   fn test_as_banner_custom_width_and_char() {
     use std::sync::{Arc, Mutex};
-    
+
     let messages = Arc::new(Mutex::new(Vec::new()));
     let messages_clone = Arc::clone(&messages);
-    
+
     let capture_fn = |msg: &str| {
       messages_clone.lock().unwrap().push(msg.to_string());
     };
-    
+
     as_banner(capture_fn, "Custom", Some(15), Some('@'));
-    
+
     let captured = messages.lock().unwrap();
     assert_eq!(captured[0], "@@@@@@@@@@@@@@@"); // 15 '@' characters
     assert_eq!(captured[1], "Custom");
@@ -415,13 +415,13 @@ mod tests {
     // Note: These are compile-time constants, but we test them for documentation
     const _: () = assert!(DEFAULT_BANNER_WIDTH > 0);
     const _: () = assert!(PREFIX_WIDTH > 0);
-    
+
     // PREFIX_WIDTH should be reasonable for our prefixes
     const _: () = assert!(PREFIX_WIDTH >= 7); // "[info] " = 7 chars
-    
-    // DEFAULT_BANNER_WIDTH should be reasonable for banners  
+
+    // DEFAULT_BANNER_WIDTH should be reasonable for banners
     const _: () = assert!(DEFAULT_BANNER_WIDTH >= 20);
-    
+
     // Runtime verification that constants are accessible
     assert_eq!(DEFAULT_BANNER_WIDTH, 50);
     assert_eq!(PREFIX_WIDTH, 7);
