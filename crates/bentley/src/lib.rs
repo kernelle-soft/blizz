@@ -1,27 +1,35 @@
 // violet ignore chunk
+//! Bentley - A logging and output formatting library
+//!
 //! ## Features
 //!
 //! - Standard logging levels (info, warn, error, debug, success)
 //! - Multi-line message support with consistent formatting
-//! - Timestamp functions for event logging
 //! - Theatrical enhancements (announce, spotlight, flourish, showstopper)
 //! - Banner displays for important messages
+//! - Daemon logging infrastructure (with "daemon-logs" feature)
 //! - All output to stderr (compatible with bash logging.sh)
 //!
 //! ## Usage
 //!
 //! Standard logging functions: `info()`, `warn()`, `error()`, `debug()`, `success()`
-//!
 //! Theatrical functions: `announce()`, `spotlight()`, `flourish()`, `showstopper()`
-//!
 
-use chrono::Local;
 use colored::*;
 
-/// Initialize Bentley - sets up any necessary state
-pub fn init() {
-  // For now, this is a no-op, but provides a hook for future initialization
-}
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/// Default banner width for theatrical functions
+const DEFAULT_BANNER_WIDTH: usize = 50;
+
+/// Default prefix width for standard logging
+const PREFIX_WIDTH: usize = 7;
+
+// ============================================================================
+// CORE FUNCTIONS
+// ============================================================================
 
 /// Core logging function that handles the actual output
 pub fn log(message: &str) {
@@ -30,9 +38,13 @@ pub fn log(message: &str) {
   }
 }
 
+// ============================================================================
+// UTILITY FUNCTIONS AND HELPERS
+// ============================================================================
+
 /// Format a colored prefix for log messages
 fn format_prefix(color: Color, prefix: &str) -> String {
-  format!("[{}]{:<width$}", prefix.color(color).bold(), "", width = 7 - prefix.len() - 2)
+  format!("[{}]{:<width$}", prefix.color(color).bold(), "", width = PREFIX_WIDTH - prefix.len() - 2)
 }
 
 /// Create a banner line of the specified length and character
@@ -45,7 +57,7 @@ pub fn as_banner<F>(log_fn: F, message: &str, width: Option<usize>, border_char:
 where
   F: Fn(&str),
 {
-  let width = width.unwrap_or(50);
+  let width = width.unwrap_or(DEFAULT_BANNER_WIDTH);
   let border_char = border_char.unwrap_or('=');
 
   let banner = banner_line(width, border_char);
@@ -55,12 +67,9 @@ where
   log_fn(&banner);
 }
 
-pub fn verbose(message: &str) {
-  let prefix = format_prefix(Color::Cyan, "verb");
-  for line in message.lines() {
-    log(&format!("{prefix} {line}"));
-  }
-}
+// ============================================================================
+// STANDARD LOGGING FUNCTIONS
+// ============================================================================
 
 /// Info level logging - general information
 pub fn info(message: &str) {
@@ -86,13 +95,6 @@ pub fn error(message: &str) {
   }
 }
 
-pub fn fail(message: &str) {
-  let prefix = format_prefix(Color::BrightRed, "fail");
-  for line in message.lines() {
-    log(&format!("{prefix} {line}"));
-  }
-}
-
 /// Debug level logging - detailed diagnostic information
 pub fn debug(message: &str) {
   let prefix = format_prefix(Color::Magenta, "debug");
@@ -104,6 +106,22 @@ pub fn debug(message: &str) {
 /// Success level logging - something completed successfully
 pub fn success(message: &str) {
   let prefix = format_prefix(Color::Green, "sccs");
+  for line in message.lines() {
+    log(&format!("{prefix} {line}"));
+  }
+}
+
+/// Verbose level logging - detailed trace information
+pub fn verbose(message: &str) {
+  let prefix = format_prefix(Color::Cyan, "verb");
+  for line in message.lines() {
+    log(&format!("{prefix} {line}"));
+  }
+}
+
+/// Fail level logging - critical failures
+pub fn fail(message: &str) {
+  let prefix = format_prefix(Color::BrightRed, "fail");
   for line in message.lines() {
     log(&format!("{prefix} {line}"));
   }
@@ -129,7 +147,12 @@ pub fn showstopper(message: &str) {
   as_banner(|msg| log(&msg.bright_red().bold().to_string()), message, Some(60), Some('*'));
 }
 
+// ============================================================================
+// EXPORTED MACROS
+// ============================================================================
+
 /// Macros for coverage-excluded logging - these expand with LCOV_EXCL_LINE at call sites
+
 #[macro_export]
 macro_rules! info {
   ($msg:expr) => {
@@ -152,13 +175,6 @@ macro_rules! error {
 }
 
 #[macro_export]
-macro_rules! verbose {
-  ($msg:expr) => {
-    $crate::verbose($msg); // LCOV_EXCL_LINE
-  };
-}
-
-#[macro_export]
 macro_rules! debug {
   ($msg:expr) => {
     $crate::debug($msg); // LCOV_EXCL_LINE
@@ -169,6 +185,13 @@ macro_rules! debug {
 macro_rules! success {
   ($msg:expr) => {
     $crate::success($msg); // LCOV_EXCL_LINE
+  };
+}
+
+#[macro_export]
+macro_rules! verbose {
+  ($msg:expr) => {
+    $crate::verbose($msg); // LCOV_EXCL_LINE
   };
 }
 
@@ -199,6 +222,10 @@ macro_rules! showstopper {
     $crate::showstopper($msg); // LCOV_EXCL_LINE
   };
 }
+
+// ============================================================================
+// DAEMON LOGGING INFRASTRUCTURE
+// ============================================================================
 
 /// Daemon logging infrastructure - available with "daemon-logs" feature
 #[cfg(feature = "daemon-logs")]
@@ -239,6 +266,17 @@ pub mod daemon_logs {
     pub tag: String,
   }
 
+  /// Internal log storage implementation
+  struct DaemonLogsInner {
+    log_file_path: std::path::PathBuf,
+    silent: bool,
+  }
+
+  /// Thread-safe disk-based log storage for daemons using JSONL format
+  pub struct DaemonLogs {
+    inner: std::sync::Arc<tokio::sync::Mutex<DaemonLogsInner>>,
+  }
+
   impl LogsResponse {
     pub fn success(logs: Vec<LogEntry>) -> Self {
       Self { success: true, logs, error: None }
@@ -254,17 +292,6 @@ pub mod daemon_logs {
         }),
       }
     }
-  }
-
-  /// Internal log storage implementation
-  struct DaemonLogsInner {
-    log_file_path: std::path::PathBuf,
-    silent: bool,
-  }
-
-  /// Thread-safe disk-based log storage for daemons using JSONL format
-  pub struct DaemonLogs {
-    inner: std::sync::Arc<tokio::sync::Mutex<DaemonLogsInner>>,
   }
 
   impl DaemonLogsInner {
@@ -380,6 +407,10 @@ pub mod daemon_logs {
       Ok(metadata.len())
     }
   }
+
+  // ==========================================================================
+  // PUBLIC DAEMON LOGS API
+  // ==========================================================================
 
   impl DaemonLogs {
     /// Create a new thread-safe daemon log storage
