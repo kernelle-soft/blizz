@@ -1,8 +1,12 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use colored::*;
+use std::{env, path::PathBuf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::UnixStream;
 
 use crate::insight::InsightMetaData;
 use crate::insight::{self, Insight};
+use bentley::daemon_logs::{LogsRequest, LogsResponse};
 
 /// Add a new insight to the knowledge base (testable version with dependency injection)
 pub fn add_insight_with_client(
@@ -198,4 +202,94 @@ pub fn index_insights(force: bool) -> Result<()> {
   );
 
   Ok(())
+}
+
+/// Query daemon logs for debugging and monitoring
+pub fn query_daemon_logs(limit: usize, level: &str) -> Result<()> {
+  // Use tokio runtime for async operations
+  let rt = tokio::runtime::Runtime::new()?;
+  rt.block_on(async { query_daemon_logs_async(limit, level).await })
+}
+
+async fn query_daemon_logs_async(limit: usize, level: &str) -> Result<()> {
+  // Get daemon socket path
+  let socket_path = get_daemon_socket_path()?;
+
+  // Check if socket exists
+  if !socket_path.exists() {
+    return Err(anyhow!("Daemon is not running. Socket not found at: {}", socket_path.display()));
+  }
+
+  // Connect to daemon
+  let mut stream = UnixStream::connect(&socket_path)
+    .await
+    .map_err(|e| anyhow!("Failed to connect to daemon: {}", e))?;
+
+  // Create request
+  let request = LogsRequest {
+    request: "logs".to_string(),
+    limit: Some(limit),
+    level: if level == "all" { None } else { Some(level.to_string()) },
+  };
+
+  // Send request
+  let request_json = serde_json::to_string(&request)?;
+  stream
+    .write_all(request_json.as_bytes())
+    .await
+    .map_err(|e| anyhow!("Failed to send request: {}", e))?;
+
+  // Read response
+  let mut response_data = Vec::new();
+  stream
+    .read_to_end(&mut response_data)
+    .await
+    .map_err(|e| anyhow!("Failed to read response: {}", e))?;
+
+  // Parse response
+  let response_str =
+    String::from_utf8(response_data).map_err(|e| anyhow!("Invalid UTF-8 in response: {}", e))?;
+
+  let response: LogsResponse =
+    serde_json::from_str(&response_str).map_err(|e| anyhow!("Failed to parse response: {}", e))?;
+
+  // Display results
+  if !response.success {
+    return Err(anyhow!("Daemon returned error"));
+  }
+
+  if response.logs.is_empty() {
+    println!("No logs found matching criteria.");
+    return Ok(());
+  }
+
+  println!("{} daemon logs (showing {} entries):", "📋".cyan(), response.logs.len());
+  println!();
+
+  for log in response.logs {
+    let level_colored = match log.level.as_str() {
+      "error" => log.level.red().bold(),
+      "warn" => log.level.yellow().bold(),
+      "info" => log.level.blue().bold(),
+      _ => log.level.normal(),
+    };
+
+    let component_colored = log.component.green();
+    let timestamp_colored = log.timestamp.format("%H:%M:%S").to_string().dimmed();
+
+    println!("[{}] {} [{}] {}", timestamp_colored, level_colored, component_colored, log.message);
+  }
+
+  Ok(())
+}
+
+fn get_daemon_socket_path() -> Result<PathBuf> {
+  let base = if let Ok(dir) = env::var("BLIZZ_HOME") {
+    PathBuf::from(dir)
+  } else {
+    dirs::home_dir().ok_or_else(|| anyhow!("failed to determine home directory"))?.join(".blizz")
+  };
+
+  let socket_path = base.join("persistent").join("insights").join("daemon.sock");
+  Ok(socket_path)
 }

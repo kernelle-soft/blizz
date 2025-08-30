@@ -339,7 +339,7 @@ impl Secrets {
 
   /// Store a secret securely using Argon2-based encryption
   pub fn store_secret_raw(&self, group: &str, name: &str, value: &str) -> Result<()> {
-    bentley::event_info!(&format!("Storing secret for {group}/{name}"));
+    bentley::info!(&format!("Storing secret for {group}/{name}"));
 
     // Get master password (prompt for new one if first time)
     let master_password = if self.crypto.credentials_exist() {
@@ -354,7 +354,7 @@ impl Secrets {
     // Store the secret using Argon2-based encryption
     self.crypto.store_secret(group, name, trimmed_value, &master_password)?;
 
-    bentley::event_success!(&format!("Secret stored securely for {group}/{name}"));
+    bentley::info!(&format!("Secret stored securely for {group}/{name}"));
     Ok(())
   }
 
@@ -403,7 +403,7 @@ impl Secrets {
 
   /// Delete a secret from password-protected storage
   pub fn delete_secret(&self, group: &str, name: &str) -> Result<()> {
-    bentley::event_info!(&format!("Deleting secret for {group}/{name}"));
+    bentley::info!(&format!("Deleting secret for {group}/{name}"));
 
     if !self.crypto.credentials_exist() {
       return Err(anyhow!("No secrets stored yet"));
@@ -412,7 +412,7 @@ impl Secrets {
     let master_password = self.crypto.get_master_password()?;
     self.crypto.delete_secret(group, name, &master_password)?;
 
-    bentley::event_success!(&format!("Secret deleted for {group}/{name}"));
+    bentley::info!(&format!("Secret deleted for {group}/{name}"));
     Ok(())
   }
 

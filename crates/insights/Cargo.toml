@@ -16,8 +16,8 @@ name = "insights"
 path = "src/main.rs"
 
 [[bin]]
-name = "insights_embedding_daemon"
-path = "src/bin/insights_embedding_daemon.rs"
+name = "insights_daemon"
+path = "src/bin/insights_daemon.rs"
 
 [[bin]]
 name = "install_insights_cuda_dependencies"
@@ -35,7 +35,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-bentley.workspace = true
+bentley = { workspace = true, features = ["daemon-logs"] }
 cargo-tarpaulin.workspace = true
 
 serde_yaml = "0.9"

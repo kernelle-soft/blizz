@@ -11,12 +11,6 @@ fn test_basic_logging_functions() {
 }
 
 #[test]
-fn test_init() {
-  // Test that init doesn't panic
-  init();
-}
-
-#[test]
 fn test_multiline_messages() {
   // Test multiline message handling
   let multiline_msg = "First line\nSecond line\nThird line";
@@ -25,14 +19,4 @@ fn test_multiline_messages() {
   error(multiline_msg);
   debug(multiline_msg);
   success(multiline_msg);
-}
-
-#[test]
-fn test_event_functions() {
-  // Test timestamped event functions
-  event_info("Info event");
-  event_warn("Warning event");
-  event_error("Error event");
-  event_debug("Debug event");
-  event_success("Success event");
 }
