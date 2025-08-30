@@ -3,6 +3,7 @@ use colored::*;
 use std::{env, path::PathBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
+use tokio::time::{timeout, Duration};
 
 use crate::insight::InsightMetaData;
 use crate::insight::{self, Insight};
@@ -206,24 +207,34 @@ pub fn index_insights(force: bool) -> Result<()> {
 
 /// Query daemon logs for debugging and monitoring
 pub fn query_daemon_logs(limit: usize, level: &str) -> Result<()> {
+  eprintln!("DEBUG: Entering query_daemon_logs");
+  
   // Use tokio runtime for async operations
+  eprintln!("DEBUG: Creating tokio runtime");
   let rt = tokio::runtime::Runtime::new()?;
+  eprintln!("DEBUG: Runtime created, calling block_on");
   rt.block_on(async { query_daemon_logs_async(limit, level).await })
 }
 
 async fn query_daemon_logs_async(limit: usize, level: &str) -> Result<()> {
+  eprintln!("DEBUG: Starting query_daemon_logs_async");
+  
   // Get daemon socket path
   let socket_path = get_daemon_socket_path()?;
+  eprintln!("DEBUG: Socket path: {}", socket_path.display());
 
   // Check if socket exists
   if !socket_path.exists() {
     return Err(anyhow!("Daemon is not running. Socket not found at: {}", socket_path.display()));
   }
+  eprintln!("DEBUG: Socket exists, attempting connection");
 
-  // Connect to daemon
-  let mut stream = UnixStream::connect(&socket_path)
+  // Connect to daemon with timeout
+  let mut stream = timeout(Duration::from_secs(10), UnixStream::connect(&socket_path))
     .await
+    .map_err(|_| anyhow!("Timeout connecting to daemon after 10 seconds. The daemon may be unresponsive."))?
     .map_err(|e| anyhow!("Failed to connect to daemon: {}", e))?;
+  eprintln!("DEBUG: Connected to daemon");
 
   // Create request
   let request = LogsRequest {
@@ -231,20 +242,24 @@ async fn query_daemon_logs_async(limit: usize, level: &str) -> Result<()> {
     limit: Some(limit),
     level: if level == "all" { None } else { Some(level.to_string()) },
   };
+  eprintln!("DEBUG: Created request: {:?}", request);
 
-  // Send request
+  // Send request with timeout
   let request_json = serde_json::to_string(&request)?;
-  stream
-    .write_all(request_json.as_bytes())
+  eprintln!("DEBUG: Sending request JSON: {}", request_json);
+  timeout(Duration::from_secs(10), stream.write_all(request_json.as_bytes()))
     .await
+    .map_err(|_| anyhow!("Timeout sending request to daemon after 10 seconds. The daemon may not be reading."))?
     .map_err(|e| anyhow!("Failed to send request: {}", e))?;
+  eprintln!("DEBUG: Request sent, waiting for response");
 
-  // Read response
+  // Read response with timeout
   let mut response_data = Vec::new();
-  stream
-    .read_to_end(&mut response_data)
+  timeout(Duration::from_secs(10), stream.read_to_end(&mut response_data))
     .await
+    .map_err(|_| anyhow!("Timeout reading response from daemon after 10 seconds. The daemon may not be responding."))?
     .map_err(|e| anyhow!("Failed to read response: {}", e))?;
+  eprintln!("DEBUG: Received response data: {} bytes", response_data.len());
 
   // Parse response
   let response_str =
