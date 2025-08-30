@@ -116,11 +116,11 @@ async fn main() -> Result<()> {
   // Load the embedder model
   let embedder = match GTEBase::load().await {
     Ok(embedder) => {
-      logs.info("Successfully loaded GTE-Base embedding model", "embedder").await;
+      logs.success("Successfully loaded GTE-Base embedding model", "embedder").await;
       Some(Arc::new(tokio::sync::Mutex::new(embedder)))
     }
     Err(e) => {
-      logs.warn(&format!("Failed to load embedder model: {e}"), "embedder").await;
+      logs.error(&format!("Failed to load embedder model: {e}"), "embedder").await;
       logs.info("Daemon will run without embedding capabilities", "embedder").await;
       None
     }
@@ -239,7 +239,7 @@ async fn handle_request<R: AsyncReader, E: Embedder>(
   // Try parsing as EmbeddingRequest first
   if let Ok(embedding_request) = serde_json::from_str::<EmbeddingRequest>(&str) {
     if embedding_request.request == "embed" {
-      logs.info("Processing embedding request", "embedder").await;
+      logs.debug("Processing embedding request", "embedder").await;
 
       let response = match embedder {
         Some(arc) => {

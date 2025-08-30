@@ -14,7 +14,6 @@
 //!
 //! Theatrical functions: `announce()`, `spotlight()`, `flourish()`, `showstopper()`
 //!
-//! Event logging: `event_info()`, `event_warn()`, `event_error()`, `event_debug()`, `event_success()`
 
 use chrono::Local;
 use colored::*;
@@ -110,51 +109,6 @@ pub fn success(message: &str) {
   }
 }
 
-/// Timestamped info event
-pub fn event_info(message: &str) {
-  let timestamp = Local::now().format("%H:%M:%S").to_string();
-  let prefix = format!("[{}] [{}]", "event".blue().bold(), timestamp.cyan());
-  for line in message.lines() {
-    log(&format!("{prefix} {line}"));
-  }
-}
-
-/// Timestamped warning event
-pub fn event_warn(message: &str) {
-  let timestamp = Local::now().format("%H:%M:%S").to_string();
-  let prefix = format!("[{}] [{}]", "event".yellow().bold(), timestamp.cyan());
-  for line in message.lines() {
-    log(&format!("{prefix} {line}"));
-  }
-}
-
-/// Timestamped error event
-pub fn event_error(message: &str) {
-  let timestamp = Local::now().format("%H:%M:%S").to_string();
-  let prefix = format!("[{}] [{}]", "event".red().bold(), timestamp.cyan());
-  for line in message.lines() {
-    log(&format!("{prefix} {line}"));
-  }
-}
-
-/// Timestamped debug event
-pub fn event_debug(message: &str) {
-  let timestamp = Local::now().format("%H:%M:%S").to_string();
-  let prefix = format!("[{}] [{}]", "event".magenta().bold(), timestamp.cyan());
-  for line in message.lines() {
-    log(&format!("{prefix} {line}"));
-  }
-}
-
-/// Timestamped success event
-pub fn event_success(message: &str) {
-  let timestamp = Local::now().format("%H:%M:%S").to_string();
-  let prefix = format!("[{}] [{}]", "event".green().bold(), timestamp.cyan());
-  for line in message.lines() {
-    log(&format!("{prefix} {line}"));
-  }
-}
-
 /// Theatrical announcement - for important but not critical messages
 pub fn announce(message: &str) {
   as_banner(|msg| log(&msg.blue().bold().to_string()), message, Some(50), Some('-'));
@@ -222,41 +176,6 @@ macro_rules! success {
 macro_rules! announce {
   ($msg:expr) => {
     $crate::announce($msg); // LCOV_EXCL_LINE
-  };
-}
-
-#[macro_export]
-macro_rules! event_info {
-  ($msg:expr) => {
-    $crate::event_info($msg); // LCOV_EXCL_LINE
-  };
-}
-
-#[macro_export]
-macro_rules! event_warn {
-  ($msg:expr) => {
-    $crate::event_warn($msg); // LCOV_EXCL_LINE
-  };
-}
-
-#[macro_export]
-macro_rules! event_error {
-  ($msg:expr) => {
-    $crate::event_error($msg); // LCOV_EXCL_LINE
-  };
-}
-
-#[macro_export]
-macro_rules! event_debug {
-  ($msg:expr) => {
-    $crate::event_debug($msg); // LCOV_EXCL_LINE
-  };
-}
-
-#[macro_export]
-macro_rules! event_success {
-  ($msg:expr) => {
-    $crate::event_success($msg); // LCOV_EXCL_LINE
   };
 }
 
@@ -545,6 +464,76 @@ pub mod daemon_logs {
       let guard = self.inner.lock().await;
       if !guard.silent {
         crate::verbose!(message);
+      }
+    }
+
+    /// Log an error message (to disk + console unless silent)
+    pub async fn error(&self, message: &str, component: &str) {
+      self.log("error", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::error!(message);
+      }
+    }
+
+    /// Log a debug message (to disk + console unless silent)
+    pub async fn debug(&self, message: &str, component: &str) {
+      self.log("debug", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::debug!(message);
+      }
+    }
+
+    /// Log a success message (to disk + console unless silent)
+    pub async fn success(&self, message: &str, component: &str) {
+      self.log("success", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::success!(message);
+      }
+    }
+
+    /// Log an announcement message (to disk + console unless silent)
+    pub async fn announce(&self, message: &str, component: &str) {
+      self.log("announce", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::announce!(message);
+      }
+    }
+
+    /// Log a spotlight message (to disk + console unless silent)
+    pub async fn spotlight(&self, message: &str, component: &str) {
+      self.log("spotlight", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::spotlight!(message);
+      }
+    }
+
+    /// Log a flourish message (to disk + console unless silent)
+    pub async fn flourish(&self, message: &str, component: &str) {
+      self.log("flourish", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::flourish!(message);
+      }
+    }
+
+    /// Log a showstopper message (to disk + console unless silent)
+    pub async fn showstopper(&self, message: &str, component: &str) {
+      self.log("showstopper", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::showstopper!(message);
       }
     }
   }
