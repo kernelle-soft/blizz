@@ -12,13 +12,8 @@ fn main() {
 
   println!(); // spacing
 
-  // Event logging with timestamps
-  event_info("Starting the show");
-  event_warn("Mind the gap!");
-  event_error("Something went awry");
-  event_debug("Behind the scenes info");
-  event_success("The crowd goes wild!");
-
+  // event_* functions removed - using standard logging instead
+  
   println!(); // spacing
 
   // Theatrical functions - the real showstoppers!

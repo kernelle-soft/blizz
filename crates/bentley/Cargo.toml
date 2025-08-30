@@ -31,6 +31,8 @@ tokio = { version = "1.47", features = ["sync"], optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true 
+# Additional tokio features needed for async tests
+tokio = { version = "1.47", features = ["test-util", "rt", "macros"] } 
 
 [features]
 default = []

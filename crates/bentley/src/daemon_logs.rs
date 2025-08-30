@@ -312,6 +312,8 @@ impl DaemonLogs {
     }
   }
 
+
+
   /// Log an announcement message (to disk + console unless silent)
   pub async fn announce(&self, message: &str, component: &str) {
     self.log("announce", message, component).await;
@@ -350,5 +352,453 @@ impl DaemonLogs {
     if !guard.silent {
       crate::showstopper!(message);
     }
+  }
+}
+
+// ============================================================================
+// TESTS
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use tempfile::TempDir;
+  use std::fs;
+
+  /// Helper function to create a temporary log file path
+  fn temp_log_path() -> (TempDir, std::path::PathBuf) {
+    let temp_dir = TempDir::new().unwrap();
+    let log_path = temp_dir.path().join("test.log");
+    (temp_dir, log_path)
+  }
+
+  // ============================================================================
+  // CONSTRUCTOR TESTS
+  // ============================================================================
+
+  #[tokio::test]
+  async fn test_daemon_logs_new_creates_file() {
+    let (_temp_dir, log_path) = temp_log_path();
+    
+    let logs = DaemonLogs::new(&log_path).unwrap();
+    
+    // File should exist after creation
+    assert!(log_path.exists());
+    
+    // Should not be silent by default
+    let path_result = logs.log_file_path().await;
+    assert_eq!(path_result, log_path);
+  }
+
+  #[tokio::test]
+  async fn test_daemon_logs_new_with_silent() {
+    let (_temp_dir, log_path) = temp_log_path();
+    
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // File should exist
+    assert!(log_path.exists());
+    
+    // Should be accessible
+    let path_result = logs.log_file_path().await;
+    assert_eq!(path_result, log_path);
+  }
+
+  #[tokio::test]
+  async fn test_daemon_logs_creates_parent_directories() {
+    let temp_dir = TempDir::new().unwrap();
+    let nested_path = temp_dir.path().join("nested").join("deep").join("test.log");
+    
+    let _logs = DaemonLogs::new(&nested_path).unwrap();
+    
+    // Parent directories should be created
+    assert!(nested_path.parent().unwrap().exists());
+    assert!(nested_path.exists());
+  }
+
+  // ============================================================================
+  // BASIC LOGGING TESTS
+  // ============================================================================
+
+  #[tokio::test]
+  async fn test_add_log_writes_to_file() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Add a log entry
+    logs.add_log("info", "Test message", "test_component").await.unwrap();
+    
+    // File should contain the log entry
+    let content = fs::read_to_string(&log_path).unwrap();
+    assert!(content.contains("Test message"));
+    assert!(content.contains("info"));
+    assert!(content.contains("test_component"));
+    
+    // Should be valid JSON
+    let lines: Vec<&str> = content.trim().split('\n').collect();
+    assert_eq!(lines.len(), 1);
+    
+    let entry: LogEntry = serde_json::from_str(lines[0]).unwrap();
+    assert_eq!(entry.message, "Test message");
+    assert_eq!(entry.level, "info");
+    assert_eq!(entry.component, "test_component");
+  }
+
+  #[tokio::test]
+  async fn test_log_fire_and_forget() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Should not panic even if there were hypothetical errors
+    logs.log("debug", "Fire and forget message", "test").await;
+    
+    // Should still write to file
+    let content = fs::read_to_string(&log_path).unwrap();
+    assert!(content.contains("Fire and forget message"));
+  }
+
+  #[tokio::test]
+  async fn test_multiple_log_entries_append() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Add multiple entries
+    logs.add_log("info", "First message", "comp1").await.unwrap();
+    logs.add_log("warn", "Second message", "comp2").await.unwrap();
+    logs.add_log("error", "Third message", "comp3").await.unwrap();
+    
+    // File should contain all entries
+    let content = fs::read_to_string(&log_path).unwrap();
+    let lines: Vec<&str> = content.trim().split('\n').collect();
+    assert_eq!(lines.len(), 3);
+    
+    // Parse and verify each entry
+    let entry1: LogEntry = serde_json::from_str(lines[0]).unwrap();
+    let entry2: LogEntry = serde_json::from_str(lines[1]).unwrap();
+    let entry3: LogEntry = serde_json::from_str(lines[2]).unwrap();
+    
+    assert_eq!(entry1.message, "First message");
+    assert_eq!(entry2.message, "Second message");
+    assert_eq!(entry3.message, "Third message");
+  }
+
+  // ============================================================================
+  // LOG RETRIEVAL AND FILTERING TESTS
+  // ============================================================================
+
+  #[tokio::test]
+  async fn test_get_logs_empty_file() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Should return empty vec for empty file
+    let result = logs.get_logs(None, None).await.unwrap();
+    assert_eq!(result.len(), 0);
+  }
+
+  #[tokio::test]
+  async fn test_get_logs_no_filter() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Add some logs
+    logs.add_log("info", "Message 1", "comp1").await.unwrap();
+    logs.add_log("warn", "Message 2", "comp2").await.unwrap();
+    logs.add_log("error", "Message 3", "comp3").await.unwrap();
+    
+    // Get all logs
+    let result = logs.get_logs(None, None).await.unwrap();
+    assert_eq!(result.len(), 3);
+    
+    // Should be sorted by timestamp (newest first) - since we added them quickly,
+    // let's just check they're all there
+    let messages: Vec<_> = result.iter().map(|e| e.message.as_str()).collect();
+    assert!(messages.contains(&"Message 1"));
+    assert!(messages.contains(&"Message 2"));
+    assert!(messages.contains(&"Message 3"));
+  }
+
+  #[tokio::test]
+  async fn test_get_logs_with_level_filter() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Add logs with different levels
+    logs.add_log("info", "Info message", "comp1").await.unwrap();
+    logs.add_log("warn", "Warn message", "comp2").await.unwrap();
+    logs.add_log("error", "Error message", "comp3").await.unwrap();
+    logs.add_log("info", "Another info", "comp4").await.unwrap();
+    
+    // Filter by "info" level
+    let info_logs = logs.get_logs(None, Some("info")).await.unwrap();
+    assert_eq!(info_logs.len(), 2);
+    for entry in &info_logs {
+      assert_eq!(entry.level, "info");
+    }
+    
+    // Filter by "warn" level
+    let warn_logs = logs.get_logs(None, Some("warn")).await.unwrap();
+    assert_eq!(warn_logs.len(), 1);
+    assert_eq!(warn_logs[0].level, "warn");
+    assert_eq!(warn_logs[0].message, "Warn message");
+    
+    // Filter by "all" should return everything
+    let all_logs = logs.get_logs(None, Some("all")).await.unwrap();
+    assert_eq!(all_logs.len(), 4);
+  }
+
+  #[tokio::test]
+  async fn test_get_logs_with_limit() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Add 5 logs
+    for i in 1..=5 {
+      logs.add_log("info", &format!("Message {}", i), "comp").await.unwrap();
+    }
+    
+    // Test limit of 3
+    let limited = logs.get_logs(Some(3), None).await.unwrap();
+    assert_eq!(limited.len(), 3);
+    
+    // Test limit of 0
+    let empty = logs.get_logs(Some(0), None).await.unwrap();
+    assert_eq!(empty.len(), 0);
+    
+    // Test limit higher than available
+    let all = logs.get_logs(Some(10), None).await.unwrap();
+    assert_eq!(all.len(), 5);
+  }
+
+  #[tokio::test]
+  async fn test_get_logs_with_level_filter_and_limit() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Add mixed logs
+    logs.add_log("info", "Info 1", "comp").await.unwrap();
+    logs.add_log("error", "Error 1", "comp").await.unwrap();
+    logs.add_log("info", "Info 2", "comp").await.unwrap();
+    logs.add_log("error", "Error 2", "comp").await.unwrap();
+    logs.add_log("info", "Info 3", "comp").await.unwrap();
+    
+    // Get only 2 info messages
+    let result = logs.get_logs(Some(2), Some("info")).await.unwrap();
+    assert_eq!(result.len(), 2);
+    for entry in &result {
+      assert_eq!(entry.level, "info");
+    }
+  }
+
+  #[tokio::test]
+  async fn test_get_logs_handles_malformed_json() {
+    let (_temp_dir, log_path) = temp_log_path();
+    
+    // Write some valid and invalid JSON lines
+    fs::write(&log_path, r#"{"timestamp":"2024-01-01T12:00:00Z","level":"info","message":"Valid","component":"test"}
+invalid json line
+{"timestamp":"2024-01-01T12:01:00Z","level":"warn","message":"Also valid","component":"test"}
+another bad line
+"#).unwrap();
+    
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Should only return the valid entries
+    let result = logs.get_logs(None, None).await.unwrap();
+    assert_eq!(result.len(), 2);
+    
+    let messages: Vec<_> = result.iter().map(|e| e.message.as_str()).collect();
+    assert!(messages.contains(&"Valid"));
+    assert!(messages.contains(&"Also valid"));
+  }
+
+  // ============================================================================
+  // FILE OPERATIONS TESTS
+  // ============================================================================
+
+  #[tokio::test]
+  async fn test_has_logs() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Should be false for empty file
+    assert!(!logs.has_logs().await);
+    
+    // Add a log entry
+    logs.add_log("info", "Test", "comp").await.unwrap();
+    
+    // Should be true after adding content
+    assert!(logs.has_logs().await);
+  }
+
+  #[tokio::test]
+  async fn test_file_size() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Should be 0 for empty file
+    let initial_size = logs.file_size().await.unwrap();
+    assert_eq!(initial_size, 0);
+    
+    // Add a log entry
+    logs.add_log("info", "Test message", "comp").await.unwrap();
+    
+    // Size should increase
+    let new_size = logs.file_size().await.unwrap();
+    assert!(new_size > initial_size);
+  }
+
+  #[tokio::test]
+  async fn test_log_file_path() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    let returned_path = logs.log_file_path().await;
+    assert_eq!(returned_path, log_path);
+  }
+
+  // ============================================================================
+  // CONCURRENCY TESTS
+  // ============================================================================
+
+  #[tokio::test]
+  async fn test_concurrent_writes() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    
+    // Spawn multiple concurrent write tasks
+    let mut handles = vec![];
+    for i in 0..10 {
+      let logs_clone = logs.clone();
+      let handle = tokio::spawn(async move {
+        logs_clone.add_log("info", &format!("Message {}", i), "concurrent").await.unwrap();
+      });
+      handles.push(handle);
+    }
+    
+    // Wait for all to complete
+    for handle in handles {
+      handle.await.unwrap();
+    }
+    
+    // Should have all 10 entries
+    let result = logs.get_logs(None, None).await.unwrap();
+    assert_eq!(result.len(), 10);
+    
+    // All should be from concurrent component
+    for entry in &result {
+      assert_eq!(entry.component, "concurrent");
+    }
+  }
+
+  #[tokio::test]
+  async fn test_clone_shares_same_log_file() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs1 = DaemonLogs::new_with_silent(&log_path, true).unwrap();
+    let logs2 = logs1.clone();
+    
+    // Write to both instances
+    logs1.add_log("info", "From logs1", "comp1").await.unwrap();
+    logs2.add_log("warn", "From logs2", "comp2").await.unwrap();
+    
+    // Both should see both entries
+    let result1 = logs1.get_logs(None, None).await.unwrap();
+    let result2 = logs2.get_logs(None, None).await.unwrap();
+    
+    assert_eq!(result1.len(), 2);
+    assert_eq!(result2.len(), 2);
+    
+    // Both should have the same content (since they share the same file)
+    let messages1: std::collections::HashSet<_> = result1.iter().map(|e| &e.message).collect();
+    let messages2: std::collections::HashSet<_> = result2.iter().map(|e| &e.message).collect();
+    assert_eq!(messages1, messages2);
+  }
+
+  // ============================================================================
+  // WRAPPER METHOD TESTS
+  // ============================================================================
+  
+  // Note: Testing the actual console output is difficult in unit tests,
+  // but we can at least verify that the methods work and log to disk
+
+  #[tokio::test]
+  async fn test_wrapper_methods_log_to_disk() {
+    let (_temp_dir, log_path) = temp_log_path();
+    let logs = DaemonLogs::new_with_silent(&log_path, true).unwrap(); // Silent mode
+    
+    // Test each wrapper method
+    logs.info("Info test", "comp").await;
+    logs.warn("Warn test", "comp").await;
+    logs.error("Error test", "comp").await;
+    logs.debug("Debug test", "comp").await;
+    logs.success("Success test", "comp").await;
+    logs.announce("Announce test", "comp").await;
+    logs.spotlight("Spotlight test", "comp").await;
+    logs.flourish("Flourish test", "comp").await;
+    logs.showstopper("Showstopper test", "comp").await;
+    
+    // All should be logged to disk
+    let result = logs.get_logs(None, None).await.unwrap();
+    assert_eq!(result.len(), 9);
+    
+    // Check that we have all the expected levels
+    let levels: std::collections::HashSet<_> = result.iter().map(|e| &e.level).collect();
+    let expected_levels = vec!["info", "warn", "error", "debug", "success", "announce", "spotlight", "flourish", "showstopper"];
+    for expected in expected_levels {
+      assert!(levels.contains(&expected.to_string()), "Missing level: {}", expected);
+    }
+  }
+
+  // ============================================================================
+  // ERROR HANDLING TESTS 
+  // ============================================================================
+
+  #[tokio::test]
+  async fn test_get_logs_nonexistent_file() {
+    let temp_dir = TempDir::new().unwrap();
+    let nonexistent = temp_dir.path().join("does_not_exist.log");
+    
+    // Create logs instance but don't create the file
+    let logs = DaemonLogs::new_with_silent(&nonexistent, true).unwrap();
+    
+    // Delete the file that was auto-created
+    fs::remove_file(&nonexistent).unwrap();
+    
+    // Should return empty vec, not error
+    let result = logs.get_logs(None, None).await.unwrap();
+    assert_eq!(result.len(), 0);
+  }
+
+  // ============================================================================
+  // RESPONSE CONSTRUCTOR TESTS
+  // ============================================================================
+
+  #[test]
+  fn test_logs_response_success() {
+    let logs = vec![
+      LogEntry {
+        timestamp: Utc::now(),
+        level: "info".to_string(),
+        message: "Test".to_string(),
+        component: "test".to_string(),
+      }
+    ];
+    
+    let response = LogsResponse::success(logs.clone());
+    assert!(response.success);
+    assert_eq!(response.logs.len(), 1);
+    assert!(response.error.is_none());
+  }
+
+  #[test]
+  fn test_logs_response_error() {
+    let response = LogsResponse::error("Test error", "test_tag");
+    assert!(!response.success);
+    assert_eq!(response.logs.len(), 0);
+    assert!(response.error.is_some());
+    
+    let error = response.error.unwrap();
+    assert_eq!(error.message, "Test error");
+    assert_eq!(error.tag, "test_tag");
   }
 }

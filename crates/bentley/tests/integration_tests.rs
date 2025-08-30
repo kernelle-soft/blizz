@@ -10,11 +10,7 @@ fn test_basic_logging_functions() {
   success("Test success message");
 }
 
-#[test]
-fn test_init() {
-  // Test that init doesn't panic
-  init();
-}
+// init() function removed - no longer needed
 
 #[test]
 fn test_multiline_messages() {
@@ -27,12 +23,4 @@ fn test_multiline_messages() {
   success(multiline_msg);
 }
 
-#[test]
-fn test_event_functions() {
-  // Test timestamped event functions
-  event_info("Info event");
-  event_warn("Warning event");
-  event_error("Error event");
-  event_debug("Debug event");
-  event_success("Success event");
-}
+// event_* functions removed - no longer needed
