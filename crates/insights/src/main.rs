@@ -90,6 +90,15 @@ enum Command {
     #[arg(short, long)]
     force: bool,
   },
+  /// Query daemon logs for debugging and monitoring
+  Logs {
+    /// Maximum number of log entries to return
+    #[arg(short, long, default_value = "50")]
+    limit: usize,
+    /// Filter by log level (info, warn, error, all)
+    #[arg(long, default_value = "all")]
+    level: String,
+  },
 }
 
 fn handle(command: Command) -> Result<()> {
@@ -111,6 +120,7 @@ fn handle(command: Command) -> Result<()> {
     Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force),
     Command::Topics => commands::list_topics(),
     Command::Index { force } => commands::index_insights(force),
+    Command::Logs { limit, level } => commands::query_daemon_logs(limit, &level),
   }
 }
 

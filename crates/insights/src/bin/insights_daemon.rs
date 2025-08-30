@@ -4,10 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use std::path::{Path, PathBuf};
 use std::{env, fs};
+use std::collections::VecDeque;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tokio::signal;
 use tokio::task::JoinHandle;
+use chrono::{DateTime, Utc};
 
 use insights::gte_base::GTEBase;
 use std::sync::Arc;
@@ -72,6 +74,88 @@ struct ErrorInfo {
   tag: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct LogsRequest {
+  request: String,
+  #[serde(default)]
+  limit: Option<usize>,
+  #[serde(default)]
+  level: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct LogsResponse {
+  success: bool,
+  logs: Vec<LogEntry>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  error: Option<ErrorInfo>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+enum DaemonResponse {
+  Embedding(EmbeddingResponse),
+  Logs(LogsResponse),
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct LogEntry {
+  timestamp: DateTime<Utc>,
+  level: String,
+  message: String,
+  component: String,
+}
+
+struct DaemonLogs {
+  entries: VecDeque<LogEntry>,
+  max_entries: usize,
+}
+
+impl DaemonLogs {
+  fn new(max_entries: usize) -> Self {
+    Self {
+      entries: VecDeque::with_capacity(max_entries),
+      max_entries,
+    }
+  }
+
+  fn add_log(&mut self, level: &str, message: &str, component: &str) {
+    if self.entries.len() >= self.max_entries {
+      self.entries.pop_front(); // Remove oldest
+    }
+
+    self.entries.push_back(LogEntry {
+      timestamp: Utc::now(),
+      level: level.to_string(),
+      message: message.to_string(),
+      component: component.to_string(),
+    });
+  }
+
+  fn get_logs(&self, limit: Option<usize>, level_filter: Option<&str>) -> Vec<LogEntry> {
+    let mut logs: Vec<LogEntry> = self
+      .entries
+      .iter()
+      .filter(|entry| {
+        level_filter.map_or(true, |filter| {
+          filter == "all" || entry.level == filter
+        })
+      })
+      .cloned()
+      .collect();
+
+    // Sort by timestamp (newest first)
+    logs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+    // Apply limit
+    if let Some(limit) = limit {
+      logs.truncate(limit);
+    }
+
+    logs
+  }
+}
+
 #[cfg(not(tarpaulin_include))]
 impl EmbeddingResponse {
   fn success(embedding: Vec<f32>) -> Self {
@@ -87,6 +171,21 @@ impl EmbeddingResponse {
   }
 }
 
+#[cfg(not(tarpaulin_include))]
+impl LogsResponse {
+  fn success(logs: Vec<LogEntry>) -> Self {
+    Self { success: true, logs, error: None }
+  }
+
+  fn error(message: &str, tag: &str) -> Self {
+    Self {
+      success: false,
+      logs: Vec::new(),
+      error: Some(ErrorInfo { message: message.to_string(), tag: tag.to_string() }),
+    }
+  }
+}
+
 #[tokio::main]
 #[cfg(not(tarpaulin_include))]
 async fn main() -> Result<()> {
@@ -95,10 +194,30 @@ async fn main() -> Result<()> {
   // Ensure directory exists
   fs::create_dir_all(&insights_path)?;
 
+  // Initialize daemon logs (keep last 1000 entries)
+  let logs = Arc::new(tokio::sync::Mutex::new(DaemonLogs::new(1000)));
+  
+  // Log daemon startup
+  {
+    let mut logs_guard = logs.lock().await;
+    logs_guard.add_log("info", "Daemon starting up", "startup");
+  }
+
   // Load the embedder model
   let embedder = match GTEBase::load().await {
-    Ok(embedder) => Some(Arc::new(tokio::sync::Mutex::new(embedder))),
+    Ok(embedder) => {
+      {
+        let mut logs_guard = logs.lock().await;
+        logs_guard.add_log("info", "Successfully loaded GTE-Base embedding model", "embedder");
+      }
+      Some(Arc::new(tokio::sync::Mutex::new(embedder)))
+    }
     Err(e) => {
+      {
+        let mut logs_guard = logs.lock().await;
+        logs_guard.add_log("warn", &format!("Failed to load embedder model: {e}"), "embedder");
+        logs_guard.add_log("info", "Daemon will run without embedding capabilities", "embedder");
+      }
       bentley::warn!(&format!("Failed to load embedder model: {e}"));
       bentley::warn!("Daemon will run without embedding capabilities");
       None
@@ -106,13 +225,24 @@ async fn main() -> Result<()> {
   };
 
   let socket_path = create_socket(&insights_path)?;
+  
+  {
+    let mut logs_guard = logs.lock().await;
+    logs_guard.add_log("info", &format!("Socket created: {}", socket_path.display()), "ipc");
+  }
+  
   bentley::info!("daemon started - press ctrl+c to exit");
 
-  let ipc_handle = spawn_handler(&socket_path, embedder.map(|e| Arc::clone(&e)));
+  let ipc_handle = spawn_handler(&socket_path, embedder.map(|e| Arc::clone(&e)), Arc::clone(&logs));
 
   // Wait for shutdown signal
   signal::ctrl_c().await?;
   bentley::verbose!("\nshutting down daemon");
+
+  {
+    let mut logs_guard = logs.lock().await;
+    logs_guard.add_log("info", "Received shutdown signal", "shutdown");
+  }
 
   // Clean up socket file
   let _ = fs::remove_file(&socket_path);
@@ -148,11 +278,12 @@ fn create_socket(insights_path: &Path) -> Result<PathBuf> {
 fn spawn_handler(
   socket: &PathBuf,
   embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
+  logs: Arc<tokio::sync::Mutex<DaemonLogs>>,
 ) -> JoinHandle<()> {
   let listener = create_listener(socket);
   bentley::info!(&format!("listening on socket: {}", socket.display()));
   tokio::spawn(async move {
-    handle_connections(listener, embedder).await;
+    handle_connections(listener, embedder, logs).await;
   })
 }
 
@@ -171,6 +302,7 @@ fn create_listener(socket: &PathBuf) -> UnixListener {
 async fn handle_connections(
   listener: UnixListener,
   embedder: Option<Arc<tokio::sync::Mutex<GTEBase>>>,
+  logs: Arc<tokio::sync::Mutex<DaemonLogs>>,
 ) {
   loop {
     let connection_result = listener.accept().await;
@@ -184,8 +316,9 @@ async fn handle_connections(
     };
 
     let embedder_for_task = embedder.as_ref().map(Arc::clone);
+    let logs_for_task = Arc::clone(&logs);
     tokio::spawn(async move {
-      let response = handle_request::<_, GTEBase>(&mut stream, embedder_for_task).await;
+      let response = handle_request::<_, GTEBase>(&mut stream, embedder_for_task, logs_for_task).await;
       send_response(&mut stream, response).await;
     });
   }
@@ -195,40 +328,58 @@ async fn handle_connections(
 async fn handle_request<R: AsyncReader, E: Embedder>(
   stream: &mut R,
   embedder: Option<Arc<tokio::sync::Mutex<E>>>,
-) -> EmbeddingResponse {
+  logs: Arc<tokio::sync::Mutex<DaemonLogs>>,
+) -> DaemonResponse {
   let data = match read_request_data(stream).await {
     Ok(data) => data, // LCOV_EXCL_LINE
-    Err(res) => return res,
+    Err(res) => return DaemonResponse::Embedding(res),
   };
 
   let str = match parse_raw(data) {
     Ok(str) => str, // LCOV_EXCL_LINE
-    Err(res) => return res,
+    Err(res) => return DaemonResponse::Embedding(res),
   };
 
-  let json = match parse_json_request(&str) {
-    Ok(req) => req, // LCOV_EXCL_LINE
-    Err(res) => return res,
-  };
-
-  if json.request != "embed" {
-    bentley::warn!(&format!("unsupported request type: {}", json.request));
-    return EmbeddingResponse::error(
-      &format!("Unsupported request type: {}", json.request),
-      "unsupported_request",
-    );
+  // Try parsing as EmbeddingRequest first
+  if let Ok(embedding_request) = serde_json::from_str::<EmbeddingRequest>(&str) {
+    if embedding_request.request == "embed" {
+      {
+        let mut logs_guard = logs.lock().await;
+        logs_guard.add_log("info", "Processing embedding request", "embedder");
+      }
+      
+      let response = match embedder {
+        Some(arc) => {
+          let mut embedder_lock = arc.lock().await;
+          embed(&embedding_request.body, &mut *embedder_lock)
+        }
+        None => {
+          bentley::warn!("embedding requested but no model loaded");
+          EmbeddingResponse::error("Embedding model not available", "model_not_loaded")
+        }
+      };
+      
+      return DaemonResponse::Embedding(response);
+    }
   }
 
-  match embedder {
-    Some(arc) => {
-      let mut embedder_lock = arc.lock().await;
-      embed(&json.body, &mut *embedder_lock)
-    }
-    None => {
-      bentley::warn!("embedding requested but no model loaded");
-      EmbeddingResponse::error("Embedding model not available", "model_not_loaded")
+  // Try parsing as LogsRequest
+  if let Ok(logs_request) = serde_json::from_str::<LogsRequest>(&str) {
+    if logs_request.request == "logs" {
+      {
+        let mut logs_guard = logs.lock().await;
+        logs_guard.add_log("info", "Processing logs request", "logs");
+      }
+      
+      let logs_guard = logs.lock().await;
+      let filtered_logs = logs_guard.get_logs(logs_request.limit, logs_request.level.as_deref());
+      return DaemonResponse::Logs(LogsResponse::success(filtered_logs));
     }
   }
+
+  // If we get here, it's an unsupported request type
+  bentley::warn!("received unsupported or malformed request");
+  DaemonResponse::Embedding(EmbeddingResponse::error("Unsupported or malformed request", "unsupported_request"))
 }
 
 async fn read_request_data<R: AsyncReader>(stream: &mut R) -> Result<Vec<u8>, EmbeddingResponse> {
