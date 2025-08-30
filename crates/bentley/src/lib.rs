@@ -340,6 +340,7 @@ pub mod daemon_logs {
   /// Internal log storage implementation
   struct DaemonLogsInner {
     log_file_path: std::path::PathBuf,
+    silent: bool,
   }
 
   /// Thread-safe disk-based log storage for daemons using JSONL format
@@ -349,7 +350,7 @@ pub mod daemon_logs {
 
   impl DaemonLogsInner {
     /// Create a new daemon log storage that writes to the specified file path
-    fn new<P: AsRef<std::path::Path>>(log_file_path: P) -> std::io::Result<Self> {
+    fn new<P: AsRef<std::path::Path>>(log_file_path: P, silent: bool) -> std::io::Result<Self> {
       let log_file_path = log_file_path.as_ref().to_path_buf();
       
       // Ensure parent directory exists
@@ -362,7 +363,7 @@ pub mod daemon_logs {
         std::fs::File::create(&log_file_path)?;
       }
 
-      Ok(Self { log_file_path })
+      Ok(Self { log_file_path, silent })
     }
 
     /// Add a log entry to storage (appends to JSONL file)
@@ -464,7 +465,12 @@ pub mod daemon_logs {
   impl DaemonLogs {
     /// Create a new thread-safe daemon log storage
     pub fn new<P: AsRef<std::path::Path>>(log_file_path: P) -> std::io::Result<Self> {
-      let inner = DaemonLogsInner::new(log_file_path)?;
+      Self::new_with_silent(log_file_path, false)
+    }
+
+    /// Create a new thread-safe daemon log storage with silent option
+    pub fn new_with_silent<P: AsRef<std::path::Path>>(log_file_path: P, silent: bool) -> std::io::Result<Self> {
+      let inner = DaemonLogsInner::new(log_file_path, silent)?;
       Ok(Self {
         inner: std::sync::Arc::new(tokio::sync::Mutex::new(inner)),
       })
@@ -509,6 +515,36 @@ pub mod daemon_logs {
     pub fn clone(&self) -> Self {
       Self {
         inner: std::sync::Arc::clone(&self.inner),
+      }
+    }
+
+    /// Log an info message (to disk + console unless silent)
+    pub async fn info(&self, message: &str, component: &str) {
+      self.log("info", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::info!(message);
+      }
+    }
+
+    /// Log a warning message (to disk + console unless silent)
+    pub async fn warn(&self, message: &str, component: &str) {
+      self.log("warn", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::warn!(message);
+      }
+    }
+
+    /// Log a verbose message (to disk + console unless silent)
+    pub async fn verbose(&self, message: &str, component: &str) {
+      self.log("verbose", message, component).await;
+      
+      let guard = self.inner.lock().await;
+      if !guard.silent {
+        crate::verbose!(message);
       }
     }
   }

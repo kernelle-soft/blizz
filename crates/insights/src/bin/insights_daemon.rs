@@ -111,26 +111,24 @@ async fn main() -> Result<()> {
     .map_err(|e| anyhow!("Failed to initialize daemon logs: {}", e))?;
   
   // Log daemon startup
-  logs.log("info", "Daemon starting up", "startup").await;
+  logs.info("Daemon starting up", "startup").await;
 
   // Load the embedder model
   let embedder = match GTEBase::load().await {
     Ok(embedder) => {
-      logs.log("info", "Successfully loaded GTE-Base embedding model", "embedder").await;
+      logs.info("Successfully loaded GTE-Base embedding model", "embedder").await;
       Some(Arc::new(tokio::sync::Mutex::new(embedder)))
     }
     Err(e) => {
-      logs.log("warn", &format!("Failed to load embedder model: {e}"), "embedder").await;
-      logs.log("info", "Daemon will run without embedding capabilities", "embedder").await;
-      bentley::warn!(&format!("Failed to load embedder model: {e}"));
-      bentley::warn!("Daemon will run without embedding capabilities");
+      logs.warn(&format!("Failed to load embedder model: {e}"), "embedder").await;
+      logs.info("Daemon will run without embedding capabilities", "embedder").await;
       None
     }
   };
 
   let socket_path = create_socket(&insights_path)?;
 
-  logs.log("info", &format!("Socket created: {}", socket_path.display()), "ipc").await;
+  logs.info(&format!("Socket created: {}", socket_path.display()), "ipc").await;
 
   bentley::info!("daemon started - press ctrl+c to exit");
 
@@ -140,7 +138,7 @@ async fn main() -> Result<()> {
   signal::ctrl_c().await?;
   bentley::verbose!("\nshutting down daemon");
 
-  logs.log("info", "Received shutdown signal", "shutdown").await;
+  logs.info("Received shutdown signal", "shutdown").await;
 
   // Clean up socket file
   let _ = fs::remove_file(&socket_path);
@@ -241,7 +239,7 @@ async fn handle_request<R: AsyncReader, E: Embedder>(
   // Try parsing as EmbeddingRequest first
   if let Ok(embedding_request) = serde_json::from_str::<EmbeddingRequest>(&str) {
     if embedding_request.request == "embed" {
-      logs.log("info", "Processing embedding request", "embedder").await;
+      logs.info("Processing embedding request", "embedder").await;
 
       let response = match embedder {
         Some(arc) => {
@@ -261,7 +259,7 @@ async fn handle_request<R: AsyncReader, E: Embedder>(
   // Try parsing as LogsRequest
   if let Ok(logs_request) = serde_json::from_str::<LogsRequest>(&str) {
     if logs_request.request == "logs" {
-      logs.log("info", "Processing logs request", "logs").await;
+      logs.info("Processing logs request", "logs").await;
       
       match logs.get_logs(logs_request.limit, logs_request.level.as_deref()).await {
         Ok(filtered_logs) => return DaemonResponse::Logs(LogsResponse::success(filtered_logs)),
