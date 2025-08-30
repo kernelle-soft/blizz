@@ -4,14 +4,13 @@ use serde::{Deserialize, Serialize};
 
 use std::path::{Path, PathBuf};
 use std::{env, fs};
-use std::collections::VecDeque;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tokio::signal;
 use tokio::task::JoinHandle;
-use chrono::{DateTime, Utc};
 
 use insights::gte_base::GTEBase;
+use bentley::daemon_logs::{DaemonLogs, LogsRequest, LogsResponse};
 use std::sync::Arc;
 
 // Trait to abstract async I/O for testability
@@ -74,86 +73,11 @@ struct ErrorInfo {
   tag: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct LogsRequest {
-  request: String,
-  #[serde(default)]
-  limit: Option<usize>,
-  #[serde(default)]
-  level: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct LogsResponse {
-  success: bool,
-  logs: Vec<LogEntry>,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  error: Option<ErrorInfo>,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 enum DaemonResponse {
   Embedding(EmbeddingResponse),
   Logs(LogsResponse),
-}
-
-#[derive(Debug, Serialize, Clone)]
-struct LogEntry {
-  timestamp: DateTime<Utc>,
-  level: String,
-  message: String,
-  component: String,
-}
-
-struct DaemonLogs {
-  entries: VecDeque<LogEntry>,
-  max_entries: usize,
-}
-
-impl DaemonLogs {
-  fn new(max_entries: usize) -> Self {
-    Self {
-      entries: VecDeque::with_capacity(max_entries),
-      max_entries,
-    }
-  }
-
-  fn add_log(&mut self, level: &str, message: &str, component: &str) {
-    if self.entries.len() >= self.max_entries {
-      self.entries.pop_front(); // Remove oldest
-    }
-
-    self.entries.push_back(LogEntry {
-      timestamp: Utc::now(),
-      level: level.to_string(),
-      message: message.to_string(),
-      component: component.to_string(),
-    });
-  }
-
-  fn get_logs(&self, limit: Option<usize>, level_filter: Option<&str>) -> Vec<LogEntry> {
-    let mut logs: Vec<LogEntry> = self
-      .entries
-      .iter()
-      .filter(|entry| {
-        level_filter.map_or(true, |filter| {
-          filter == "all" || entry.level == filter
-        })
-      })
-      .cloned()
-      .collect();
-
-    // Sort by timestamp (newest first)
-    logs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
-    // Apply limit
-    if let Some(limit) = limit {
-      logs.truncate(limit);
-    }
-
-    logs
-  }
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -171,20 +95,7 @@ impl EmbeddingResponse {
   }
 }
 
-#[cfg(not(tarpaulin_include))]
-impl LogsResponse {
-  fn success(logs: Vec<LogEntry>) -> Self {
-    Self { success: true, logs, error: None }
-  }
 
-  fn error(message: &str, tag: &str) -> Self {
-    Self {
-      success: false,
-      logs: Vec::new(),
-      error: Some(ErrorInfo { message: message.to_string(), tag: tag.to_string() }),
-    }
-  }
-}
 
 #[tokio::main]
 #[cfg(not(tarpaulin_include))]

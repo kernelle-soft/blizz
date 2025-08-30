@@ -1,11 +1,10 @@
 use anyhow::{anyhow, Result};
 use colored::*;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use std::{env, path::PathBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
+use bentley::daemon_logs::{LogEntry, LogsRequest, LogsResponse};
 use crate::insight::InsightMetaData;
 use crate::insight::{self, Insight};
 
@@ -205,27 +204,7 @@ pub fn index_insights(force: bool) -> Result<()> {
   Ok(())
 }
 
-/// Structures for daemon communication
-#[derive(Debug, Serialize)]
-struct LogsRequest {
-  request: String,
-  limit: Option<usize>,
-  level: Option<String>,
-}
 
-#[derive(Debug, Deserialize)]
-struct LogsResponse {
-  success: bool,
-  logs: Vec<LogEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-struct LogEntry {
-  timestamp: DateTime<Utc>,
-  level: String,
-  message: String,
-  component: String,
-}
 
 /// Query daemon logs for debugging and monitoring
 pub fn query_daemon_logs(limit: usize, level: &str) -> Result<()> {

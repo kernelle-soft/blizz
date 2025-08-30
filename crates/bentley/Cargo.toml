@@ -26,8 +26,15 @@ thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+# For daemon log storage  
+tokio = { version = "1.47", features = ["sync"], optional = true }
+
 [dev-dependencies]
 tempfile.workspace = true 
+
+[features]
+default = []
+daemon-logs = ["tokio"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
