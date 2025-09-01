@@ -1,13 +1,11 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
+use insights::cli::commands;
 
-mod client;
-mod commands;
 mod insight;
-mod rest;
+mod server;
 mod search;
 mod semantic;
-mod server_manager;
 mod similarity;
 
 #[derive(Parser)]

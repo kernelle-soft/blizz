@@ -5,7 +5,7 @@ use bentley::daemon_logs::DaemonLogs;
 use std::path::Path;
 use uuid::Uuid;
 
-use crate::rest::types::{ApiError, BaseResponse, LogEntry, LogsResponse};
+use crate::server::types::{ApiError, BaseResponse, LogEntry, LogsResponse};
 
 /// GET /logs - Get all logs since server start
 pub async fn get_logs() -> Result<Json<BaseResponse<LogsResponse>>, (StatusCode, Json<BaseResponse<()>>)> {

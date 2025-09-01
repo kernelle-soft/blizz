@@ -7,7 +7,7 @@ use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
-use crate::rest::routing::create_router;
+use crate::server::routing::create_router;
 
 /// Start the REST server
 pub async fn start_server(addr: SocketAddr) -> Result<()> {

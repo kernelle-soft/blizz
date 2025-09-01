@@ -3,7 +3,7 @@
 use axum::{response::Json, http::StatusCode};
 use uuid::Uuid;
 
-use crate::rest::types::{
+use crate::server::types::{
     ApiInfoResponse, ApiVersions, BaseResponse, VersionResponse,
 };
 

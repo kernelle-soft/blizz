@@ -5,7 +5,7 @@ use uuid::Uuid;
 use chrono::Utc;
 
 use crate::insight;
-use crate::rest::types::{
+use crate::server::types::{
     AddInsightRequest, ApiError, BaseResponse, GetInsightRequest, GetInsightResponse,
     InsightData, InsightSummary, ListInsightsResponse, 
     ListTopicsResponse, RemoveInsightRequest, UpdateInsightRequest,

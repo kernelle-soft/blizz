@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 
-use crate::rest::handlers::{insights, logs, status};
+use crate::server::handlers::{insights, logs, status};
 
 /// Create the main application router
 pub fn create_router() -> Router {

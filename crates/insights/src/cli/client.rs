@@ -9,7 +9,7 @@ use reqwest::Client;
 use std::time::Duration;
 use tokio::time::timeout;
 
-use crate::rest::types::{
+use crate::server::types::{
   AddInsightRequest, BaseResponse, GetInsightRequest, GetInsightResponse, 
   InsightFilter, ListInsightsResponse, ListTopicsResponse,
   RemoveInsightRequest, UpdateInsightRequest,
@@ -205,7 +205,7 @@ impl InsightsClient {
   }
 
   /// Get server logs
-  pub async fn get_logs(&self) -> Result<crate::rest::types::BaseResponse<crate::rest::types::LogsResponse>> {
+  pub async fn get_logs(&self) -> Result<crate::server::types::BaseResponse<crate::server::types::LogsResponse>> {
     let url = format!("{}/logs", self.config.base_url);
     let response = timeout(
       Duration::from_secs(self.config.timeout_secs),
@@ -216,7 +216,7 @@ impl InsightsClient {
       return Err(anyhow!("Failed to get logs: HTTP {}", response.status()));
     }
     
-    let logs_response: crate::rest::types::BaseResponse<crate::rest::types::LogsResponse> = response.json().await?;
+    let logs_response: crate::server::types::BaseResponse<crate::server::types::LogsResponse> = response.json().await?;
     Ok(logs_response)
   }
 }

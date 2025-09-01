@@ -2,29 +2,18 @@ use anyhow::{anyhow, Result};
 use colored::*;
 
 
-use crate::client::{get_client};
+use crate::cli::client::{get_client};
 use crate::insight::{self, Insight, InsightMetaData};
-use crate::server_manager::ensure_server_running;
+use crate::cli::server_manager::ensure_server_running;
 
-
-/// Add a new insight to the knowledge base (testable version with dependency injection)
-pub async fn add_insight_with_client(
-  topic: &str,
-  name: &str,
-  overview: &str,
-  details: &str,
-) -> Result<()> {
+/// Add a new insight to the knowledge base (production version)
+pub async fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
+  ensure_server_running().await?;
   let client = get_client();
   client.add_insight(topic, name, overview, details).await?;
 
   println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
   Ok(())
-}
-
-/// Add a new insight to the knowledge base (production version)
-pub async fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
-  ensure_server_running().await?;
-  add_insight_with_client(topic, name, overview, details).await
 }
 
 /// Get content of a specific insight
@@ -97,20 +86,6 @@ pub async fn list_topics() -> Result<()> {
 }
 
 /// Update an existing insight's overview and/or details
-pub async fn update_insight_with_client(
-  topic: &str,
-  name: &str,
-  new_overview: Option<&str>,
-  new_details: Option<&str>,
-) -> Result<()> {
-  let client = get_client();
-  client.update_insight(topic, name, new_overview, new_details).await?;
-
-  println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
-  Ok(())
-}
-
-/// Update an existing insight's overview and/or details
 pub async fn update_insight(
   topic: &str,
   name: &str,
@@ -118,7 +93,11 @@ pub async fn update_insight(
   new_details: Option<&str>,
 ) -> Result<()> {
   ensure_server_running().await?;
-  update_insight_with_client(topic, name, new_overview, new_details).await
+  let client = get_client();
+  client.update_insight(topic, name, new_overview, new_details).await?;
+
+  println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
+  Ok(())
 }
 
 /// Delete an insight
