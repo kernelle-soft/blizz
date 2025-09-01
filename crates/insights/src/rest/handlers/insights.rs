@@ -1,10 +1,10 @@
 //! Insights endpoint handlers
 
-use axum::{extract::Json, response::Json as ResponseJson, http::StatusCode};
+use axum::{extract::{Json, Query}, response::Json as ResponseJson, http::StatusCode};
 use uuid::Uuid;
 use chrono::Utc;
 
-use crate::commands::{self, add_insight_with_client, delete_insight};
+use crate::commands::{self, delete_insight};
 use crate::insight;
 use crate::rest::types::{
     AddInsightRequest, ApiError, BaseResponse, GetInsightRequest, GetInsightResponse,
@@ -18,7 +18,19 @@ pub async fn add_insight(
 ) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
     let transaction_id = Uuid::new_v4();
     
-    match add_insight_with_client(&request.topic, &request.name, &request.overview, &request.details).await {
+    // Create and save insight directly (no HTTP client recursion!)
+    let new_insight = insight::Insight {
+        topic: request.topic,
+        name: request.name,
+        overview: request.overview,
+        details: request.details,
+        embedding_version: None,
+        embedding: None,
+        embedding_text: None,
+        embedding_computed: None,
+    };
+    
+    match insight::save(&new_insight) {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
             let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {}", e));
@@ -135,10 +147,8 @@ pub async fn list_topics() -> Result<ResponseJson<BaseResponse<ListTopicsRespons
     }
 }
 
-/// POST /insights/list/insights - List insights with optional filtering
-pub async fn list_insights(
-    Json(_request): Json<ListInsightsRequest>
-) -> Result<ResponseJson<BaseResponse<ListInsightsResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+/// GET /insights/list/insights - List insights with optional filtering  
+pub async fn list_insights() -> Result<ResponseJson<BaseResponse<ListInsightsResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
     let transaction_id = Uuid::new_v4();
     
     // For now, ignore filters and get all insights - we can add filtering later

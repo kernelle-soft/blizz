@@ -167,12 +167,11 @@ impl InsightsClient {
     
     /// List insights with optional filtering
     pub async fn list_insights(&self, filters: Vec<InsightFilter>) -> Result<ListInsightsResponse> {
-        let request = ListInsightsRequest { filters };
-        
+        // For now, we'll use GET without filters. TODO: Add query parameter support
         let url = format!("{}/insights/list/insights", self.config.base_url);
         let response = timeout(
             Duration::from_secs(self.config.timeout_secs),
-            self.client.post(&url).json(&request).send()
+            self.client.get(&url).send()
         ).await??;
         
         if !response.status().is_success() {
