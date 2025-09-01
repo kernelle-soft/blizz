@@ -9,9 +9,11 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use bentley::daemon_logs::DaemonLogs;
+use bentley::DaemonLogs;
+use bentley::daemon_logs::LogContext;
 use std::sync::Arc;
 use uuid::Uuid;
+use once_cell::sync::OnceCell;
 
 /// Request context containing logger and request metadata
 #[derive(Clone)]
@@ -67,26 +69,26 @@ impl RequestContext {
 
     /// Log with full context information
     pub async fn log_with_context(&self, message: &str, level: &str, component: &str, status_code: Option<u16>, duration_ms: Option<f64>) {
-        // For now, we'll still use the existing bentley DaemonLogs API
-        // but structure the context in the message until we can extend bentley
         let user_agent = self.headers.get("user-agent")
             .map(|v| v.to_str().unwrap_or("unknown"))
-            .unwrap_or("none");
+            .unwrap_or("none")
+            .to_string();
 
-        let context_msg = if let (Some(status), Some(duration)) = (status_code, duration_ms) {
-            format!("[{}] {} {} - {} (Status: {}, Duration: {:.2}ms, User-Agent: {})", 
-                self.request_id, self.method, self.uri.path(), message, status, duration, user_agent)
-        } else {
-            format!("[{}] {} {} - {} (User-Agent: {})", 
-                self.request_id, self.method, self.uri.path(), message, user_agent)
+        let context = LogContext {
+            request_id: Some(self.request_id.to_string()),
+            method: Some(self.method.to_string()),
+            path: Some(self.uri.path().to_string()),
+            user_agent: Some(user_agent),
+            status_code,
+            duration_ms,
         };
 
         match level {
-            "info" => self.logger.info(&context_msg, component).await,
-            "success" => self.logger.success(&context_msg, component).await,
-            "warn" => self.logger.warn(&context_msg, component).await,
-            "error" => self.logger.error(&context_msg, component).await,
-            _ => self.logger.info(&context_msg, component).await,
+            "info" => self.logger.info_with_context(message, component, context).await,
+            "success" => self.logger.success_with_context(message, component, context).await,
+            "warn" => self.logger.warn_with_context(message, component, context).await,
+            "error" => self.logger.error_with_context(message, component, context).await,
+            _ => self.logger.info_with_context(message, component, context).await,
         }
     }
 

@@ -9,16 +9,53 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "schemars")]
+use schemars::JsonSchema;
+
 // Types and Data Structures
 // =========================
 
+/// Request context information for logs
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
+pub struct LogContext {
+  /// Request ID for correlation
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub request_id: Option<String>,
+
+  /// HTTP method 
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub method: Option<String>,
+
+  /// Request path
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub path: Option<String>,
+
+  /// User agent
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub user_agent: Option<String>,
+
+  /// Request duration in milliseconds
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub duration_ms: Option<f64>,
+
+  /// HTTP status code
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub status_code: Option<u16>,
+}
+
 /// A structured log entry for daemon operations
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "schemars", derive(JsonSchema))]
 pub struct LogEntry {
   pub timestamp: DateTime<Utc>,
   pub level: String,
   pub message: String,
   pub component: String,
+  
+  /// Optional request context
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub context: Option<LogContext>,
 }
 
 /// Request structure for querying daemon logs
@@ -95,11 +132,17 @@ impl DaemonLogsInner {
 
   /// Add a log entry to storage (appends to JSONL file)
   fn add_log(&mut self, level: &str, message: &str, component: &str) -> std::io::Result<()> {
+    self.add_log_with_context(level, message, component, None)
+  }
+
+  /// Add a log entry with context to storage (appends to JSONL file)
+  fn add_log_with_context(&mut self, level: &str, message: &str, component: &str, context: Option<LogContext>) -> std::io::Result<()> {
     let entry = LogEntry {
       timestamp: Utc::now(),
       level: level.to_string(),
       message: message.to_string(),
       component: component.to_string(),
+      context,
     };
 
     // Serialize to JSON and append to file
@@ -215,15 +258,26 @@ impl DaemonLogs {
     Ok(Self { inner: std::sync::Arc::new(tokio::sync::Mutex::new(inner)) })
   }
 
-  /// Add a log entry (handles locking internally)
+    /// Add a log entry (handles locking internally) 
   pub async fn add_log(&self, level: &str, message: &str, component: &str) -> std::io::Result<()> {
     let mut guard = self.inner.lock().await;
     guard.add_log(level, message, component)
   }
 
+  /// Add a log entry with context (handles locking internally)
+  pub async fn add_log_with_context(&self, level: &str, message: &str, component: &str, context: Option<LogContext>) -> std::io::Result<()> {
+    let mut guard = self.inner.lock().await;
+    guard.add_log_with_context(level, message, component, context)
+  }
+
   /// Add a log entry (fire-and-forget, ignores errors)
   pub async fn log(&self, level: &str, message: &str, component: &str) {
     let _ = self.add_log(level, message, component).await;
+  }
+
+  /// Add a log entry with context (fire-and-forget, ignores errors)
+  pub async fn log_with_context(&self, level: &str, message: &str, component: &str, context: LogContext) {
+    let _ = self.add_log_with_context(level, message, component, Some(context)).await;
   }
 
   /// Retrieve logs with optional filtering and limiting (handles locking internally)
@@ -270,9 +324,29 @@ impl DaemonLogs {
     }
   }
 
+  /// Log an info message with context (to disk + console unless silent)
+  pub async fn info_with_context(&self, message: &str, component: &str, context: LogContext) {
+    self.log_with_context("info", message, component, context).await;
+
+    let guard = self.inner.lock().await;
+    if !guard.silent {
+      crate::info!(message);
+    }
+  }
+
   /// Log a warning message (to disk + console unless silent)
   pub async fn warn(&self, message: &str, component: &str) {
     self.log("warn", message, component).await;
+
+    let guard = self.inner.lock().await;
+    if !guard.silent {
+      crate::warn!(message);
+    }
+  }
+
+  /// Log a warning message with context (to disk + console unless silent)
+  pub async fn warn_with_context(&self, message: &str, component: &str, context: LogContext) {
+    self.log_with_context("warn", message, component, context).await;
 
     let guard = self.inner.lock().await;
     if !guard.silent {
@@ -300,6 +374,16 @@ impl DaemonLogs {
     }
   }
 
+  /// Log an error message with context (to disk + console unless silent)
+  pub async fn error_with_context(&self, message: &str, component: &str, context: LogContext) {
+    self.log_with_context("error", message, component, context).await;
+
+    let guard = self.inner.lock().await;
+    if !guard.silent {
+      crate::error!(message);
+    }
+  }
+
   /// Log a debug message (to disk + console unless silent)
   pub async fn debug(&self, message: &str, component: &str) {
     self.log("debug", message, component).await;
@@ -313,6 +397,16 @@ impl DaemonLogs {
   /// Log a success message (to disk + console unless silent)
   pub async fn success(&self, message: &str, component: &str) {
     self.log("success", message, component).await;
+
+    let guard = self.inner.lock().await;
+    if !guard.silent {
+      crate::success!(message);
+    }
+  }
+
+  /// Log a success message with context (to disk + console unless silent)
+  pub async fn success_with_context(&self, message: &str, component: &str, context: LogContext) {
+    self.log_with_context("success", message, component, context).await;
 
     let guard = self.inner.lock().await;
     if !guard.silent {

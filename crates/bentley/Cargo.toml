@@ -29,6 +29,9 @@ serde_json.workspace = true
 # For daemon log storage  
 tokio = { version = "1.47", features = ["sync"], optional = true }
 
+# For JSON schema generation
+schemars = { version = "0.8", optional = true }
+
 [dev-dependencies]
 tempfile.workspace = true 
 # Additional tokio features needed for async tests
@@ -37,6 +40,7 @@ tokio = { version = "1.47", features = ["test-util", "rt", "macros"] }
 [features]
 default = []
 daemon-logs = ["tokio"]
+schemars = ["dep:schemars"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

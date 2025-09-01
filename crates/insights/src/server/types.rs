@@ -97,53 +97,11 @@ pub struct LogsResponse {
   pub logs: Vec<LogEntry>,
 }
 
-/// Request context information for logs
-#[derive(Debug, Serialize, Deserialize, JsonSchema, Clone)]
-pub struct LogContext {
-  /// Request ID for correlation
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub request_id: Option<String>,
+/// Individual log entry (re-exported from bentley)
+pub type LogEntry = bentley::daemon_logs::LogEntry;
 
-  /// HTTP method 
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub method: Option<String>,
-
-  /// Request path
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub path: Option<String>,
-
-  /// User agent
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub user_agent: Option<String>,
-
-  /// Request duration in milliseconds
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub duration_ms: Option<f64>,
-
-  /// HTTP status code
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub status_code: Option<u16>,
-}
-
-/// Individual log entry
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct LogEntry {
-  /// Log timestamp
-  pub timestamp: DateTime<Utc>,
-
-  /// Log level
-  pub level: String,
-
-  /// Log message
-  pub message: String,
-
-  /// Component that generated the log
-  pub component: String,
-
-  /// Optional request context
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub context: Option<LogContext>,
-}
+/// Request context information for logs (re-exported from bentley)
+pub type LogContext = bentley::daemon_logs::LogContext;
 
 // Insights Endpoints
 // ==================
