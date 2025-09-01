@@ -20,6 +20,7 @@ pub fn create_router() -> Router {
         
         // Insights endpoints
         .route("/insights/add", post(insights::add_insight))
+        .route("/insights/get", post(insights::get_insight))
         .route("/insights/update", put(insights::update_insight))
         .route("/insights/remove", delete(insights::remove_insight))
         .route("/insights/clear", delete(insights::clear_insights))

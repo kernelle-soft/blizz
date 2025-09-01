@@ -113,8 +113,93 @@ pub struct LogEntry {
     pub component: String,
 }
 
-// Insights Endpoints
+// Insights Endpoints  
 // ==================
+
+/// Request for /insights/add endpoint
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct AddInsightRequest {
+    /// Topic category
+    pub topic: String,
+    
+    /// Insight name
+    pub name: String,
+    
+    /// Brief overview
+    pub overview: String,
+    
+    /// Detailed content
+    pub details: String,
+}
+
+/// Request for /insights/update endpoint
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct UpdateInsightRequest {
+    /// Topic category
+    pub topic: String,
+    
+    /// Insight name
+    pub name: String,
+    
+    /// New overview (optional)
+    pub overview: Option<String>,
+    
+    /// New details (optional)
+    pub details: Option<String>,
+}
+
+/// Request for /insights/remove endpoint
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct RemoveInsightRequest {
+    /// Topic category
+    pub topic: String,
+    
+    /// Insight name
+    pub name: String,
+}
+
+/// Request for /insights/get endpoint
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct GetInsightRequest {
+    /// Topic category
+    pub topic: String,
+    
+    /// Insight name
+    pub name: String,
+    
+    /// Return only overview (not details)
+    #[serde(default)]
+    pub overview_only: bool,
+}
+
+/// Response for /insights/get endpoint
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct GetInsightResponse {
+    /// The requested insight
+    pub insight: InsightData,
+}
+
+/// Full insight data
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct InsightData {
+    /// Topic category
+    pub topic: String,
+    
+    /// Insight name
+    pub name: String,
+    
+    /// Brief overview
+    pub overview: String,
+    
+    /// Detailed content
+    pub details: String,
+    
+    /// Embedding version (if computed)
+    pub embedding_version: Option<String>,
+    
+    /// When embedding was computed
+    pub embedding_computed: Option<DateTime<Utc>>,
+}
 
 /// Request for /insights/list/insights endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
