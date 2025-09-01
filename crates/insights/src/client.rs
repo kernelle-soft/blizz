@@ -60,7 +60,7 @@ impl InsightsClient {
 
     Self { client, config }
   }
-    
+
     /// Add a new insight
   pub async fn add_insight(&self, topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
     let request = AddInsightRequest {
@@ -84,7 +84,7 @@ impl InsightsClient {
     let _result: BaseResponse<()> = response.json().await?;
     Ok(())
   }
-    
+
   /// Get a specific insight
   pub async fn get_insight(&self, topic: &str, name: &str, overview_only: bool) -> Result<GetInsightResponse> {
     let request = GetInsightRequest {
@@ -107,7 +107,7 @@ impl InsightsClient {
     let result: BaseResponse<GetInsightResponse> = response.json().await?;
     Ok(result.data)
   }
-    
+
   /// Update an existing insight
   pub async fn update_insight(&self, topic: &str, name: &str, overview: Option<&str>, details: Option<&str>) -> Result<()> {
     let request = UpdateInsightRequest {
@@ -131,7 +131,7 @@ impl InsightsClient {
     let _result: BaseResponse<()> = response.json().await?;
     Ok(())
   }
-    
+
   /// Remove an insight
   pub async fn remove_insight(&self, topic: &str, name: &str) -> Result<()> {
     let request = RemoveInsightRequest {
@@ -153,7 +153,7 @@ impl InsightsClient {
     let _result: BaseResponse<()> = response.json().await?;
     Ok(())
   }
-    
+
   /// List all topics
   pub async fn list_topics(&self) -> Result<Vec<String>> {
     let url = format!("{}/insights/list/topics", self.config.base_url);
@@ -188,7 +188,7 @@ impl InsightsClient {
     let result: BaseResponse<ListInsightsResponse> = response.json().await?;
     Ok(result.data)
   }
-    
+
   /// Check if the server is reachable
   pub async fn health_check(&self) -> Result<()> {
     let url = format!("{}/status", self.config.base_url);
@@ -203,7 +203,7 @@ impl InsightsClient {
       Err(anyhow!("Server health check failed: {}", response.status()))
     }
   }
-    
+
   /// Get server logs
   pub async fn get_logs(&self) -> Result<crate::rest::types::BaseResponse<crate::rest::types::LogsResponse>> {
     let url = format!("{}/logs", self.config.base_url);
