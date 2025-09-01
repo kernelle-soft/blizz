@@ -238,6 +238,60 @@ pub struct ListInsightsResponse {
   pub insights: Vec<InsightSummary>,
 }
 
+// Search Types
+// ============
+
+/// Search request data
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SearchRequest {
+  /// Search terms (space-separated)
+  pub terms: Vec<String>,
+  
+  /// Optional topic to restrict search to
+  pub topic: Option<String>,
+  
+  /// Case-sensitive search
+  #[serde(default)]
+  pub case_sensitive: bool,
+  
+  /// Search only in overview sections
+  #[serde(default)]
+  pub overview_only: bool,
+  
+  /// Use exact term matching only
+  #[serde(default)]
+  pub exact: bool,
+}
+
+/// Search result data
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SearchResultData {
+  /// Topic name
+  pub topic: String,
+  
+  /// Insight name
+  pub name: String,
+  
+  /// Overview content
+  pub overview: String,
+  
+  /// Detail content
+  pub details: String,
+  
+  /// Search score
+  pub score: f32,
+}
+
+/// Search response data
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SearchResponse {
+  /// Search results
+  pub results: Vec<SearchResultData>,
+  
+  /// Number of results
+  pub count: usize,
+}
+
 /// Response for /insights/list/topics endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ListTopicsResponse {

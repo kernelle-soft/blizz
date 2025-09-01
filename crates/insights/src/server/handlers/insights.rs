@@ -8,7 +8,7 @@ use crate::insight;
 use crate::server::types::{
   AddInsightRequest, ApiError, BaseResponse, GetInsightRequest, GetInsightResponse, InsightData,
   InsightSummary, ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest,
-  UpdateInsightRequest,
+  SearchRequest, SearchResponse, SearchResultData, UpdateInsightRequest,
 };
 
 /// POST /insights/add - Add a new insight
@@ -210,12 +210,48 @@ pub async fn list_insights() -> Result<
   }
 }
 
-/// GET /insights/search - Search insights
+/// POST /insights/search - Search insights
 pub async fn search_insights(
-) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
-  let transaction_id = Uuid::new_v4();
+    Json(request): Json<SearchRequest>,
+) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+    let transaction_id = Uuid::new_v4();
 
-  // TODO: Implement using existing search logic from search.rs
-  // TODO: Define search request/response types
-  Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+    // Convert request to search options
+    let search_options = crate::search::SearchOptions {
+        topic: request.topic.clone(),
+        case_sensitive: request.case_sensitive,
+        overview_only: request.overview_only,
+        exact: request.exact,
+    };
+
+    // Perform search using existing search logic
+    match crate::search::search(&request.terms, &search_options) {
+        Ok(results) => {
+            // Convert SearchResult to SearchResultData
+            let search_results: Vec<SearchResultData> = results
+                .into_iter()
+                .map(|r| SearchResultData {
+                    topic: r.topic,
+                    name: r.name,
+                    overview: r.overview,
+                    details: r.details,
+                    score: r.score,
+                })
+                .collect();
+
+            let response_data = SearchResponse {
+                count: search_results.len(),
+                results: search_results,
+            };
+
+            Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
+        }
+        Err(e) => {
+            let error = ApiError::new("search_failed", &format!("Search failed: {}", e));
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
+            ))
+        }
+    }
 }

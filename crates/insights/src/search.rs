@@ -25,16 +25,16 @@ pub struct SearchResult {
 pub struct SearchCommandOptions {
   /// Optional topic to restrict search to
   #[arg(short, long)]
-  topic: Option<String>,
+  pub topic: Option<String>,
   /// Case-sensitive search
   #[arg(short, long)]
-  case_sensitive: bool,
+  pub case_sensitive: bool,
   /// Search only in overview sections
   #[arg(short, long)]
-  overview_only: bool,
+  pub overview_only: bool,
   /// Use exact term matching only
   #[arg(short, long)]
-  exact: bool,
+  pub exact: bool,
 }
 
 pub struct SearchOptions {

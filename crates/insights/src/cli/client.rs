@@ -231,6 +231,41 @@ impl InsightsClient {
       response.json().await?;
     Ok(logs_response)
   }
+
+  /// Search insights
+  pub async fn search_insights(
+    &self,
+    terms: Vec<String>,
+    topic: Option<String>,
+    case_sensitive: bool,
+    overview_only: bool,
+    exact: bool,
+  ) -> Result<crate::server::types::SearchResponse> {
+    use crate::server::types::{BaseResponse, SearchRequest, SearchResponse};
+    
+    let request = SearchRequest {
+      terms,
+      topic,
+      case_sensitive,
+      overview_only,
+      exact,
+    };
+
+    let url = format!("{}/insights/search", self.config.base_url);
+    let response = timeout(
+      Duration::from_secs(self.config.timeout_secs),
+      self.client.post(&url).json(&request).send(),
+    )
+    .await??;
+
+    if !response.status().is_success() {
+      let error_text = response.text().await?;
+      return Err(anyhow!("Failed to search insights: {}", error_text));
+    }
+
+    let result: BaseResponse<SearchResponse> = response.json().await?;
+    Ok(result.data)
+  }
 }
 
 /// Get the configured client (checks environment variables)
