@@ -4,7 +4,7 @@ use axum::{extract::{Json, Query}, response::Json as ResponseJson, http::StatusC
 use uuid::Uuid;
 use chrono::Utc;
 
-use crate::commands::{self, delete_insight};
+use crate::commands::{self};
 use crate::insight;
 use crate::rest::types::{
     AddInsightRequest, ApiError, BaseResponse, GetInsightRequest, GetInsightResponse,
@@ -77,12 +77,21 @@ pub async fn update_insight(
 ) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
     let transaction_id = Uuid::new_v4();
     
-    match commands::update_insight_with_client(
-        &request.topic, 
-        &request.name, 
-        request.overview.as_deref(), 
-        request.details.as_deref()
-    ).await {
+    // Call library function directly (no HTTP client recursion!)
+    // First load the existing insight
+    let mut insight_data = match insight::load(&request.topic, &request.name) {
+        Ok(insight) => insight,
+        Err(e) => {
+            let error = ApiError::new("insight_not_found", &format!("Insight not found: {}", e));
+            return Err((
+                StatusCode::NOT_FOUND,
+                ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
+            ));
+        }
+    };
+    
+    // Then update it
+    match insight::update(&mut insight_data, request.overview.as_deref(), request.details.as_deref()) {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
             let error = ApiError::new("insight_update_failed", &format!("Failed to update insight: {}", e));
@@ -100,7 +109,19 @@ pub async fn remove_insight(
 ) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
     let transaction_id = Uuid::new_v4();
     
-    match delete_insight(&request.topic, &request.name, true).await {
+    // Call library function directly (no HTTP client recursion!)
+    let insight_to_delete = match insight::load(&request.topic, &request.name) {
+        Ok(insight_data) => insight_data,
+        Err(e) => {
+            let error = ApiError::new("insight_not_found", &format!("Insight not found: {}", e));
+            return Err((
+                StatusCode::NOT_FOUND,
+                ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
+            ));
+        }
+    };
+    
+    match insight::delete(&insight_to_delete) {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
             let error = ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {}", e));
