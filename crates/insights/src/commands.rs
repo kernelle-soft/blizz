@@ -126,15 +126,38 @@ pub async fn update_insight(
 
 /// Delete an insight
 pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
-  if !force {
-    return Err(anyhow::anyhow!("Delete operation requires --force flag"));
-  }
-
   ensure_server_running().await?;
   
+  // Check if insight exists first
   let client = get_client();
-  client.remove_insight(topic, name).await?;
+  if let Err(e) = client.get_insight(topic, name, true).await {
+    let error_msg = e.to_string();
+    if error_msg.contains("insight_not_found") || error_msg.contains("not found") {
+      return Err(anyhow!("Insight {}/{} not found", topic, name));
+    } else {
+      return Err(e);
+    }
+  }
 
+  // Ask for confirmation unless --force is used
+  if !force {
+    use std::io::{self, Write};
+    
+    print!("Are you sure you want to delete insight {}/{}? [y/N]: ", topic.cyan(), name.yellow());
+    io::stdout().flush()?;
+    
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    
+    let response = input.trim().to_lowercase();
+    if response != "y" && response != "yes" {
+      println!("Delete cancelled.");
+      return Ok(());
+    }
+  }
+
+  // Delete the insight
+  client.remove_insight(topic, name).await?;
   println!("{} Deleted insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
   Ok(())
 }
