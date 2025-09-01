@@ -1769,6 +1769,7 @@ dependencies = [
  "once_cell",
  "ort",
  "predicates",
+ "regex",
  "reqwest",
  "safetensors",
  "schemars",

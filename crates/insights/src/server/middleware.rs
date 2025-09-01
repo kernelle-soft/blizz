@@ -47,70 +47,57 @@ impl RequestContext {
 
     /// Log an info message with request context
     pub async fn log_info(&self, message: &str, component: &str) {
-        let contextualized_message = format!(
-            "[{}] {} {} - {}",
-            self.request_id,
-            self.method,
-            self.uri.path(),
-            message
-        );
-        self.logger.info(&contextualized_message, component).await;
+        self.log_with_context(message, "info", component, None, None).await;
     }
 
     /// Log a success message with request context
     pub async fn log_success(&self, message: &str, component: &str) {
-        let contextualized_message = format!(
-            "[{}] {} {} - {}",
-            self.request_id,
-            self.method,
-            self.uri.path(),
-            message
-        );
-        self.logger.success(&contextualized_message, component).await;
+        self.log_with_context(message, "success", component, None, None).await;
     }
 
     /// Log an error message with request context
     pub async fn log_error(&self, message: &str, component: &str) {
-        let contextualized_message = format!(
-            "[{}] {} {} - {}",
-            self.request_id,
-            self.method,
-            self.uri.path(),
-            message
-        );
-        self.logger.error(&contextualized_message, component).await;
+        self.log_with_context(message, "error", component, None, None).await;
     }
 
     /// Log a warning message with request context
     pub async fn log_warn(&self, message: &str, component: &str) {
-        let contextualized_message = format!(
-            "[{}] {} {} - {}",
-            self.request_id,
-            self.method,
-            self.uri.path(),
-            message
-        );
-        self.logger.warn(&contextualized_message, component).await;
+        self.log_with_context(message, "warn", component, None, None).await;
+    }
+
+    /// Log with full context information
+    pub async fn log_with_context(&self, message: &str, level: &str, component: &str, status_code: Option<u16>, duration_ms: Option<f64>) {
+        // For now, we'll still use the existing bentley DaemonLogs API
+        // but structure the context in the message until we can extend bentley
+        let user_agent = self.headers.get("user-agent")
+            .map(|v| v.to_str().unwrap_or("unknown"))
+            .unwrap_or("none");
+
+        let context_msg = if let (Some(status), Some(duration)) = (status_code, duration_ms) {
+            format!("[{}] {} {} - {} (Status: {}, Duration: {:.2}ms, User-Agent: {})", 
+                self.request_id, self.method, self.uri.path(), message, status, duration, user_agent)
+        } else {
+            format!("[{}] {} {} - {} (User-Agent: {})", 
+                self.request_id, self.method, self.uri.path(), message, user_agent)
+        };
+
+        match level {
+            "info" => self.logger.info(&context_msg, component).await,
+            "success" => self.logger.success(&context_msg, component).await,
+            "warn" => self.logger.warn(&context_msg, component).await,
+            "error" => self.logger.error(&context_msg, component).await,
+            _ => self.logger.info(&context_msg, component).await,
+        }
     }
 
     /// Log request start
     pub async fn log_request_start(&self) {
-        self.log_info(
-            &format!("Request started - User-Agent: {:?}", 
-                self.headers.get("user-agent")
-                    .map(|v| v.to_str().unwrap_or("unknown"))
-                    .unwrap_or("none")
-            ),
-            "http-request"
-        ).await;
+        self.log_with_context("Request started", "info", "http-request", None, None).await;
     }
 
     /// Log request completion with status
     pub async fn log_request_complete(&self, status_code: u16, duration_ms: f64) {
-        self.log_info(
-            &format!("Request completed - Status: {}, Duration: {:.2}ms", status_code, duration_ms),
-            "http-request"
-        ).await;
+        self.log_with_context("Request completed", "info", "http-request", Some(status_code), Some(duration_ms)).await;
     }
 }
 

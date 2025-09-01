@@ -221,19 +221,70 @@ pub async fn logs(_limit: usize, _level: &str) -> Result<()> {
     return Ok(());
   }
 
-  println!("{} Server logs (showing {} entries):", "📋".cyan(), logs_response.data.logs.len());
-  println!();
-
   for log in logs_response.data.logs {
     let level_colored = match log.level.as_str() {
       "error" => log.level.red().bold(),
       "warn" => log.level.yellow().bold(),
       "info" => log.level.blue().bold(),
       "debug" => log.level.green(),
+      "success" => log.level.bright_green().bold(),
       _ => log.level.normal(),
     };
 
+    // Main log line with timestamp, level, and message
     println!("{} [{}] {}", log.timestamp.to_string().cyan(), level_colored, log.message);
+    
+    // Pretty-print context if available
+    if let Some(context) = &log.context {
+      let mut context_parts = Vec::new();
+      
+      if let Some(request_id) = &context.request_id {
+        context_parts.push(format!("request_id: {}", request_id.bright_blue()));
+      }
+      
+      if let Some(method) = &context.method {
+        context_parts.push(format!("method: {}", method.magenta().bold()));
+      }
+      
+      if let Some(path) = &context.path {
+        context_parts.push(format!("path: {}", path.cyan()));
+      }
+      
+      if let Some(user_agent) = &context.user_agent {
+        context_parts.push(format!("user_agent: {}", user_agent.white().dimmed()));
+      }
+      
+      if let Some(status_code) = context.status_code {
+        let status_color = match status_code {
+          200..=299 => status_code.to_string().green(),
+          300..=399 => status_code.to_string().yellow(),
+          400..=499 => status_code.to_string().red(),
+          500..=599 => status_code.to_string().bright_red().bold(),
+          _ => status_code.to_string().white(),
+        };
+        context_parts.push(format!("status: {}", status_color));
+      }
+      
+      if let Some(duration) = context.duration_ms {
+        let duration_color = if duration < 1.0 {
+          format!("{:.2}ms", duration).bright_green()
+        } else if duration < 10.0 {
+          format!("{:.2}ms", duration).green()
+        } else if duration < 100.0 {
+          format!("{:.2}ms", duration).yellow()
+        } else {
+          format!("{:.2}ms", duration).red()
+        };
+        context_parts.push(format!("duration: {}", duration_color));
+      }
+      
+      if !context_parts.is_empty() {
+        for part in context_parts {
+          println!("  {} {}", "└─".white().dimmed(), part);
+        }
+        println!();
+      }
+    }
   }
 
   Ok(())
