@@ -1,7 +1,9 @@
 //! Insights endpoint handlers
 
-use axum::{extract::Json, http::StatusCode, response::Json as ResponseJson};
+use axum::{extract::{Json, State}, http::StatusCode, response::Json as ResponseJson};
+use bentley::daemon_logs::DaemonLogs;
 use chrono::Utc;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::insight;
@@ -247,6 +249,58 @@ pub async fn search_insights(
             Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
         }
         Err(e) => {
+            let error = ApiError::new("search_failed", &format!("Search failed: {}", e));
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
+            ))
+        }
+    }
+}
+
+/// POST /insights/search - Search insights with logging
+pub async fn search_insights_with_logging(
+    State(daemon_logs): State<Arc<DaemonLogs>>,
+    Json(request): Json<SearchRequest>,
+) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+    let transaction_id = Uuid::new_v4();
+
+    daemon_logs.info(&format!("Searching insights: terms={:?}, topic={:?}", request.terms, request.topic), "insights-api").await;
+
+    // Convert request to search options
+    let search_options = crate::search::SearchOptions {
+        topic: request.topic.clone(),
+        case_sensitive: request.case_sensitive,
+        overview_only: request.overview_only,
+        exact: request.exact,
+    };
+
+    // Perform search using existing search logic
+    match crate::search::search(&request.terms, &search_options) {
+        Ok(results) => {
+            daemon_logs.info(&format!("Search completed: found {} results for {:?}", results.len(), request.terms), "insights-api").await;
+            
+            // Convert SearchResult to SearchResultData
+            let search_results: Vec<SearchResultData> = results
+                .into_iter()
+                .map(|r| SearchResultData {
+                    topic: r.topic,
+                    name: r.name,
+                    overview: r.overview,
+                    details: r.details,
+                    score: r.score,
+                })
+                .collect();
+
+            let response_data = SearchResponse {
+                count: search_results.len(),
+                results: search_results,
+            };
+
+            Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
+        }
+        Err(e) => {
+            daemon_logs.error(&format!("Search failed for {:?}: {}", request.terms, e), "insights-api").await;
             let error = ApiError::new("search_failed", &format!("Search failed: {}", e));
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
