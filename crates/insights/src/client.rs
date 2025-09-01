@@ -203,6 +203,22 @@ impl InsightsClient {
             Err(anyhow!("Server health check failed: {}", response.status()))
         }
     }
+    
+    /// Get server logs
+    pub async fn get_logs(&self) -> Result<crate::rest::types::BaseResponse<crate::rest::types::LogsResponse>> {
+        let url = format!("{}/logs", self.config.base_url);
+        let response = timeout(
+            Duration::from_secs(self.config.timeout_secs),
+            self.client.get(&url).send()
+        ).await??;
+        
+        if !response.status().is_success() {
+            return Err(anyhow!("Failed to get logs: HTTP {}", response.status()));
+        }
+        
+        let logs_response: crate::rest::types::BaseResponse<crate::rest::types::LogsResponse> = response.json().await?;
+        Ok(logs_response)
+    }
 }
 
 /// Get the configured client (checks environment variables)
