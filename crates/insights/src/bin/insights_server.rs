@@ -15,33 +15,31 @@ use insights::server::server::start_server;
 #[command(about = "Insights REST API Server")]
 #[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of Blizz and Kernelle Software"))]
 struct Args {
-    /// Server bind address  
-    #[arg(long, default_value = "127.0.0.1:3000")]
-    bind: SocketAddr,
-    
-    /// Enable verbose logging
-    #[arg(short, long)]
-    verbose: bool,
+  /// Server bind address  
+  #[arg(long, default_value = "127.0.0.1:3000")]
+  bind: SocketAddr,
+
+  /// Enable verbose logging
+  #[arg(short, long)]
+  verbose: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let args = Args::parse();
-    
-    // Initialize logging
-    if args.verbose {
-        tracing_subscriber::fmt::init();
-    } else {
-        tracing_subscriber::fmt()
-            .with_max_level(Level::INFO)
-            .init();
-    }
-    
-    bentley::info!(&format!("Starting Insights REST Server v{}", env!("CARGO_PKG_VERSION")));
-    bentley::info!(&format!("Binding to address: {}", args.bind));
-    
-    // Start the server
-    start_server(args.bind).await?;
-    
-    Ok(())
+  let args = Args::parse();
+
+  // Initialize logging
+  if args.verbose {
+    tracing_subscriber::fmt::init();
+  } else {
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
+  }
+
+  bentley::info!(&format!("Starting Insights REST Server v{}", env!("CARGO_PKG_VERSION")));
+  bentley::info!(&format!("Binding to address: {}", args.bind));
+
+  // Start the server
+  start_server(args.bind).await?;
+
+  Ok(())
 }

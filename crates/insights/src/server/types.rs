@@ -11,50 +11,50 @@ use uuid::Uuid;
 /// Base response object for all API endpoints
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct BaseResponse<T> {
-    /// API versioning information
-    pub versioning: VersionInfo,
-    
-    /// Transaction ID for logging correlation
-    pub transaction_id: Uuid,
-    
-    /// Optional error information
-    #[serde(skip_serializing_if = "Vec::is_empty", default)]
-    pub errors: Vec<ApiError>,
-    
-    /// Response data (generic for different endpoint types)
-    #[serde(flatten)]
-    pub data: T,
+  /// API versioning information
+  pub versioning: VersionInfo,
+
+  /// Transaction ID for logging correlation
+  pub transaction_id: Uuid,
+
+  /// Optional error information
+  #[serde(skip_serializing_if = "Vec::is_empty", default)]
+  pub errors: Vec<ApiError>,
+
+  /// Response data (generic for different endpoint types)
+  #[serde(flatten)]
+  pub data: T,
 }
 
 /// API versioning information
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct VersionInfo {
-    /// The latest version of the API
-    pub latest: String,
-    
-    /// The version of the API requested by the client
-    pub requested: String,
-    
-    /// The version of the API that was used in producing the response
-    pub resolved: String,
+  /// The latest version of the API
+  pub latest: String,
+
+  /// The version of the API requested by the client
+  pub requested: String,
+
+  /// The version of the API that was used in producing the response
+  pub resolved: String,
 }
 
 /// API error information
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ApiError {
-    /// Error key, unique to the error source
-    pub key: String,
-    
-    /// Human readable error message
-    pub message: String,
-    
-    /// Error stack trace (if available)
-    #[serde(default)]
-    pub stack: Vec<String>,
-    
-    /// Additional error context
-    #[serde(default)]
-    pub context: serde_json::Value,
+  /// Error key, unique to the error source
+  pub key: String,
+
+  /// Human readable error message
+  pub message: String,
+
+  /// Error stack trace (if available)
+  #[serde(default)]
+  pub stack: Vec<String>,
+
+  /// Additional error context
+  #[serde(default)]
+  pub context: serde_json::Value,
 }
 
 // Status/Version Endpoints
@@ -63,28 +63,28 @@ pub struct ApiError {
 /// Response for /version endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct VersionResponse {
-    /// Current API version
-    pub version: String,
+  /// Current API version
+  pub version: String,
 }
 
 /// Response for /api endpoint  
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ApiInfoResponse {
-    /// Latest API version
-    pub latest: String,
-    
-    /// Version information
-    pub versions: ApiVersions,
+  /// Latest API version
+  pub latest: String,
+
+  /// Version information
+  pub versions: ApiVersions,
 }
 
 /// API version details
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ApiVersions {
-    /// Latest version
-    pub latest: String,
-    
-    /// Currently active versions
-    pub active: Vec<String>,
+  /// Latest version
+  pub latest: String,
+
+  /// Currently active versions
+  pub active: Vec<String>,
 }
 
 // Logs Endpoint
@@ -93,220 +93,220 @@ pub struct ApiVersions {
 /// Response for /logs endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LogsResponse {
-    /// JSON log entries
-    pub logs: Vec<LogEntry>,
+  /// JSON log entries
+  pub logs: Vec<LogEntry>,
 }
 
 /// Individual log entry
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LogEntry {
-    /// Log timestamp
-    pub timestamp: DateTime<Utc>,
-    
-    /// Log level
-    pub level: String,
-    
-    /// Log message
-    pub message: String,
-    
-    /// Component that generated the log
-    pub component: String,
+  /// Log timestamp
+  pub timestamp: DateTime<Utc>,
+
+  /// Log level
+  pub level: String,
+
+  /// Log message
+  pub message: String,
+
+  /// Component that generated the log
+  pub component: String,
 }
 
-// Insights Endpoints  
+// Insights Endpoints
 // ==================
 
 /// Request for /insights/add endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AddInsightRequest {
-    /// Topic category
-    pub topic: String,
-    
-    /// Insight name
-    pub name: String,
-    
-    /// Brief overview
-    pub overview: String,
-    
-    /// Detailed content
-    pub details: String,
+  /// Topic category
+  pub topic: String,
+
+  /// Insight name
+  pub name: String,
+
+  /// Brief overview
+  pub overview: String,
+
+  /// Detailed content
+  pub details: String,
 }
 
 /// Request for /insights/update endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct UpdateInsightRequest {
-    /// Topic category
-    pub topic: String,
-    
-    /// Insight name
-    pub name: String,
-    
-    /// New overview (optional)
-    pub overview: Option<String>,
-    
-    /// New details (optional)
-    pub details: Option<String>,
+  /// Topic category
+  pub topic: String,
+
+  /// Insight name
+  pub name: String,
+
+  /// New overview (optional)
+  pub overview: Option<String>,
+
+  /// New details (optional)
+  pub details: Option<String>,
 }
 
 /// Request for /insights/remove endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct RemoveInsightRequest {
-    /// Topic category
-    pub topic: String,
-    
-    /// Insight name
-    pub name: String,
+  /// Topic category
+  pub topic: String,
+
+  /// Insight name
+  pub name: String,
 }
 
 /// Request for /insights/get endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct GetInsightRequest {
-    /// Topic category
-    pub topic: String,
-    
-    /// Insight name
-    pub name: String,
-    
-    /// Return only overview (not details)
-    #[serde(default)]
-    pub overview_only: bool,
+  /// Topic category
+  pub topic: String,
+
+  /// Insight name
+  pub name: String,
+
+  /// Return only overview (not details)
+  #[serde(default)]
+  pub overview_only: bool,
 }
 
 /// Response for /insights/get endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct GetInsightResponse {
-    /// The requested insight
-    pub insight: InsightData,
+  /// The requested insight
+  pub insight: InsightData,
 }
 
 /// Full insight data
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct InsightData {
-    /// Topic category
-    pub topic: String,
-    
-    /// Insight name
-    pub name: String,
-    
-    /// Brief overview
-    pub overview: String,
-    
-    /// Detailed content
-    pub details: String,
-    
-    /// Embedding version (if computed)
-    pub embedding_version: Option<String>,
-    
-    /// When embedding was computed
-    pub embedding_computed: Option<DateTime<Utc>>,
+  /// Topic category
+  pub topic: String,
+
+  /// Insight name
+  pub name: String,
+
+  /// Brief overview
+  pub overview: String,
+
+  /// Detailed content
+  pub details: String,
+
+  /// Embedding version (if computed)
+  pub embedding_version: Option<String>,
+
+  /// When embedding was computed
+  pub embedding_computed: Option<DateTime<Utc>>,
 }
 
 /// Request for /insights/list/insights endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ListInsightsRequest {
-    /// Optional filters (ANDed together)
-    #[serde(default)]
-    pub filters: Vec<InsightFilter>,
+  /// Optional filters (ANDed together)
+  #[serde(default)]
+  pub filters: Vec<InsightFilter>,
 }
 
 /// Filter for insight queries
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct InsightFilter {
-    /// Metadata field name to filter on
-    pub field: String,
-    
-    /// Expected value
-    pub value: String,
-    
-    /// Comparison operation
-    pub comparison: FilterComparison,
+  /// Metadata field name to filter on
+  pub field: String,
+
+  /// Expected value
+  pub value: String,
+
+  /// Comparison operation
+  pub comparison: FilterComparison,
 }
 
 /// Filter comparison operations
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum FilterComparison {
-    Equal,
-    NotEqual,
-    // Room for expansion: Contains, StartsWith, etc.
+  Equal,
+  NotEqual,
+  // Room for expansion: Contains, StartsWith, etc.
 }
 
 /// Response for /insights/list/insights endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ListInsightsResponse {
-    /// List of insights matching filters
-    pub insights: Vec<InsightSummary>,
+  /// List of insights matching filters
+  pub insights: Vec<InsightSummary>,
 }
 
 /// Response for /insights/list/topics endpoint
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ListTopicsResponse {
-    /// List of available topics
-    pub topics: Vec<String>,
+  /// List of available topics
+  pub topics: Vec<String>,
 }
 
 /// Summary information about an insight
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct InsightSummary {
-    /// Topic category
-    pub topic: String,
-    
-    /// Insight name
-    pub name: String,
-    
-    /// Brief overview
-    pub overview: String,
-    
-    /// Creation timestamp
-    pub created_at: DateTime<Utc>,
-    
-    /// Last modified timestamp
-    pub updated_at: DateTime<Utc>,
+  /// Topic category
+  pub topic: String,
+
+  /// Insight name
+  pub name: String,
+
+  /// Brief overview
+  pub overview: String,
+
+  /// Creation timestamp
+  pub created_at: DateTime<Utc>,
+
+  /// Last modified timestamp
+  pub updated_at: DateTime<Utc>,
 }
 
 // Helper Functions
 // ================
 
 impl<T> BaseResponse<T> {
-    /// Create a successful response
-    pub fn success(data: T, transaction_id: Uuid) -> Self {
-        let version = env!("CARGO_PKG_VERSION");
-        Self {
-            versioning: VersionInfo {
-                latest: version.to_string(),
-                requested: version.to_string(), 
-                resolved: version.to_string(),
-            },
-            transaction_id,
-            errors: Vec::new(),
-            data,
-        }
+  /// Create a successful response
+  pub fn success(data: T, transaction_id: Uuid) -> Self {
+    let version = env!("CARGO_PKG_VERSION");
+    Self {
+      versioning: VersionInfo {
+        latest: version.to_string(),
+        requested: version.to_string(),
+        resolved: version.to_string(),
+      },
+      transaction_id,
+      errors: Vec::new(),
+      data,
     }
-    
-    /// Create an error response
-    pub fn error(errors: Vec<ApiError>, transaction_id: Uuid) -> BaseResponse<()> {
-        let version = env!("CARGO_PKG_VERSION");
-        BaseResponse {
-            versioning: VersionInfo {
-                latest: version.to_string(),
-                requested: version.to_string(),
-                resolved: version.to_string(),
-            },
-            transaction_id,
-            errors,
-            data: (),
-        }
+  }
+
+  /// Create an error response
+  pub fn error(errors: Vec<ApiError>, transaction_id: Uuid) -> BaseResponse<()> {
+    let version = env!("CARGO_PKG_VERSION");
+    BaseResponse {
+      versioning: VersionInfo {
+        latest: version.to_string(),
+        requested: version.to_string(),
+        resolved: version.to_string(),
+      },
+      transaction_id,
+      errors,
+      data: (),
     }
+  }
 }
 
 impl ApiError {
-    /// Create a new API error
-    pub fn new(key: &str, message: &str) -> Self {
-        Self {
-            key: key.to_string(),
-            message: message.to_string(),
-            stack: Vec::new(),
-            context: serde_json::Value::Null,
-        }
+  /// Create a new API error
+  pub fn new(key: &str, message: &str) -> Self {
+    Self {
+      key: key.to_string(),
+      message: message.to_string(),
+      stack: Vec::new(),
+      context: serde_json::Value::Null,
     }
+  }
 }

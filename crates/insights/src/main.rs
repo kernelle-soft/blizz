@@ -3,9 +3,9 @@ use clap::{Args, Parser, Subcommand};
 use insights::cli::commands;
 
 mod insight;
-mod server;
 mod search;
 mod semantic;
+mod server;
 mod similarity;
 
 #[derive(Parser)]

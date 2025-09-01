@@ -6,7 +6,7 @@
 pub mod cli;
 pub mod gte_base;
 pub mod insight;
-pub mod server;
 pub mod search;
 pub mod semantic;
+pub mod server;
 pub mod similarity;

@@ -1,10 +1,9 @@
 use anyhow::{anyhow, Result};
 use colored::*;
 
-
-use crate::cli::client::{get_client};
-use crate::insight::{self, Insight, InsightMetaData};
+use crate::cli::client::get_client;
 use crate::cli::server_manager::ensure_server_running;
+use crate::insight::{self, Insight, InsightMetaData};
 
 /// Add a new insight to the knowledge base (production version)
 pub async fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
@@ -19,7 +18,7 @@ pub async fn add_insight(topic: &str, name: &str, overview: &str, details: &str)
 /// Get content of a specific insight
 pub async fn get_insight(topic: &str, name: &str, overview_only: bool) -> Result<()> {
   ensure_server_running().await?;
-  
+
   let client = get_client();
   let response = client.get_insight(topic, name, overview_only).await?;
 
@@ -34,12 +33,14 @@ pub async fn get_insight(topic: &str, name: &str, overview_only: bool) -> Result
 
 pub async fn list_insights(filter: Option<&str>, verbose: bool) -> Result<()> {
   ensure_server_running().await?;
-  
+
   let client = get_client();
   let response = client.list_insights(Vec::new()).await?; // TODO: Add topic filtering
-  
+
   let insights = if let Some(topic_filter) = filter {
-    response.insights.into_iter()
+    response
+      .insights
+      .into_iter()
       .filter(|insight| insight.topic == topic_filter)
       .collect::<Vec<_>>()
   } else {
@@ -69,7 +70,7 @@ pub async fn list_insights(filter: Option<&str>, verbose: bool) -> Result<()> {
 
 pub async fn list_topics() -> Result<()> {
   ensure_server_running().await?;
-  
+
   let client = get_client();
   let topics = client.list_topics().await?;
 
@@ -103,7 +104,7 @@ pub async fn update_insight(
 /// Delete an insight
 pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
   ensure_server_running().await?;
-  
+
   // Check if insight exists first
   let client = get_client();
   if let Err(e) = client.get_insight(topic, name, true).await {
@@ -118,13 +119,13 @@ pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> 
   // Ask for confirmation unless --force is used
   if !force {
     use std::io::{self, Write};
-    
+
     print!("Are you sure you want to delete insight {}/{}? [y/N]: ", topic.cyan(), name.yellow());
     io::stdout().flush()?;
-    
+
     let mut input = String::new();
     io::stdin().read_line(&mut input)?;
-    
+
     let response = input.trim().to_lowercase();
     if response != "y" && response != "yes" {
       println!("Delete cancelled.");
@@ -209,31 +210,31 @@ pub fn index_insights(force: bool) -> Result<()> {
 /// Query daemon logs for debugging and monitoring
 pub async fn logs(limit: usize, level: &str) -> Result<()> {
   ensure_server_running().await?;
-  
+
   let client = get_client();
-  
+
   // TODO: Add support for limit and level parameters to the REST API
   let logs_response = client.get_logs().await?;
-  
+
   if logs_response.data.logs.is_empty() {
     println!("No logs found.");
     return Ok(());
   }
-  
+
   println!("{} Server logs (showing {} entries):", "📋".cyan(), logs_response.data.logs.len());
   println!();
-  
+
   for log in logs_response.data.logs {
     let level_colored = match log.level.as_str() {
       "error" => log.level.red().bold(),
-      "warn" => log.level.yellow().bold(), 
+      "warn" => log.level.yellow().bold(),
       "info" => log.level.blue().bold(),
       "debug" => log.level.green(),
       _ => log.level.normal(),
     };
-    
+
     println!("{} [{}] {}", log.timestamp.to_string().cyan(), level_colored, log.message);
   }
-  
+
   Ok(())
 }
