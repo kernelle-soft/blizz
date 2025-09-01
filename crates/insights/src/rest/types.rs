@@ -18,7 +18,7 @@ pub struct BaseResponse<T> {
     pub transaction_id: Uuid,
     
     /// Optional error information
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub errors: Vec<ApiError>,
     
     /// Response data (generic for different endpoint types)

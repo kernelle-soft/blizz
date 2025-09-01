@@ -54,6 +54,9 @@ schemars = { version = "0.8", features = ["uuid1", "chrono"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
+# HTTP client dependencies  
+reqwest = { version = "0.12", features = ["json"] }
+
 # Vector database - temporarily commented out due to compiler ICE
 # lancedb = "0.15"
 

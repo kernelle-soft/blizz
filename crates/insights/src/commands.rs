@@ -1,49 +1,64 @@
 use anyhow::{anyhow, Result};
 use colored::*;
+
 use std::{env, path::PathBuf};
+
+use crate::client::{get_client};
+use crate::insight::{self, Insight, InsightMetaData};
+use crate::server_manager::ensure_server_running;
+use bentley::daemon_logs::{LogsRequest, LogsResponse};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UnixStream;
 
-use crate::insight::InsightMetaData;
-use crate::insight::{self, Insight};
-use bentley::daemon_logs::{LogsRequest, LogsResponse};
-
 /// Add a new insight to the knowledge base (testable version with dependency injection)
-pub fn add_insight_with_client(
+pub async fn add_insight_with_client(
   topic: &str,
   name: &str,
   overview: &str,
   details: &str,
 ) -> Result<()> {
-  let insight =
-    Insight::new(topic.to_string(), name.to_string(), overview.to_string(), details.to_string());
-
-  insight::save(&insight)?;
+  let client = get_client();
+  client.add_insight(topic, name, overview, details).await?;
 
   println!("{} Added insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
   Ok(())
 }
 
 /// Add a new insight to the knowledge base (production version)
-pub fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
-  add_insight_with_client(topic, name, overview, details)
+pub async fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
+  ensure_server_running().await?;
+  add_insight_with_client(topic, name, overview, details).await
 }
 
 /// Get content of a specific insight
-pub fn get_insight(topic: &str, name: &str, overview_only: bool) -> Result<()> {
-  let insight = insight::load(topic, name)?;
+pub async fn get_insight(topic: &str, name: &str, overview_only: bool) -> Result<()> {
+  ensure_server_running().await?;
+  
+  let client = get_client();
+  let response = client.get_insight(topic, name, overview_only).await?;
 
   if overview_only {
-    println!("{}", insight.overview);
+    println!("{}", response.insight.overview);
   } else {
-    println!("---\n{}\n---\n\n{}", insight.overview, insight.details);
+    println!("---\n{}\n---\n\n{}", response.insight.overview, response.insight.details);
   }
 
   Ok(())
 }
 
-pub fn list_insights(filter: Option<&str>, verbose: bool) -> Result<()> {
-  let insights = insight::get_insights(filter)?;
+pub async fn list_insights(filter: Option<&str>, verbose: bool) -> Result<()> {
+  ensure_server_running().await?;
+  
+  let client = get_client();
+  let response = client.list_insights(Vec::new()).await?; // TODO: Add topic filtering
+  
+  let insights = if let Some(topic_filter) = filter {
+    response.insights.into_iter()
+      .filter(|insight| insight.topic == topic_filter)
+      .collect::<Vec<_>>()
+  } else {
+    response.insights
+  };
 
   if insights.is_empty() {
     if let Some(topic) = filter {
@@ -66,8 +81,11 @@ pub fn list_insights(filter: Option<&str>, verbose: bool) -> Result<()> {
   Ok(())
 }
 
-pub fn list_topics() -> Result<()> {
-  let topics = insight::get_topics()?;
+pub async fn list_topics() -> Result<()> {
+  ensure_server_running().await?;
+  
+  let client = get_client();
+  let topics = client.list_topics().await?;
 
   if topics.is_empty() {
     println!("No topics found.");
@@ -82,57 +100,42 @@ pub fn list_topics() -> Result<()> {
 }
 
 /// Update an existing insight's overview and/or details
-pub fn update_insight_with_client(
+pub async fn update_insight_with_client(
   topic: &str,
   name: &str,
   new_overview: Option<&str>,
   new_details: Option<&str>,
 ) -> Result<()> {
-  let mut insight = insight::load(topic, name)?;
-
-  insight::update(&mut insight, new_overview, new_details)?;
-
-  let file_path = insight::file_path(&insight)?;
-  let metadata = InsightMetaData {
-    topic: insight.topic.clone(),
-    name: insight.name.clone(),
-    overview: insight.overview.clone(),
-    embedding_version: insight.embedding_version.clone(),
-    embedding: insight.embedding.clone(),
-    embedding_text: insight.embedding_text.clone(),
-    embedding_computed: insight.embedding_computed,
-  };
-
-  let yaml_content = serde_yaml::to_string(&metadata)?;
-  let content = format!("---\n{}---\n\n{}", yaml_content, insight.details);
-  std::fs::write(&file_path, content)?;
+  let client = get_client();
+  client.update_insight(topic, name, new_overview, new_details).await?;
 
   println!("{} Updated insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
-
   Ok(())
 }
 
 /// Update an existing insight's overview and/or details
-pub fn update_insight(
+pub async fn update_insight(
   topic: &str,
   name: &str,
   new_overview: Option<&str>,
   new_details: Option<&str>,
 ) -> Result<()> {
-  update_insight_with_client(topic, name, new_overview, new_details)
+  ensure_server_running().await?;
+  update_insight_with_client(topic, name, new_overview, new_details).await
 }
 
 /// Delete an insight
-pub fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
+pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> {
   if !force {
     return Err(anyhow::anyhow!("Delete operation requires --force flag"));
   }
 
-  let insight = insight::load(topic, name)?;
-  insight::delete(&insight)?;
+  ensure_server_running().await?;
+  
+  let client = get_client();
+  client.remove_insight(topic, name).await?;
 
   println!("{} Deleted insight {}/{}", "✓".green(), topic.cyan(), name.yellow());
-
   Ok(())
 }
 
@@ -188,8 +191,8 @@ pub fn index_insights(force: bool) -> Result<()> {
   let mut total_updated = 0;
   let mut total_processed = 0;
 
-  for topic in topics {
-    let (updated, processed) = index_topics(&topic, force)?;
+  for topic in &topics {
+    let (updated, processed) = index_topics(topic, force)?;
     total_updated += updated;
     total_processed += processed;
   }

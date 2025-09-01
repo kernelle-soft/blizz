@@ -1768,6 +1768,7 @@ dependencies = [
  "ndarray",
  "ort",
  "predicates",
+ "reqwest",
  "safetensors",
  "schemars",
  "serde",

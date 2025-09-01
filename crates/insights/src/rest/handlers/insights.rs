@@ -18,7 +18,7 @@ pub async fn add_insight(
 ) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
     let transaction_id = Uuid::new_v4();
     
-    match add_insight_with_client(&request.topic, &request.name, &request.overview, &request.details) {
+    match add_insight_with_client(&request.topic, &request.name, &request.overview, &request.details).await {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
             let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {}", e));
@@ -70,7 +70,7 @@ pub async fn update_insight(
         &request.name, 
         request.overview.as_deref(), 
         request.details.as_deref()
-    ) {
+    ).await {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
             let error = ApiError::new("insight_update_failed", &format!("Failed to update insight: {}", e));
@@ -88,7 +88,7 @@ pub async fn remove_insight(
 ) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
     let transaction_id = Uuid::new_v4();
     
-    match delete_insight(&request.topic, &request.name, true) {
+    match delete_insight(&request.topic, &request.name, true).await {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
             let error = ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {}", e));
