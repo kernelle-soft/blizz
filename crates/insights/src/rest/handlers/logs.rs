@@ -33,7 +33,7 @@ pub async fn get_logs() -> Result<Json<BaseResponse<LogsResponse>>, (StatusCode,
                     Ok(Json(BaseResponse::success(response, transaction_id)))
                 }
                 Err(e) => {
-                    let error = ApiError::new("logs_read_failed", &format!("Failed to read logs: {}", e));
+                    let error = ApiError::new("logs_read_failed", &format!("Failed to read logs: {e}"));
                     Err((
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(BaseResponse::<()>::error(vec![error], transaction_id))
@@ -42,7 +42,7 @@ pub async fn get_logs() -> Result<Json<BaseResponse<LogsResponse>>, (StatusCode,
             }
         }
         Err(e) => {
-            let error = ApiError::new("logs_init_failed", &format!("Failed to initialize logs: {}", e));
+            let error = ApiError::new("logs_init_failed", &format!("Failed to initialize logs: {e}"));
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(BaseResponse::<()>::error(vec![error], transaction_id))

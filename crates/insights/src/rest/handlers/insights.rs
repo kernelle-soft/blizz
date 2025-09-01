@@ -1,14 +1,13 @@
 //! Insights endpoint handlers
 
-use axum::{extract::{Json, Query}, response::Json as ResponseJson, http::StatusCode};
+use axum::{extract::Json, response::Json as ResponseJson, http::StatusCode};
 use uuid::Uuid;
 use chrono::Utc;
 
-use crate::commands::{self};
 use crate::insight;
 use crate::rest::types::{
     AddInsightRequest, ApiError, BaseResponse, GetInsightRequest, GetInsightResponse,
-    InsightData, InsightSummary, ListInsightsRequest, ListInsightsResponse, 
+    InsightData, InsightSummary, ListInsightsResponse, 
     ListTopicsResponse, RemoveInsightRequest, UpdateInsightRequest,
 };
 
@@ -33,7 +32,7 @@ pub async fn add_insight(
     match insight::save(&new_insight) {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
-            let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {}", e));
+            let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {e}"));
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
@@ -62,7 +61,7 @@ pub async fn get_insight(
             Ok(ResponseJson(BaseResponse::success(response, transaction_id)))
         }
         Err(e) => {
-            let error = ApiError::new("insight_get_failed", &format!("Failed to get insight: {}", e));
+            let error = ApiError::new("insight_get_failed", &format!("Failed to get insight: {e}"));
             Err((
                 StatusCode::NOT_FOUND,
                 ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
@@ -82,7 +81,7 @@ pub async fn update_insight(
     let mut insight_data = match insight::load(&request.topic, &request.name) {
         Ok(insight) => insight,
         Err(e) => {
-            let error = ApiError::new("insight_not_found", &format!("Insight not found: {}", e));
+            let error = ApiError::new("insight_not_found", &format!("Insight not found: {e}"));
             return Err((
                 StatusCode::NOT_FOUND,
                 ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
@@ -94,7 +93,7 @@ pub async fn update_insight(
     match insight::update(&mut insight_data, request.overview.as_deref(), request.details.as_deref()) {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
-            let error = ApiError::new("insight_update_failed", &format!("Failed to update insight: {}", e));
+            let error = ApiError::new("insight_update_failed", &format!("Failed to update insight: {e}"));
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
@@ -113,7 +112,7 @@ pub async fn remove_insight(
     let insight_to_delete = match insight::load(&request.topic, &request.name) {
         Ok(insight_data) => insight_data,
         Err(e) => {
-            let error = ApiError::new("insight_not_found", &format!("Insight not found: {}", e));
+            let error = ApiError::new("insight_not_found", &format!("Insight not found: {e}"));
             return Err((
                 StatusCode::NOT_FOUND,
                 ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
@@ -124,7 +123,7 @@ pub async fn remove_insight(
     match insight::delete(&insight_to_delete) {
         Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
         Err(e) => {
-            let error = ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {}", e));
+            let error = ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {e}"));
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
@@ -159,7 +158,7 @@ pub async fn list_topics() -> Result<ResponseJson<BaseResponse<ListTopicsRespons
             Ok(ResponseJson(BaseResponse::success(response, transaction_id)))
         }
         Err(e) => {
-            let error = ApiError::new("topics_list_failed", &format!("Failed to list topics: {}", e));
+            let error = ApiError::new("topics_list_failed", &format!("Failed to list topics: {e}"));
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))
@@ -181,8 +180,8 @@ pub async fn list_insights() -> Result<ResponseJson<BaseResponse<ListInsightsRes
                     topic: insight.topic,
                     name: insight.name,
                     overview: insight.overview,
-                    created_at: insight.embedding_computed.unwrap_or_else(|| Utc::now()),
-                    updated_at: insight.embedding_computed.unwrap_or_else(|| Utc::now()),
+                    created_at: insight.embedding_computed.unwrap_or_else(Utc::now),
+                    updated_at: insight.embedding_computed.unwrap_or_else(Utc::now),
                 })
                 .collect();
             
@@ -192,7 +191,7 @@ pub async fn list_insights() -> Result<ResponseJson<BaseResponse<ListInsightsRes
             Ok(ResponseJson(BaseResponse::success(response, transaction_id)))
         }
         Err(e) => {
-            let error = ApiError::new("insights_list_failed", &format!("Failed to list insights: {}", e));
+            let error = ApiError::new("insights_list_failed", &format!("Failed to list insights: {e}"));
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id))

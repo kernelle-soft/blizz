@@ -10,8 +10,8 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 use crate::rest::types::{
-    AddInsightRequest, BaseResponse, FilterComparison, GetInsightRequest, GetInsightResponse, 
-    InsightFilter, ListInsightsRequest, ListInsightsResponse, ListTopicsResponse,
+    AddInsightRequest, BaseResponse, GetInsightRequest, GetInsightResponse, 
+    InsightFilter, ListInsightsResponse, ListTopicsResponse,
     RemoveInsightRequest, UpdateInsightRequest,
 };
 
@@ -37,6 +37,12 @@ impl Default for ClientConfig {
 pub struct InsightsClient {
     client: Client,
     config: ClientConfig,
+}
+
+impl Default for InsightsClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl InsightsClient {

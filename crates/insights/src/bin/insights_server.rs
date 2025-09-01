@@ -7,7 +7,6 @@ use anyhow::Result;
 use clap::Parser;
 use std::net::SocketAddr;
 use tracing::Level;
-use tracing_subscriber;
 
 use insights::rest::server::start_server;
 

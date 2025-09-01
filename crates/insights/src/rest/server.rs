@@ -11,7 +11,7 @@ use crate::rest::routing::create_router;
 
 /// Start the REST server
 pub async fn start_server(addr: SocketAddr) -> Result<()> {
-    bentley::info!(&format!("Starting insights REST server on {}", addr));
+    bentley::info!(&format!("Starting insights REST server on {addr}"));
     
     // Create the router with all endpoints
     let app = create_router()
@@ -23,7 +23,7 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
     
     // Create listener
     let listener = TcpListener::bind(addr).await?;
-    bentley::info!(&format!("Server listening on {}", addr));
+    bentley::info!(&format!("Server listening on {addr}"));
     
     // Start serving
     serve(listener, app)

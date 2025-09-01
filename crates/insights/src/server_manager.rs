@@ -15,6 +15,12 @@ pub struct ServerManager {
     client: InsightsClient,
 }
 
+impl Default for ServerManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ServerManager {
     /// Create a new server manager
     pub fn new() -> Self {
@@ -47,7 +53,7 @@ impl ServerManager {
         let server_binary = self.find_server_binary()?;
         
         let mut cmd = Command::new(server_binary);
-        cmd.args(&["--bind", "127.0.0.1:3000"])
+        cmd.args(["--bind", "127.0.0.1:3000"])
            .stdout(Stdio::null())
            .stderr(Stdio::null())
            .stdin(Stdio::null());
@@ -89,7 +95,7 @@ impl ServerManager {
         ];
         
         for path in &possible_paths {
-            if let Ok(_) = std::fs::metadata(path) {
+            if std::fs::metadata(path).is_ok() {
                 return Ok(path.to_string());
             }
         }
@@ -99,7 +105,7 @@ impl ServerManager {
         self.build_server()?;
         
         // Try again after build
-        if let Ok(_) = std::fs::metadata("target/debug/insights_server") {
+        if std::fs::metadata("target/debug/insights_server").is_ok() {
             return Ok("target/debug/insights_server".to_string());
         }
         
@@ -111,7 +117,7 @@ impl ServerManager {
     /// Build the server binary
     fn build_server(&self) -> Result<()> {
         let output = Command::new("cargo")
-            .args(&["build", "--bin", "insights_server"])
+            .args(["build", "--bin", "insights_server"])
             .output()
             .map_err(|e| anyhow!("Failed to run cargo build: {}", e))?;
         
