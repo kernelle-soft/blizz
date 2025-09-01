@@ -185,11 +185,12 @@ pub struct InsightSummary {
 impl<T> BaseResponse<T> {
     /// Create a successful response
     pub fn success(data: T, transaction_id: Uuid) -> Self {
+        let version = env!("CARGO_PKG_VERSION");
         Self {
             versioning: VersionInfo {
-                latest: "1.0.0".to_string(),
-                requested: "1.0.0".to_string(), 
-                resolved: "1.0.0".to_string(),
+                latest: version.to_string(),
+                requested: version.to_string(), 
+                resolved: version.to_string(),
             },
             transaction_id,
             errors: Vec::new(),
@@ -199,11 +200,12 @@ impl<T> BaseResponse<T> {
     
     /// Create an error response
     pub fn error(errors: Vec<ApiError>, transaction_id: Uuid) -> BaseResponse<()> {
+        let version = env!("CARGO_PKG_VERSION");
         BaseResponse {
             versioning: VersionInfo {
-                latest: "1.0.0".to_string(),
-                requested: "1.0.0".to_string(),
-                resolved: "1.0.0".to_string(),
+                latest: version.to_string(),
+                requested: version.to_string(),
+                resolved: version.to_string(),
             },
             transaction_id,
             errors,

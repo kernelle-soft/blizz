@@ -15,8 +15,9 @@ pub async fn status() -> StatusCode {
 /// GET /version - Returns current API version
 pub async fn version() -> Json<BaseResponse<VersionResponse>> {
     let transaction_id = Uuid::new_v4();
+    let version = env!("CARGO_PKG_VERSION");
     let response = VersionResponse {
-        version: "1.0.0".to_string(),
+        version: version.to_string(),
     };
     
     Json(BaseResponse::success(response, transaction_id))
@@ -25,11 +26,12 @@ pub async fn version() -> Json<BaseResponse<VersionResponse>> {
 /// GET /api - Returns API information and supported versions
 pub async fn api_info() -> Json<BaseResponse<ApiInfoResponse>> {
     let transaction_id = Uuid::new_v4();
+    let version = env!("CARGO_PKG_VERSION");
     let response = ApiInfoResponse {
-        latest: "1.0.0".to_string(),
+        latest: version.to_string(),
         versions: ApiVersions {
-            latest: "1.0.0".to_string(),
-            active: vec!["1.0.0".to_string()],
+            latest: version.to_string(),
+            active: vec![version.to_string()],
         },
     };
     
