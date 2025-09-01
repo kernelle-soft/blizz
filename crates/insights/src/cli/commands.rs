@@ -254,7 +254,6 @@ pub async fn search_insights(
     .search_insights(terms.to_vec(), topic, case_sensitive, overview_only, exact)
     .await?;
 
-  // Display results using the same logic as the original search
   display_search_results(&response.results, terms, overview_only);
 
   Ok(())
@@ -270,13 +269,13 @@ fn display_search_results(
     println!("No matches found for: {}", terms.join(" ").yellow());
   } else {
     for result in results {
-      display_single_search_result(result, overview_only);
+      display_single_search_result(result, terms, overview_only);
     }
   }
 }
 
 /// Display a single search result
-fn display_single_search_result(result: &crate::server::types::SearchResultData, overview_only: bool) {
+fn display_single_search_result(result: &crate::server::types::SearchResultData, terms: &[String], overview_only: bool) {
   let header = format!(
     "=== {}/{} ===",
     result.topic.blue().bold(),
@@ -294,7 +293,9 @@ fn display_single_search_result(result: &crate::server::types::SearchResultData,
     format!("{}\n\n{}", result.overview, result.details)
   };
 
-  let wrapped_lines = wrap_text(&content, wrap_width);
+  // Highlight search terms in the content
+  let highlighted_content = highlight_keywords(&content, terms);
+  let wrapped_lines = wrap_text(&highlighted_content, wrap_width);
   for line in wrapped_lines {
     println!("{}", line);
   }
@@ -332,4 +333,47 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
   }
   
   lines
+}
+
+/// Highlight search terms in text
+fn highlight_keywords(text: &str, terms: &[String]) -> String {
+  let mut result = text.to_string();
+
+  // Sort terms by length (longest first) to avoid partial matches overriding longer ones
+  let mut sorted = terms.to_vec();
+  sorted.sort_by_key(|b| std::cmp::Reverse(b.len()));
+
+  for term in sorted {
+    if term.is_empty() {
+      continue;
+    }
+
+    let term_lower = term.to_lowercase();
+    let mut highlighted = String::new();
+    let mut end = 0;
+
+    let result_lower = result.to_lowercase();
+    let mut start = 0;
+
+    // Find and highlight all occurrences of the term
+    while let Some(pos) = result_lower[start..].find(&term_lower) {
+      let abs_pos = start + pos;
+
+      // Add text before the match
+      highlighted.push_str(&result[end..abs_pos]);
+
+      // Add highlighted match (preserve original case)
+      let match_text = &result[abs_pos..abs_pos + term.len()];
+      highlighted.push_str(&match_text.yellow().bold().to_string());
+
+      end = abs_pos + term.len();
+      start = end;
+    }
+
+    // Add remaining text after the last match
+    highlighted.push_str(&result[end..]);
+    result = highlighted;
+  }
+
+  result
 }
