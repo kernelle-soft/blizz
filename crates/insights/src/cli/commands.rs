@@ -131,7 +131,7 @@ pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> 
         std::io::Write::flush(&mut std::io::stdout())?;
 
         let mut input = String::new();
-        std::io::Read::read_to_string(&mut std::io::stdin(), &mut input)?;
+        std::io::stdin().read_line(&mut input)?;
 
         let response = input.trim().to_lowercase();
         if response != "y" && response != "yes" {
