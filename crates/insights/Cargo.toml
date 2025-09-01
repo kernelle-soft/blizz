@@ -23,6 +23,10 @@ path = "src/bin/insights_daemon.rs"
 name = "install_insights_cuda_dependencies"
 path = "src/bin/install_insights_cuda_dependencies.rs"
 
+[[bin]]
+name = "insights_server"
+path = "src/bin/insights_server.rs"
+
 [dependencies]
 clap.workspace = true
 dirs.workspace = true
@@ -42,7 +46,16 @@ serde_yaml = "0.9"
 
 # Async runtime for daemon IPC
 tokio = { version = "1.47", features = ["full"] }
-uuid = { version = "1.18", features = ["v4"] }
+uuid = { version = "1.18", features = ["v4", "serde"] }
+
+# REST API dependencies
+axum = "0.7"
+schemars = { version = "0.8", features = ["uuid1", "chrono"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Vector database - temporarily commented out due to compiler ICE
+# lancedb = "0.15"
 
 # Neural embeddings via ONNX (v2 API!) with hardware acceleration
 ort = { version = "2.0.0-rc.10", features = [
