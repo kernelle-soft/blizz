@@ -1,11 +1,162 @@
-//! Custom middleware for the REST API
+//! Request context and middleware for the insights REST API
 //!
-//! Contains middleware for:
-//! - API versioning
-//! - Request logging
-//! - Authentication (future)
-//! - Rate limiting (future)
+//! Provides unified request context containing logger and request metadata
+//! that is automatically injected into all endpoints via middleware.
 
-// TODO: Implement versioning middleware that extracts version from headers
-// TODO: Implement request/response logging middleware with transaction IDs
-// TODO: Implement authentication middleware for secure endpoints
+use axum::{
+    extract::Request,
+    http::{HeaderMap, Method, Uri},
+    middleware::Next,
+    response::Response,
+};
+use bentley::daemon_logs::DaemonLogs;
+use std::sync::Arc;
+use uuid::Uuid;
+
+/// Request context containing logger and request metadata
+#[derive(Clone)]
+pub struct RequestContext {
+    /// Unique ID for this request
+    pub request_id: Uuid,
+    /// HTTP method
+    pub method: Method,
+    /// Request URI
+    pub uri: Uri,
+    /// Request headers
+    pub headers: HeaderMap,
+    /// Shared logger instance
+    pub logger: Arc<DaemonLogs>,
+}
+
+impl RequestContext {
+    /// Create a new request context
+    pub fn new(
+        method: Method,
+        uri: Uri,
+        headers: HeaderMap,
+        logger: Arc<DaemonLogs>,
+    ) -> Self {
+        Self {
+            request_id: Uuid::new_v4(),
+            method,
+            uri,
+            headers,
+            logger,
+        }
+    }
+
+    /// Log an info message with request context
+    pub async fn log_info(&self, message: &str, component: &str) {
+        let contextualized_message = format!(
+            "[{}] {} {} - {}",
+            self.request_id,
+            self.method,
+            self.uri.path(),
+            message
+        );
+        self.logger.info(&contextualized_message, component).await;
+    }
+
+    /// Log a success message with request context
+    pub async fn log_success(&self, message: &str, component: &str) {
+        let contextualized_message = format!(
+            "[{}] {} {} - {}",
+            self.request_id,
+            self.method,
+            self.uri.path(),
+            message
+        );
+        self.logger.success(&contextualized_message, component).await;
+    }
+
+    /// Log an error message with request context
+    pub async fn log_error(&self, message: &str, component: &str) {
+        let contextualized_message = format!(
+            "[{}] {} {} - {}",
+            self.request_id,
+            self.method,
+            self.uri.path(),
+            message
+        );
+        self.logger.error(&contextualized_message, component).await;
+    }
+
+    /// Log a warning message with request context
+    pub async fn log_warn(&self, message: &str, component: &str) {
+        let contextualized_message = format!(
+            "[{}] {} {} - {}",
+            self.request_id,
+            self.method,
+            self.uri.path(),
+            message
+        );
+        self.logger.warn(&contextualized_message, component).await;
+    }
+
+    /// Log request start
+    pub async fn log_request_start(&self) {
+        self.log_info(
+            &format!("Request started - User-Agent: {:?}", 
+                self.headers.get("user-agent")
+                    .map(|v| v.to_str().unwrap_or("unknown"))
+                    .unwrap_or("none")
+            ),
+            "http-request"
+        ).await;
+    }
+
+    /// Log request completion with status
+    pub async fn log_request_complete(&self, status_code: u16, duration_ms: f64) {
+        self.log_info(
+            &format!("Request completed - Status: {}, Duration: {:.2}ms", status_code, duration_ms),
+            "http-request"
+        ).await;
+    }
+}
+
+/// Global logger instance
+static GLOBAL_LOGGER: once_cell::sync::OnceCell<Arc<DaemonLogs>> = once_cell::sync::OnceCell::new();
+
+/// Initialize the global logger
+pub fn init_global_logger(logger: Arc<DaemonLogs>) -> Result<(), Arc<DaemonLogs>> {
+    GLOBAL_LOGGER.set(logger)
+}
+
+/// Get the global logger instance
+pub fn get_global_logger() -> &'static Arc<DaemonLogs> {
+    GLOBAL_LOGGER
+        .get()
+        .expect("Global logger should be initialized before use")
+}
+
+/// Middleware to inject RequestContext into all requests
+pub async fn request_context_middleware(
+    request: Request,
+    next: Next,
+) -> Response {
+    let logger = get_global_logger().clone();
+
+    let method = request.method().clone();
+    let uri = request.uri().clone();
+    let headers = request.headers().clone();
+
+    let context = RequestContext::new(method, uri, headers, logger);
+
+    // Log request start
+    let start_time = std::time::Instant::now();
+    context.log_request_start().await;
+
+    // Add context to request extensions
+    let mut request = request;
+    request.extensions_mut().insert(context.clone());
+
+    // Process the request
+    let response = next.run(request).await;
+
+    // Log request completion
+    let duration = start_time.elapsed();
+    let duration_ms = duration.as_secs_f64() * 1000.0;
+    context.log_request_complete(response.status().as_u16(), duration_ms).await;
+
+    response
+}

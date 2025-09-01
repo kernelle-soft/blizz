@@ -1,12 +1,10 @@
 //! Insights endpoint handlers
 
-use axum::{extract::{Json, State}, http::StatusCode, response::Json as ResponseJson};
-use bentley::daemon_logs::DaemonLogs;
+use axum::{extract::{Json, Extension}, http::StatusCode, response::Json as ResponseJson};
 use chrono::Utc;
-use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::insight;
+use crate::{insight, server::middleware::RequestContext};
 use crate::server::types::{
   AddInsightRequest, ApiError, BaseResponse, GetInsightRequest, GetInsightResponse, InsightData,
   InsightSummary, ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest,
@@ -258,14 +256,89 @@ pub async fn search_insights(
     }
 }
 
-/// POST /insights/search - Search insights with logging
-pub async fn search_insights_with_logging(
-    State(daemon_logs): State<Arc<DaemonLogs>>,
+/// POST /insights/add - Add a new insight with context  
+pub async fn add_insight_with_context(
+  Extension(context): Extension<RequestContext>,
+  Json(request): Json<AddInsightRequest>,
+) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+  let transaction_id = Uuid::new_v4();
+
+  context.log_info(&format!("Adding insight {}/{}", request.topic, request.name), "insights-api").await;
+
+  // Create and save insight directly (no HTTP client recursion!)
+  let new_insight = insight::Insight {
+    topic: request.topic,
+    name: request.name,
+    overview: request.overview,
+    details: request.details,
+    embedding_version: None,
+    embedding: None,
+    embedding_text: None,
+    embedding_computed: None,
+  };
+
+  match insight::save(&new_insight) {
+    Ok(()) => {
+      context.log_success(&format!("Successfully added insight {}/{}", new_insight.topic, new_insight.name), "insights-api").await;
+      Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+    }
+    Err(e) => {
+      context.log_error(&format!("Failed to add insight {}/{}: {}", new_insight.topic, new_insight.name, e), "insights-api").await;
+      let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {e}"));
+      Err((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
+      ))
+    }
+  }
+}
+
+/// POST /insights/get - Get a specific insight with context
+pub async fn get_insight_with_context(
+  Extension(context): Extension<RequestContext>,
+  Json(request): Json<GetInsightRequest>,
+) -> Result<
+  ResponseJson<BaseResponse<GetInsightResponse>>,
+  (StatusCode, ResponseJson<BaseResponse<()>>),
+> {
+  let transaction_id = Uuid::new_v4();
+
+  context.log_info(&format!("Retrieving insight {}/{}", request.topic, request.name), "insights-api").await;
+
+  match insight::load(&request.topic, &request.name) {
+    Ok(insight_data) => {
+      context.log_success(&format!("Successfully retrieved insight {}/{}", request.topic, request.name), "insights-api").await;
+      
+      let insight = InsightData {
+        topic: insight_data.topic,
+        name: insight_data.name,
+        overview: insight_data.overview,
+        details: if request.overview_only { String::new() } else { insight_data.details },
+        embedding_version: insight_data.embedding_version,
+        embedding_computed: insight_data.embedding_computed,
+      };
+      let response = GetInsightResponse { insight };
+      Ok(ResponseJson(BaseResponse::success(response, transaction_id)))
+    }
+    Err(e) => {
+      context.log_warn(&format!("Insight {}/{} not found: {}", request.topic, request.name, e), "insights-api").await;
+      let error = ApiError::new("insight_get_failed", &format!("Failed to get insight: {e}"));
+      Err((
+        StatusCode::NOT_FOUND,
+        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
+      ))
+    }
+  }
+}
+
+/// POST /insights/search - Search insights with context
+pub async fn search_insights_with_context(
+    Extension(context): Extension<RequestContext>,
     Json(request): Json<SearchRequest>,
 ) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
     let transaction_id = Uuid::new_v4();
 
-    daemon_logs.info(&format!("Searching insights: terms={:?}, topic={:?}", request.terms, request.topic), "insights-api").await;
+    context.log_info(&format!("Searching insights: terms={:?}, topic={:?}", request.terms, request.topic), "insights-api").await;
 
     // Convert request to search options
     let search_options = crate::search::SearchOptions {
@@ -278,7 +351,7 @@ pub async fn search_insights_with_logging(
     // Perform search using existing search logic
     match crate::search::search(&request.terms, &search_options) {
         Ok(results) => {
-            daemon_logs.info(&format!("Search completed: found {} results for {:?}", results.len(), request.terms), "insights-api").await;
+            context.log_success(&format!("Search completed: found {} results for {:?}", results.len(), request.terms), "insights-api").await;
             
             // Convert SearchResult to SearchResultData
             let search_results: Vec<SearchResultData> = results
@@ -300,7 +373,7 @@ pub async fn search_insights_with_logging(
             Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
         }
         Err(e) => {
-            daemon_logs.error(&format!("Search failed for {:?}: {}", request.terms, e), "insights-api").await;
+            context.log_error(&format!("Search failed for {:?}: {}", request.terms, e), "insights-api").await;
             let error = ApiError::new("search_failed", &format!("Search failed: {}", e));
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
