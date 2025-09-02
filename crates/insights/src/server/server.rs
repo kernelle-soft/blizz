@@ -14,6 +14,7 @@ use crate::server::{
 };
 
 /// Start the REST server
+#[cfg(not(tarpaulin_include))] // Skip coverage - server lifecycle and daemon logs initialization
 pub async fn start_server(addr: SocketAddr) -> Result<()> {
   // Initialize daemon logs for persistent logging
   let logs_path = get_server_logs_path();
@@ -54,7 +55,8 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
   }
 }
 
-/// Get the path for server logs  
+/// Get the path for server logs
+#[cfg(not(tarpaulin_include))] // Skip coverage - filesystem path operations
 fn get_server_logs_path() -> std::path::PathBuf {
   dirs::home_dir()
     .unwrap_or_else(|| std::path::Path::new("/tmp").to_path_buf())

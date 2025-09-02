@@ -28,6 +28,7 @@ impl ServerManager {
   }
 
   /// Ensure the server is running, starting it if necessary
+  #[cfg(not(tarpaulin_include))] // Skip coverage - process management and filesystem operations
   pub async fn ensure_server_running(&self) -> Result<()> {
     // First check if server is already running
     if self.client.health_check().await.is_ok() {
@@ -46,6 +47,7 @@ impl ServerManager {
   }
 
   /// Start the server in the background
+  #[cfg(not(tarpaulin_include))] // Skip coverage - process spawning
   async fn start_server(&self) -> Result<Child> {
     // Try to find the insights_server binary
     let server_binary = self.find_server_binary()?;
@@ -64,6 +66,7 @@ impl ServerManager {
   }
 
   /// Wait for the server to become ready
+  #[cfg(not(tarpaulin_include))] // Skip coverage - network calls and timing
   async fn wait_for_server(&self) -> Result<()> {
     let max_attempts = 30; // 15 seconds total
     let mut attempts = 0;
@@ -81,6 +84,7 @@ impl ServerManager {
   }
 
   /// Find the insights_server binary
+  #[cfg(not(tarpaulin_include))] // Skip coverage - filesystem operations
   fn find_server_binary(&self) -> Result<String> {
     // Try different possible locations for the binary
     let possible_paths = [
@@ -116,6 +120,7 @@ impl ServerManager {
   }
 
   /// Build the server binary
+  #[cfg(not(tarpaulin_include))] // Skip coverage - external command execution
   fn build_server(&self) -> Result<()> {
     let output = Command::new("cargo")
       .args(["build", "--bin", "insights_server"])
@@ -132,6 +137,7 @@ impl ServerManager {
 }
 
 /// Global function to ensure server is running
+#[cfg(not(tarpaulin_include))] // Skip coverage - process management and filesystem operations
 pub async fn ensure_server_running() -> Result<()> {
   let manager = ServerManager::new();
   manager.ensure_server_running().await

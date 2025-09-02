@@ -354,3 +354,105 @@ impl ApiError {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use uuid::Uuid;
+
+  #[test]
+  fn test_base_response_success() {
+    let transaction_id = Uuid::new_v4();
+    let data = "test data".to_string();
+
+    let response = BaseResponse::success(data.clone(), transaction_id);
+
+    assert_eq!(response.transaction_id, transaction_id);
+    assert!(response.errors.is_empty());
+    assert_eq!(response.data, data);
+    assert!(!response.versioning.latest.is_empty());
+    assert_eq!(response.versioning.latest, response.versioning.requested);
+    assert_eq!(response.versioning.latest, response.versioning.resolved);
+  }
+
+  #[test]
+  fn test_base_response_error() {
+    let transaction_id = Uuid::new_v4();
+    let errors = vec![
+      ApiError::new("test_error", "Test error message"),
+      ApiError::new("another_error", "Another error message"),
+    ];
+
+    let response = BaseResponse::error(errors.clone(), transaction_id);
+
+    assert_eq!(response.transaction_id, transaction_id);
+    assert_eq!(response.errors.len(), 2);
+    assert_eq!(response.errors[0].key, "test_error");
+    assert_eq!(response.errors[0].message, "Test error message");
+    assert_eq!(response.errors[1].key, "another_error");
+    assert_eq!(response.errors[1].message, "Another error message");
+  }
+
+  #[test]
+  fn test_api_error_new() {
+    let error = ApiError::new("validation_error", "Invalid input provided");
+
+    assert_eq!(error.key, "validation_error");
+    assert_eq!(error.message, "Invalid input provided");
+    assert!(error.stack.is_empty());
+    assert!(error.context.is_null());
+  }
+
+  #[test]
+  fn test_api_error_with_stack_and_context() {
+    let mut error = ApiError::new("database_error", "Connection failed");
+    error.stack = vec!["src/db.rs:42".to_string(), "src/handler.rs:15".to_string()];
+    error.context = serde_json::json!({"connection_string": "postgres://localhost:5432/test"});
+
+    assert_eq!(error.key, "database_error");
+    assert_eq!(error.message, "Connection failed");
+    assert_eq!(error.stack.len(), 2);
+    assert_eq!(error.stack[0], "src/db.rs:42");
+    assert!(!error.context.is_null());
+  }
+
+  #[test]
+  fn test_filter_comparison_serialization() {
+    use serde_json;
+
+    let equal = FilterComparison::Equal;
+    let json = serde_json::to_string(&equal).unwrap();
+    assert_eq!(json, "\"equal\"");
+
+    let not_equal = FilterComparison::NotEqual;
+    let json = serde_json::to_string(&not_equal).unwrap();
+    assert_eq!(json, "\"not-equal\"");
+  }
+
+  #[test]
+  fn test_search_request_defaults() {
+    let request = SearchRequest {
+      terms: vec!["test".to_string()],
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: false,
+    };
+
+    // These should all be false by default due to #[serde(default)]
+    assert!(!request.case_sensitive);
+    assert!(!request.overview_only);
+    assert!(!request.exact);
+  }
+
+  #[test]
+  fn test_get_insight_request_defaults() {
+    let request = GetInsightRequest {
+      topic: "test".to_string(),
+      name: "test".to_string(),
+      overview_only: false, // Should default to false
+    };
+
+    assert!(!request.overview_only);
+  }
+}

@@ -50,8 +50,8 @@ schemars = { version = "0.8", features = ["uuid1", "chrono"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
-# HTTP client dependencies  
-reqwest = { version = "0.12", features = ["json"] }
+# HTTP client dependencies
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 once_cell = "1.17"
 # regex = "1.10"  # No longer needed - bentley handles context natively
 
