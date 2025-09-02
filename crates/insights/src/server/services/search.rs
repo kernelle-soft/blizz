@@ -479,7 +479,7 @@ mod tests {
       exact: true,
     };
 
-    let result = search_insight(&insight, get_exact_match, 0.0, &options).unwrap();
+    let result = search_insight(&insight, get_exact_match, &terms, 0.0, &options).unwrap();
 
     assert!(result.is_some());
     let search_result = result.unwrap();
@@ -501,7 +501,7 @@ mod tests {
       exact: true,
     };
 
-    let result = search_insight(&insight, get_exact_match, 1.0, &options).unwrap();
+    let result = search_insight(&insight, get_exact_match, &terms, 1.0, &options).unwrap();
     assert!(result.is_none());
   }
 

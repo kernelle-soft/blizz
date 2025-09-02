@@ -40,7 +40,7 @@ pub struct VersionInfo {
 }
 
 /// API error information
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ApiError {
   /// Error key, unique to the error source
   pub key: String,
@@ -383,7 +383,7 @@ mod tests {
       ApiError::new("another_error", "Another error message"),
     ];
 
-    let response = BaseResponse::error(errors.clone(), transaction_id);
+    let response = BaseResponse::<()>::error(errors.clone(), transaction_id);
 
     assert_eq!(response.transaction_id, transaction_id);
     assert_eq!(response.errors.len(), 2);
