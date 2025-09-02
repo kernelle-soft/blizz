@@ -10,6 +10,9 @@ use crate::server::{models::insight, services::similarity};
 // Semantic similarity threshold for meaningful results
 const SEMANTIC_SIMILARITY_THRESHOLD: f32 = 0.2;
 
+// Default terminal width for text wrapping
+const DEFAULT_TERMINAL_WIDTH: usize = 80;
+
 #[derive(Debug)]
 pub struct SearchResult {
   pub topic: String,
@@ -236,7 +239,7 @@ fn display_single_result(result: &SearchResult, terms: &[String], overview_only:
   println!("{header}");
 
   // Wrap and display the content with proper formatting
-  let wrap_with = if header.len() < 80 { 80 } else { header.len() };
+  let wrap_with = if header.len() < DEFAULT_TERMINAL_WIDTH { DEFAULT_TERMINAL_WIDTH } else { header.len() };
 
   let content = if overview_only {
     result.overview.to_string()

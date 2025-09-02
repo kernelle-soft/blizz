@@ -10,6 +10,10 @@ use tokio::time::sleep;
 
 use crate::cli::client::{get_client, InsightsClient};
 
+// Server startup configuration
+const SERVER_STARTUP_TIMEOUT_SECS: u64 = 30; // 30 seconds total timeout
+const SERVER_CHECK_INTERVAL_MS: u64 = 500;   // Check every 500ms
+
 /// Manages the local insights server lifecycle
 pub struct ServerManager {
   client: InsightsClient,
@@ -68,7 +72,7 @@ impl ServerManager {
   /// Wait for the server to become ready
   #[cfg(not(tarpaulin_include))] // Skip coverage - network calls and timing
   async fn wait_for_server(&self) -> Result<()> {
-    let max_attempts = 30; // 15 seconds total
+    let max_attempts = (SERVER_STARTUP_TIMEOUT_SECS * 1000) / SERVER_CHECK_INTERVAL_MS;
     let mut attempts = 0;
 
     while attempts < max_attempts {
@@ -76,11 +80,12 @@ impl ServerManager {
         return Ok(());
       }
 
-      sleep(Duration::from_millis(500)).await;
+      sleep(Duration::from_millis(SERVER_CHECK_INTERVAL_MS)).await;
       attempts += 1;
     }
 
-    Err(anyhow!("Server failed to start within 15 seconds"))
+    let timeout_seconds = SERVER_STARTUP_TIMEOUT_SECS;
+    Err(anyhow!("Server failed to start within {} seconds", timeout_seconds))
   }
 
   /// Find the insights_server binary
