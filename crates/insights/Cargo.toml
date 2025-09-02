@@ -43,7 +43,7 @@ tokio = { version = "1.47", features = ["full"] }
 uuid = { version = "1.18", features = ["v4", "serde"] }
 
 # REST API dependencies
-axum = "0.7"
+axum = { version = "0.7", features = ["macros"] }
 schemars = { version = "0.8", features = ["uuid1", "chrono"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
@@ -52,8 +52,13 @@ tower-http = { version = "0.5", features = ["cors", "trace"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 once_cell = "1.17"
 
-# Vector database - temporarily commented out due to compiler ICE
-# lancedb = "0.15"
+# Vector database for embedding storage and similarity search  
+lancedb = { version = "0.21.3", default-features = false }
+
+# Additional Arrow dependencies for LanceDB data conversion
+arrow = { version = "55", features = ["json"] }
+arrow-json = "55"
+futures = "0.3"
 
 # Neural embeddings via ONNX (v2 API!) with hardware acceleration
 ort = { version = "2.0.0-rc.10", features = [
@@ -76,6 +81,9 @@ serial_test = "3.2"
 tempfile.workspace = true
 mockall.workspace = true
 cargo-tarpaulin.workspace = true
+
+[features]
+default = []
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

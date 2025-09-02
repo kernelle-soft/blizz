@@ -1,9 +1,8 @@
 //! Insights endpoint handlers
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use axum::{
   extract::{Extension, Json},
-  http::StatusCode,
   response::Json as ResponseJson,
 };
 use chrono::Utc;
@@ -16,10 +15,11 @@ use crate::server::types::{
 };
 use crate::server::{middleware::RequestContext, models::insight};
 
-/// PUT /insights/update - Update an existing insight  
+/// PUT /insights/update - Update an existing insight
 pub async fn update_insight(
+  Extension(context): Extension<RequestContext>,
   Json(request): Json<UpdateInsightRequest>,
-) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
 
   // Call library function directly (no HTTP client recursion!)
@@ -29,20 +29,43 @@ pub async fn update_insight(
     Err(e) => {
       let error = ApiError::new("insight_not_found", &format!("Insight not found: {e}"));
       return Err((
-        StatusCode::NOT_FOUND,
+        axum::http::StatusCode::NOT_FOUND,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ));
     }
   };
 
   // Then update it
-  match insight::update(&mut insight_data, request.overview.as_deref(), request.details.as_deref())
+      match insight::update(&mut insight_data, request.overview.as_deref(), request.details.as_deref())
   {
-    Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
+    Ok(()) => {
+      // Update embedding in LanceDB
+      match generate_and_store_embedding(&context, &insight_data).await {
+        Ok(_) => {
+          context
+            .log_success(
+              &format!("Successfully updated insight {}/{} with new embedding", insight_data.topic, insight_data.name),
+              "insights-api",
+            )
+            .await;
+        }
+        Err(e) => {
+          // Log warning but don't fail the request - insight was updated successfully
+          context
+            .log_warn(
+              &format!("Insight updated but embedding update failed: {}", e),
+              "insights-api",
+            )
+            .await;
+        }
+      }
+
+      Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+    }
     Err(e) => {
       let error = ApiError::new("insight_update_failed", &format!("Failed to update insight: {e}"));
       Err((
-        StatusCode::INTERNAL_SERVER_ERROR,
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ))
     }
@@ -51,8 +74,9 @@ pub async fn update_insight(
 
 /// DELETE /insights/remove - Remove an insight
 pub async fn remove_insight(
+  Extension(context): Extension<RequestContext>,
   Json(request): Json<RemoveInsightRequest>,
-) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
 
   // Call library function directly (no HTTP client recursion!)
@@ -61,18 +85,41 @@ pub async fn remove_insight(
     Err(e) => {
       let error = ApiError::new("insight_not_found", &format!("Insight not found: {e}"));
       return Err((
-        StatusCode::NOT_FOUND,
+        axum::http::StatusCode::NOT_FOUND,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ));
     }
   };
 
   match insight::delete(&insight_to_delete) {
-    Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
+    Ok(()) => {
+      // Delete embedding from LanceDB
+      match context.lancedb.delete_embedding(&request.topic, &request.name).await {
+        Ok(_) => {
+          context
+            .log_success(
+              &format!("Successfully deleted insight {}/{} and its embedding", request.topic, request.name),
+              "insights-api",
+            )
+            .await;
+        }
+        Err(e) => {
+          // Log warning but don't fail the request - insight was deleted successfully
+          context
+            .log_warn(
+              &format!("Insight deleted but embedding deletion failed: {}", e),
+              "insights-api",
+            )
+            .await;
+        }
+      }
+
+      Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+    }
     Err(e) => {
       let error = ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {e}"));
       Err((
-        StatusCode::INTERNAL_SERVER_ERROR,
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ))
     }
@@ -81,7 +128,7 @@ pub async fn remove_insight(
 
 /// DELETE /insights/clear - Clear all insights
 pub async fn clear_insights(
-) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
 
   // TODO: Implement clear insights using existing logic
@@ -91,7 +138,7 @@ pub async fn clear_insights(
 /// DELETE /insights/index - Re-index all insights
 pub async fn reindex(
   Extension(context): Extension<RequestContext>,
-) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
 
   context.log_info("Starting insight re-indexing process", "insights-api").await;
@@ -160,10 +207,105 @@ async fn perform_reindexing(context: RequestContext) -> Result<()> {
   Ok(())
 }
 
+/// Generate embedding for an insight and store it in LanceDB
+async fn generate_and_store_embedding(
+  context: &RequestContext,
+  insight: &insight::Insight,
+) -> Result<()> {
+  // Generate embedding text from insight content
+  let embedding_text = format!("{} {} {}", insight.topic, insight.name, insight.overview);
+
+  // Generate embedding using the embedding service
+  let embedding = crate::server::services::embeddings::create_embedding(&embedding_text)
+    .await
+    .map_err(|e| anyhow!("Failed to generate embedding: {}", e))?;
+
+  // Create insight with embedding data
+  let insight_with_embedding = insight::Insight {
+    topic: insight.topic.clone(),
+    name: insight.name.clone(),
+    overview: insight.overview.clone(),
+    details: insight.details.clone(),
+    embedding_version: Some("gte-base-en-v1.5".to_string()),
+    embedding: Some(embedding.clone()),
+    embedding_text: Some(embedding_text),
+    embedding_computed: Some(chrono::Utc::now()),
+  };
+
+  // Store in LanceDB
+  context.lancedb.store_embedding(&insight_with_embedding).await?;
+
+  // Update the insight file with embedding metadata
+  insight::save_existing(&insight_with_embedding)?;
+
+  Ok(())
+}
+
+/// Perform vector similarity search using LanceDB
+async fn perform_vector_search(
+  context: &RequestContext,
+  request: &SearchRequest,
+) -> Result<Vec<SearchResultData>> {
+  // Create search query text from terms
+  let query_text = request.terms.join(" ");
+
+  // Generate embedding for the search query
+  let query_embedding = crate::server::services::embeddings::create_embedding(&query_text)
+    .await
+    .map_err(|e| anyhow!("Failed to generate query embedding: {}", e))?;
+
+  // Determine search limit (default to 20, max 100)
+  let limit = 20; // TODO: Make this configurable
+
+  // Set similarity threshold based on search mode
+  let threshold = if request.exact {
+    Some(0.9) // High threshold for exact matches
+  } else {
+    Some(0.7) // Lower threshold for semantic matches
+  };
+
+  // Perform vector search in LanceDB
+  let similar_results = context.lancedb
+    .search_similar(&query_embedding, limit, threshold)
+    .await?;
+
+  // Convert LanceDB results to SearchResultData format
+  let mut search_results = Vec::new();
+
+  for result in similar_results {
+    // Load the full insight to get complete details
+    match insight::load(&result.topic, &result.name) {
+      Ok(_full_insight) => {
+        search_results.push(SearchResultData {
+          topic: result.topic,
+          name: result.name,
+          overview: result.overview,
+          details: result.details,
+          score: result.similarity,
+        });
+      }
+      Err(e) => {
+        // Log warning but continue with partial data
+        context.log_warn(
+          &format!("Failed to load full insight {}/{}: {}", result.topic, result.name, e),
+          "insights-search"
+        ).await;
+      }
+    }
+  }
+
+  // Sort by similarity score (highest first)
+  search_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+
+  Ok(search_results)
+}
+
+
+
 /// GET /insights/list/topics - List all topics
 pub async fn list_topics() -> Result<
   ResponseJson<BaseResponse<ListTopicsResponse>>,
-  (StatusCode, ResponseJson<BaseResponse<()>>),
+  (axum::http::StatusCode, ResponseJson<BaseResponse<()>>),
 > {
   let transaction_id = Uuid::new_v4();
 
@@ -175,7 +317,7 @@ pub async fn list_topics() -> Result<
     Err(e) => {
       let error = ApiError::new("topics_list_failed", &format!("Failed to list topics: {e}"));
       Err((
-        StatusCode::INTERNAL_SERVER_ERROR,
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ))
     }
@@ -185,7 +327,7 @@ pub async fn list_topics() -> Result<
 /// GET /insights/list/insights - List insights with optional filtering  
 pub async fn list_insights() -> Result<
   ResponseJson<BaseResponse<ListInsightsResponse>>,
-  (StatusCode, ResponseJson<BaseResponse<()>>),
+  (axum::http::StatusCode, ResponseJson<BaseResponse<()>>),
 > {
   let transaction_id = Uuid::new_v4();
 
@@ -209,7 +351,7 @@ pub async fn list_insights() -> Result<
     Err(e) => {
       let error = ApiError::new("insights_list_failed", &format!("Failed to list insights: {e}"));
       Err((
-        StatusCode::INTERNAL_SERVER_ERROR,
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ))
     }
@@ -217,10 +359,11 @@ pub async fn list_insights() -> Result<
 }
 
 /// POST /insights/add - Add a new insight
+#[axum::debug_handler]
 pub async fn add_insight(
   Extension(context): Extension<RequestContext>,
   Json(request): Json<AddInsightRequest>,
-) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
 
   context
@@ -241,12 +384,27 @@ pub async fn add_insight(
 
   match insight::save(&new_insight) {
     Ok(()) => {
-      context
-        .log_success(
-          &format!("Successfully added insight {}/{}", new_insight.topic, new_insight.name),
-          "insights-api",
-        )
-        .await;
+      // Generate and store embedding in LanceDB
+      match generate_and_store_embedding(&context, &new_insight).await {
+        Ok(_) => {
+          context
+            .log_success(
+              &format!("Successfully added insight {}/{} with embedding", new_insight.topic, new_insight.name),
+              "insights-api",
+            )
+            .await;
+        }
+        Err(e) => {
+          // Log warning but don't fail the request - insight was saved successfully
+          context
+            .log_warn(
+              &format!("Insight saved but embedding storage failed: {}", e),
+              "insights-api",
+            )
+            .await;
+        }
+      }
+
       Ok(ResponseJson(BaseResponse::success((), transaction_id)))
     }
     Err(e) => {
@@ -258,7 +416,7 @@ pub async fn add_insight(
         .await;
       let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {e}"));
       Err((
-        StatusCode::INTERNAL_SERVER_ERROR,
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ))
     }
@@ -271,7 +429,7 @@ pub async fn get_insight(
   Json(request): Json<GetInsightRequest>,
 ) -> Result<
   ResponseJson<BaseResponse<GetInsightResponse>>,
-  (StatusCode, ResponseJson<BaseResponse<()>>),
+  (axum::http::StatusCode, ResponseJson<BaseResponse<()>>),
 > {
   let transaction_id = Uuid::new_v4();
 
@@ -308,7 +466,7 @@ pub async fn get_insight(
         .await;
       let error = ApiError::new("insight_get_failed", &format!("Failed to get insight: {e}"));
       Err((
-        StatusCode::NOT_FOUND,
+        axum::http::StatusCode::NOT_FOUND,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ))
     }
@@ -319,7 +477,7 @@ pub async fn get_insight(
 pub async fn search_insights(
   Extension(context): Extension<RequestContext>,
   Json(request): Json<SearchRequest>,
-) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)>
+) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
 {
   let transaction_id = Uuid::new_v4();
 
@@ -331,34 +489,22 @@ pub async fn search_insights(
     .await;
 
   // Convert request to search options
-  let search_options = crate::server::services::search::SearchOptions {
+  let _search_options = crate::server::services::search::SearchOptions {
     topic: request.topic.clone(),
     case_sensitive: request.case_sensitive,
     overview_only: request.overview_only,
     exact: request.exact,
   };
 
-  // Perform search using existing search logic
-  match crate::server::services::search::search(&request.terms, &search_options) {
-    Ok(results) => {
+  // Perform vector similarity search using LanceDB
+  match perform_vector_search(&context, &request).await {
+    Ok(search_results) => {
       context
         .log_success(
-          &format!("Search completed: found {} results for {:?}", results.len(), request.terms),
+          &format!("Vector search completed: found {} results for {:?}", search_results.len(), request.terms),
           "insights-api",
         )
         .await;
-
-      // Convert SearchResult to SearchResultData
-      let search_results: Vec<SearchResultData> = results
-        .into_iter()
-        .map(|r| SearchResultData {
-          topic: r.topic,
-          name: r.name,
-          overview: r.overview,
-          details: r.details,
-          score: r.score,
-        })
-        .collect();
 
       let response_data = SearchResponse { count: search_results.len(), results: search_results };
 
@@ -366,11 +512,11 @@ pub async fn search_insights(
     }
     Err(e) => {
       context
-        .log_error(&format!("Search failed for {:?}: {}", request.terms, e), "insights-api")
+        .log_error(&format!("Vector search failed for {:?}: {}", request.terms, e), "insights-api")
         .await;
-      let error = ApiError::new("search_failed", &format!("Search failed: {e}"));
+      let error = ApiError::new("search_failed", &format!("Vector search failed: {e}"));
       Err((
-        StatusCode::INTERNAL_SERVER_ERROR,
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
       ))
     }

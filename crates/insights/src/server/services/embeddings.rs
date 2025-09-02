@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use hf_hub::api::tokio::Api;
 use ndarray::Array2;
 use std::collections::HashMap;
+use std::sync::Mutex;
 use tokenizers::Tokenizer;
 
 const MODEL_NAME: &str = "Alibaba-NLP/gte-base-en-v1.5";
@@ -296,6 +297,34 @@ impl GTEBase {
 
     Ok(embedding)
   }
+}
+
+// Global singleton for the embedding model
+static MODEL: std::sync::OnceLock<Mutex<Option<GTEBase>>> = std::sync::OnceLock::new();
+
+/// Public API function to create embeddings - initializes model on first use
+#[cfg(not(tarpaulin_include))]
+pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
+  let mutex = MODEL.get_or_init(|| Mutex::new(None));
+  
+  // Check if we need to initialize the model
+  let needs_init = {
+    let guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
+    guard.is_none()
+  };
+  
+  // Initialize model if needed (outside of the lock to avoid holding across await)
+  if needs_init {
+    bentley::info!("Initializing embedding model...");
+    let model = GTEBase::load().await?;
+    let mut guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
+    *guard = Some(model);
+  }
+  
+  // Get embedding
+  let mut guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
+  let model = guard.as_mut().ok_or_else(|| anyhow!("Model not initialized"))?;
+  model.embed(text)
 }
 
 #[cfg(test)]

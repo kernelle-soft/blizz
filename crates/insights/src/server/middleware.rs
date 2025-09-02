@@ -14,6 +14,8 @@ use bentley::DaemonLogs;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::server::services::lancedb::LanceDbService;
+
 /// Request context containing logger and request metadata
 #[derive(Clone)]
 pub struct RequestContext {
@@ -27,12 +29,14 @@ pub struct RequestContext {
   pub headers: HeaderMap,
   /// Shared logger instance
   pub logger: Arc<DaemonLogs>,
+  /// LanceDB service instance
+  pub lancedb: Arc<LanceDbService>,
 }
 
 impl RequestContext {
   /// Create a new request context
-  pub fn new(method: Method, uri: Uri, headers: HeaderMap, logger: Arc<DaemonLogs>) -> Self {
-    Self { request_id: Uuid::new_v4(), method, uri, headers, logger }
+  pub fn new(method: Method, uri: Uri, headers: HeaderMap, logger: Arc<DaemonLogs>, lancedb: Arc<LanceDbService>) -> Self {
+    Self { request_id: Uuid::new_v4(), method, uri, headers, logger, lancedb }
   }
 
   /// Log an info message with request context
@@ -111,14 +115,27 @@ impl RequestContext {
 /// Global logger instance
 static GLOBAL_LOGGER: once_cell::sync::OnceCell<Arc<DaemonLogs>> = once_cell::sync::OnceCell::new();
 
+/// Global LanceDB service instance
+static GLOBAL_LANCEDB: once_cell::sync::OnceCell<Arc<LanceDbService>> = once_cell::sync::OnceCell::new();
+
 /// Initialize the global logger
 pub fn init_global_logger(logger: Arc<DaemonLogs>) -> Result<(), Arc<DaemonLogs>> {
   GLOBAL_LOGGER.set(logger)
 }
 
+/// Initialize the global LanceDB service
+pub fn init_global_lancedb(lancedb: Arc<LanceDbService>) -> Result<(), Arc<LanceDbService>> {
+  GLOBAL_LANCEDB.set(lancedb)
+}
+
 /// Get the global logger instance
 pub fn get_global_logger() -> &'static Arc<DaemonLogs> {
   GLOBAL_LOGGER.get().expect("Global logger should be initialized before use")
+}
+
+/// Get the global LanceDB service instance
+pub fn get_global_lancedb() -> &'static Arc<LanceDbService> {
+  GLOBAL_LANCEDB.get().expect("Global LanceDB service should be initialized before use")
 }
 
 /// Middleware to inject RequestContext into all requests
@@ -129,7 +146,9 @@ pub async fn request_context_middleware(request: Request, next: Next) -> Respons
   let uri = request.uri().clone();
   let headers = request.headers().clone();
 
-  let context = RequestContext::new(method, uri, headers, logger);
+  let lancedb = get_global_lancedb().clone();
+
+  let context = RequestContext::new(method, uri, headers, logger, lancedb);
 
   // Log request start
   let start_time = std::time::Instant::now();
