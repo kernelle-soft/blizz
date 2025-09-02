@@ -91,53 +91,20 @@ impl ServerManager {
   /// Find the insights_server binary
   #[cfg(not(tarpaulin_include))] // Skip coverage - filesystem operations
   fn find_server_binary(&self) -> Result<String> {
-    // Try different possible locations for the binary
-    let possible_paths = [
-      "insights_server",                      // In PATH
-      "./target/debug/insights_server",       // Local debug build
-      "./target/release/insights_server",     // Local release build
-      "../target/debug/insights_server",      // From CLI working dir
-      "../target/release/insights_server",    // From CLI working dir
-      "target/debug/insights_server",         // Relative
-      "target/release/insights_server",       // Relative
-      "../../target/debug/insights_server",   // From crates/insights to workspace root
-      "../../target/release/insights_server", // From crates/insights to workspace root
+    // Check reasonable locations in order of preference
+    let paths_to_try = [
+      "insights_server",                // In PATH (installed)
+      "target/release/insights_server", // Local release build (preferred)
+      "target/debug/insights_server",   // Local debug build (fallback)
     ];
 
-    for path in &possible_paths {
+    for path in &paths_to_try {
       if std::fs::metadata(path).is_ok() {
         return Ok(path.to_string());
       }
     }
 
-    // If nothing found, try to compile it
-    bentley::info!("insights_server binary not found, attempting to build...");
-    self.build_server()?;
-
-    // Try again after build
-    if std::fs::metadata("target/debug/insights_server").is_ok() {
-      return Ok("target/debug/insights_server".to_string());
-    }
-
-    Err(anyhow!(
-            "Could not find or build insights_server binary. Please run 'cargo build --bin insights_server'"
-        ))
-  }
-
-  /// Build the server binary
-  #[cfg(not(tarpaulin_include))] // Skip coverage - external command execution
-  fn build_server(&self) -> Result<()> {
-    let output = Command::new("cargo")
-      .args(["build", "--bin", "insights_server"])
-      .output()
-      .map_err(|e| anyhow!("Failed to run cargo build: {}", e))?;
-
-    if !output.status.success() {
-      let stderr = String::from_utf8_lossy(&output.stderr);
-      return Err(anyhow!("Failed to build insights_server: {}", stderr));
-    }
-
-    Ok(())
+    Err(anyhow!("insights_server binary not found."))
   }
 }
 

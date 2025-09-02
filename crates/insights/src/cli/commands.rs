@@ -189,72 +189,104 @@ pub async fn logs(_limit: usize, _level: &str) -> Result<()> {
   }
 
   for log in logs_response.data.logs {
-    let level_colored = match log.level.as_str() {
-      "error" => log.level.red().bold(),
-      "warn" => log.level.yellow().bold(),
-      "info" => log.level.blue().bold(),
-      "debug" => log.level.green(),
-      "success" => log.level.bright_green().bold(),
-      _ => log.level.normal(),
-    };
-
-    // Main log line with timestamp, level, and message
-    println!("{} [{}] {}", log.timestamp.to_string().cyan(), level_colored, log.message);
-
-    // Pretty-print context if available
-    if let Some(context) = &log.context {
-      let mut context_parts = Vec::new();
-
-      if let Some(request_id) = &context.request_id {
-        context_parts.push(format!("request_id: {}", request_id.bright_blue()));
-      }
-
-      if let Some(method) = &context.method {
-        context_parts.push(format!("method: {}", method.magenta().bold()));
-      }
-
-      if let Some(path) = &context.path {
-        context_parts.push(format!("path: {}", path.cyan()));
-      }
-
-      if let Some(user_agent) = &context.user_agent {
-        context_parts.push(format!("user_agent: {}", user_agent.white().dimmed()));
-      }
-
-      if let Some(status_code) = context.status_code {
-        let status_color = match status_code {
-          200..=299 => status_code.to_string().green(),
-          300..=399 => status_code.to_string().yellow(),
-          400..=499 => status_code.to_string().red(),
-          500..=599 => status_code.to_string().bright_red().bold(),
-          _ => status_code.to_string().white(),
-        };
-        context_parts.push(format!("status: {status_color}"));
-      }
-
-      if let Some(duration) = context.duration_ms {
-        let duration_color = if duration < 1.0 {
-          format!("{duration:.2}ms").bright_green()
-        } else if duration < 10.0 {
-          format!("{duration:.2}ms").green()
-        } else if duration < 100.0 {
-          format!("{duration:.2}ms").yellow()
-        } else {
-          format!("{duration:.2}ms").red()
-        };
-        context_parts.push(format!("duration: {duration_color}"));
-      }
-
-      if !context_parts.is_empty() {
-        for part in context_parts {
-          println!("  {} {}", "└─".white().dimmed(), part);
-        }
-        println!();
-      }
-    }
+    print_log_entry(&log);
   }
 
   Ok(())
+}
+
+/// Print a single log entry with formatting
+fn print_log_entry(log: &crate::server::types::LogEntry) {
+  let level_colored = format_log_level(&log.level);
+
+  // Main log line with timestamp, level, and message
+  println!("{} [{}] {}", log.timestamp.to_string().cyan(), level_colored, log.message);
+
+  if let Some(context) = &log.context {
+    print_log_context(context);
+  }
+}
+
+/// Format log level with appropriate colors
+fn format_log_level(level: &str) -> colored::ColoredString {
+  match level {
+    "error" => level.red().bold(),
+    "warn" => level.yellow().bold(),
+    "info" => level.blue().bold(),
+    "debug" => level.green(),
+    "success" => level.bright_green().bold(),
+    _ => level.normal(),
+  }
+}
+
+/// Print log context information
+fn print_log_context(context: &crate::server::types::LogContext) {
+  let context_parts = build_context_parts(context);
+
+  if !context_parts.is_empty() {
+    for part in context_parts {
+      println!("  {} {}", "└─".white().dimmed(), part);
+    }
+    println!();
+  }
+}
+
+/// Build context parts from log context
+fn build_context_parts(context: &crate::server::types::LogContext) -> Vec<String> {
+  let mut context_parts = Vec::new();
+
+  if let Some(request_id) = &context.request_id {
+    context_parts.push(format!("request_id: {}", request_id.bright_blue()));
+  }
+
+  if let Some(method) = &context.method {
+    context_parts.push(format!("method: {}", method.magenta().bold()));
+  }
+
+  if let Some(path) = &context.path {
+    context_parts.push(format!("path: {}", path.cyan()));
+  }
+
+  if let Some(user_agent) = &context.user_agent {
+    context_parts.push(format!("user_agent: {}", user_agent.white().dimmed()));
+  }
+
+  if let Some(status_code) = context.status_code {
+    let status_color = format_status_code(status_code);
+    context_parts.push(format!("status: {status_color}"));
+  }
+
+  if let Some(duration) = context.duration_ms {
+    let duration_color = format_duration(duration);
+    context_parts.push(format!("duration: {duration_color}"));
+  }
+
+  context_parts
+}
+
+/// Format status code with appropriate colors
+fn format_status_code(status_code: u16) -> colored::ColoredString {
+  match status_code {
+    200..=299 => status_code.to_string().green(),
+    300..=399 => status_code.to_string().yellow(),
+    400..=499 => status_code.to_string().red(),
+    500..=599 => status_code.to_string().bright_red().bold(),
+    _ => status_code.to_string().white(),
+  }
+}
+
+/// Format duration with appropriate colors
+fn format_duration(duration: f64) -> colored::ColoredString {
+  let formatted = format!("{duration:.2}ms");
+  if duration < 1.0 {
+    formatted.bright_green()
+  } else if duration < 10.0 {
+    formatted.green()
+  } else if duration < 100.0 {
+    formatted.yellow()
+  } else {
+    formatted.red()
+  }
 }
 
 /// Search through all insights for matching content

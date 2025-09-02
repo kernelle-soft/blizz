@@ -7,6 +7,6 @@ pub mod handlers;
 pub mod middleware;
 pub mod models;
 pub mod routing;
-pub mod server;
 pub mod services;
+pub mod startup;
 pub mod types;

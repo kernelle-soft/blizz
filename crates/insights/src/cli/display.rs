@@ -1,6 +1,6 @@
-use colored::*;
+//! Display formatting utilities for CLI output
 
-/// Display formatting utilities for CLI output
+use colored::*;
 
 /// Highlight search terms in text
 pub fn highlight_keywords(text: &str, terms: &[String]) -> String {

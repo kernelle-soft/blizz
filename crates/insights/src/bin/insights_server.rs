@@ -8,7 +8,7 @@ use clap::Parser;
 use std::net::SocketAddr;
 use tracing::Level;
 
-use insights::server::server::start_server;
+use insights::server::startup::start_server;
 
 #[derive(Parser)]
 #[command(name = "insights_server")]

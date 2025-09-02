@@ -9,12 +9,31 @@ use reqwest::Client;
 use std::time::Duration;
 use tokio::time::timeout;
 
-use crate::server::models::insight;
 use crate::server::types::{
   AddInsightRequest, BaseResponse, GetInsightRequest, GetInsightResponse, InsightFilter,
-  ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest, StatusResponse,
-  UpdateInsightRequest,
+  ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest, UpdateInsightRequest,
 };
+
+/// HTTP method types for REST API calls
+#[derive(Debug, Copy, Clone)]
+enum HttpMethod {
+  Get,
+  Post,
+  Put,
+  Delete,
+}
+
+impl std::fmt::Display for HttpMethod {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    let method_str = match self {
+      HttpMethod::Get => "GET",
+      HttpMethod::Post => "POST",
+      HttpMethod::Put => "PUT",
+      HttpMethod::Delete => "DELETE",
+    };
+    write!(f, "{method_str}")
+  }
+}
 
 /// Configuration for the insights HTTP client
 #[derive(Debug, Clone)]
@@ -43,6 +62,26 @@ impl Default for InsightsClient {
   }
 }
 
+/// Helpers to handle HTTP response parsing and error handling
+async fn parse_response<R>(
+  response: reqwest::Response,
+  method: HttpMethod,
+  endpoint: &str,
+) -> Result<R>
+where
+  R: serde::de::DeserializeOwned,
+{
+  if !response.status().is_success() {
+    let error_text = response.text().await?;
+    return Err(anyhow!("Failed {method} {endpoint}: {error_text}"));
+  }
+
+  let result: BaseResponse<R> = response.json().await?;
+  Ok(result.data)
+}
+
+// Client Constructor
+// ==================
 impl InsightsClient {
   /// Create a new client with default configuration
   pub fn new() -> Self {
@@ -58,7 +97,11 @@ impl InsightsClient {
 
     Self { client, config }
   }
+}
 
+// Client Methods
+// ==============
+impl InsightsClient {
   /// Add a new insight
   pub async fn add_insight(
     &self,
@@ -74,20 +117,7 @@ impl InsightsClient {
       details: details.to_string(),
     };
 
-    let url = format!("{}/insights/add", self.config.base_url);
-    let response = timeout(
-      Duration::from_secs(self.config.timeout_secs),
-      self.client.post(&url).json(&request).send(),
-    )
-    .await??;
-
-    if !response.status().is_success() {
-      let error_text = response.text().await?;
-      return Err(anyhow!("Failed to add insight: {}", error_text));
-    }
-
-    let _result: BaseResponse<()> = response.json().await?;
-    Ok(())
+    self.post_json::<AddInsightRequest, ()>("/insights/add", &request).await
   }
 
   /// Get a specific insight
@@ -100,20 +130,7 @@ impl InsightsClient {
     let request =
       GetInsightRequest { topic: topic.to_string(), name: name.to_string(), overview_only };
 
-    let url = format!("{}/insights/get", self.config.base_url);
-    let response = timeout(
-      Duration::from_secs(self.config.timeout_secs),
-      self.client.post(&url).json(&request).send(),
-    )
-    .await??;
-
-    if !response.status().is_success() {
-      let error_text = response.text().await?;
-      return Err(anyhow!("Failed to get insight: {}", error_text));
-    }
-
-    let result: BaseResponse<GetInsightResponse> = response.json().await?;
-    Ok(result.data)
+    self.post_json("/insights/get", &request).await
   }
 
   /// Update an existing insight
@@ -131,76 +148,29 @@ impl InsightsClient {
       details: details.map(|s| s.to_string()),
     };
 
-    let url = format!("{}/insights/update", self.config.base_url);
-    let response = timeout(
-      Duration::from_secs(self.config.timeout_secs),
-      self.client.put(&url).json(&request).send(),
-    )
-    .await??;
-
-    if !response.status().is_success() {
-      let error_text = response.text().await?;
-      return Err(anyhow!("Failed to update insight: {}", error_text));
-    }
-
-    let _result: BaseResponse<()> = response.json().await?;
-    Ok(())
+    self.put_json::<UpdateInsightRequest, ()>("/insights/update", &request).await
   }
 
   /// Remove an insight
   pub async fn remove_insight(&self, topic: &str, name: &str) -> Result<()> {
     let request = RemoveInsightRequest { topic: topic.to_string(), name: name.to_string() };
 
-    let url = format!("{}/insights/remove", self.config.base_url);
-    let response = timeout(
-      Duration::from_secs(self.config.timeout_secs),
-      self.client.delete(&url).json(&request).send(),
-    )
-    .await??;
-
-    if !response.status().is_success() {
-      let error_text = response.text().await?;
-      return Err(anyhow!("Failed to remove insight: {}", error_text));
-    }
-
-    let _result: BaseResponse<()> = response.json().await?;
-    Ok(())
+    self.delete_json::<RemoveInsightRequest, ()>("/insights/remove", &request).await
   }
 
   /// List all topics
   pub async fn list_topics(&self) -> Result<Vec<String>> {
-    let url = format!("{}/insights/list/topics", self.config.base_url);
-    let response =
-      timeout(Duration::from_secs(self.config.timeout_secs), self.client.get(&url).send())
-        .await??;
-
-    if !response.status().is_success() {
-      let error_text = response.text().await?;
-      return Err(anyhow!("Failed to list topics: {}", error_text));
-    }
-
-    let result: BaseResponse<ListTopicsResponse> = response.json().await?;
-    Ok(result.data.topics)
+    let response: ListTopicsResponse = self.get_json("/insights/list/topics").await?;
+    Ok(response.topics)
   }
 
   /// List insights with optional filtering
   pub async fn list_insights(&self, _filters: Vec<InsightFilter>) -> Result<ListInsightsResponse> {
-    // For now, we'll use GET without filters. TODO: Add query parameter support
-    let url = format!("{}/insights/list/insights", self.config.base_url);
-    let response =
-      timeout(Duration::from_secs(self.config.timeout_secs), self.client.get(&url).send())
-        .await??;
-
-    if !response.status().is_success() {
-      let error_text = response.text().await?;
-      return Err(anyhow!("Failed to list insights: {}", error_text));
-    }
-
-    let result: BaseResponse<ListInsightsResponse> = response.json().await?;
-    Ok(result.data)
+    // TODO: Add query parameter support
+    self.get_json("/insights/list/insights").await
   }
 
-  /// Check if the server is reachable and using the correct insights root
+  /// Check if the server is reachable
   pub async fn health_check(&self) -> Result<()> {
     let url = format!("{}/status", self.config.base_url);
     let response = timeout(
@@ -209,46 +179,26 @@ impl InsightsClient {
     )
     .await??;
 
-    if !response.status().is_success() {
-      return Err(anyhow!("Server health check failed: {}", response.status()));
+    if response.status().is_success() {
+      Ok(())
+    } else {
+      Err(anyhow!("Server health check failed: {}", response.status()))
     }
-
-    // Parse the status response to get the server's insights root
-    let status_response: BaseResponse<StatusResponse> = response.json().await?;
-    let server_insights_root = &status_response.data.insights_root;
-
-    // Get the current expected insights root
-    let expected_insights_root = insight::get_insights_root()?;
-    let expected_path = expected_insights_root.to_string_lossy().to_string();
-
-    // Validate that the server is using the same insights root as expected
-    if *server_insights_root != expected_path {
-      return Err(anyhow!(
-        "Server is using different insights root. Expected: {}, Server has: {}",
-        expected_path,
-        server_insights_root
-      ));
-    }
-
-    Ok(())
   }
 
   /// Get server logs
   pub async fn get_logs(
     &self,
   ) -> Result<crate::server::types::BaseResponse<crate::server::types::LogsResponse>> {
+    // Return the full BaseResponse for backwards compatibility
     let url = format!("{}/logs", self.config.base_url);
-    let response =
-      timeout(Duration::from_secs(self.config.timeout_secs), self.client.get(&url).send())
-        .await??;
+    let response = self.execute_with_timeout(|| self.client.get(&url).send()).await?;
 
     if !response.status().is_success() {
       return Err(anyhow!("Failed to get logs: HTTP {}", response.status()));
     }
 
-    let logs_response: crate::server::types::BaseResponse<crate::server::types::LogsResponse> =
-      response.json().await?;
-    Ok(logs_response)
+    Ok(response.json().await?)
   }
 
   /// Search insights
@@ -260,40 +210,88 @@ impl InsightsClient {
     overview_only: bool,
     exact: bool,
   ) -> Result<crate::server::types::SearchResponse> {
-    use crate::server::types::{BaseResponse, SearchRequest, SearchResponse};
+    use crate::server::types::SearchRequest;
 
     let request = SearchRequest { terms, topic, case_sensitive, overview_only, exact };
-
-    let url = format!("{}/insights/search", self.config.base_url);
-    let response = timeout(
-      Duration::from_secs(self.config.timeout_secs),
-      self.client.post(&url).json(&request).send(),
-    )
-    .await??;
-
-    if !response.status().is_success() {
-      let error_text = response.text().await?;
-      return Err(anyhow!("Failed to search insights: {}", error_text));
-    }
-
-    let result: BaseResponse<SearchResponse> = response.json().await?;
-    Ok(result.data)
+    self.post_json("/insights/search", &request).await
   }
 
   /// Re-index all insights (fire-and-forget)
   pub async fn reindex_insights(&self) -> Result<()> {
-    let url = format!("{}/insights/index", self.config.base_url);
+    self.delete_without_body::<()>("/insights/index").await
+  }
+}
+
+// HTTP Request Helpers
+// ====================
+impl InsightsClient {
+  /// Helper to execute HTTP requests with timeout
+  async fn execute_with_timeout<F, Fut>(&self, request_fn: F) -> Result<reqwest::Response>
+  where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<reqwest::Response, reqwest::Error>>,
+  {
+    timeout(Duration::from_secs(self.config.timeout_secs), request_fn()).await?.map_err(Into::into)
+  }
+
+  /// Helper to make a POST request with JSON body and return parsed response data
+  async fn post_json<T, R>(&self, endpoint: &str, request: &T) -> Result<R>
+  where
+    T: serde::Serialize,
+    R: serde::de::DeserializeOwned,
+  {
+    let url = format!("{}{}", self.config.base_url, endpoint);
     let response =
-      timeout(Duration::from_secs(self.config.timeout_secs), self.client.delete(&url).send())
-        .await??;
+      self.execute_with_timeout(|| self.client.post(&url).json(request).send()).await?;
 
-    if !response.status().is_success() {
-      let error_text = response.text().await?;
-      return Err(anyhow!("Failed to start re-indexing: {}", error_text));
-    }
+    parse_response(response, HttpMethod::Post, endpoint).await
+  }
 
-    let _result: BaseResponse<()> = response.json().await?;
-    Ok(())
+  /// Helper to make a PUT request with JSON body and return parsed response data
+  async fn put_json<T, R>(&self, endpoint: &str, request: &T) -> Result<R>
+  where
+    T: serde::Serialize,
+    R: serde::de::DeserializeOwned,
+  {
+    let url = format!("{}{}", self.config.base_url, endpoint);
+    let response = self.execute_with_timeout(|| self.client.put(&url).json(request).send()).await?;
+
+    parse_response(response, HttpMethod::Put, endpoint).await
+  }
+
+  /// Helper to make a DELETE request with JSON body and return parsed response data
+  async fn delete_json<T, R>(&self, endpoint: &str, request: &T) -> Result<R>
+  where
+    T: serde::Serialize,
+    R: serde::de::DeserializeOwned,
+  {
+    let url = format!("{}{}", self.config.base_url, endpoint);
+    let response =
+      self.execute_with_timeout(|| self.client.delete(&url).json(request).send()).await?;
+
+    parse_response(response, HttpMethod::Delete, endpoint).await
+  }
+
+  /// Helper to make a GET request and return parsed response data
+  async fn get_json<R>(&self, endpoint: &str) -> Result<R>
+  where
+    R: serde::de::DeserializeOwned,
+  {
+    let url = format!("{}{}", self.config.base_url, endpoint);
+    let response = self.execute_with_timeout(|| self.client.get(&url).send()).await?;
+
+    parse_response(response, HttpMethod::Get, endpoint).await
+  }
+
+  /// Helper to make a DELETE request without body and return parsed response data
+  async fn delete_without_body<R>(&self, endpoint: &str) -> Result<R>
+  where
+    R: serde::de::DeserializeOwned,
+  {
+    let url = format!("{}{}", self.config.base_url, endpoint);
+    let response = self.execute_with_timeout(|| self.client.delete(&url).send()).await?;
+
+    parse_response(response, HttpMethod::Delete, endpoint).await
   }
 }
 
@@ -302,10 +300,8 @@ pub fn get_client() -> InsightsClient {
   let base_url =
     std::env::var("INSIGHTS_SERVER_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
-  let timeout_secs = std::env::var("INSIGHTS_TIMEOUT_SECS")
-    .unwrap_or_else(|_| "30".to_string())
-    .parse()
-    .unwrap_or(30);
+  let timeout_secs =
+    std::env::var("INSIGHTS_TIMEOUT_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(30);
 
   let config = ClientConfig { base_url, timeout_secs };
 
