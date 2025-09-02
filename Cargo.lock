@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "adam"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -343,7 +343,7 @@ checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 
 [[package]]
 name = "bentley"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "blizz"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "bentley",
@@ -1751,7 +1751,7 @@ dependencies = [
 
 [[package]]
 name = "insights"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -3318,7 +3318,7 @@ checksum = "490dcfcbfef26be6800d11870ff2df8774fa6e86d047e3e8c8a76b25655e41ca"
 
 [[package]]
 name = "secrets"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -4300,7 +4300,7 @@ dependencies = [
 
 [[package]]
 name = "violet"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "clap",
