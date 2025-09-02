@@ -1,11 +1,6 @@
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
-
-mod commands;
-mod insight;
-mod search;
-mod semantic;
-mod similarity;
+use insights::cli::commands;
 
 #[derive(Parser)]
 #[command(name = "insights")]
@@ -42,7 +37,7 @@ enum Command {
   /// Search through all insights for matching content
   Search {
     #[command(flatten)]
-    options: search::SearchCommandOptions,
+    options: insights::server::services::search::SearchCommandOptions,
     /// Search terms (space-separated)
     #[arg(required = true)]
     terms: Vec<String>,
@@ -101,32 +96,37 @@ enum Command {
   },
 }
 
-fn handle(command: Command) -> Result<()> {
+async fn handle(command: Command) -> Result<()> {
   match command {
     Command::Add { id, overview, details } => {
-      commands::add_insight(&id.topic, &id.name, &overview, &details)
+      commands::add_insight(&id.topic, &id.name, &overview, &details).await
     }
     Command::Search { options, terms } => {
-      let opts = search::SearchOptions::from(&options);
-      let results = search::search(&terms, &opts)?;
-      search::display_results(&results, &terms, opts.overview_only);
-      Ok(())
+      commands::search_insights(
+        &terms,
+        options.topic.clone(),
+        options.case_sensitive,
+        options.overview_only,
+        options.exact,
+      )
+      .await
     }
-    Command::Get { id, overview } => commands::get_insight(&id.topic, &id.name, overview),
-    Command::List { topic, verbose } => commands::list_insights(topic.as_deref(), verbose),
+    Command::Get { id, overview } => commands::get_insight(&id.topic, &id.name, overview).await,
+    Command::List { topic, verbose } => commands::list_insights(topic.as_deref(), verbose).await,
     Command::Update { id, overview, details } => {
-      commands::update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref())
+      commands::update_insight(&id.topic, &id.name, overview.as_deref(), details.as_deref()).await
     }
-    Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force),
-    Command::Topics => commands::list_topics(),
-    Command::Index { force } => commands::index_insights(force),
-    Command::Logs { limit, level } => commands::query_daemon_logs(limit, &level),
+    Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force).await,
+    Command::Topics => commands::list_topics().await,
+    Command::Index { force } => commands::index_insights(force).await,
+    Command::Logs { limit, level } => commands::logs(limit, &level).await,
   }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
   let cli = Cli::parse();
 
-  handle(cli.command)?;
+  handle(cli.command).await?;
   Ok(())
 }

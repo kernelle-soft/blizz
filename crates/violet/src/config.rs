@@ -68,7 +68,7 @@ fn default_depth_penalty() -> f64 {
 }
 
 fn default_verbosity_penalty() -> f64 {
-  1.05
+  1.025
 }
 
 fn default_syntactics_penalty() -> f64 {
@@ -999,14 +999,14 @@ ignore_files:
     let penalty_config = PenaltyConfig::default();
 
     assert_eq!(penalty_config.depth, 2.0);
-    assert_eq!(penalty_config.verbosity, 1.05);
+    assert_eq!(penalty_config.verbosity, 1.025);
     assert_eq!(penalty_config.syntactics, 1.15);
   }
 
   #[test]
   fn test_default_penalty_functions() {
     assert_eq!(default_depth_penalty(), 2.0);
-    assert_eq!(default_verbosity_penalty(), 1.05);
+    assert_eq!(default_verbosity_penalty(), 1.025);
     assert_eq!(default_syntactics_penalty(), 1.15);
   }
 
@@ -1055,7 +1055,7 @@ ignore_files:
     let result = merge(global, Some(project));
 
     assert_eq!(result.complexity.penalties.depth, 4.0); // Project override
-    assert_eq!(result.complexity.penalties.verbosity, 1.10); // Global (project was default)
+    assert_eq!(result.complexity.penalties.verbosity, 1.05); // Project override
     assert_eq!(result.complexity.penalties.syntactics, 1.30); // Project override
   }
 
@@ -1178,7 +1178,7 @@ ignore_files:
     assert!(result.is_ok());
     let config = result.unwrap();
     assert_eq!(config.complexity.penalties.depth, 3.0);
-    assert_eq!(config.complexity.penalties.verbosity, 1.05); // Default
+    assert_eq!(config.complexity.penalties.verbosity, 1.025); // Default
     assert_eq!(config.complexity.penalties.syntactics, 1.15); // Default
   }
 }

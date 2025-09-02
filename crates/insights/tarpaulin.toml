@@ -24,6 +24,12 @@ exclude-files = [
   # This is a setup script for NVIDIA's cuda ecosystem. It's 95% apt installs, path checking, and user-facing instructions.
   # It's not worth the effort to try to mock or do integration tests on.
   "*/install_insights_cuda_dependencies.rs",
+
+  # Skip server management - process spawning, file system binary discovery
+  "*/cli/server_manager.rs",
+
+  # Skip server startup/shutdown - daemon initialization, process lifecycle
+  "*/server/server.rs",
 ]
 
 timeout = "120s"
