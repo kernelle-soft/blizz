@@ -4,7 +4,7 @@ use axum::{extract::{Json, Extension}, http::StatusCode, response::Json as Respo
 use chrono::Utc;
 use uuid::Uuid;
 
-use crate::{insight, server::middleware::RequestContext};
+use crate::server::{models::insight, middleware::RequestContext};
 use crate::server::types::{
   AddInsightRequest, ApiError, BaseResponse, GetInsightRequest, GetInsightResponse, InsightData,
   InsightSummary, ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest,
@@ -217,7 +217,7 @@ pub async fn search_insights(
     let transaction_id = Uuid::new_v4();
 
     // Convert request to search options
-    let search_options = crate::search::SearchOptions {
+    let search_options = crate::server::services::search::SearchOptions {
         topic: request.topic.clone(),
         case_sensitive: request.case_sensitive,
         overview_only: request.overview_only,
@@ -225,7 +225,7 @@ pub async fn search_insights(
     };
 
     // Perform search using existing search logic
-    match crate::search::search(&request.terms, &search_options) {
+    match crate::server::services::search::search(&request.terms, &search_options) {
         Ok(results) => {
             // Convert SearchResult to SearchResultData
             let search_results: Vec<SearchResultData> = results
@@ -341,7 +341,7 @@ pub async fn search_insights_with_context(
     context.log_info(&format!("Searching insights: terms={:?}, topic={:?}", request.terms, request.topic), "insights-api").await;
 
     // Convert request to search options
-    let search_options = crate::search::SearchOptions {
+    let search_options = crate::server::services::search::SearchOptions {
         topic: request.topic.clone(),
         case_sensitive: request.case_sensitive,
         overview_only: request.overview_only,
@@ -349,7 +349,7 @@ pub async fn search_insights_with_context(
     };
 
     // Perform search using existing search logic
-    match crate::search::search(&request.terms, &search_options) {
+    match crate::server::services::search::search(&request.terms, &search_options) {
         Ok(results) => {
             context.log_success(&format!("Search completed: found {} results for {:?}", results.len(), request.terms), "insights-api").await;
             

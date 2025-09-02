@@ -2,12 +2,6 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
 use insights::cli::commands;
 
-mod insight;
-mod search;
-mod semantic;
-mod server;
-mod similarity;
-
 #[derive(Parser)]
 #[command(name = "insights")]
 #[command(
@@ -43,7 +37,7 @@ enum Command {
   /// Search through all insights for matching content
   Search {
     #[command(flatten)]
-    options: search::SearchCommandOptions,
+    options: insights::server::services::search::SearchCommandOptions,
     /// Search terms (space-separated)
     #[arg(required = true)]
     terms: Vec<String>,

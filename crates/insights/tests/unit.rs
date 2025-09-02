@@ -1,7 +1,8 @@
 #[cfg(test)]
 mod insight_tests {
   use anyhow::Result;
-  use insights::insight::{self, Insight};
+  use insights::server::services::search;
+  use insights::server::models::insight::{self, Insight};
   use serial_test::serial;
   use std::env;
   use tempfile::TempDir;
@@ -382,14 +383,14 @@ mod insight_tests {
     insight::save(&insight2)?;
 
     // Test search functionality by creating SearchOptions directly
-    let search_options = insights::search::SearchOptions {
+    let search_options = search::SearchOptions {
       topic: None,
       case_sensitive: false,
       overview_only: false,
       exact: true, // Use exact search which doesn't require neural features
     };
 
-    let results = insights::search::search(&["rust".to_string()], &search_options)?;
+    let results = search::search(&["rust".to_string()], &search_options)?;
 
     // Should find the rust insight
     assert_eq!(results.len(), 1);
@@ -398,7 +399,7 @@ mod insight_tests {
 
     // Test that search results can be displayed (this tests our highlighting integration)
     // The highlighting happens in the display function, so we mainly test that it doesn't crash
-    insights::search::display_results(&results, &["rust".to_string()], false);
+    search::display_results(&results, &["rust".to_string()], false);
 
     Ok(())
   }

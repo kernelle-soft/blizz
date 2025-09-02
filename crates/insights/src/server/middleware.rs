@@ -13,7 +13,7 @@ use bentley::DaemonLogs;
 use bentley::daemon_logs::LogContext;
 use std::sync::Arc;
 use uuid::Uuid;
-use once_cell::sync::OnceCell;
+
 
 /// Request context containing logger and request metadata
 #[derive(Clone)]

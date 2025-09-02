@@ -182,7 +182,7 @@ impl InsightsClient {
   }
 
   /// List insights with optional filtering
-  pub async fn list_insights(&self, filters: Vec<InsightFilter>) -> Result<ListInsightsResponse> {
+  pub async fn list_insights(&self, _filters: Vec<InsightFilter>) -> Result<ListInsightsResponse> {
     // For now, we'll use GET without filters. TODO: Add query parameter support
     let url = format!("{}/insights/list/insights", self.config.base_url);
     let response =

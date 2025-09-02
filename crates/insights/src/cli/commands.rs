@@ -2,8 +2,9 @@ use anyhow::{anyhow, Result};
 use colored::*;
 
 use crate::cli::client::get_client;
+use crate::cli::display::display_search_result;
 use crate::cli::server_manager::ensure_server_running;
-use crate::insight::{self, Insight, InsightMetaData};
+// CLI is now a pure thin client - no business logic imports needed
 
 /// Add a new insight to the knowledge base (production version)
 pub async fn add_insight(topic: &str, name: &str, overview: &str, details: &str) -> Result<()> {
@@ -152,58 +153,14 @@ pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> 
   }
 }
 
-pub fn index_insights(force: bool) -> Result<()> {
+pub fn index_insights(_force: bool) -> Result<()> {
   println!("{} Starting insight indexing...", "🔄".cyan());
 
-  // Get all insights
-  let insights = insight::get_insights(None)?;
-
-  if insights.is_empty() {
-    println!("No insights found to index.");
-    return Ok(());
-  }
-
-  let total_insights = insights.len();
-  let mut processed_count = 0;
-  let mut updated_count = 0;
-
-  for mut insight in insights {
-    processed_count += 1;
-
-    // Check if already has embeddings and force flag
-    let needs_embedding = insight.embedding.is_none() || force;
-
-    if needs_embedding {
-      println!(
-        "Processing {}/{}: {}/{}",
-        processed_count.to_string().cyan(),
-        total_insights.to_string().cyan(),
-        insight.topic.blue(),
-        insight.name.yellow()
-      );
-
-      // Create embedding for this insight
-      // TODO: Implement embedding functionality via REST API
-      println!("Embedding functionality not yet implemented in REST API mode");
-      continue;
-
-    } else {
-      // Skip insights that already have embeddings (unless force is true)
-      continue;
-    }
-  }
-
-  let total_processed = processed_count;
-  let total_updated = updated_count;
-
-  println!();
-  println!(
-    "{} Indexed {} of {} insights",
-    "✓".green(),
-    total_updated.to_string().yellow(),
-    total_processed.to_string().cyan()
-  );
-
+  // TODO: Implement index endpoint in REST API
+  // For now, this function is disabled since CLI is pure thin client
+  println!("⚠️  Index functionality not yet implemented in REST API");
+  println!("   This will be available when the server supports indexing endpoints");
+  
   Ok(())
 }
 
@@ -320,111 +277,9 @@ fn display_search_results(
     println!("No matches found for: {}", terms.join(" ").yellow());
   } else {
     for result in results {
-      display_single_search_result(result, terms, overview_only);
+      display_search_result(&result.topic, &result.name, &result.overview, &result.details, terms, overview_only);
     }
   }
 }
 
-/// Display a single search result
-fn display_single_search_result(result: &crate::server::types::SearchResultData, terms: &[String], overview_only: bool) {
-  let header = format!(
-    "=== {}/{} ===",
-    result.topic.blue().bold(),
-    result.name.yellow().bold()
-  );
-
-  println!("{}", header);
-        
-  // Wrap and display the content with proper formatting
-  let wrap_width = if header.len() < 80 { 80 } else { header.len() };
-
-  let content = if overview_only {
-    result.overview.to_string()
-  } else {
-    format!("{}\n\n{}", result.overview, result.details)
-  };
-
-  // Highlight search terms in the content
-  let highlighted_content = highlight_keywords(&content, terms);
-  let wrapped_lines = wrap_text(&highlighted_content, wrap_width);
-  for line in wrapped_lines {
-    println!("{}", line);
-  }
-  println!();
-}
-
-/// Wrap text to fit within a specified width
-fn wrap_text(text: &str, width: usize) -> Vec<String> {
-  let mut lines = Vec::new();
-  
-  for paragraph in text.split('\n') {
-    if paragraph.trim().is_empty() {
-      lines.push(String::new());
-      continue;
-    }
-    
-    let words: Vec<&str> = paragraph.split_whitespace().collect();
-    let mut current_line = String::new();
-    
-    for word in words {
-      if current_line.is_empty() {
-        current_line = word.to_string();
-      } else if current_line.len() + 1 + word.len() <= width {
-        current_line.push(' ');
-        current_line.push_str(word);
-      } else {
-        lines.push(current_line);
-        current_line = word.to_string();
-      }
-    }
-    
-    if !current_line.is_empty() {
-      lines.push(current_line);
-    }
-  }
-  
-  lines
-}
-
-/// Highlight search terms in text
-fn highlight_keywords(text: &str, terms: &[String]) -> String {
-  let mut result = text.to_string();
-
-  // Sort terms by length (longest first) to avoid partial matches overriding longer ones
-  let mut sorted = terms.to_vec();
-  sorted.sort_by_key(|b| std::cmp::Reverse(b.len()));
-
-  for term in sorted {
-    if term.is_empty() {
-      continue;
-    }
-
-    let term_lower = term.to_lowercase();
-    let mut highlighted = String::new();
-    let mut end = 0;
-
-    let result_lower = result.to_lowercase();
-    let mut start = 0;
-
-    // Find and highlight all occurrences of the term
-    while let Some(pos) = result_lower[start..].find(&term_lower) {
-      let abs_pos = start + pos;
-
-      // Add text before the match
-      highlighted.push_str(&result[end..abs_pos]);
-
-      // Add highlighted match (preserve original case)
-      let match_text = &result[abs_pos..abs_pos + term.len()];
-      highlighted.push_str(&match_text.yellow().bold().to_string());
-
-      end = abs_pos + term.len();
-      start = end;
-    }
-
-    // Add remaining text after the last match
-    highlighted.push_str(&result[end..]);
-    result = highlighted;
-  }
-
-  result
-}
+// Display functions moved to cli/display.rs

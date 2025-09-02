@@ -5,8 +5,7 @@ use colored::*;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::insight;
-use crate::similarity;
+use crate::server::{models::insight, services::similarity};
 
 // Semantic similarity threshold for meaningful results
 const SEMANTIC_SIMILARITY_THRESHOLD: f32 = 0.2;
