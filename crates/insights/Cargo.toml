@@ -16,10 +16,6 @@ name = "insights"
 path = "src/main.rs"
 
 [[bin]]
-name = "insights_daemon"
-path = "src/bin/insights_daemon.rs"
-
-[[bin]]
 name = "install_insights_cuda_dependencies"
 path = "src/bin/install_insights_cuda_dependencies.rs"
 
