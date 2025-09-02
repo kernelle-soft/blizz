@@ -11,68 +11,6 @@ use crate::server::types::{
   SearchRequest, SearchResponse, SearchResultData, UpdateInsightRequest,
 };
 
-/// POST /insights/add - Add a new insight
-pub async fn add_insight(
-  Json(request): Json<AddInsightRequest>,
-) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
-  let transaction_id = Uuid::new_v4();
-
-  // Create and save insight directly (no HTTP client recursion!)
-  let new_insight = insight::Insight {
-    topic: request.topic,
-    name: request.name,
-    overview: request.overview,
-    details: request.details,
-    embedding_version: None,
-    embedding: None,
-    embedding_text: None,
-    embedding_computed: None,
-  };
-
-  match insight::save(&new_insight) {
-    Ok(()) => Ok(ResponseJson(BaseResponse::success((), transaction_id))),
-    Err(e) => {
-      let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {e}"));
-      Err((
-        StatusCode::INTERNAL_SERVER_ERROR,
-        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ))
-    }
-  }
-}
-
-/// POST /insights/get - Get a specific insight
-pub async fn get_insight(
-  Json(request): Json<GetInsightRequest>,
-) -> Result<
-  ResponseJson<BaseResponse<GetInsightResponse>>,
-  (StatusCode, ResponseJson<BaseResponse<()>>),
-> {
-  let transaction_id = Uuid::new_v4();
-
-  match insight::load(&request.topic, &request.name) {
-    Ok(insight_data) => {
-      let insight = InsightData {
-        topic: insight_data.topic,
-        name: insight_data.name,
-        overview: insight_data.overview,
-        details: if request.overview_only { String::new() } else { insight_data.details },
-        embedding_version: insight_data.embedding_version,
-        embedding_computed: insight_data.embedding_computed,
-      };
-      let response = GetInsightResponse { insight };
-      Ok(ResponseJson(BaseResponse::success(response, transaction_id)))
-    }
-    Err(e) => {
-      let error = ApiError::new("insight_get_failed", &format!("Failed to get insight: {e}"));
-      Err((
-        StatusCode::NOT_FOUND,
-        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ))
-    }
-  }
-}
-
 /// PUT /insights/update - Update an existing insight  
 pub async fn update_insight(
   Json(request): Json<UpdateInsightRequest>,
@@ -210,51 +148,7 @@ pub async fn list_insights() -> Result<
   }
 }
 
-/// POST /insights/search - Search insights
-pub async fn search_insights(
-    Json(request): Json<SearchRequest>,
-) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
-    let transaction_id = Uuid::new_v4();
-
-    // Convert request to search options
-    let search_options = crate::server::services::search::SearchOptions {
-        topic: request.topic.clone(),
-        case_sensitive: request.case_sensitive,
-        overview_only: request.overview_only,
-        exact: request.exact,
-    };
-
-    // Perform search using existing search logic
-    match crate::server::services::search::search(&request.terms, &search_options) {
-        Ok(results) => {
-            // Convert SearchResult to SearchResultData
-            let search_results: Vec<SearchResultData> = results
-                .into_iter()
-                .map(|r| SearchResultData {
-                    topic: r.topic,
-                    name: r.name,
-                    overview: r.overview,
-                    details: r.details,
-                    score: r.score,
-                })
-                .collect();
-
-            let response_data = SearchResponse {
-                count: search_results.len(),
-                results: search_results,
-            };
-
-            Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
-        }
-        Err(e) => {
-            let error = ApiError::new("search_failed", &format!("Search failed: {}", e));
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-            ))
-        }
-    }
-}
+// REMOVED: Non-context version replaced by search_insights_with_context below
 
 /// POST /insights/add - Add a new insight with context  
 pub async fn add_insight_with_context(
