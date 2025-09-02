@@ -11,8 +11,9 @@ use tokio::time::timeout;
 
 use crate::server::types::{
   AddInsightRequest, BaseResponse, GetInsightRequest, GetInsightResponse, InsightFilter,
-  ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest, UpdateInsightRequest,
+  ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest, StatusResponse, UpdateInsightRequest,
 };
+use crate::server::models::insight;
 
 /// Configuration for the insights HTTP client
 #[derive(Debug, Clone)]
@@ -198,7 +199,7 @@ impl InsightsClient {
     Ok(result.data)
   }
 
-  /// Check if the server is reachable
+  /// Check if the server is reachable and using the correct insights root
   pub async fn health_check(&self) -> Result<()> {
     let url = format!("{}/status", self.config.base_url);
     let response = timeout(
@@ -207,11 +208,28 @@ impl InsightsClient {
     )
     .await??;
 
-    if response.status().is_success() {
-      Ok(())
-    } else {
-      Err(anyhow!("Server health check failed: {}", response.status()))
+    if !response.status().is_success() {
+      return Err(anyhow!("Server health check failed: {}", response.status()));
     }
+
+    // Parse the status response to get the server's insights root
+    let status_response: BaseResponse<StatusResponse> = response.json().await?;
+    let server_insights_root = &status_response.data.insights_root;
+    
+    // Get the current expected insights root
+    let expected_insights_root = insight::get_insights_root()?;
+    let expected_path = expected_insights_root.to_string_lossy().to_string();
+    
+    // Validate that the server is using the same insights root as expected
+    if *server_insights_root != expected_path {
+      return Err(anyhow!(
+        "Server is using different insights root. Expected: {}, Server has: {}", 
+        expected_path, 
+        server_insights_root
+      ));
+    }
+
+    Ok(())
   }
 
   /// Get server logs
@@ -242,7 +260,7 @@ impl InsightsClient {
     exact: bool,
   ) -> Result<crate::server::types::SearchResponse> {
     use crate::server::types::{BaseResponse, SearchRequest, SearchResponse};
-    
+
     let request = SearchRequest {
       terms,
       topic,
@@ -265,6 +283,24 @@ impl InsightsClient {
 
     let result: BaseResponse<SearchResponse> = response.json().await?;
     Ok(result.data)
+  }
+
+  /// Re-index all insights (fire-and-forget)
+  pub async fn reindex_insights(&self) -> Result<()> {
+    let url = format!("{}/insights/index", self.config.base_url);
+    let response = timeout(
+      Duration::from_secs(self.config.timeout_secs),
+      self.client.delete(&url).send(),
+    )
+    .await??;
+
+    if !response.status().is_success() {
+      let error_text = response.text().await?;
+      return Err(anyhow!("Failed to start re-indexing: {}", error_text));
+    }
+
+    let _result: BaseResponse<()> = response.json().await?;
+    Ok(())
   }
 }
 

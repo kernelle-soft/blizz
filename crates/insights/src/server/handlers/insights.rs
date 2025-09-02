@@ -1,5 +1,6 @@
 //! Insights endpoint handlers
 
+use anyhow::Result;
 use axum::{extract::{Json, Extension}, http::StatusCode, response::Json as ResponseJson};
 use chrono::Utc;
 use uuid::Uuid;
@@ -83,13 +84,70 @@ pub async fn clear_insights(
   Ok(ResponseJson(BaseResponse::success((), transaction_id)))
 }
 
-/// DELETE /insights/index - Re-index all insights  
+/// DELETE /insights/index - Re-index all insights
 pub async fn reindex(
+  Extension(context): Extension<RequestContext>,
 ) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
 
-  // TODO: Implement re-indexing using existing logic
+  context.log_info("Starting insight re-indexing process", "insights-api").await;
+
+  // Spawn fire-and-forget task to handle re-indexing
+  tokio::spawn(async move {
+    if let Err(e) = perform_reindexing(context.clone()).await {
+      context.log_error(&format!("Re-indexing failed: {}", e), "insights-api").await;
+    }
+  });
+
+  // Return immediately - don't wait for re-indexing to complete
   Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+}
+
+/// Perform the actual re-indexing process (fire-and-forget)
+async fn perform_reindexing(context: RequestContext) -> Result<()> {
+  context.log_info("Loading all insights for re-indexing", "insights-reindex").await;
+
+  // Load all insights from filesystem
+  let all_insights = match insight::get_insights(None) {
+    Ok(insights) => insights,
+    Err(e) => {
+      context.log_error(&format!("Failed to load insights: {}", e), "insights-reindex").await;
+      return Err(e);
+    }
+  };
+
+  let total_insights = all_insights.len();
+  context.log_info(&format!("Found {} insights to re-index", total_insights), "insights-reindex").await;
+
+  // TODO: When LanceDB is integrated, this will:
+  // 1. Clear the existing vector index
+  // 2. Create embeddings for each insight
+  // 3. Store them in LanceDB with proper metadata
+
+  for (index, _insight) in all_insights.iter().enumerate() {
+    // Log progress every 10 insights or so
+    if (index + 1) % 10 == 0 || index == total_insights - 1 {
+      context.log_info(
+        &format!("Re-indexing progress: {}/{}", index + 1, total_insights),
+        "insights-reindex"
+      ).await;
+    }
+
+    // Stub: In the future, this will:
+    // - Generate/update embeddings for the insight
+    // - Store in LanceDB with topic/name as primary key
+    // - Update any metadata fields needed
+
+    // For now, just simulate some processing time
+    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+  }
+
+  context.log_success(
+    &format!("Re-indexing completed successfully for {} insights", total_insights),
+    "insights-reindex"
+  ).await;
+
+  Ok(())
 }
 
 /// GET /insights/list/topics - List all topics

@@ -153,15 +153,24 @@ pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> 
   }
 }
 
-pub fn index_insights(_force: bool) -> Result<()> {
-  println!("{} Starting insight indexing...", "🔄".cyan());
+pub async fn index_insights(_force: bool) -> Result<()> {
+  ensure_server_running().await?;
+  let client = get_client();
 
-  // TODO: Implement index endpoint in REST API
-  // For now, this function is disabled since CLI is pure thin client
-  println!("⚠️  Index functionality not yet implemented in REST API");
-  println!("   This will be available when the server supports indexing endpoints");
-  
-  Ok(())
+  println!("{} Starting insight re-indexing...", "🔄".cyan());
+  println!("   This will run in the background and may take some time");
+
+  match client.reindex_insights().await {
+    Ok(()) => {
+      println!("{} Re-indexing started successfully!", "✓".green());
+      println!("   Check server logs for progress updates");
+      Ok(())
+    }
+    Err(e) => {
+      println!("{} Failed to start re-indexing: {}", "✗".red(), e);
+      Err(e)
+    }
+  }
 }
 
 /// Query daemon logs for debugging and monitoring

@@ -87,6 +87,19 @@ pub struct ApiVersions {
   pub active: Vec<String>,
 }
 
+/// Response for /status endpoint
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+pub struct StatusResponse {
+  /// Server status
+  pub status: String,
+
+  /// Current insights root directory path  
+  pub insights_root: String,
+
+  /// API version
+  pub version: String,
+}
+
 // Logs Endpoint
 // =============
 

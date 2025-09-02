@@ -111,7 +111,7 @@ async fn handle(command: Command) -> Result<()> {
     }
     Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force).await,
     Command::Topics => commands::list_topics().await,
-    Command::Index { force } => commands::index_insights(force),
+    Command::Index { force } => commands::index_insights(force).await,
     Command::Logs { limit, level } => commands::logs(limit, &level).await,
   }
 }
