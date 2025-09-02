@@ -135,7 +135,7 @@ pub async fn clear_insights(
   Ok(ResponseJson(BaseResponse::success((), transaction_id)))
 }
 
-/// DELETE /insights/index - Re-index all insights
+/// DELETE /insights/index - Re-index all insights (delete existing index and rebuild)
 pub async fn reindex(
   Extension(context): Extension<RequestContext>,
 ) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
