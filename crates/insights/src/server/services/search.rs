@@ -284,3 +284,343 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
 
   lines
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::server::models::insight::Insight;
+
+  // Mock insight for testing
+  fn create_test_insight() -> Insight {
+    Insight::new(
+      "test_topic".to_string(),
+      "test_insight".to_string(),
+      "This is a test overview with some content".to_string(),
+      "This is detailed content with more information for testing purposes".to_string(),
+    )
+  }
+
+  #[test]
+  fn test_search_options_from_command_options() {
+    let cmd_options = SearchCommandOptions {
+      topic: Some("test_topic".to_string()),
+      case_sensitive: true,
+      overview_only: true,
+      exact: false,
+    };
+
+    let options = SearchOptions::from(&cmd_options);
+
+    assert_eq!(options.topic, Some("test_topic".to_string()));
+    assert!(options.case_sensitive);
+    assert!(options.overview_only);
+    assert!(!options.exact);
+  }
+
+  #[test]
+  fn test_can_use_advanced_search() {
+    // Should use advanced search when exact is false
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: false,
+    };
+    assert!(can_use_advanced_search(&options));
+
+    // Should NOT use advanced search when exact is true
+    let options_exact = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+    };
+    assert!(!can_use_advanced_search(&options_exact));
+  }
+
+  #[test]
+  fn test_get_normalized_content_overview_only() {
+    let insight = create_test_insight();
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: true,
+      exact: false,
+    };
+
+    let content = get_normalized_content(&insight, &options);
+    assert_eq!(content, "test_topic test_insight This is a test overview with some content");
+  }
+
+  #[test]
+  fn test_get_normalized_content_full_content() {
+    let insight = create_test_insight();
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: false,
+    };
+
+    let content = get_normalized_content(&insight, &options);
+    let expected = "test_topic test_insight This is a test overview with some content This is detailed content with more information for testing purposes";
+    assert_eq!(content, expected);
+  }
+
+  #[test]
+  fn test_get_normalized_terms_case_sensitive() {
+    let terms = vec!["Test".to_string(), "CONTENT".to_string()];
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: true,
+      overview_only: false,
+      exact: false,
+    };
+
+    let normalized = get_normalized_terms(&terms, &options);
+    assert_eq!(normalized, vec!["Test".to_string(), "CONTENT".to_string()]);
+  }
+
+  #[test]
+  fn test_get_normalized_terms_case_insensitive() {
+    let terms = vec!["Test".to_string(), "CONTENT".to_string()];
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: false,
+    };
+
+    let normalized = get_normalized_terms(&terms, &options);
+    assert_eq!(normalized, vec!["test".to_string(), "content".to_string()]);
+  }
+
+  #[test]
+  fn test_get_exact_match_single_term() {
+    let insight = create_test_insight();
+    let terms = vec!["test".to_string()];
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+    };
+
+    let score = get_exact_match(&insight, &terms, &options);
+    // "test" appears in topic, name, and content multiple times
+    assert!(score > 2.0); // Should find multiple matches
+  }
+
+  #[test]
+  fn test_get_exact_match_multiple_terms() {
+    let insight = create_test_insight();
+    let terms = vec!["test".to_string(), "content".to_string()];
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+    };
+
+    let score = get_exact_match(&insight, &terms, &options);
+    // Score should be sum of matches for both terms
+    assert!(score >= 4.0);
+  }
+
+  #[test]
+  fn test_get_exact_match_case_sensitive() {
+    let insight = create_test_insight();
+    let terms = vec!["Test".to_string()]; // Capital T
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: true,
+      overview_only: false,
+      exact: true,
+    };
+
+    let score = get_exact_match(&insight, &terms, &options);
+    // Should find fewer matches due to case sensitivity
+    let insensitive_score = get_exact_match(&insight, &vec!["test".to_string()], &SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+    });
+
+    assert!(insensitive_score >= score); // Case insensitive should find more matches
+  }
+
+  #[test]
+  fn test_get_exact_match_no_matches() {
+    let insight = create_test_insight();
+    let terms = vec!["nonexistent".to_string()];
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+    };
+
+    let score = get_exact_match(&insight, &terms, &options);
+    assert_eq!(score, 0.0);
+  }
+
+  #[test]
+  fn test_search_insight_above_threshold() {
+    let insight = create_test_insight();
+    let terms = vec!["test".to_string()];
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+    };
+
+    let result = search_insight(&insight, get_exact_match, 0.0, &options).unwrap();
+
+    assert!(result.is_some());
+    let search_result = result.unwrap();
+    assert_eq!(search_result.topic, "test_topic");
+    assert_eq!(search_result.name, "test_insight");
+    assert_eq!(search_result.overview, insight.overview);
+    assert_eq!(search_result.details, insight.details);
+    assert!(search_result.score > 0.0);
+  }
+
+  #[test]
+  fn test_search_insight_below_threshold() {
+    let insight = create_test_insight();
+    let terms = vec!["nonexistent".to_string()];
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+    };
+
+    let result = search_insight(&insight, get_exact_match, 1.0, &options).unwrap();
+    assert!(result.is_none());
+  }
+
+  #[test]
+  fn test_highlight_keywords_basic() {
+    let text = "This is a test string with test content";
+    let terms = vec!["test".to_string()];
+
+    let highlighted = highlight_keywords(text, &terms);
+    // Should contain ANSI color codes for highlighting
+    assert!(highlighted.contains("\x1b[")); // ANSI escape codes
+    assert!(highlighted.contains("test")); // Original text should still be there
+  }
+
+  #[test]
+  fn test_highlight_keywords_multiple_terms() {
+    let text = "This is a test string with test content and more content";
+    let terms = vec!["test".to_string(), "content".to_string()];
+
+    let highlighted = highlight_keywords(text, &terms);
+    assert!(highlighted.contains("\x1b[")); // ANSI escape codes
+    assert!(highlighted.contains("test"));
+    assert!(highlighted.contains("content"));
+  }
+
+  #[test]
+  fn test_highlight_keywords_empty_terms() {
+    let text = "This is a test string";
+    let terms = vec![];
+
+    let highlighted = highlight_keywords(text, &terms);
+    assert_eq!(highlighted, text); // Should return unchanged
+  }
+
+  #[test]
+  fn test_highlight_keywords_empty_term() {
+    let text = "This is a test string";
+    let terms = vec!["".to_string()];
+
+    let highlighted = highlight_keywords(text, &terms);
+    assert_eq!(highlighted, text); // Should return unchanged
+  }
+
+  #[test]
+  fn test_highlight_keywords_case_insensitive() {
+    let text = "This is a TEST string";
+    let terms = vec!["test".to_string()];
+
+    let highlighted = highlight_keywords(text, &terms);
+    assert!(highlighted.contains("\x1b[")); // Should still highlight despite case difference
+  }
+
+  #[test]
+  fn test_get_search_paths_with_topic_filter() {
+    use std::path::Path;
+
+    let root = Path::new("/test/root");
+    let topic_filter = Some("specific_topic");
+
+    let paths = get_search_paths(root, topic_filter).unwrap();
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0], root.join("specific_topic"));
+  }
+
+  #[test]
+  fn test_get_search_paths_without_topic_filter() {
+    use std::path::Path;
+
+    // This test would require mocking get_topics(), which is filesystem dependent
+    // For now, we'll skip this as it's more integration than unit test
+    // In a real scenario, we'd inject the topic list as a dependency
+  }
+
+  #[test]
+  fn test_display_single_result() {
+    let result = SearchResult {
+      topic: "test_topic".to_string(),
+      name: "test_insight".to_string(),
+      overview: "Test overview".to_string(),
+      details: "Test details".to_string(),
+      score: 2.5,
+    };
+
+    let terms = vec!["test".to_string()];
+
+    // This function prints to stdout, so we can't easily test the output
+    // In a real scenario, we'd modify it to accept a writer parameter
+    // For now, just ensure it doesn't panic
+    display_single_result(&result, &terms, false);
+  }
+
+  #[test]
+  fn test_display_results_empty() {
+    let results: Vec<SearchResult> = vec![];
+    let terms = vec!["test".to_string()];
+
+    // Should not panic when displaying empty results
+    display_results(&results, &terms, false);
+  }
+
+  #[test]
+  fn test_display_results_with_data() {
+    let results = vec![
+      SearchResult {
+        topic: "topic1".to_string(),
+        name: "insight1".to_string(),
+        overview: "Overview 1".to_string(),
+        details: "Details 1".to_string(),
+        score: 1.0,
+      },
+      SearchResult {
+        topic: "topic2".to_string(),
+        name: "insight2".to_string(),
+        overview: "Overview 2".to_string(),
+        details: "Details 2".to_string(),
+        score: 2.0,
+      },
+    ];
+
+    let terms = vec!["test".to_string()];
+
+    // Should not panic when displaying results
+    display_results(&results, &terms, false);
+  }
+}
