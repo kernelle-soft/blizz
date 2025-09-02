@@ -233,8 +233,7 @@ async fn generate_and_store_embedding(
   context: &RequestContext,
   insight: &insight::Insight,
 ) -> Result<()> {
-  // Generate embedding text from insight content
-  let embedding_text = format!("{} {} {}", insight.topic, insight.name, insight.overview);
+  let embedding_text = format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details);
 
   // Generate embedding using the embedding service
   let embedding = crate::server::services::embeddings::create_embedding(&embedding_text)
