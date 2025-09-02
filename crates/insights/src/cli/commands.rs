@@ -157,13 +157,11 @@ pub async fn index_insights(_force: bool) -> Result<()> {
   ensure_server_running().await?;
   let client = get_client();
 
-  println!("{} Starting insight re-indexing...", "🔄".cyan());
-  println!("   This will run in the background and may take some time");
 
   match client.reindex_insights().await {
     Ok(()) => {
-      println!("{} Re-indexing started successfully!", "✓".green());
-      println!("   Check server logs for progress updates");
+      println!("Re-indexing started. This will run in the background and may take some time.");
+      println!("Check server logs for progress updates.");
       Ok(())
     }
     Err(e) => {
