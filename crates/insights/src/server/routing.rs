@@ -24,7 +24,7 @@ pub fn create_router() -> Router {
     .route("/insights/update", put(insights::update_insight))
     .route("/insights/remove", delete(insights::remove_insight))
     .route("/insights/clear", delete(insights::clear_insights))
-    .route("/insights/index", delete(insights::reindex))
+    .route("/insights/index", post(insights::reindex))
     .route("/insights/list/topics", get(insights::list_topics))
     .route("/insights/list/insights", get(insights::list_insights))
     .route("/insights/search", post(insights::search_insights))

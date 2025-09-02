@@ -31,8 +31,8 @@ pub struct InsightRecord {
 
 /// LanceDB service for vector operations
 pub struct LanceDbService {
-    connection: Connection,
-    table_name: String,
+    pub connection: Connection,
+    pub table_name: String,
 }
 
 impl LanceDbService {
@@ -217,7 +217,7 @@ impl LanceDbService {
     }
 
     /// Get the table instance
-    async fn get_table(&self) -> Result<Table> {
+    pub async fn get_table(&self) -> Result<Table> {
         self.connection
             .open_table(&self.table_name)
             .execute()

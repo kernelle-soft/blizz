@@ -172,34 +172,55 @@ async fn perform_reindexing(context: RequestContext) -> Result<()> {
     .log_info(&format!("Found {total_insights} insights to re-index"), "insights-reindex")
     .await;
 
-  // TODO: When LanceDB is integrated, this will:
-  // 1. Clear the existing vector index
-  // 2. Create embeddings for each insight
-  // 3. Store them in LanceDB with proper metadata
+  // Clear existing LanceDB table to start fresh
+  context.log_info("Clearing existing LanceDB table", "insights-reindex").await;
 
-  for (index, _insight) in all_insights.iter().enumerate() {
-    // Log progress every 10 insights or so
+  // Delete table if it exists (LanceDB will recreate on first insert)
+  let table_names = context.lancedb.connection.table_names().execute().await?;
+  if table_names.contains(&context.lancedb.table_name) {
+    let table = context.lancedb.get_table().await?;
+    // LanceDB doesn't have a direct drop_table method, so we delete all records
+    table.delete("id IS NOT NULL").await?;
+    context.log_info("Cleared existing embeddings from LanceDB", "insights-reindex").await;
+  }
+
+  let mut embedded = 0;
+  let mut errors = 0;
+
+  for (index, insight) in all_insights.iter().enumerate() {
+    // Log progress every 10 insights
     if (index + 1) % 10 == 0 || index == total_insights - 1 {
       context
         .log_info(
-          &format!("Re-indexing progress: {}/{}", index + 1, total_insights),
+          &format!("Re-indexing progress: {}/{} (embedded: {}, errors: {})",
+                   index + 1, total_insights, embedded, errors),
           "insights-reindex",
         )
         .await;
     }
 
-    // Stub: In the future, this will:
-    // - Generate/update embeddings for the insight
-    // - Store in LanceDB with topic/name as primary key
-    // - Update any metadata fields needed
+    // Generate embedding for this insight
+    match generate_and_store_embedding(&context, insight).await {
+      Ok(_) => {
+        embedded += 1;
+      }
+      Err(e) => {
+        errors += 1;
+        context.log_warn(
+          &format!("Failed to generate embedding for {}/{}: {}", insight.topic, insight.name, e),
+          "insights-reindex"
+        ).await;
+        // Continue with next insight - don't fail the entire reindexing process
+      }
+    }
 
-    // For now, just simulate some processing time
-    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    // Small delay to prevent overwhelming the embedding service
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
   }
 
   context
     .log_success(
-      &format!("Re-indexing completed successfully for {total_insights} insights"),
+      &format!("Re-indexing completed: {embedded}/{total_insights} insights embedded successfully, {errors} errors"),
       "insights-reindex",
     )
     .await;
