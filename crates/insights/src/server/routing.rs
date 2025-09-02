@@ -17,16 +17,16 @@ pub fn create_router() -> Router {
     .route("/api", get(status::api_info))
     // Logs endpoint 
     .route("/logs", get(logs::get_logs_with_context))
-    // Insights endpoints (with automatic request context)
-    .route("/insights/add", post(insights::add_insight_with_context))
-    .route("/insights/get", post(insights::get_insight_with_context))
+    // Insights endpoints
+    .route("/insights/add", post(insights::add_insight))
+    .route("/insights/get", post(insights::get_insight))
     .route("/insights/update", put(insights::update_insight))
     .route("/insights/remove", delete(insights::remove_insight))
     .route("/insights/clear", delete(insights::clear_insights))
     .route("/insights/index", delete(insights::reindex))
     .route("/insights/list/topics", get(insights::list_topics))
     .route("/insights/list/insights", get(insights::list_insights))
-    .route("/insights/search", post(insights::search_insights_with_context))
+    .route("/insights/search", post(insights::search_insights))
 }
 
 

@@ -148,10 +148,8 @@ pub async fn list_insights() -> Result<
   }
 }
 
-// REMOVED: Non-context version replaced by search_insights_with_context below
-
-/// POST /insights/add - Add a new insight with context  
-pub async fn add_insight_with_context(
+/// POST /insights/add - Add a new insight
+pub async fn add_insight(
   Extension(context): Extension<RequestContext>,
   Json(request): Json<AddInsightRequest>,
 ) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
@@ -187,8 +185,8 @@ pub async fn add_insight_with_context(
   }
 }
 
-/// POST /insights/get - Get a specific insight with context
-pub async fn get_insight_with_context(
+/// POST /insights/get - Get a specific insight
+pub async fn get_insight(
   Extension(context): Extension<RequestContext>,
   Json(request): Json<GetInsightRequest>,
 ) -> Result<
@@ -225,8 +223,8 @@ pub async fn get_insight_with_context(
   }
 }
 
-/// POST /insights/search - Search insights with context
-pub async fn search_insights_with_context(
+/// POST /insights/search - Search insights
+pub async fn search_insights(
     Extension(context): Extension<RequestContext>,
     Json(request): Json<SearchRequest>,
 ) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
