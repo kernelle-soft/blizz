@@ -133,6 +133,7 @@ impl LanceDbService {
         
         let query = table
             .vector_search(query_embedding)?
+            .column("embedding")
             .limit(limit);
         
         if let Some(thresh) = threshold {
@@ -239,7 +240,7 @@ fn records_to_arrow_batch(records: Vec<InsightRecord>) -> Result<RecordBatch> {
         Field::new("name", DataType::Utf8, false),
         Field::new("overview", DataType::Utf8, false),
         Field::new("details", DataType::Utf8, false),
-        Field::new("embedding", DataType::List(Arc::new(Field::new("item", DataType::Float32, true))), false),
+        Field::new("embedding", DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), 768), false),
         Field::new("created_at", DataType::Utf8, false),
         Field::new("updated_at", DataType::Utf8, false),
     ]));
@@ -262,11 +263,14 @@ fn records_to_arrow_batch(records: Vec<InsightRecord>) -> Result<RecordBatch> {
     let created_at_array = StringArray::from(created_ats);
     let updated_at_array = StringArray::from(updated_ats);
 
-    // Create embedding list array
-    let mut embedding_builder = arrow::array::ListBuilder::new(Float32Array::builder(1024));
+    // Create embedding fixed-size list array
+    use arrow::array::FixedSizeListBuilder;
+    let mut embedding_builder = FixedSizeListBuilder::new(Float32Array::builder(768 * records.len()), 768);
     for record in &records {
-        let values: Vec<Option<f32>> = record.embedding.iter().map(|&x| Some(x)).collect();
-        embedding_builder.append_value(values);
+        for &value in &record.embedding {
+            embedding_builder.values().append_value(value);
+        }
+        embedding_builder.append(true); // valid row
     }
     let embedding_array = embedding_builder.finish();
 
