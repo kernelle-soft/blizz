@@ -54,31 +54,7 @@ impl LanceDbService {
             table_name: table_name.to_string(),
         };
 
-        // Ensure table exists
-        service.ensure_table().await?;
-
         Ok(service)
-    }
-
-    /// Ensure the embeddings table exists with the correct schema
-    async fn ensure_table(&self) -> Result<()> {
-        // Check if table already exists
-        let tables = self.connection.table_names()
-            .execute()
-            .await
-            .map_err(|e| anyhow!("Failed to list tables: {}", e))?;
-            
-        if tables.contains(&self.table_name) {
-            bentley::info!(&format!("LanceDB table '{}' already exists", self.table_name));
-            return Ok(());
-        }
-
-        // For now, we'll create an empty table and let LanceDB infer schema on first insert
-        // This is a simpler approach that avoids Arrow conversion issues
-        bentley::info!(&format!("Table '{}' will be created on first insert", self.table_name));
-
-        bentley::info!(&format!("Created LanceDB table '{}'", self.table_name));
-        Ok(())
     }
 
     /// Store an insight's embedding in LanceDB
