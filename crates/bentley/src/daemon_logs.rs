@@ -23,7 +23,7 @@ pub struct LogContext {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub request_id: Option<String>,
 
-  /// HTTP method 
+  /// HTTP method
   #[serde(skip_serializing_if = "Option::is_none")]
   pub method: Option<String>,
 
@@ -52,7 +52,7 @@ pub struct LogEntry {
   pub level: String,
   pub message: String,
   pub component: String,
-  
+
   /// Optional request context
   #[serde(skip_serializing_if = "Option::is_none")]
   pub context: Option<LogContext>,
@@ -136,7 +136,13 @@ impl DaemonLogsInner {
   }
 
   /// Add a log entry with context to storage (appends to JSONL file)
-  fn add_log_with_context(&mut self, level: &str, message: &str, component: &str, context: Option<LogContext>) -> std::io::Result<()> {
+  fn add_log_with_context(
+    &mut self,
+    level: &str,
+    message: &str,
+    component: &str,
+    context: Option<LogContext>,
+  ) -> std::io::Result<()> {
     let entry = LogEntry {
       timestamp: Utc::now(),
       level: level.to_string(),
@@ -258,14 +264,20 @@ impl DaemonLogs {
     Ok(Self { inner: std::sync::Arc::new(tokio::sync::Mutex::new(inner)) })
   }
 
-    /// Add a log entry (handles locking internally) 
+  /// Add a log entry (handles locking internally)
   pub async fn add_log(&self, level: &str, message: &str, component: &str) -> std::io::Result<()> {
     let mut guard = self.inner.lock().await;
     guard.add_log(level, message, component)
   }
 
   /// Add a log entry with context (handles locking internally)
-  pub async fn add_log_with_context(&self, level: &str, message: &str, component: &str, context: Option<LogContext>) -> std::io::Result<()> {
+  pub async fn add_log_with_context(
+    &self,
+    level: &str,
+    message: &str,
+    component: &str,
+    context: Option<LogContext>,
+  ) -> std::io::Result<()> {
     let mut guard = self.inner.lock().await;
     guard.add_log_with_context(level, message, component, context)
   }
@@ -276,7 +288,13 @@ impl DaemonLogs {
   }
 
   /// Add a log entry with context (fire-and-forget, ignores errors)
-  pub async fn log_with_context(&self, level: &str, message: &str, component: &str, context: LogContext) {
+  pub async fn log_with_context(
+    &self,
+    level: &str,
+    message: &str,
+    component: &str,
+    context: LogContext,
+  ) {
     let _ = self.add_log_with_context(level, message, component, Some(context)).await;
   }
 

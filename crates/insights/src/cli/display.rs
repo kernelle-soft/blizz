@@ -74,7 +74,14 @@ pub fn wrap_text(text: &str, width: usize) -> Vec<String> {
 }
 
 /// Display a single search result with keyword highlighting
-pub fn display_search_result(topic: &str, name: &str, overview: &str, details: &str, terms: &[String], overview_only: bool) {
+pub fn display_search_result(
+  topic: &str,
+  name: &str,
+  overview: &str,
+  details: &str,
+  terms: &[String],
+  overview_only: bool,
+) {
   let header = format!("=== {}/{} ===", topic.blue().bold(), name.yellow().bold());
 
   println!("{header}");
@@ -82,11 +89,8 @@ pub fn display_search_result(topic: &str, name: &str, overview: &str, details: &
   // Wrap and display the content with proper formatting
   let wrap_with = if header.len() < 80 { 80 } else { header.len() };
 
-  let content = if overview_only {
-    overview.to_string()
-  } else {
-    format!("{}\n\n{}", overview, details)
-  };
+  let content =
+    if overview_only { overview.to_string() } else { format!("{overview}\n\n{details}") };
 
   let highlighted_content = highlight_keywords(&content, terms);
   let wrapped_lines = wrap_text(&highlighted_content, wrap_with);

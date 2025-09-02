@@ -1,16 +1,20 @@
 //! Insights endpoint handlers
 
 use anyhow::Result;
-use axum::{extract::{Json, Extension}, http::StatusCode, response::Json as ResponseJson};
+use axum::{
+  extract::{Extension, Json},
+  http::StatusCode,
+  response::Json as ResponseJson,
+};
 use chrono::Utc;
 use uuid::Uuid;
 
-use crate::server::{models::insight, middleware::RequestContext};
 use crate::server::types::{
   AddInsightRequest, ApiError, BaseResponse, GetInsightRequest, GetInsightResponse, InsightData,
-  InsightSummary, ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest,
-  SearchRequest, SearchResponse, SearchResultData, UpdateInsightRequest,
+  InsightSummary, ListInsightsResponse, ListTopicsResponse, RemoveInsightRequest, SearchRequest,
+  SearchResponse, SearchResultData, UpdateInsightRequest,
 };
+use crate::server::{middleware::RequestContext, models::insight};
 
 /// PUT /insights/update - Update an existing insight  
 pub async fn update_insight(
@@ -95,7 +99,7 @@ pub async fn reindex(
   // Spawn fire-and-forget task to handle re-indexing
   tokio::spawn(async move {
     if let Err(e) = perform_reindexing(context.clone()).await {
-      context.log_error(&format!("Re-indexing failed: {}", e), "insights-api").await;
+      context.log_error(&format!("Re-indexing failed: {e}"), "insights-api").await;
     }
   });
 
@@ -111,13 +115,15 @@ async fn perform_reindexing(context: RequestContext) -> Result<()> {
   let all_insights = match insight::get_insights(None) {
     Ok(insights) => insights,
     Err(e) => {
-      context.log_error(&format!("Failed to load insights: {}", e), "insights-reindex").await;
+      context.log_error(&format!("Failed to load insights: {e}"), "insights-reindex").await;
       return Err(e);
     }
   };
 
   let total_insights = all_insights.len();
-  context.log_info(&format!("Found {} insights to re-index", total_insights), "insights-reindex").await;
+  context
+    .log_info(&format!("Found {total_insights} insights to re-index"), "insights-reindex")
+    .await;
 
   // TODO: When LanceDB is integrated, this will:
   // 1. Clear the existing vector index
@@ -127,10 +133,12 @@ async fn perform_reindexing(context: RequestContext) -> Result<()> {
   for (index, _insight) in all_insights.iter().enumerate() {
     // Log progress every 10 insights or so
     if (index + 1) % 10 == 0 || index == total_insights - 1 {
-      context.log_info(
-        &format!("Re-indexing progress: {}/{}", index + 1, total_insights),
-        "insights-reindex"
-      ).await;
+      context
+        .log_info(
+          &format!("Re-indexing progress: {}/{}", index + 1, total_insights),
+          "insights-reindex",
+        )
+        .await;
     }
 
     // Stub: In the future, this will:
@@ -142,10 +150,12 @@ async fn perform_reindexing(context: RequestContext) -> Result<()> {
     tokio::time::sleep(std::time::Duration::from_millis(1)).await;
   }
 
-  context.log_success(
-    &format!("Re-indexing completed successfully for {} insights", total_insights),
-    "insights-reindex"
-  ).await;
+  context
+    .log_success(
+      &format!("Re-indexing completed successfully for {total_insights} insights"),
+      "insights-reindex",
+    )
+    .await;
 
   Ok(())
 }
@@ -213,7 +223,9 @@ pub async fn add_insight(
 ) -> Result<ResponseJson<BaseResponse<()>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
 
-  context.log_info(&format!("Adding insight {}/{}", request.topic, request.name), "insights-api").await;
+  context
+    .log_info(&format!("Adding insight {}/{}", request.topic, request.name), "insights-api")
+    .await;
 
   // Create and save insight directly (no HTTP client recursion!)
   let new_insight = insight::Insight {
@@ -229,11 +241,21 @@ pub async fn add_insight(
 
   match insight::save(&new_insight) {
     Ok(()) => {
-      context.log_success(&format!("Successfully added insight {}/{}", new_insight.topic, new_insight.name), "insights-api").await;
+      context
+        .log_success(
+          &format!("Successfully added insight {}/{}", new_insight.topic, new_insight.name),
+          "insights-api",
+        )
+        .await;
       Ok(ResponseJson(BaseResponse::success((), transaction_id)))
     }
     Err(e) => {
-      context.log_error(&format!("Failed to add insight {}/{}: {}", new_insight.topic, new_insight.name, e), "insights-api").await;
+      context
+        .log_error(
+          &format!("Failed to add insight {}/{}: {}", new_insight.topic, new_insight.name, e),
+          "insights-api",
+        )
+        .await;
       let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {e}"));
       Err((
         StatusCode::INTERNAL_SERVER_ERROR,
@@ -253,12 +275,19 @@ pub async fn get_insight(
 > {
   let transaction_id = Uuid::new_v4();
 
-  context.log_info(&format!("Retrieving insight {}/{}", request.topic, request.name), "insights-api").await;
+  context
+    .log_info(&format!("Retrieving insight {}/{}", request.topic, request.name), "insights-api")
+    .await;
 
   match insight::load(&request.topic, &request.name) {
     Ok(insight_data) => {
-      context.log_success(&format!("Successfully retrieved insight {}/{}", request.topic, request.name), "insights-api").await;
-      
+      context
+        .log_success(
+          &format!("Successfully retrieved insight {}/{}", request.topic, request.name),
+          "insights-api",
+        )
+        .await;
+
       let insight = InsightData {
         topic: insight_data.topic,
         name: insight_data.name,
@@ -271,7 +300,12 @@ pub async fn get_insight(
       Ok(ResponseJson(BaseResponse::success(response, transaction_id)))
     }
     Err(e) => {
-      context.log_warn(&format!("Insight {}/{} not found: {}", request.topic, request.name, e), "insights-api").await;
+      context
+        .log_warn(
+          &format!("Insight {}/{} not found: {}", request.topic, request.name, e),
+          "insights-api",
+        )
+        .await;
       let error = ApiError::new("insight_get_failed", &format!("Failed to get insight: {e}"));
       Err((
         StatusCode::NOT_FOUND,
@@ -283,52 +317,62 @@ pub async fn get_insight(
 
 /// POST /insights/search - Search insights
 pub async fn search_insights(
-    Extension(context): Extension<RequestContext>,
-    Json(request): Json<SearchRequest>,
-) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)> {
-    let transaction_id = Uuid::new_v4();
+  Extension(context): Extension<RequestContext>,
+  Json(request): Json<SearchRequest>,
+) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (StatusCode, ResponseJson<BaseResponse<()>>)>
+{
+  let transaction_id = Uuid::new_v4();
 
-    context.log_info(&format!("Searching insights: terms={:?}, topic={:?}", request.terms, request.topic), "insights-api").await;
+  context
+    .log_info(
+      &format!("Searching insights: terms={:?}, topic={:?}", request.terms, request.topic),
+      "insights-api",
+    )
+    .await;
 
-    // Convert request to search options
-    let search_options = crate::server::services::search::SearchOptions {
-        topic: request.topic.clone(),
-        case_sensitive: request.case_sensitive,
-        overview_only: request.overview_only,
-        exact: request.exact,
-    };
+  // Convert request to search options
+  let search_options = crate::server::services::search::SearchOptions {
+    topic: request.topic.clone(),
+    case_sensitive: request.case_sensitive,
+    overview_only: request.overview_only,
+    exact: request.exact,
+  };
 
-    // Perform search using existing search logic
-    match crate::server::services::search::search(&request.terms, &search_options) {
-        Ok(results) => {
-            context.log_success(&format!("Search completed: found {} results for {:?}", results.len(), request.terms), "insights-api").await;
-            
-            // Convert SearchResult to SearchResultData
-            let search_results: Vec<SearchResultData> = results
-                .into_iter()
-                .map(|r| SearchResultData {
-                    topic: r.topic,
-                    name: r.name,
-                    overview: r.overview,
-                    details: r.details,
-                    score: r.score,
-                })
-                .collect();
+  // Perform search using existing search logic
+  match crate::server::services::search::search(&request.terms, &search_options) {
+    Ok(results) => {
+      context
+        .log_success(
+          &format!("Search completed: found {} results for {:?}", results.len(), request.terms),
+          "insights-api",
+        )
+        .await;
 
-            let response_data = SearchResponse {
-                count: search_results.len(),
-                results: search_results,
-            };
+      // Convert SearchResult to SearchResultData
+      let search_results: Vec<SearchResultData> = results
+        .into_iter()
+        .map(|r| SearchResultData {
+          topic: r.topic,
+          name: r.name,
+          overview: r.overview,
+          details: r.details,
+          score: r.score,
+        })
+        .collect();
 
-            Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
-        }
-        Err(e) => {
-            context.log_error(&format!("Search failed for {:?}: {}", request.terms, e), "insights-api").await;
-            let error = ApiError::new("search_failed", &format!("Search failed: {}", e));
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-            ))
-        }
+      let response_data = SearchResponse { count: search_results.len(), results: search_results };
+
+      Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
     }
+    Err(e) => {
+      context
+        .log_error(&format!("Search failed for {:?}: {}", request.terms, e), "insights-api")
+        .await;
+      let error = ApiError::new("search_failed", &format!("Search failed: {e}"));
+      Err((
+        StatusCode::INTERNAL_SERVER_ERROR,
+        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
+      ))
+    }
+  }
 }

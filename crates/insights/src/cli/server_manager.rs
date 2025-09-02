@@ -12,7 +12,7 @@ use crate::cli::client::{get_client, InsightsClient};
 
 // Server startup configuration
 const SERVER_STARTUP_TIMEOUT_SECS: u64 = 30; // 30 seconds total timeout
-const SERVER_CHECK_INTERVAL_MS: u64 = 500;   // Check every 500ms
+const SERVER_CHECK_INTERVAL_MS: u64 = 500; // Check every 500ms
 
 /// Manages the local insights server lifecycle
 pub struct ServerManager {
@@ -93,14 +93,14 @@ impl ServerManager {
   fn find_server_binary(&self) -> Result<String> {
     // Try different possible locations for the binary
     let possible_paths = [
-      "insights_server",                     // In PATH
-      "./target/debug/insights_server",      // Local debug build
-      "./target/release/insights_server",    // Local release build
-      "../target/debug/insights_server",     // From CLI working dir
-      "../target/release/insights_server",   // From CLI working dir
-      "target/debug/insights_server",        // Relative
-      "target/release/insights_server",      // Relative
-      "../../target/debug/insights_server",  // From crates/insights to workspace root
+      "insights_server",                      // In PATH
+      "./target/debug/insights_server",       // Local debug build
+      "./target/release/insights_server",     // Local release build
+      "../target/debug/insights_server",      // From CLI working dir
+      "../target/release/insights_server",    // From CLI working dir
+      "target/debug/insights_server",         // Relative
+      "target/release/insights_server",       // Relative
+      "../../target/debug/insights_server",   // From crates/insights to workspace root
       "../../target/release/insights_server", // From crates/insights to workspace root
     ];
 

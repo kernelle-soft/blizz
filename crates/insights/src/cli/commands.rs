@@ -128,7 +128,11 @@ pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> 
       // Insight exists, proceed with deletion
       if !force {
         // Ask for confirmation
-        print!("Are you sure you want to delete insight {}/{}? (y/N): ", topic.cyan(), name.yellow());
+        print!(
+          "Are you sure you want to delete insight {}/{}? (y/N): ",
+          topic.cyan(),
+          name.yellow()
+        );
         std::io::Write::flush(&mut std::io::stdout())?;
 
         let mut input = String::new();
@@ -148,7 +152,7 @@ pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> 
     }
     Err(_) => {
       // Insight doesn't exist
-      return Err(anyhow!("Insight {}/{} not found", topic, name));
+      Err(anyhow!("Insight {}/{} not found", topic, name))
     }
   }
 }
@@ -156,7 +160,6 @@ pub async fn delete_insight(topic: &str, name: &str, force: bool) -> Result<()> 
 pub async fn index_insights(_force: bool) -> Result<()> {
   ensure_server_running().await?;
   let client = get_client();
-
 
   match client.reindex_insights().await {
     Ok(()) => {
@@ -197,27 +200,27 @@ pub async fn logs(_limit: usize, _level: &str) -> Result<()> {
 
     // Main log line with timestamp, level, and message
     println!("{} [{}] {}", log.timestamp.to_string().cyan(), level_colored, log.message);
-    
+
     // Pretty-print context if available
     if let Some(context) = &log.context {
       let mut context_parts = Vec::new();
-      
+
       if let Some(request_id) = &context.request_id {
         context_parts.push(format!("request_id: {}", request_id.bright_blue()));
       }
-      
+
       if let Some(method) = &context.method {
         context_parts.push(format!("method: {}", method.magenta().bold()));
       }
-      
+
       if let Some(path) = &context.path {
         context_parts.push(format!("path: {}", path.cyan()));
       }
-      
+
       if let Some(user_agent) = &context.user_agent {
         context_parts.push(format!("user_agent: {}", user_agent.white().dimmed()));
       }
-      
+
       if let Some(status_code) = context.status_code {
         let status_color = match status_code {
           200..=299 => status_code.to_string().green(),
@@ -226,22 +229,22 @@ pub async fn logs(_limit: usize, _level: &str) -> Result<()> {
           500..=599 => status_code.to_string().bright_red().bold(),
           _ => status_code.to_string().white(),
         };
-        context_parts.push(format!("status: {}", status_color));
+        context_parts.push(format!("status: {status_color}"));
       }
-      
+
       if let Some(duration) = context.duration_ms {
         let duration_color = if duration < 1.0 {
-          format!("{:.2}ms", duration).bright_green()
+          format!("{duration:.2}ms").bright_green()
         } else if duration < 10.0 {
-          format!("{:.2}ms", duration).green()
+          format!("{duration:.2}ms").green()
         } else if duration < 100.0 {
-          format!("{:.2}ms", duration).yellow()
+          format!("{duration:.2}ms").yellow()
         } else {
-          format!("{:.2}ms", duration).red()
+          format!("{duration:.2}ms").red()
         };
-        context_parts.push(format!("duration: {}", duration_color));
+        context_parts.push(format!("duration: {duration_color}"));
       }
-      
+
       if !context_parts.is_empty() {
         for part in context_parts {
           println!("  {} {}", "└─".white().dimmed(), part);
@@ -265,9 +268,8 @@ pub async fn search_insights(
   ensure_server_running().await?;
 
   let client = get_client();
-  let response = client
-    .search_insights(terms.to_vec(), topic, case_sensitive, overview_only, exact)
-    .await?;
+  let response =
+    client.search_insights(terms.to_vec(), topic, case_sensitive, overview_only, exact).await?;
 
   display_search_results(&response.results, terms, overview_only);
 
@@ -276,15 +278,22 @@ pub async fn search_insights(
 
 /// Display search results (moved from search.rs)
 fn display_search_results(
-  results: &[crate::server::types::SearchResultData], 
-  terms: &[String], 
-  overview_only: bool
+  results: &[crate::server::types::SearchResultData],
+  terms: &[String],
+  overview_only: bool,
 ) {
   if results.is_empty() {
     println!("No matches found for: {}", terms.join(" ").yellow());
   } else {
     for result in results {
-      display_search_result(&result.topic, &result.name, &result.overview, &result.details, terms, overview_only);
+      display_search_result(
+        &result.topic,
+        &result.name,
+        &result.overview,
+        &result.details,
+        terms,
+        overview_only,
+      );
     }
   }
 }

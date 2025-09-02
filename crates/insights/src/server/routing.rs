@@ -5,7 +5,6 @@ use axum::{
   Router,
 };
 
-
 use crate::server::handlers::{insights, logs, status};
 
 /// Create the main application router
@@ -15,7 +14,7 @@ pub fn create_router() -> Router {
     .route("/status", get(status::status))
     .route("/version", get(status::version))
     .route("/api", get(status::api_info))
-    // Logs endpoint 
+    // Logs endpoint
     .route("/logs", get(logs::get_logs_with_context))
     // Insights endpoints
     .route("/insights/add", post(insights::add_insight))
@@ -28,5 +27,3 @@ pub fn create_router() -> Router {
     .route("/insights/list/insights", get(insights::list_insights))
     .route("/insights/search", post(insights::search_insights))
 }
-
-

@@ -9,8 +9,8 @@ use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::server::{
-    middleware::{init_global_logger, request_context_middleware},
-    routing::create_router,
+  middleware::{init_global_logger, request_context_middleware},
+  routing::create_router,
 };
 
 /// Start the REST server
@@ -19,23 +19,19 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
   // Initialize daemon logs for persistent logging
   let logs_path = get_server_logs_path();
   let daemon_logs = Arc::new(DaemonLogs::new(&logs_path)?);
-  
+
   // Initialize global logger
   init_global_logger(daemon_logs.clone())
     .map_err(|_| anyhow::anyhow!("Failed to initialize global logger"))?;
-  
+
   // Log server startup
   daemon_logs.info(&format!("Starting insights REST server on {addr}"), "insights-server").await;
   bentley::info!(&format!("Starting insights REST server on {addr}"));
 
   // Create the router with automatic request context middleware
-  let app = create_router()
-    .layer(middleware::from_fn(request_context_middleware))
-    .layer(
-      ServiceBuilder::new()
-        .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive()) // TODO: Configure CORS properly for production
-    );
+  let app = create_router().layer(middleware::from_fn(request_context_middleware)).layer(
+    ServiceBuilder::new().layer(TraceLayer::new_for_http()).layer(CorsLayer::permissive()), // TODO: Configure CORS properly for production
+  );
 
   // Create listener
   let listener = TcpListener::bind(addr).await?;
@@ -49,7 +45,7 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
       Ok(())
     }
     Err(e) => {
-      daemon_logs.error(&format!("Server error: {}", e), "insights-server").await;
+      daemon_logs.error(&format!("Server error: {e}"), "insights-server").await;
       Err(anyhow::anyhow!("Server error: {}", e))
     }
   }
@@ -61,7 +57,7 @@ fn get_server_logs_path() -> std::path::PathBuf {
   dirs::home_dir()
     .unwrap_or_else(|| std::path::Path::new("/tmp").to_path_buf())
     .join(".blizz")
-    .join("persistent") 
+    .join("persistent")
     .join("insights")
     .join("server-logs.jsonl")
 }

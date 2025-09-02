@@ -239,7 +239,8 @@ fn display_single_result(result: &SearchResult, terms: &[String], overview_only:
   println!("{header}");
 
   // Wrap and display the content with proper formatting
-  let wrap_with = if header.len() < DEFAULT_TERMINAL_WIDTH { DEFAULT_TERMINAL_WIDTH } else { header.len() };
+  let wrap_with =
+    if header.len() < DEFAULT_TERMINAL_WIDTH { DEFAULT_TERMINAL_WIDTH } else { header.len() };
 
   let content = if overview_only {
     result.overview.to_string()
@@ -324,33 +325,21 @@ mod tests {
   #[test]
   fn test_can_use_advanced_search() {
     // Should use advanced search when exact is false
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: false,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false };
     assert!(can_use_advanced_search(&options));
 
     // Should NOT use advanced search when exact is true
-    let options_exact = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: true,
-    };
+    let options_exact =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
     assert!(!can_use_advanced_search(&options_exact));
   }
 
   #[test]
   fn test_get_normalized_content_overview_only() {
     let insight = create_test_insight();
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: true,
-      exact: false,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: true, exact: false };
 
     let content = get_normalized_content(&insight, &options);
     assert_eq!(content, "test_topic test_insight This is a test overview with some content");
@@ -359,12 +348,8 @@ mod tests {
   #[test]
   fn test_get_normalized_content_full_content() {
     let insight = create_test_insight();
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: false,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false };
 
     let content = get_normalized_content(&insight, &options);
     let expected = "test_topic test_insight This is a test overview with some content This is detailed content with more information for testing purposes";
@@ -374,12 +359,8 @@ mod tests {
   #[test]
   fn test_get_normalized_terms_case_sensitive() {
     let terms = vec!["Test".to_string(), "CONTENT".to_string()];
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: true,
-      overview_only: false,
-      exact: false,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: true, overview_only: false, exact: false };
 
     let normalized = get_normalized_terms(&terms, &options);
     assert_eq!(normalized, vec!["Test".to_string(), "CONTENT".to_string()]);
@@ -388,12 +369,8 @@ mod tests {
   #[test]
   fn test_get_normalized_terms_case_insensitive() {
     let terms = vec!["Test".to_string(), "CONTENT".to_string()];
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: false,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false };
 
     let normalized = get_normalized_terms(&terms, &options);
     assert_eq!(normalized, vec!["test".to_string(), "content".to_string()]);
@@ -403,12 +380,8 @@ mod tests {
   fn test_get_exact_match_single_term() {
     let insight = create_test_insight();
     let terms = vec!["test".to_string()];
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: true,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
 
     let score = get_exact_match(&insight, &terms, &options);
     // "test" appears in topic, name, and content multiple times
@@ -419,12 +392,8 @@ mod tests {
   fn test_get_exact_match_multiple_terms() {
     let insight = create_test_insight();
     let terms = vec!["test".to_string(), "content".to_string()];
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: true,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
 
     let score = get_exact_match(&insight, &terms, &options);
     // Score should be sum of matches for both terms
@@ -435,21 +404,16 @@ mod tests {
   fn test_get_exact_match_case_sensitive() {
     let insight = create_test_insight();
     let terms = vec!["Test".to_string()]; // Capital T
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: true,
-      overview_only: false,
-      exact: true,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: true, overview_only: false, exact: true };
 
     let score = get_exact_match(&insight, &terms, &options);
     // Should find fewer matches due to case sensitivity
-    let insensitive_score = get_exact_match(&insight, &vec!["test".to_string()], &SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: true,
-    });
+    let insensitive_score = get_exact_match(
+      &insight,
+      &["test".to_string()],
+      &SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true },
+    );
 
     assert!(insensitive_score >= score); // Case insensitive should find more matches
   }
@@ -458,12 +422,8 @@ mod tests {
   fn test_get_exact_match_no_matches() {
     let insight = create_test_insight();
     let terms = vec!["nonexistent".to_string()];
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: true,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
 
     let score = get_exact_match(&insight, &terms, &options);
     assert_eq!(score, 0.0);
@@ -473,12 +433,8 @@ mod tests {
   fn test_search_insight_above_threshold() {
     let insight = create_test_insight();
     let terms = vec!["test".to_string()];
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: true,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
 
     let result = search_insight(&insight, get_exact_match, &terms, 0.0, &options).unwrap();
 
@@ -495,12 +451,8 @@ mod tests {
   fn test_search_insight_below_threshold() {
     let insight = create_test_insight();
     let terms = vec!["nonexistent".to_string()];
-    let options = SearchOptions {
-      topic: None,
-      case_sensitive: false,
-      overview_only: false,
-      exact: true,
-    };
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
 
     let result = search_insight(&insight, get_exact_match, &terms, 1.0, &options).unwrap();
     assert!(result.is_none());
@@ -510,7 +462,7 @@ mod tests {
   fn test_highlight_keywords_basic() {
     // Force color output for this test
     control::set_override(true);
-    
+
     let text = "This is a test string with test content";
     let terms = vec!["test".to_string()];
 
@@ -518,7 +470,7 @@ mod tests {
     // Should contain ANSI color codes for highlighting
     assert!(highlighted.contains("\x1b[")); // ANSI escape codes
     assert!(highlighted.contains("test")); // Original text should still be there
-    
+
     // Reset to default behavior
     control::unset_override();
   }
@@ -526,7 +478,7 @@ mod tests {
   #[test]
   fn test_highlight_keywords_multiple_terms() {
     control::set_override(true);
-    
+
     let text = "This is a test string with test content and more content";
     let terms = vec!["test".to_string(), "content".to_string()];
 
@@ -534,7 +486,7 @@ mod tests {
     assert!(highlighted.contains("\x1b[")); // ANSI escape codes
     assert!(highlighted.contains("test"));
     assert!(highlighted.contains("content"));
-    
+
     control::unset_override();
   }
 
@@ -559,13 +511,13 @@ mod tests {
   #[test]
   fn test_highlight_keywords_case_insensitive() {
     control::set_override(true);
-    
+
     let text = "This is a TEST string";
     let terms = vec!["test".to_string()];
 
     let highlighted = highlight_keywords(text, &terms);
     assert!(highlighted.contains("\x1b[")); // Should still highlight despite case difference
-    
+
     control::unset_override();
   }
 
@@ -583,7 +535,6 @@ mod tests {
 
   #[test]
   fn test_get_search_paths_without_topic_filter() {
-    use std::path::Path;
 
     // This test would require mocking get_topics(), which is filesystem dependent
     // For now, we'll skip this as it's more integration than unit test

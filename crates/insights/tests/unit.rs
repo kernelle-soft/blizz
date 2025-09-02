@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod insight_tests {
   use anyhow::Result;
-  use insights::server::services::search;
   use insights::server::models::insight::{self, Insight};
+  use insights::server::services::search;
   use serial_test::serial;
   use std::env;
   use tempfile::TempDir;
