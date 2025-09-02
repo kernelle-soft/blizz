@@ -2,7 +2,7 @@
 mod edge_case_tests {
 
   use anyhow::Result;
-  use insights::commands::*;
+  use insights::cli::commands::*;
   use insights::insight::{self};
   use serial_test::serial;
   use std::env;

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use insights::commands::*;
+use insights::cli::commands::*;
 use insights::insight;
 use serial_test::serial;
 use std::env;

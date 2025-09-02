@@ -891,6 +891,7 @@ another bad line
       level: "info".to_string(),
       message: "Test".to_string(),
       component: "test".to_string(),
+      context: None,
     }];
 
     let response = LogsResponse::success(logs.clone());
