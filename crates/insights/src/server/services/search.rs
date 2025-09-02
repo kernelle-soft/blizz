@@ -292,6 +292,7 @@ fn wrap_text(text: &str, width: usize) -> Vec<String> {
 mod tests {
   use super::*;
   use crate::server::models::insight::Insight;
+  use colored::control;
 
   // Mock insight for testing
   fn create_test_insight() -> Insight {
@@ -507,6 +508,9 @@ mod tests {
 
   #[test]
   fn test_highlight_keywords_basic() {
+    // Force color output for this test
+    control::set_override(true);
+    
     let text = "This is a test string with test content";
     let terms = vec!["test".to_string()];
 
@@ -514,10 +518,15 @@ mod tests {
     // Should contain ANSI color codes for highlighting
     assert!(highlighted.contains("\x1b[")); // ANSI escape codes
     assert!(highlighted.contains("test")); // Original text should still be there
+    
+    // Reset to default behavior
+    control::unset_override();
   }
 
   #[test]
   fn test_highlight_keywords_multiple_terms() {
+    control::set_override(true);
+    
     let text = "This is a test string with test content and more content";
     let terms = vec!["test".to_string(), "content".to_string()];
 
@@ -525,6 +534,8 @@ mod tests {
     assert!(highlighted.contains("\x1b[")); // ANSI escape codes
     assert!(highlighted.contains("test"));
     assert!(highlighted.contains("content"));
+    
+    control::unset_override();
   }
 
   #[test]
@@ -547,11 +558,15 @@ mod tests {
 
   #[test]
   fn test_highlight_keywords_case_insensitive() {
+    control::set_override(true);
+    
     let text = "This is a TEST string";
     let terms = vec!["test".to_string()];
 
     let highlighted = highlight_keywords(text, &terms);
     assert!(highlighted.contains("\x1b[")); // Should still highlight despite case difference
+    
+    control::unset_override();
   }
 
   #[test]
