@@ -55,7 +55,8 @@ impl ServerManager {
       .args(["--bind", "127.0.0.1:3000"])
       .stdout(Stdio::null())
       .stderr(Stdio::null())
-      .stdin(Stdio::null());
+      .stdin(Stdio::null())
+      .envs(std::env::vars()); // Pass through all environment variables (including INSIGHTS_ROOT)
 
     let child = cmd.spawn().map_err(|e| anyhow!("Failed to start insights server: {}", e))?;
 
@@ -83,13 +84,15 @@ impl ServerManager {
   fn find_server_binary(&self) -> Result<String> {
     // Try different possible locations for the binary
     let possible_paths = [
-      "insights_server",                   // In PATH
-      "./target/debug/insights_server",    // Local debug build
-      "./target/release/insights_server",  // Local release build
-      "../target/debug/insights_server",   // From CLI working dir
-      "../target/release/insights_server", // From CLI working dir
-      "target/debug/insights_server",      // Relative
-      "target/release/insights_server",    // Relative
+      "insights_server",                     // In PATH
+      "./target/debug/insights_server",      // Local debug build
+      "./target/release/insights_server",    // Local release build
+      "../target/debug/insights_server",     // From CLI working dir
+      "../target/release/insights_server",   // From CLI working dir
+      "target/debug/insights_server",        // Relative
+      "target/release/insights_server",      // Relative
+      "../../target/debug/insights_server",  // From crates/insights to workspace root
+      "../../target/release/insights_server", // From crates/insights to workspace root
     ];
 
     for path in &possible_paths {

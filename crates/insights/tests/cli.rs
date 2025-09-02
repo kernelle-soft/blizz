@@ -36,12 +36,12 @@ fn test_add_get_list_topics() {
     .success()
     .stdout(contains("topic_one").and(contains("topic_two")));
 
-  // List insights verbose
+  // List insights verbose - check for the tree format output
   insights_cmd(&temp)
     .args(["list", "--verbose"])
     .assert()
     .success()
-    .stdout(contains("topic_one/insight_a").and(contains("topic_two/insight_b")));
+    .stdout(contains("topic_one").and(contains("insight_a")).and(contains("topic_two")).and(contains("insight_b")));
 
   // Get insight should print overview and details
   insights_cmd(&temp)
@@ -70,7 +70,7 @@ fn test_search_update_delete() {
     .args(["search", "search"])
     .assert()
     .success()
-    .stdout(contains("search_topic/search_insight"));
+    .stdout(contains("search_topic").and(contains("search_insight")));
 
   // Update details
   insights_cmd(&temp)
