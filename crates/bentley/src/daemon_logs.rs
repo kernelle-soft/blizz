@@ -213,13 +213,16 @@ impl DaemonLogsInner {
       }
     }
 
-    // Sort by timestamp (newest first)
+    // Sort by timestamp (newest first) to get most recent entries first
     logs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-    // Apply limit
+    // Apply limit to get the most recent N entries
     if let Some(limit) = limit {
       logs.truncate(limit);
     }
+
+    // Reverse to show oldest first, newest last (for terminal-friendly display)
+    logs.reverse();
 
     Ok(logs)
   }
@@ -630,7 +633,7 @@ mod tests {
     let result = logs.get_logs(None, None).await.unwrap();
     assert_eq!(result.len(), 3);
 
-    // Should be sorted by timestamp (newest first) - since we added them quickly,
+    // Should be sorted by timestamp (oldest first, newest last) - since we added them quickly,
     // let's just check they're all there
     let messages: Vec<_> = result.iter().map(|e| e.message.as_str()).collect();
     assert!(messages.contains(&"Message 1"));

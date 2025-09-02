@@ -82,6 +82,10 @@ tempfile.workspace = true
 mockall.workspace = true
 cargo-tarpaulin.workspace = true
 
+[[bin]]
+name = "inspect_lancedb"
+path = "../../inspect_lancedb.rs"
+
 [features]
 default = []
 
