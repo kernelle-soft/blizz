@@ -264,6 +264,10 @@ pub struct SearchRequest {
   /// Use exact term matching only
   #[serde(default)]
   pub exact: bool,
+
+  /// Use semantic search (term matching + jaccard similarity, no embedding)
+  #[serde(default)]
+  pub semantic: bool,
 }
 
 /// Search result data

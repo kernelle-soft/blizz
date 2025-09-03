@@ -240,7 +240,7 @@ fn records_to_arrow_batch(records: Vec<InsightRecord>) -> Result<RecordBatch> {
         Field::new("name", DataType::Utf8, false),
         Field::new("overview", DataType::Utf8, false),
         Field::new("details", DataType::Utf8, false),
-        Field::new("embedding", DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), 768), false),
+        Field::new("embedding", DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), 384), false),
         Field::new("created_at", DataType::Utf8, false),
         Field::new("updated_at", DataType::Utf8, false),
     ]));
@@ -265,7 +265,7 @@ fn records_to_arrow_batch(records: Vec<InsightRecord>) -> Result<RecordBatch> {
 
     // Create embedding fixed-size list array
     use arrow::array::FixedSizeListBuilder;
-    let mut embedding_builder = FixedSizeListBuilder::new(Float32Array::builder(768 * records.len()), 768);
+    let mut embedding_builder = FixedSizeListBuilder::new(Float32Array::builder(384 * records.len()), 384);
     for record in &records {
         for &value in &record.embedding {
             embedding_builder.values().append_value(value);

@@ -108,6 +108,7 @@ async fn handle(command: Command) -> Result<()> {
         options.case_sensitive,
         options.overview_only,
         options.exact,
+        options.semantic,
       )
       .await
     }

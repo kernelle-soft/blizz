@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokenizers::Tokenizer;
 
-const MODEL_NAME: &str = "Alibaba-NLP/gte-base-en-v1.5";
+const MODEL_NAME: &str = "sentence-transformers/all-MiniLM-L6-v2";
 const TOKENIZER_FILE: &str = "tokenizer.json";
 const MODEL_FILE: &str = "onnx/model.onnx";
 

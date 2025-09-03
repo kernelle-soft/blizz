@@ -509,36 +509,78 @@ pub async fn search_insights(
     .await;
 
   // Convert request to search options
-  let _search_options = crate::server::services::search::SearchOptions {
+  let search_options = crate::server::services::search::SearchOptions {
     topic: request.topic.clone(),
     case_sensitive: request.case_sensitive,
     overview_only: request.overview_only,
     exact: request.exact,
+    semantic: request.semantic,
   };
 
-  // Perform vector similarity search using LanceDB
-  match perform_vector_search(&context, &request).await {
+  // Perform search based on the requested mode
+  let mut all_results = Vec::new();
+
+  // Always perform term-based search (exact or semantic)
+  match crate::server::services::search::search(&request.terms, &search_options) {
     Ok(search_results) => {
-      context
-        .log_success(
-          &format!("Vector search completed: found {} results for {:?}", search_results.len(), request.terms),
-          "insights-api",
-        )
-        .await;
-
-      let response_data = SearchResponse { count: search_results.len(), results: search_results };
-
-      Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
+      // Convert SearchResult to SearchResultData format
+      let term_results: Vec<SearchResultData> = search_results
+        .into_iter()
+        .map(|result| SearchResultData {
+          topic: result.topic,
+          name: result.name,
+          overview: result.overview,
+          details: result.details,
+          score: result.score,
+        })
+        .collect();
+      all_results.extend(term_results);
     }
     Err(e) => {
       context
-        .log_error(&format!("Vector search failed for {:?}: {}", request.terms, e), "insights-api")
+        .log_error(&format!("Term search failed for {:?}: {}", request.terms, e), "insights-api")
         .await;
-      let error = ApiError::new("search_failed", &format!("Vector search failed: {e}"));
-      Err((
+      let error = ApiError::new("search_failed", &format!("Term search failed: {e}"));
+      return Err((
         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
         ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ))
+      ));
     }
   }
+
+  // Add embedding search if using full mode (not exact and not semantic)
+  if !request.exact && !request.semantic {
+    match perform_vector_search(&context, &request).await {
+      Ok(embedding_results) => {
+        all_results.extend(embedding_results);
+      }
+      Err(e) => {
+        // Log the error but don't fail the entire search
+        context
+          .log_error(&format!("Embedding search failed for {:?}: {}", request.terms, e), "insights-api")
+          .await;
+      }
+    }
+  }
+
+  // Sort and deduplicate results
+  all_results.sort_by(|a, b| {
+    b.score
+      .partial_cmp(&a.score)
+      .unwrap_or(std::cmp::Ordering::Equal)
+      .then_with(|| a.topic.cmp(&b.topic).then_with(|| a.name.cmp(&b.name)))
+  });
+
+  all_results.dedup_by(|a, b| a.topic == b.topic && a.name == b.name);
+
+  context
+    .log_success(
+      &format!("Search completed: found {} results for {:?}", all_results.len(), request.terms),
+      "insights-api",
+    )
+    .await;
+
+  let response_data = SearchResponse { count: all_results.len(), results: all_results };
+
+  Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
 }

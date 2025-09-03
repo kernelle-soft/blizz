@@ -37,6 +37,9 @@ pub struct SearchCommandOptions {
   /// Use exact term matching only
   #[arg(short, long)]
   pub exact: bool,
+  /// Use semantic search (term matching + jaccard similarity, no embedding)
+  #[arg(short, long)]
+  pub semantic: bool,
 }
 
 pub struct SearchOptions {
@@ -44,6 +47,7 @@ pub struct SearchOptions {
   pub case_sensitive: bool,
   pub overview_only: bool,
   pub exact: bool,
+  pub semantic: bool,
 }
 
 impl SearchOptions {
@@ -53,6 +57,7 @@ impl SearchOptions {
       case_sensitive: options.case_sensitive,
       overview_only: options.overview_only,
       exact: options.exact,
+      semantic: options.semantic,
     }
   }
 }
@@ -60,16 +65,23 @@ impl SearchOptions {
 pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchResult>> {
   let mut results = Vec::new();
 
-  if can_use_advanced_search(options) {
+  // Include exact term matching if not in semantic-only mode
+  if !options.semantic {
+    results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
+  }
+
+  // Include semantic search if not in exact-only mode
+  if !options.exact {
     results.extend(search_topic(
       terms,
       get_semantic_match,
       SEMANTIC_SIMILARITY_THRESHOLD,
       options,
     )?);
-  } else {
-    results.extend(search_topic(terms, get_exact_match, 0.0, options)?);
   }
+
+  // Note: Embedding search is handled asynchronously in the server handler
+  // and merged with these results there
 
   results.sort_by(|a, b| {
     b.score
@@ -86,6 +98,11 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
 /// Check if semantic search feature can be used
 fn can_use_advanced_search(options: &SearchOptions) -> bool {
   !options.exact
+}
+
+/// Check if full search (including embeddings) can be used
+fn can_use_full_search(options: &SearchOptions) -> bool {
+  !options.exact && !options.semantic
 }
 
 /// Search a topic for matches based on a search strategy
@@ -312,6 +329,7 @@ mod tests {
       case_sensitive: true,
       overview_only: true,
       exact: false,
+      semantic: true,
     };
 
     let options = SearchOptions::from(&cmd_options);
@@ -320,26 +338,50 @@ mod tests {
     assert!(options.case_sensitive);
     assert!(options.overview_only);
     assert!(!options.exact);
+    assert!(options.semantic);
   }
 
   #[test]
   fn test_can_use_advanced_search() {
     // Should use advanced search when exact is false
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: false };
     assert!(can_use_advanced_search(&options));
 
     // Should NOT use advanced search when exact is true
     let options_exact =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
     assert!(!can_use_advanced_search(&options_exact));
+  }
+
+  #[test]
+  fn test_can_use_full_search() {
+    // Should use full search when neither exact nor semantic is true
+    let options =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: false };
+    assert!(can_use_full_search(&options));
+
+    // Should NOT use full search when exact is true
+    let options_exact =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
+    assert!(!can_use_full_search(&options_exact));
+
+    // Should NOT use full search when semantic is true
+    let options_semantic =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: true };
+    assert!(!can_use_full_search(&options_semantic));
+
+    // Should NOT use full search when both exact and semantic are true
+    let options_both =
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: true };
+    assert!(!can_use_full_search(&options_both));
   }
 
   #[test]
   fn test_get_normalized_content_overview_only() {
     let insight = create_test_insight();
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: true, exact: false };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: true, exact: false, semantic: false };
 
     let content = get_normalized_content(&insight, &options);
     assert_eq!(content, "test_topic test_insight This is a test overview with some content");
@@ -349,7 +391,7 @@ mod tests {
   fn test_get_normalized_content_full_content() {
     let insight = create_test_insight();
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: false };
 
     let content = get_normalized_content(&insight, &options);
     let expected = "test_topic test_insight This is a test overview with some content This is detailed content with more information for testing purposes";
@@ -360,7 +402,7 @@ mod tests {
   fn test_get_normalized_terms_case_sensitive() {
     let terms = vec!["Test".to_string(), "CONTENT".to_string()];
     let options =
-      SearchOptions { topic: None, case_sensitive: true, overview_only: false, exact: false };
+      SearchOptions { topic: None, case_sensitive: true, overview_only: false, exact: false, semantic: false };
 
     let normalized = get_normalized_terms(&terms, &options);
     assert_eq!(normalized, vec!["Test".to_string(), "CONTENT".to_string()]);
@@ -370,7 +412,7 @@ mod tests {
   fn test_get_normalized_terms_case_insensitive() {
     let terms = vec!["Test".to_string(), "CONTENT".to_string()];
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: false };
 
     let normalized = get_normalized_terms(&terms, &options);
     assert_eq!(normalized, vec!["test".to_string(), "content".to_string()]);
@@ -381,7 +423,7 @@ mod tests {
     let insight = create_test_insight();
     let terms = vec!["test".to_string()];
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
 
     let score = get_exact_match(&insight, &terms, &options);
     // "test" appears in topic, name, and content multiple times
@@ -393,7 +435,7 @@ mod tests {
     let insight = create_test_insight();
     let terms = vec!["test".to_string(), "content".to_string()];
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
 
     let score = get_exact_match(&insight, &terms, &options);
     // Score should be sum of matches for both terms
@@ -405,14 +447,14 @@ mod tests {
     let insight = create_test_insight();
     let terms = vec!["Test".to_string()]; // Capital T
     let options =
-      SearchOptions { topic: None, case_sensitive: true, overview_only: false, exact: true };
+      SearchOptions { topic: None, case_sensitive: true, overview_only: false, exact: true, semantic: false };
 
     let score = get_exact_match(&insight, &terms, &options);
     // Should find fewer matches due to case sensitivity
     let insensitive_score = get_exact_match(
       &insight,
       &["test".to_string()],
-      &SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true },
+      &SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false },
     );
 
     assert!(insensitive_score >= score); // Case insensitive should find more matches
@@ -423,7 +465,7 @@ mod tests {
     let insight = create_test_insight();
     let terms = vec!["nonexistent".to_string()];
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
 
     let score = get_exact_match(&insight, &terms, &options);
     assert_eq!(score, 0.0);
@@ -434,7 +476,7 @@ mod tests {
     let insight = create_test_insight();
     let terms = vec!["test".to_string()];
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
 
     let result = search_insight(&insight, get_exact_match, &terms, 0.0, &options).unwrap();
 
@@ -452,7 +494,7 @@ mod tests {
     let insight = create_test_insight();
     let terms = vec!["nonexistent".to_string()];
     let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true };
+      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
 
     let result = search_insight(&insight, get_exact_match, &terms, 1.0, &options).unwrap();
     assert!(result.is_none());
