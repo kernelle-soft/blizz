@@ -156,76 +156,114 @@ pub async fn reindex(
 
 /// Perform the actual re-indexing process (fire-and-forget)
 async fn perform_reindexing(context: RequestContext) -> Result<()> {
-  context.log_info("Loading all insights for re-indexing", "insights-reindex").await;
+  let all_insights = load_all_insights_for_reindexing(&context).await?;
+  clear_existing_embeddings(&context).await?;
+  let stats = process_insights_for_embedding(&context, &all_insights).await;
+  log_reindexing_completion(&context, &stats).await;
+  Ok(())
+}
 
-  // Load all insights from filesystem
-  let all_insights = match insight::get_insights(None) {
-    Ok(insights) => insights,
-    Err(e) => {
-      context.log_error(&format!("Failed to load insights: {e}"), "insights-reindex").await;
-      return Err(e);
-    }
-  };
+/// Load all insights from filesystem for re-indexing
+async fn load_all_insights_for_reindexing(context: &RequestContext) -> Result<Vec<insight::Insight>> {
+  context.log_info("Loading all insights for re-indexing", "insights-reindex").await;
+  
+  let all_insights = insight::get_insights(None)
+    .map_err(|e| {
+      // Log error but let caller handle the Result
+      tokio::spawn({
+        let context = context.clone();
+        let error_msg = format!("Failed to load insights: {e}");
+        async move {
+          context.log_error(&error_msg, "insights-reindex").await;
+        }
+      });
+      e
+    })?;
 
   let total_insights = all_insights.len();
   context
     .log_info(&format!("Found {total_insights} insights to re-index"), "insights-reindex")
     .await;
+    
+  Ok(all_insights)
+}
 
-  // Clear existing LanceDB table to start fresh
+/// Clear existing embeddings from LanceDB to start fresh
+async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
   context.log_info("Clearing existing LanceDB table", "insights-reindex").await;
 
-  // Delete table if it exists (LanceDB will recreate on first insert)
   let table_names = context.lancedb.connection.table_names().execute().await?;
   if table_names.contains(&context.lancedb.table_name) {
     let table = context.lancedb.get_table().await?;
-    // LanceDB doesn't have a direct drop_table method, so we delete all records
     table.delete("id IS NOT NULL").await?;
     context.log_info("Cleared existing embeddings from LanceDB", "insights-reindex").await;
   }
+  
+  Ok(())
+}
 
-  let mut embedded = 0;
-  let mut errors = 0;
+/// Statistics for tracking re-indexing progress
+#[derive(Debug, Default)]
+struct ReindexingStats {
+  embedded: usize,
+  errors: usize,
+  total: usize,
+}
 
-  for (index, insight) in all_insights.iter().enumerate() {
-    // Log progress every 10 insights
-    if (index + 1) % 10 == 0 || index == total_insights - 1 {
-      context
-        .log_info(
-          &format!("Re-indexing progress: {}/{} (embedded: {}, errors: {})",
-                   index + 1, total_insights, embedded, errors),
-          "insights-reindex",
-        )
-        .await;
-    }
-
-    // Generate embedding for this insight
-    match generate_and_store_embedding(&context, insight).await {
-      Ok(_) => {
-        embedded += 1;
-      }
+/// Process all insights for embedding generation
+async fn process_insights_for_embedding(context: &RequestContext, insights: &[insight::Insight]) -> ReindexingStats {
+  let mut stats = ReindexingStats {
+    total: insights.len(),
+    ..Default::default()
+  };
+  
+  for (index, insight) in insights.iter().enumerate() {
+    log_progress_if_needed(context, index, &stats).await;
+    
+    match generate_and_store_embedding(context, insight).await {
+      Ok(_) => stats.embedded += 1,
       Err(e) => {
-        errors += 1;
+        stats.errors += 1;
         context.log_warn(
           &format!("Failed to generate embedding for {}/{}: {}", insight.topic, insight.name, e),
           "insights-reindex"
         ).await;
-        // Continue with next insight - don't fail the entire reindexing process
       }
     }
-
-    // Small delay to prevent overwhelming the embedding service
+    
+    // Rate limiting to prevent overwhelming embedding service
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
   }
+  
+  stats
+}
 
+/// Log progress periodically during processing
+async fn log_progress_if_needed(context: &RequestContext, index: usize, stats: &ReindexingStats) {
+  if (index + 1) % 10 == 0 || index == stats.total - 1 {
+    context
+      .log_info(
+        &format!(
+          "Re-indexing progress: {}/{} (embedded: {}, errors: {})",
+          index + 1, stats.total, stats.embedded, stats.errors
+        ),
+        "insights-reindex",
+      )
+      .await;
+  }
+}
+
+/// Log final completion statistics
+async fn log_reindexing_completion(context: &RequestContext, stats: &ReindexingStats) {
   context
     .log_success(
-      &format!("Re-indexing completed: {embedded}/{total_insights} insights embedded successfully, {errors} errors"),
+      &format!(
+        "Re-indexing completed: {}/{} insights embedded successfully, {} errors",
+        stats.embedded, stats.total, stats.errors
+      ),
       "insights-reindex",
     )
     .await;
-
-  Ok(())
 }
 
 /// Generate embedding for an insight and store it in LanceDB
