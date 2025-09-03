@@ -632,8 +632,6 @@ mod tests {
     assert!(!should_ignore_file(&config, "regular_file.rb"));
   }
 
-
-
   #[test]
   fn test_default_ignore_patterns_coverage() {
     let patterns = get_default_ignored_files();
@@ -675,8 +673,6 @@ mod tests {
     assert!(!should_ignore_file(&config, "config.js"));
     assert!(!should_ignore_file(&config, "font_loader.py"));
   }
-
-
 
   #[test]
   fn test_load_config_file_yaml_parsing() {
@@ -890,8 +886,6 @@ ignore_files:
     assert!(matches_glob("a/x/b/y/c", "a/**/b/**/c"));
   }
 
-
-
   #[test]
   fn test_violet_config_creation_edge_cases() {
     let empty_config = VioletConfig {
@@ -925,8 +919,6 @@ ignore_files:
     assert_eq!(large_config.ignore_files.len(), 100);
     assert_eq!(large_config.complexity.thresholds.default, 15.0);
   }
-
-
 
   #[test]
   fn test_merge_penalty_configs_global_wins() {
@@ -976,8 +968,6 @@ ignore_files:
     assert_eq!(result.complexity.penalties.verbosity, 1.05); // Project override
     assert_eq!(result.complexity.penalties.syntactics, 1.30); // Project override
   }
-
-
 
   #[test]
   fn test_penalty_config_creation() {
