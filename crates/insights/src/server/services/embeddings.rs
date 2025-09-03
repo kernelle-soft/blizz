@@ -23,7 +23,6 @@ trait TokenEncoding {
   fn get_ids(&self) -> &[u32];
   fn get_attention_mask(&self) -> &[u32];
   fn get_type_ids(&self) -> &[u32];
-  fn get_position_ids(&self) -> &[u32];
 }
 
 trait SessionInputs {
@@ -78,12 +77,6 @@ impl TokenEncoding for tokenizers::Encoding {
   }
   fn get_type_ids(&self) -> &[u32] {
     self.get_type_ids()
-  }
-  fn get_position_ids(&self) -> &[u32] {
-    // Generate position IDs as 0, 1, 2, ..., len-1
-    // Note: This creates a temporary vector that will be converted to a slice
-    // For production, we'd want to cache this or handle it differently
-    &[]
   }
 }
 
@@ -515,10 +508,6 @@ mod gte_base_tests {
     fn get_type_ids(&self) -> &[u32] {
       &self.type_ids
     }
-    fn get_position_ids(&self) -> &[u32] {
-      // Generate position IDs for mocks
-      &[]
-    }
   }
 
   impl TokenizerOutput for MockTokenizerOutput {}
@@ -532,10 +521,6 @@ mod gte_base_tests {
     }
     fn get_type_ids(&self) -> &[u32] {
       &self.type_ids
-    }
-    fn get_position_ids(&self) -> &[u32] {
-      // Generate position IDs for mocks
-      &[]
     }
   }
 

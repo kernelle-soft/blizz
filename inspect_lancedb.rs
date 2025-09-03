@@ -9,7 +9,7 @@ use lancedb::{
   query::{ExecutableQuery, QueryBase},
   Connection, Table,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,7 +32,7 @@ fn print_header() {
 }
 
 /// Validate that the database directory exists
-fn validate_database_exists(db_path: &PathBuf) -> Result<()> {
+fn validate_database_exists(db_path: &Path) -> Result<()> {
   if !db_path.exists() {
     println!(
       "❌ Database directory does not exist yet. Run the insights server first to create it."
@@ -43,7 +43,7 @@ fn validate_database_exists(db_path: &PathBuf) -> Result<()> {
 }
 
 /// Connect to the LanceDB database
-async fn connect_to_database(db_path: &PathBuf) -> Result<Connection> {
+async fn connect_to_database(db_path: &Path) -> Result<Connection> {
   lancedb::connect(&db_path.to_string_lossy())
     .execute()
     .await
