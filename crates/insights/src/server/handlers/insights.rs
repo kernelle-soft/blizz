@@ -268,12 +268,8 @@ async fn load_all_insights_for_reindexing(context: &RequestContext) -> Result<Ve
 async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
   context.log_info("Clearing existing LanceDB table", "insights-reindex").await;
 
-  let table_names = context.lancedb.connection.table_names().execute().await?;
-  if table_names.contains(&context.lancedb.table_name) {
-    let table = context.lancedb.get_table().await?;
-    table.delete("id IS NOT NULL").await?;
-    context.log_info("Cleared existing embeddings from LanceDB", "insights-reindex").await;
-  }
+  context.lancedb.clear_all_embeddings().await?;
+  context.log_info("Cleared existing embeddings from LanceDB", "insights-reindex").await;
   
   Ok(())
 }
