@@ -13,7 +13,7 @@ const PADDING: usize = 2;
 
 #[derive(Parser)]
 #[command(name = "violet")]
-#[command(about = "Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool")]
+#[command(about = "Violet - A Versatile, Intuitive, and Objective Legibility Evaluation Tool")]
 #[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of blizz"))]
 struct Cli {
   #[arg(value_name = "PATH")]
@@ -148,7 +148,7 @@ fn print_results(violation_output: Vec<String>, config: &config::VioletConfig) {
 fn print_tool_announcement() {
   println!(
     "{}",
-    "Violet - A Versatile, Intuitive, and Open Legibility Evaluation Tool".purple().bold()
+    "Violet - A Versatile, Intuitive, and Objective Legibility Evaluation Tool".purple().bold()
   );
   println!();
 }
