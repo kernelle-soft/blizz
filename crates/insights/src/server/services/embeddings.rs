@@ -135,7 +135,8 @@ impl GTEBase {
     let tokens = Self::tokenize(text, &self.tokenizer)?;
     let input = Self::prepare(tokens.as_ref(), &self.session)?;
     let output = self.session.run(input)?;
-    Self::extract_embedding(&output)
+    let raw_embedding = Self::extract_embedding(&output)?;
+    Self::normalize_embedding(raw_embedding)
   }
 }
 
@@ -382,6 +383,26 @@ impl GTEBase {
       *value /= seq_length as f32;
     }
 
+    Ok(embedding)
+  }
+
+  /// Normalize embedding vector to unit length for consistent similarity comparisons
+  pub fn normalize_embedding(mut embedding: Vec<f32>) -> Result<Vec<f32>> {
+    // Calculate magnitude (L2 norm)
+    let magnitude: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+    
+    // Avoid division by zero
+    if magnitude < f32::EPSILON {
+      bentley::warn!("Zero-magnitude embedding detected - returning unchanged");
+      return Ok(embedding);
+    }
+    
+    // Normalize to unit length
+    for value in embedding.iter_mut() {
+      *value /= magnitude;
+    }
+    
+    bentley::verbose!(&format!("Normalized embedding from magnitude {:.6} to unit length", magnitude));
     Ok(embedding)
   }
 }
@@ -1153,6 +1174,79 @@ mod gte_base_tests {
     assert!((result[0] - 0.002).abs() < f32::EPSILON);
     assert!((result[1] - 0.003).abs() < f32::EPSILON);
 
+    Ok(())
+  }
+
+  /// Test normalization with normal vector
+  #[test]
+  fn test_normalize_embedding_normal() -> Result<()> {
+    let embedding = vec![3.0, 4.0, 0.0]; // magnitude = 5.0
+    let result = GTEBase::normalize_embedding(embedding)?;
+    
+    assert_eq!(result.len(), 3);
+    assert!((result[0] - 0.6).abs() < f32::EPSILON); // 3/5
+    assert!((result[1] - 0.8).abs() < f32::EPSILON); // 4/5  
+    assert!((result[2] - 0.0).abs() < f32::EPSILON); // 0/5
+    
+    // Check magnitude is now 1.0
+    let magnitude: f32 = result.iter().map(|x| x * x).sum::<f32>().sqrt();
+    assert!((magnitude - 1.0).abs() < f32::EPSILON);
+    
+    Ok(())
+  }
+
+  /// Test normalization preserves zero vector
+  #[test]
+  fn test_normalize_embedding_zero_vector() -> Result<()> {
+    let embedding = vec![0.0, 0.0, 0.0];
+    let result = GTEBase::normalize_embedding(embedding.clone())?;
+    
+    assert_eq!(result, embedding); // Should be unchanged
+    Ok(())
+  }
+
+  /// Test normalization with unit vector
+  #[test] 
+  fn test_normalize_embedding_unit_vector() -> Result<()> {
+    let embedding = vec![1.0, 0.0, 0.0]; // Already unit length
+    let result = GTEBase::normalize_embedding(embedding.clone())?;
+    
+    assert_eq!(result, embedding); // Should be unchanged
+    Ok(())
+  }
+
+  /// Test normalization with large values
+  #[test]
+  fn test_normalize_embedding_large_values() -> Result<()> {
+    let embedding = vec![1000.0, 2000.0]; // magnitude = sqrt(5000000) ≈ 2236
+    let result = GTEBase::normalize_embedding(embedding)?;
+    
+    assert_eq!(result.len(), 2);
+    
+    // Check magnitude is now 1.0
+    let magnitude: f32 = result.iter().map(|x| x * x).sum::<f32>().sqrt();
+    assert!((magnitude - 1.0).abs() < f32::EPSILON);
+    
+    // Check direction is preserved (ratio should be 1:2)
+    assert!((result[1] / result[0] - 2.0).abs() < 0.001);
+    
+    Ok(())
+  }
+
+  /// Test normalization with negative values
+  #[test]
+  fn test_normalize_embedding_negative_values() -> Result<()> {
+    let embedding = vec![-3.0, 4.0]; // magnitude = 5.0
+    let result = GTEBase::normalize_embedding(embedding)?;
+    
+    assert_eq!(result.len(), 2);
+    assert!((result[0] - (-0.6)).abs() < f32::EPSILON); // -3/5
+    assert!((result[1] - 0.8).abs() < f32::EPSILON);     //  4/5
+    
+    // Check magnitude is now 1.0
+    let magnitude: f32 = result.iter().map(|x| x * x).sum::<f32>().sqrt();
+    assert!((magnitude - 1.0).abs() < f32::EPSILON);
+    
     Ok(())
   }
 }

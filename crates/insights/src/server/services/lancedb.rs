@@ -180,13 +180,10 @@ impl LanceDbService {
                     } else { default_distance }
                 } else { default_distance };
                 
-                // Convert Euclidean distance to similarity score (0-1 range)
-                // similarity = 1.0 / (1.0 + distance) gives exponential decay
-                let similarity = 1.0 / (1.0 + distance);
-
-                // Optional: Uncomment for debugging distance/similarity values
-                // bentley::info!(&format!("Euclidean distance: {:.3}, Similarity: {:.3}, Threshold: {:?}",
-                //     distance, similarity, threshold));
+                // Convert Euclidean distance to similarity score for normalized vectors
+                // For normalized vectors, distance is in [0, 2] range
+                // Use a more intuitive linear conversion: similarity = 1 - (distance / 2)
+                let similarity = (2.0 - distance.min(2.0)) / 2.0;
 
                 // Apply threshold filtering if specified
                 if let Some(thresh) = threshold {
