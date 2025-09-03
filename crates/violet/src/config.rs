@@ -60,11 +60,11 @@ impl Default for ThresholdConfig {
 }
 
 fn default_threshold() -> f64 {
-  7.0
+  8.0
 }
 
 fn default_depth_penalty() -> f64 {
-  2.0
+  std::f64::consts::E
 }
 
 fn default_verbosity_penalty() -> f64 {
