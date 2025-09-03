@@ -454,6 +454,7 @@ mod tests {
       case_sensitive: false,
       overview_only: false,
       exact: false,
+      semantic: false,
     };
 
     // These should all be false by default due to #[serde(default)]
