@@ -25,7 +25,7 @@ impl InsightRecord {
         created_at: String,
         updated_at: String,
     ) -> Self {
-        let id = format!("{}:{}", topic, name);
+        let id = format!("{topic}:{name}");
         Self {
             id,
             topic,

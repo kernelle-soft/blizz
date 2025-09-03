@@ -85,7 +85,7 @@ async fn log_embedding_update_success(context: &RequestContext, insight: &insigh
 async fn log_embedding_update_warning(context: &RequestContext, error: anyhow::Error) {
   context
     .log_warn(
-      &format!("Insight updated but embedding update failed: {}", error),
+      &format!("Insight updated but embedding update failed: {error}"),
       "insights-api",
     )
     .await;
@@ -184,7 +184,7 @@ async fn log_embedding_deletion_success(context: &RequestContext, request: &Remo
 async fn log_embedding_deletion_warning(context: &RequestContext, error: anyhow::Error) {
   context
     .log_warn(
-      &format!("Insight deleted but embedding deletion failed: {}", error),
+      &format!("Insight deleted but embedding deletion failed: {error}"),
       "insights-api",
     )
     .await;
@@ -557,7 +557,7 @@ async fn log_embedding_success(context: &RequestContext, insight: &insight::Insi
 async fn log_embedding_warning(context: &RequestContext, error: anyhow::Error) {
   context
     .log_warn(
-      &format!("Insight saved but embedding storage failed: {}", error),
+      &format!("Insight saved but embedding storage failed: {error}"),
       "insights-api",
     )
     .await;
@@ -575,7 +575,7 @@ fn create_insight_save_error(
     let context = context.clone();
     let topic = insight.topic.clone();
     let name = insight.name.clone();
-    let error_msg = format!("Failed to add insight {}/{}: {}", topic, name, error);
+    let error_msg = format!("Failed to add insight {topic}/{name}: {error}");
     async move {
       context.log_error(&error_msg, "insights-api").await;
     }
@@ -700,7 +700,7 @@ async fn perform_term_search(
       tokio::spawn({
         let context = context.clone();
         let terms = request.terms.clone();
-        let error = format!("Term search failed for {:?}: {}", terms, e);
+        let error = format!("Term search failed for {terms:?}: {e}");
         async move {
           context.log_error(&error, "insights-api").await;
         }
@@ -785,7 +785,7 @@ async fn check_embeddings_availability(context: &RequestContext, request: &Searc
     }
     Err(e) => {
       context
-        .log_error(&format!("Failed to check for embeddings: {}", e), "insights-api")
+        .log_error(&format!("Failed to check for embeddings: {e}"), "insights-api")
         .await;
       EmbeddingAvailability::Error
     }

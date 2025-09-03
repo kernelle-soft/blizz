@@ -39,12 +39,7 @@ impl LanceDbService {
     pub async fn store_embedding(&self, insight: &insight::Insight) -> Result<()> {
         let embedding = validate_insight_has_embedding(insight)?;
         let record = create_insight_record(insight, embedding);
-        
-        if self.table_manager.table_exists().await? {
-            self.table_manager.add_record_to_existing_table(&record).await
-        } else {
-            self.table_manager.create_table_with_first_record(&record).await
-        }
+        store_record_appropriately(&self.table_manager, &record).await
     }
 
     /// Check if any embeddings exist in the database
@@ -85,33 +80,54 @@ impl LanceDbService {
 
     /// Clear all embeddings from the table
     pub async fn clear_all_embeddings(&self) -> Result<()> {
-        if self.table_manager.table_exists().await? {
-            let table = self.table_manager.get_table().await?;
-            table.delete("id IS NOT NULL").await?;
-            bentley::info!("Cleared all embeddings from LanceDB table");
-        }
-        Ok(())
+        execute_table_clear(&self.table_manager).await
     }
 }
 
 /// Validate that insight has an embedding
 fn validate_insight_has_embedding(insight: &insight::Insight) -> Result<&[f32]> {
-    insight.embedding.as_ref()
-        .map(|e| e.as_slice())
+    insight.embedding.as_deref()
         .ok_or_else(|| anyhow!("Insight has no embedding to store"))
 }
 
 /// Create an InsightRecord from an insight and embedding
 fn create_insight_record(insight: &insight::Insight, embedding: &[f32]) -> models::InsightRecord {
+    let created_timestamp = extract_created_timestamp(insight);
+    let updated_timestamp = Utc::now().to_rfc3339();
+    
     models::InsightRecord::new(
         insight.topic.clone(),
         insight.name.clone(),
         insight.overview.clone(),
         insight.details.clone(),
         embedding.to_vec(),
-        insight.embedding_computed
-            .map(|t| t.to_rfc3339())
-            .unwrap_or_else(|| Utc::now().to_rfc3339()),
-        Utc::now().to_rfc3339(),
+        created_timestamp,
+        updated_timestamp,
     )
+}
+
+/// Store a record in the appropriate table (create new or add to existing)
+async fn store_record_appropriately(table_manager: &TableManager, record: &models::InsightRecord) -> Result<()> {
+    if table_manager.table_exists().await? {
+        table_manager.add_record_to_existing_table(record).await
+    } else {
+        table_manager.create_table_with_first_record(record).await
+    }
+}
+
+/// Execute table clear operation
+async fn execute_table_clear(table_manager: &TableManager) -> Result<()> {
+    if table_manager.table_exists().await? {
+        let table = table_manager.get_table().await?;
+        table.delete("id IS NOT NULL").await?;
+        bentley::info!("Cleared all embeddings from LanceDB table");
+    }
+    Ok(())
+}
+
+/// Extract created timestamp from insight with fallback to current time
+fn extract_created_timestamp(insight: &insight::Insight) -> String {
+    insight.embedding_computed
+        .map(|t| t.to_rfc3339())
+        .unwrap_or_else(|| Utc::now().to_rfc3339())
 }

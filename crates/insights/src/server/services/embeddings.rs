@@ -173,8 +173,8 @@ impl GTEBase {
     
     for config_file in &config_files {
       match repo.get(config_file).await {
-        Ok(_) => bentley::info!(&format!("Downloaded {}", config_file)),
-        Err(e) => bentley::warn!(&format!("Could not download {}: {}", config_file, e)),
+        Ok(_) => bentley::info!(&format!("Downloaded {config_file}")),
+        Err(e) => bentley::warn!(&format!("Could not download {config_file}: {e}")),
       }
     }
     
@@ -254,7 +254,7 @@ impl GTEBase {
     let tokens = tokenizer.encode_text(text, true)?;
 
     let token_count = tokens.get_ids().len();
-    bentley::info!(&format!("Tokenized '{}' into {} tokens", text, token_count));
+    bentley::info!(&format!("Tokenized '{text}' into {token_count} tokens"));
     Self::validate_sequence_length(token_count)?;
 
     Ok(tokens)
@@ -402,7 +402,7 @@ impl GTEBase {
       *value /= magnitude;
     }
     
-    bentley::verbose!(&format!("Normalized embedding from magnitude {:.6} to unit length", magnitude));
+    bentley::verbose!(&format!("Normalized embedding from magnitude {magnitude:.6} to unit length"));
     Ok(embedding)
   }
 }

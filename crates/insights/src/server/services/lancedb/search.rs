@@ -36,7 +36,7 @@ async fn create_search_query<'a>(
         .limit(limit);
     
     if let Some(thresh) = threshold {
-        bentley::info!(&format!("Threshold {} specified but skipping where clause", thresh));
+        bentley::info!(&format!("Threshold {thresh} specified but skipping where clause"));
     }
 
     query
@@ -77,14 +77,7 @@ fn process_result_batch(
             continue;
         }
         
-        batch_results.push(EmbeddingSearchResult {
-            id: column_arrays.id_array.value(i).to_string(),
-            topic: column_arrays.topic_array.value(i).to_string(),
-            name: column_arrays.name_array.value(i).to_string(),
-            overview: column_arrays.overview_array.value(i).to_string(),
-            details: column_arrays.details_array.value(i).to_string(),
-            similarity,
-        });
+        batch_results.push(create_search_result_from_arrays(&column_arrays, i, similarity));
     }
     
     Ok(batch_results)
@@ -128,7 +121,7 @@ fn extract_string_column<'a>(batch: &'a RecordBatch, column_name: &str) -> Resul
 }
 
 /// Extract the distance column from the batch (optional)
-fn extract_distance_column<'a>(batch: &'a RecordBatch) -> Option<&'a Float32Array> {
+fn extract_distance_column(batch: &RecordBatch) -> Option<&Float32Array> {
     batch.column_by_name("_distance")
         .and_then(|col| col.as_any().downcast_ref::<Float32Array>())
 }
@@ -159,12 +152,28 @@ fn convert_distance_to_similarity(distance: f32) -> f32 {
 fn passes_threshold_filter(similarity: f32, threshold: Option<f32>) -> bool {
     if let Some(thresh) = threshold {
         if similarity < thresh {
-            bentley::info!(&format!("Skipping result: similarity {:.6} < threshold {:.6}", similarity, thresh));
+            bentley::info!(&format!("Skipping result: similarity {similarity:.6} < threshold {thresh:.6}"));
             false
         } else {
             true
         }
     } else {
         true
+    }
+}
+
+/// Create EmbeddingSearchResult from column arrays at specific row index
+fn create_search_result_from_arrays(
+    column_arrays: &BatchColumnArrays,
+    row_index: usize,
+    similarity: f32,
+) -> EmbeddingSearchResult {
+    EmbeddingSearchResult {
+        id: column_arrays.id_array.value(row_index).to_string(),
+        topic: column_arrays.topic_array.value(row_index).to_string(),
+        name: column_arrays.name_array.value(row_index).to_string(),
+        overview: column_arrays.overview_array.value(row_index).to_string(),
+        details: column_arrays.details_array.value(row_index).to_string(),
+        similarity,
     }
 }
