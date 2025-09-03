@@ -798,9 +798,7 @@ async fn log_embedding_search_success(
 
 /// Log embedding search failure
 async fn log_embedding_search_failure(context: &RequestContext, terms: &[String]) {
-  context
-    .log_error(&format!("Embedding search failed for {:?}", terms), "insights-api")
-    .await;
+  context.log_error(&format!("Embedding search failed for {terms:?}"), "insights-api").await;
 }
 
 /// Check if embeddings are available for search
