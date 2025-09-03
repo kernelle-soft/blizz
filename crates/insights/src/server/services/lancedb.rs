@@ -59,66 +59,77 @@ impl LanceDbService {
 
     /// Store an insight's embedding in LanceDB
     pub async fn store_embedding(&self, insight: &insight::Insight) -> Result<()> {
-        if let Some(embedding) = &insight.embedding {
-            let record = InsightRecord {
-                id: format!("{}:{}", insight.topic, insight.name),
-                topic: insight.topic.clone(),
-                name: insight.name.clone(),
-                overview: insight.overview.clone(),
-                details: insight.details.clone(),
-                embedding: embedding.clone(),
-                created_at: insight.embedding_computed.map(|t| t.to_rfc3339()).unwrap_or_else(|| Utc::now().to_rfc3339()),
-                updated_at: Utc::now().to_rfc3339(),
-            };
-
-            // Convert to Arrow RecordBatch and create iterator  
-            let batch = records_to_arrow_batch(vec![record])?;
-            let schema = batch.schema();
-            let batch_iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
-
-            // Check if table exists, if not create it on first insert
-            let tables = self.connection.table_names()
-                .execute()
-                .await
-                .map_err(|e| anyhow!("Failed to list tables: {}", e))?;
-                
-            if !tables.contains(&self.table_name) {
-                // Create table with first record
-                self.connection
-                    .create_table(&self.table_name, batch_iter)
-                    .execute()
-                    .await
-                    .map_err(|e| anyhow!("Failed to create table with first record: {}", e))?;
-                bentley::info!(&format!("Created table '{}' with first embedding for {}/{}", self.table_name, insight.topic, insight.name));
-            } else {
-                // Table exists, add record - need to recreate iterator since it was consumed
-                let batch2 = records_to_arrow_batch(vec![
-                    InsightRecord {
-                        id: format!("{}:{}", insight.topic, insight.name),
-                        topic: insight.topic.clone(),
-                        name: insight.name.clone(),
-                        overview: insight.overview.clone(),
-                        details: insight.details.clone(),
-                        embedding: embedding.clone(),
-                        created_at: insight.embedding_computed.map(|t| t.to_rfc3339()).unwrap_or_else(|| Utc::now().to_rfc3339()),
-                        updated_at: Utc::now().to_rfc3339(),
-                    }
-                ])?;
-                let schema2 = batch2.schema();
-                let batch_iter2 = RecordBatchIterator::new(vec![Ok(batch2)], schema2);
-                
-                let table = self.get_table().await?;
-                table
-                    .add(batch_iter2)
-                    .execute()
-                    .await
-                    .map_err(|e| anyhow!("Failed to store embedding: {}", e))?;
-                bentley::info!(&format!("Stored embedding for {}/{}", insight.topic, insight.name));
-            }
-        } else {
-            return Err(anyhow!("Insight has no embedding to store"));
-        }
+        // Early return validation
+        let embedding = insight.embedding.as_ref()
+            .ok_or_else(|| anyhow!("Insight has no embedding to store"))?;
+            
+        let record = self.create_insight_record(insight, embedding);
         
+        if self.table_exists().await? {
+            self.add_record_to_existing_table(&record).await
+        } else {
+            self.create_table_with_first_record(&record).await
+        }
+    }
+
+    /// Create an InsightRecord from an insight and embedding
+    fn create_insight_record(&self, insight: &insight::Insight, embedding: &[f32]) -> InsightRecord {
+        InsightRecord {
+            id: format!("{}:{}", insight.topic, insight.name),
+            topic: insight.topic.clone(),
+            name: insight.name.clone(),
+            overview: insight.overview.clone(),
+            details: insight.details.clone(),
+            embedding: embedding.to_vec(),
+            created_at: insight.embedding_computed
+                .map(|t| t.to_rfc3339())
+                .unwrap_or_else(|| Utc::now().to_rfc3339()),
+            updated_at: Utc::now().to_rfc3339(),
+        }
+    }
+
+    /// Check if the target table exists
+    async fn table_exists(&self) -> Result<bool> {
+        let tables = self.connection.table_names()
+            .execute()
+            .await
+            .map_err(|e| anyhow!("Failed to list tables: {}", e))?;
+        Ok(tables.contains(&self.table_name))
+    }
+
+    /// Create a new table with the first record
+    async fn create_table_with_first_record(&self, record: &InsightRecord) -> Result<()> {
+        let batch = records_to_arrow_batch(vec![record.clone()])?;
+        let schema = batch.schema();
+        let batch_iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
+        
+        self.connection
+            .create_table(&self.table_name, batch_iter)
+            .execute()
+            .await
+            .map_err(|e| anyhow!("Failed to create table with first record: {}", e))?;
+            
+        bentley::info!(&format!(
+            "Created table '{}' with first embedding for {}/{}", 
+            self.table_name, record.topic, record.name
+        ));
+        Ok(())
+    }
+
+    /// Add a record to an existing table
+    async fn add_record_to_existing_table(&self, record: &InsightRecord) -> Result<()> {
+        let batch = records_to_arrow_batch(vec![record.clone()])?;
+        let schema = batch.schema();
+        let batch_iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
+        
+        let table = self.get_table().await?;
+        table
+            .add(batch_iter)
+            .execute()
+            .await
+            .map_err(|e| anyhow!("Failed to store embedding: {}", e))?;
+            
+        bentley::info!(&format!("Stored embedding for {}/{}", record.topic, record.name));
         Ok(())
     }
 
