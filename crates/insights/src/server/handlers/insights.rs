@@ -531,101 +531,168 @@ pub async fn search_insights(
 ) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
 {
   let transaction_id = Uuid::new_v4();
+  
+  log_search_start(&context, &request).await;
+  let search_options = build_search_options(&request);
+  
+  let mut all_results = perform_term_search(&context, &request, &search_options, transaction_id).await?;
+  
+  let should_finalize = add_embedding_search_results(&context, &request, &mut all_results).await;
+  
+  if should_finalize {
+    Ok(ResponseJson(finalize_search_results(&context, &request, all_results, transaction_id).await))
+  } else {
+    // No embeddings available - return results as-is
+    let response_data = SearchResponse { count: all_results.len(), results: all_results };
+    Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
+  }
+}
 
+/// Log the start of a search operation
+async fn log_search_start(context: &RequestContext, request: &SearchRequest) {
   context
     .log_info(
       &format!("Searching insights: terms={:?}, topic={:?}", request.terms, request.topic),
       "insights-api",
     )
     .await;
+}
 
-  // Convert request to search options
-  let search_options = crate::server::services::search::SearchOptions {
+/// Build search options from the request
+fn build_search_options(request: &SearchRequest) -> crate::server::services::search::SearchOptions {
+  crate::server::services::search::SearchOptions {
     topic: request.topic.clone(),
     case_sensitive: request.case_sensitive,
     overview_only: request.overview_only,
     exact: request.exact,
     semantic: request.semantic,
-  };
+  }
+}
 
-  // Perform search based on the requested mode
-  let mut all_results = Vec::new();
+/// Perform term-based search and return results
+async fn perform_term_search(
+  context: &RequestContext,
+  request: &SearchRequest,
+  search_options: &crate::server::services::search::SearchOptions,
+  transaction_id: Uuid,
+) -> Result<Vec<SearchResultData>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+  
+  let search_results = crate::server::services::search::search(&request.terms, search_options)
+    .map_err(|e| {
+      let error_response = create_search_error_response(
+        &format!("Term search failed: {e}"),
+        transaction_id
+      );
+      tokio::spawn({
+        let context = context.clone();
+        let terms = request.terms.clone();
+        let error = format!("Term search failed for {:?}: {}", terms, e);
+        async move {
+          context.log_error(&error, "insights-api").await;
+        }
+      });
+      error_response
+    })?;
 
-  // Always perform term-based search (exact or semantic)
-  match crate::server::services::search::search(&request.terms, &search_options) {
-    Ok(search_results) => {
-      context
-        .log_info(&format!("Term search found {} results for {:?}", search_results.len(), request.terms), "insights-api")
-        .await;
+  context
+    .log_info(&format!("Term search found {} results for {:?}", search_results.len(), request.terms), "insights-api")
+    .await;
 
-      // Convert SearchResult to SearchResultData format
-      let term_results: Vec<SearchResultData> = search_results
-        .into_iter()
-        .map(|result| SearchResultData {
-          topic: result.topic,
-          name: result.name,
-          overview: result.overview,
-          details: result.details,
-          score: result.score,
-        })
-        .collect();
-      all_results.extend(term_results);
-    }
-    Err(e) => {
-      context
-        .log_error(&format!("Term search failed for {:?}: {}", request.terms, e), "insights-api")
-        .await;
-      let error = ApiError::new("search_failed", &format!("Term search failed: {e}"));
-      return Err((
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ));
-    }
+  let term_results = convert_search_results_to_api_format(search_results);
+  Ok(term_results)
+}
+
+/// Convert internal SearchResult to API SearchResultData format
+fn convert_search_results_to_api_format(search_results: Vec<crate::server::services::search::SearchResult>) -> Vec<SearchResultData> {
+  search_results
+    .into_iter()
+    .map(|result| SearchResultData {
+      topic: result.topic,
+      name: result.name,
+      overview: result.overview,
+      details: result.details,
+      score: result.score,
+    })
+    .collect()
+}
+
+/// Add embedding search results if appropriate, returns true if should continue with finalization
+async fn add_embedding_search_results(
+  context: &RequestContext,
+  request: &SearchRequest,
+  all_results: &mut Vec<SearchResultData>,
+) -> bool {
+  
+  // Skip embedding search if using exact or semantic-only modes
+  if request.exact || request.semantic {
+    return true;
   }
 
-  // Add embedding search if using full mode (not exact and not semantic)
-  if !request.exact && !request.semantic {
-    // Check if embeddings exist first
-    match context.lancedb.has_embeddings().await {
-      Ok(has_embeddings) => {
-        if has_embeddings {
-          context
-            .log_info(&format!("Starting embedding search for {:?} (embeddings exist)", request.terms), "insights-api")
-            .await;
-        } else {
-          context
-            .log_info(&format!("Skipping embedding search for {:?} (no embeddings in database)", request.terms), "insights-api")
-            .await;
-          // Skip the embedding search entirely
-          return Ok(ResponseJson(BaseResponse::success(
-            SearchResponse { count: all_results.len(), results: all_results },
-            transaction_id
-          )));
-        }
-      }
-      Err(e) => {
-        context
-          .log_error(&format!("Failed to check for embeddings: {}", e), "insights-api")
-          .await;
-      }
-    }
-
-    match perform_vector_search(&context, &request).await {
-      Ok(embedding_results) => {
+  // Check if embeddings exist and perform search
+  match check_embeddings_availability(context, request).await {
+    EmbeddingAvailability::Available => {
+      if let Ok(embedding_results) = perform_vector_search(context, request).await {
         context
           .log_info(&format!("Embedding search found {} results for {:?}", embedding_results.len(), request.terms), "insights-api")
           .await;
         all_results.extend(embedding_results);
-      }
-      Err(e) => {
-        // Log the error but don't fail the entire search
+      } else {
         context
-          .log_error(&format!("Embedding search failed for {:?}: {}", request.terms, e), "insights-api")
+          .log_error(&format!("Embedding search failed for {:?}", request.terms), "insights-api")
           .await;
       }
+      true
+    }
+    EmbeddingAvailability::Unavailable => {
+      // No embeddings available - skip finalization and return results as-is
+      false
+    }
+    EmbeddingAvailability::Error => {
+      // Continue without embeddings on error
+      true
     }
   }
+}
 
+/// Check if embeddings are available for search
+async fn check_embeddings_availability(context: &RequestContext, request: &SearchRequest) -> EmbeddingAvailability {
+  match context.lancedb.has_embeddings().await {
+    Ok(true) => {
+      context
+        .log_info(&format!("Starting embedding search for {:?} (embeddings exist)", request.terms), "insights-api")
+        .await;
+      EmbeddingAvailability::Available
+    }
+    Ok(false) => {
+      context
+        .log_info(&format!("Skipping embedding search for {:?} (no embeddings in database)", request.terms), "insights-api")
+        .await;
+      EmbeddingAvailability::Unavailable
+    }
+    Err(e) => {
+      context
+        .log_error(&format!("Failed to check for embeddings: {}", e), "insights-api")
+        .await;
+      EmbeddingAvailability::Error
+    }
+  }
+}
+
+/// Embedding availability status
+enum EmbeddingAvailability {
+  Available,
+  Unavailable,
+  Error,
+}
+
+/// Sort, deduplicate, and create final response
+async fn finalize_search_results(
+  context: &RequestContext,
+  request: &SearchRequest,
+  mut all_results: Vec<SearchResultData>,
+  transaction_id: Uuid,
+) -> BaseResponse<SearchResponse> {
+  
   // Sort and deduplicate results
   all_results.sort_by(|a, b| {
     b.score
@@ -644,6 +711,17 @@ pub async fn search_insights(
     .await;
 
   let response_data = SearchResponse { count: all_results.len(), results: all_results };
+  BaseResponse::success(response_data, transaction_id)
+}
 
-  Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
+/// Create a standardized error response for search failures
+fn create_search_error_response(
+  message: &str,
+  transaction_id: Uuid,
+) -> (axum::http::StatusCode, ResponseJson<BaseResponse<()>>) {
+  let error = ApiError::new("search_failed", message);
+  (
+    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+    ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
+  )
 }
