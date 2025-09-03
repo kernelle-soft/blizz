@@ -184,6 +184,10 @@ impl LanceDbService {
                 // For normalized vectors, distance is in [0, 2] range
                 // Use a more intuitive linear conversion: similarity = 1 - (distance / 2)
                 let similarity = (2.0 - distance.min(2.0)) / 2.0;
+                
+                // Debug: Show what's actually in the database
+                bentley::info!(&format!("DB Match: {}/{} - Distance: {:.3}, Similarity: {:.3}", 
+                    topic_array.value(i), name_array.value(i), distance, similarity));
 
                 // Apply threshold filtering if specified
                 if let Some(thresh) = threshold {

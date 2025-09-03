@@ -274,10 +274,10 @@ async fn perform_vector_search(
     .await
     .map_err(|e| anyhow!("Failed to generate query embedding: {}", e))?;
 
-  // Determine search limit (default to 20, max 100)
-  let limit = 20; // TODO: Make this configurable
+  // Remove limit entirely to see all results in database
+  let limit = usize::MAX; // No limit - show everything
 
-  // Set similarity threshold for normalized embeddings
+  // Set similarity threshold for normalized embeddings (temporarily lowered for debugging)
   // 0.3 = somewhat similar, 0.5 = moderately similar, 0.7 = very similar
   let threshold = Some(0.65);
 
