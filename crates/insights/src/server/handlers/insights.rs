@@ -274,12 +274,8 @@ async fn perform_vector_search(
     .await
     .map_err(|e| anyhow!("Failed to generate query embedding: {}", e))?;
 
-  // Use large limit to see all results in database  
-  let limit = 1e12 as usize; // 1 trillion - Large enough to see all insights
-
-  // Set similarity threshold for normalized embeddings (temporarily lowered for debugging)
-  // 0.3 = somewhat similar, 0.5 = moderately similar, 0.7 = very similar
-  let threshold = Some(0.65);
+  let limit = 1e12 as usize;
+  let threshold = Some(0.5); // with normalized cosine similarity, this captures "more similar than different"
 
   // Perform vector search in LanceDB
   let similar_results = context.lancedb
