@@ -127,7 +127,7 @@ fn process_batch_records(batch: &RecordBatch, mut record_count: usize) -> Result
 }
 
 /// Extract the required columns from a batch
-fn extract_record_columns(batch: &RecordBatch) -> Result<RecordColumns> {
+fn extract_record_columns(batch: &RecordBatch) -> Result<RecordColumns<'_>> {
   use arrow::array::StringArray;
 
   let id_col = batch.column_by_name("id").ok_or_else(|| anyhow!("Missing 'id' column"))?;
@@ -157,7 +157,7 @@ fn extract_record_columns(batch: &RecordBatch) -> Result<RecordColumns> {
 }
 
 /// Display a single record's information
-fn display_single_record(columns: &RecordColumns, index: usize, record_count: usize) -> Result<()> {
+fn display_single_record(columns: &RecordColumns<'_>, index: usize, record_count: usize) -> Result<()> {
   println!("\n--- Record {record_count} ---");
   println!("  ID: {}", columns.id_array.value(index));
   println!("  Topic: {}", columns.topic_array.value(index));
