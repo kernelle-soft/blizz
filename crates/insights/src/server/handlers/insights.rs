@@ -21,55 +21,98 @@ pub async fn update_insight(
   Json(request): Json<UpdateInsightRequest>,
 ) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
+  
+  let mut insight_data = load_existing_insight(&request, transaction_id)?;
+  update_insight_with_embedding(&context, &mut insight_data, &request, transaction_id).await
+}
 
-  // Call library function directly (no HTTP client recursion!)
-  // First load the existing insight
-  let mut insight_data = match insight::load(&request.topic, &request.name) {
-    Ok(insight) => insight,
-    Err(e) => {
-      let error = ApiError::new("insight_not_found", &format!("Insight not found: {e}"));
-      return Err((
-        axum::http::StatusCode::NOT_FOUND,
-        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ));
+/// Load existing insight or return not found error
+fn load_existing_insight(
+  request: &UpdateInsightRequest,
+  transaction_id: Uuid,
+) -> Result<insight::Insight, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+  insight::load(&request.topic, &request.name)
+    .map_err(|e| create_insight_not_found_error(e, transaction_id))
+}
+
+/// Update insight and regenerate embedding
+async fn update_insight_with_embedding(
+  context: &RequestContext,
+  insight_data: &mut insight::Insight,
+  request: &UpdateInsightRequest,
+  transaction_id: Uuid,
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+  
+  perform_insight_update(insight_data, request, transaction_id)?;
+  attempt_embedding_update(context, insight_data).await;
+  
+  Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+}
+
+/// Perform the actual insight update operation
+fn perform_insight_update(
+  insight_data: &mut insight::Insight,
+  request: &UpdateInsightRequest,
+  transaction_id: Uuid,
+) -> Result<(), (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+  insight::update(insight_data, request.overview.as_deref(), request.details.as_deref())
+    .map_err(|e| create_insight_update_error(e, transaction_id))
+}
+
+/// Attempt to update embedding (non-fatal if fails)
+async fn attempt_embedding_update(context: &RequestContext, insight: &insight::Insight) {
+  match generate_and_store_embedding(context, insight).await {
+    Ok(_) => {
+      log_embedding_update_success(context, insight).await;
     }
-  };
-
-  // Then update it
-      match insight::update(&mut insight_data, request.overview.as_deref(), request.details.as_deref())
-  {
-    Ok(()) => {
-      // Update embedding in LanceDB
-      match generate_and_store_embedding(&context, &insight_data).await {
-        Ok(_) => {
-          context
-            .log_success(
-              &format!("Successfully updated insight {}/{} with new embedding", insight_data.topic, insight_data.name),
-              "insights-api",
-            )
-            .await;
-        }
-        Err(e) => {
-          // Log warning but don't fail the request - insight was updated successfully
-          context
-            .log_warn(
-              &format!("Insight updated but embedding update failed: {}", e),
-              "insights-api",
-            )
-            .await;
-        }
-      }
-
-      Ok(ResponseJson(BaseResponse::success((), transaction_id)))
-    }
     Err(e) => {
-      let error = ApiError::new("insight_update_failed", &format!("Failed to update insight: {e}"));
-      Err((
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ))
+      log_embedding_update_warning(context, e).await;
     }
   }
+}
+
+/// Log successful insight update with embedding
+async fn log_embedding_update_success(context: &RequestContext, insight: &insight::Insight) {
+  context
+    .log_success(
+      &format!("Successfully updated insight {}/{} with new embedding", insight.topic, insight.name),
+      "insights-api",
+    )
+    .await;
+}
+
+/// Log embedding update warning (non-fatal)
+async fn log_embedding_update_warning(context: &RequestContext, error: anyhow::Error) {
+  context
+    .log_warn(
+      &format!("Insight updated but embedding update failed: {}", error),
+      "insights-api",
+    )
+    .await;
+}
+
+/// Create error response for insight not found
+fn create_insight_not_found_error(
+  error: anyhow::Error,
+  transaction_id: Uuid,
+) -> (axum::http::StatusCode, ResponseJson<BaseResponse<()>>) {
+  let api_error = ApiError::new("insight_not_found", &format!("Insight not found: {error}"));
+  (
+    axum::http::StatusCode::NOT_FOUND,
+    ResponseJson(BaseResponse::<()>::error(vec![api_error], transaction_id)),
+  )
+}
+
+/// Create error response for insight update failure
+fn create_insight_update_error(
+  error: anyhow::Error,
+  transaction_id: Uuid,
+) -> (axum::http::StatusCode, ResponseJson<BaseResponse<()>>) {
+  let api_error = ApiError::new("insight_update_failed", &format!("Failed to update insight: {error}"));
+  (
+    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+    ResponseJson(BaseResponse::<()>::error(vec![api_error], transaction_id)),
+  )
 }
 
 /// DELETE /insights/remove - Remove an insight
@@ -78,52 +121,85 @@ pub async fn remove_insight(
   Json(request): Json<RemoveInsightRequest>,
 ) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
+  
+  let insight_to_delete = load_insight_for_deletion(&request, transaction_id)?;
+  delete_insight_with_embedding(&context, &insight_to_delete, &request, transaction_id).await
+}
 
-  // Call library function directly (no HTTP client recursion!)
-  let insight_to_delete = match insight::load(&request.topic, &request.name) {
-    Ok(insight_data) => insight_data,
-    Err(e) => {
-      let error = ApiError::new("insight_not_found", &format!("Insight not found: {e}"));
-      return Err((
-        axum::http::StatusCode::NOT_FOUND,
-        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ));
+/// Load insight for deletion or return not found error
+fn load_insight_for_deletion(
+  request: &RemoveInsightRequest,
+  transaction_id: Uuid,
+) -> Result<insight::Insight, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+  insight::load(&request.topic, &request.name)
+    .map_err(|e| create_insight_not_found_error(e, transaction_id))
+}
+
+/// Delete insight and its embedding
+async fn delete_insight_with_embedding(
+  context: &RequestContext,
+  insight_to_delete: &insight::Insight,
+  request: &RemoveInsightRequest,
+  transaction_id: Uuid,
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+  
+  perform_insight_deletion(insight_to_delete, transaction_id)?;
+  attempt_embedding_deletion(context, request).await;
+  
+  Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+}
+
+/// Perform the actual insight deletion operation
+fn perform_insight_deletion(
+  insight_to_delete: &insight::Insight,
+  transaction_id: Uuid,
+) -> Result<(), (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+  insight::delete(insight_to_delete)
+    .map_err(|e| create_insight_removal_error(e, transaction_id))
+}
+
+/// Attempt to delete embedding (non-fatal if fails)
+async fn attempt_embedding_deletion(context: &RequestContext, request: &RemoveInsightRequest) {
+  match context.lancedb.delete_embedding(&request.topic, &request.name).await {
+    Ok(_) => {
+      log_embedding_deletion_success(context, request).await;
     }
-  };
-
-  match insight::delete(&insight_to_delete) {
-    Ok(()) => {
-      // Delete embedding from LanceDB
-      match context.lancedb.delete_embedding(&request.topic, &request.name).await {
-        Ok(_) => {
-          context
-            .log_success(
-              &format!("Successfully deleted insight {}/{} and its embedding", request.topic, request.name),
-              "insights-api",
-            )
-            .await;
-        }
-        Err(e) => {
-          // Log warning but don't fail the request - insight was deleted successfully
-          context
-            .log_warn(
-              &format!("Insight deleted but embedding deletion failed: {}", e),
-              "insights-api",
-            )
-            .await;
-        }
-      }
-
-      Ok(ResponseJson(BaseResponse::success((), transaction_id)))
-    }
     Err(e) => {
-      let error = ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {e}"));
-      Err((
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ))
+      log_embedding_deletion_warning(context, e).await;
     }
   }
+}
+
+/// Log successful insight deletion with embedding
+async fn log_embedding_deletion_success(context: &RequestContext, request: &RemoveInsightRequest) {
+  context
+    .log_success(
+      &format!("Successfully deleted insight {}/{} and its embedding", request.topic, request.name),
+      "insights-api",
+    )
+    .await;
+}
+
+/// Log embedding deletion warning (non-fatal)
+async fn log_embedding_deletion_warning(context: &RequestContext, error: anyhow::Error) {
+  context
+    .log_warn(
+      &format!("Insight deleted but embedding deletion failed: {}", error),
+      "insights-api",
+    )
+    .await;
+}
+
+/// Create error response for insight removal failure
+fn create_insight_removal_error(
+  error: anyhow::Error,
+  transaction_id: Uuid,
+) -> (axum::http::StatusCode, ResponseJson<BaseResponse<()>>) {
+  let api_error = ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {error}"));
+  (
+    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+    ResponseJson(BaseResponse::<()>::error(vec![api_error], transaction_id)),
+  )
 }
 
 /// DELETE /insights/clear - Clear all insights
@@ -416,13 +492,23 @@ pub async fn add_insight(
   Json(request): Json<AddInsightRequest>,
 ) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
   let transaction_id = Uuid::new_v4();
+  
+  log_insight_addition_start(&context, &request).await;
+  let new_insight = create_insight_from_request(request);
+  
+  save_insight_with_embedding(&context, &new_insight, transaction_id).await
+}
 
+/// Log the start of insight addition operation
+async fn log_insight_addition_start(context: &RequestContext, request: &AddInsightRequest) {
   context
     .log_info(&format!("Adding insight {}/{}", request.topic, request.name), "insights-api")
     .await;
+}
 
-  // Create and save insight directly (no HTTP client recursion!)
-  let new_insight = insight::Insight {
+/// Create a new insight from the API request
+fn create_insight_from_request(request: AddInsightRequest) -> insight::Insight {
+  insight::Insight {
     topic: request.topic,
     name: request.name,
     overview: request.overview,
@@ -431,47 +517,79 @@ pub async fn add_insight(
     embedding: None,
     embedding_text: None,
     embedding_computed: None,
-  };
+  }
+}
 
-  match insight::save(&new_insight) {
-    Ok(()) => {
-      // Generate and store embedding in LanceDB
-      match generate_and_store_embedding(&context, &new_insight).await {
-        Ok(_) => {
-          context
-            .log_success(
-              &format!("Successfully added insight {}/{} with embedding", new_insight.topic, new_insight.name),
-              "insights-api",
-            )
-            .await;
-        }
-        Err(e) => {
-          // Log warning but don't fail the request - insight was saved successfully
-          context
-            .log_warn(
-              &format!("Insight saved but embedding storage failed: {}", e),
-              "insights-api",
-            )
-            .await;
-        }
-      }
+/// Save insight and attempt to generate embedding
+async fn save_insight_with_embedding(
+  context: &RequestContext,
+  new_insight: &insight::Insight,
+  transaction_id: Uuid,
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+  
+  insight::save(new_insight)
+    .map_err(|e| create_insight_save_error(context, new_insight, e, transaction_id))?;
+    
+  attempt_embedding_generation(context, new_insight).await;
+  
+  Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+}
 
-      Ok(ResponseJson(BaseResponse::success((), transaction_id)))
+/// Attempt to generate and store embedding (non-fatal if fails)
+async fn attempt_embedding_generation(context: &RequestContext, insight: &insight::Insight) {
+  match generate_and_store_embedding(context, insight).await {
+    Ok(_) => {
+      log_embedding_success(context, insight).await;
     }
     Err(e) => {
-      context
-        .log_error(
-          &format!("Failed to add insight {}/{}: {}", new_insight.topic, new_insight.name, e),
-          "insights-api",
-        )
-        .await;
-      let error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {e}"));
-      Err((
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-        ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
-      ))
+      log_embedding_warning(context, e).await;
     }
   }
+}
+
+/// Log successful insight addition with embedding
+async fn log_embedding_success(context: &RequestContext, insight: &insight::Insight) {
+  context
+    .log_success(
+      &format!("Successfully added insight {}/{} with embedding", insight.topic, insight.name),
+      "insights-api",
+    )
+    .await;
+}
+
+/// Log embedding generation warning (non-fatal)
+async fn log_embedding_warning(context: &RequestContext, error: anyhow::Error) {
+  context
+    .log_warn(
+      &format!("Insight saved but embedding storage failed: {}", error),
+      "insights-api",
+    )
+    .await;
+}
+
+/// Create error response for insight save failure
+fn create_insight_save_error(
+  context: &RequestContext,
+  insight: &insight::Insight,
+  error: anyhow::Error,
+  transaction_id: Uuid,
+) -> (axum::http::StatusCode, ResponseJson<BaseResponse<()>>) {
+  // Spawn async logging to avoid blocking the error response
+  tokio::spawn({
+    let context = context.clone();
+    let topic = insight.topic.clone();
+    let name = insight.name.clone();
+    let error_msg = format!("Failed to add insight {}/{}: {}", topic, name, error);
+    async move {
+      context.log_error(&error_msg, "insights-api").await;
+    }
+  });
+  
+  let api_error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {error}"));
+  (
+    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+    ResponseJson(BaseResponse::<()>::error(vec![api_error], transaction_id)),
+  )
 }
 
 /// POST /insights/get - Get a specific insight
