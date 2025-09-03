@@ -240,7 +240,12 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -y libssl-dev pkg-config
+          sudo apt install -y libssl-dev pkg-config protobuf-compiler
+
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install protobuf
 
       - name: Build release binaries
         run: cargo build --workspace --release --target ${{ matrix.target }}
