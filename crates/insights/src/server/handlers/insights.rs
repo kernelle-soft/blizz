@@ -277,8 +277,9 @@ async fn perform_vector_search(
   // Determine search limit (default to 20, max 100)
   let limit = 20; // TODO: Make this configurable
 
-  // Set similarity threshold based on search mode
-  let threshold = Some(0.02);
+  // Set similarity threshold for normalized embeddings
+  // 0.3 = somewhat similar, 0.5 = moderately similar, 0.7 = very similar
+  let threshold = Some(0.65);
 
   // Perform vector search in LanceDB
   let similar_results = context.lancedb
