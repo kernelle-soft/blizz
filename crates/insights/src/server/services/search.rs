@@ -334,8 +334,13 @@ mod tests {
   #[test]
   fn test_get_normalized_content_overview_only() {
     let insight = create_test_insight();
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: true, exact: false, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: true,
+      exact: false,
+      semantic: false,
+    };
 
     let content = get_normalized_content(&insight, &options);
     assert_eq!(content, "test_topic test_insight This is a test overview with some content");
@@ -344,8 +349,13 @@ mod tests {
   #[test]
   fn test_get_normalized_content_full_content() {
     let insight = create_test_insight();
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: false,
+      semantic: false,
+    };
 
     let content = get_normalized_content(&insight, &options);
     let expected = "test_topic test_insight This is a test overview with some content This is detailed content with more information for testing purposes";
@@ -355,8 +365,13 @@ mod tests {
   #[test]
   fn test_get_normalized_terms_case_sensitive() {
     let terms = vec!["Test".to_string(), "CONTENT".to_string()];
-    let options =
-      SearchOptions { topic: None, case_sensitive: true, overview_only: false, exact: false, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: true,
+      overview_only: false,
+      exact: false,
+      semantic: false,
+    };
 
     let normalized = get_normalized_terms(&terms, &options);
     assert_eq!(normalized, vec!["Test".to_string(), "CONTENT".to_string()]);
@@ -365,8 +380,13 @@ mod tests {
   #[test]
   fn test_get_normalized_terms_case_insensitive() {
     let terms = vec!["Test".to_string(), "CONTENT".to_string()];
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: false,
+      semantic: false,
+    };
 
     let normalized = get_normalized_terms(&terms, &options);
     assert_eq!(normalized, vec!["test".to_string(), "content".to_string()]);
@@ -376,8 +396,13 @@ mod tests {
   fn test_get_exact_match_single_term() {
     let insight = create_test_insight();
     let terms = vec!["test".to_string()];
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+      semantic: false,
+    };
 
     let score = get_exact_match(&insight, &terms, &options);
     // "test" appears in topic, name, and content multiple times
@@ -388,8 +413,13 @@ mod tests {
   fn test_get_exact_match_multiple_terms() {
     let insight = create_test_insight();
     let terms = vec!["test".to_string(), "content".to_string()];
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+      semantic: false,
+    };
 
     let score = get_exact_match(&insight, &terms, &options);
     // Score should be sum of matches for both terms
@@ -400,15 +430,26 @@ mod tests {
   fn test_get_exact_match_case_sensitive() {
     let insight = create_test_insight();
     let terms = vec!["Test".to_string()]; // Capital T
-    let options =
-      SearchOptions { topic: None, case_sensitive: true, overview_only: false, exact: true, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: true,
+      overview_only: false,
+      exact: true,
+      semantic: false,
+    };
 
     let score = get_exact_match(&insight, &terms, &options);
     // Should find fewer matches due to case sensitivity
     let insensitive_score = get_exact_match(
       &insight,
       &["test".to_string()],
-      &SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false },
+      &SearchOptions {
+        topic: None,
+        case_sensitive: false,
+        overview_only: false,
+        exact: true,
+        semantic: false,
+      },
     );
 
     assert!(insensitive_score >= score); // Case insensitive should find more matches
@@ -418,8 +459,13 @@ mod tests {
   fn test_get_exact_match_no_matches() {
     let insight = create_test_insight();
     let terms = vec!["nonexistent".to_string()];
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+      semantic: false,
+    };
 
     let score = get_exact_match(&insight, &terms, &options);
     assert_eq!(score, 0.0);
@@ -429,8 +475,13 @@ mod tests {
   fn test_search_insight_above_threshold() {
     let insight = create_test_insight();
     let terms = vec!["test".to_string()];
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+      semantic: false,
+    };
 
     let result = search_insight(&insight, get_exact_match, &terms, 0.0, &options).unwrap();
 
@@ -447,8 +498,13 @@ mod tests {
   fn test_search_insight_below_threshold() {
     let insight = create_test_insight();
     let terms = vec!["nonexistent".to_string()];
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
+    let options = SearchOptions {
+      topic: None,
+      case_sensitive: false,
+      overview_only: false,
+      exact: true,
+      semantic: false,
+    };
 
     let result = search_insight(&insight, get_exact_match, &terms, 1.0, &options).unwrap();
     assert!(result.is_none());

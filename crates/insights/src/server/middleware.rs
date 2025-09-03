@@ -35,7 +35,13 @@ pub struct RequestContext {
 
 impl RequestContext {
   /// Create a new request context
-  pub fn new(method: Method, uri: Uri, headers: HeaderMap, logger: Arc<DaemonLogs>, lancedb: Arc<LanceDbService>) -> Self {
+  pub fn new(
+    method: Method,
+    uri: Uri,
+    headers: HeaderMap,
+    logger: Arc<DaemonLogs>,
+    lancedb: Arc<LanceDbService>,
+  ) -> Self {
     Self { request_id: Uuid::new_v4(), method, uri, headers, logger, lancedb }
   }
 
@@ -116,7 +122,8 @@ impl RequestContext {
 static GLOBAL_LOGGER: once_cell::sync::OnceCell<Arc<DaemonLogs>> = once_cell::sync::OnceCell::new();
 
 /// Global LanceDB service instance
-static GLOBAL_LANCEDB: once_cell::sync::OnceCell<Arc<LanceDbService>> = once_cell::sync::OnceCell::new();
+static GLOBAL_LANCEDB: once_cell::sync::OnceCell<Arc<LanceDbService>> =
+  once_cell::sync::OnceCell::new();
 
 /// Initialize the global logger
 pub fn init_global_logger(logger: Arc<DaemonLogs>) -> Result<(), Arc<DaemonLogs>> {

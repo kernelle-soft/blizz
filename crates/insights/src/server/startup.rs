@@ -8,15 +8,9 @@ use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
-use crate::server::{
-  middleware::init_global_logger,
-  routing::create_router,
-};
+use crate::server::{middleware::init_global_logger, routing::create_router};
 
-use crate::server::{
-  middleware::init_global_lancedb,
-  services::lancedb::LanceDbService,
-};
+use crate::server::{middleware::init_global_lancedb, services::lancedb::LanceDbService};
 
 /// Start the REST server
 #[cfg(not(tarpaulin_include))] // Skip coverage - server lifecycle and daemon logs initialization
@@ -32,8 +26,9 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
   // Initialize LanceDB service
   let lancedb_path = get_lancedb_data_path();
   let lancedb_service = Arc::new(
-    LanceDbService::new(lancedb_path, "insights_embeddings").await
-      .map_err(|e| anyhow::anyhow!("Failed to initialize LanceDB: {}", e))?
+    LanceDbService::new(lancedb_path, "insights_embeddings")
+      .await
+      .map_err(|e| anyhow::anyhow!("Failed to initialize LanceDB: {}", e))?,
   );
 
   // Initialize global LanceDB service

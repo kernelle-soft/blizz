@@ -167,34 +167,39 @@ impl GTEBase {
 
   async fn ensure_config_files(repo: &hf_hub::api::tokio::ApiRepo) -> Result<()> {
     bentley::info!("Downloading model configuration files...");
-    
+
     // Download essential config files
     let config_files = ["config.json", "generation_config.json", "tokenizer_config.json"];
-    
+
     for config_file in &config_files {
       match repo.get(config_file).await {
         Ok(_) => bentley::info!(&format!("Downloaded {config_file}")),
         Err(e) => bentley::warn!(&format!("Could not download {config_file}: {e}")),
       }
     }
-    
+
     Ok(())
   }
 
-  async fn ensure_external_data_file(model_path: &std::path::Path, repo: &hf_hub::api::tokio::ApiRepo) -> Result<()> {
+  async fn ensure_external_data_file(
+    model_path: &std::path::Path,
+    repo: &hf_hub::api::tokio::ApiRepo,
+  ) -> Result<()> {
     // Check if external data file exists
     let external_data_path = model_path.with_file_name("model.onnx_data");
-    
+
     if !external_data_path.exists() {
       bentley::info!("External data file missing, downloading model.onnx_data...");
-      
+
       // Download the external data file
-      let _external_data_file = repo.get("onnx/model.onnx_data").await
+      let _external_data_file = repo
+        .get("onnx/model.onnx_data")
+        .await
         .map_err(|e| anyhow!("Failed to download external data file: {}", e))?;
-      
+
       bentley::info!("External data file downloaded successfully");
     }
-    
+
     Ok(())
   }
 
@@ -283,7 +288,7 @@ impl GTEBase {
     let input_ids_tensor = Self::to_tensor(tokens.get_ids())?;
     let attention_mask_tensor = Self::to_tensor(tokens.get_attention_mask())?;
     let token_type_ids_tensor = Self::to_tensor(tokens.get_type_ids())?;
-    
+
     // Generate position IDs: [0, 1, 2, ..., seq_len-1]
     let seq_len = tokens.get_ids().len();
     let position_ids: Vec<u32> = (0..seq_len as u32).collect();
@@ -302,7 +307,7 @@ impl GTEBase {
     } else {
       bentley::verbose!("Model doesn't expect token_type_ids, skipping");
     }
-    
+
     if model_input_names.contains(&"position_ids".to_string()) {
       input.insert("position_ids".to_string(), position_ids_tensor);
       bentley::verbose!("Added position_ids for Qwen3 model");
@@ -314,15 +319,20 @@ impl GTEBase {
     Ok(input)
   }
 
-  fn add_past_key_values(input: &mut HashMap<String, Value>, model_input_names: &[String]) -> Result<()> {
+  fn add_past_key_values(
+    input: &mut HashMap<String, Value>,
+    model_input_names: &[String],
+  ) -> Result<()> {
     // Check if model expects past key values (common for CausalLM-based embedding models)
-    let past_key_names: Vec<&String> = model_input_names.iter()
-      .filter(|name| name.starts_with("past_key_values."))
-      .collect();
+    let past_key_names: Vec<&String> =
+      model_input_names.iter().filter(|name| name.starts_with("past_key_values.")).collect();
 
     if !past_key_names.is_empty() {
-      bentley::verbose!(&format!("Adding {} empty past_key_values tensors for CausalLM", past_key_names.len()));
-      
+      bentley::verbose!(&format!(
+        "Adding {} empty past_key_values tensors for CausalLM",
+        past_key_names.len()
+      ));
+
       for past_key_name in past_key_names {
         let empty_tensor = Self::create_empty_past_key_value_tensor()?;
         input.insert(past_key_name.clone(), empty_tensor);
@@ -390,19 +400,21 @@ impl GTEBase {
   pub fn normalize_embedding(mut embedding: Vec<f32>) -> Result<Vec<f32>> {
     // Calculate magnitude (L2 norm)
     let magnitude: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-    
+
     // Avoid division by zero
     if magnitude < f32::EPSILON {
       bentley::warn!("Zero-magnitude embedding detected - returning unchanged");
       return Ok(embedding);
     }
-    
+
     // Normalize to unit length
     for value in embedding.iter_mut() {
       *value /= magnitude;
     }
-    
-    bentley::verbose!(&format!("Normalized embedding from magnitude {magnitude:.6} to unit length"));
+
+    bentley::verbose!(&format!(
+      "Normalized embedding from magnitude {magnitude:.6} to unit length"
+    ));
     Ok(embedding)
   }
 }
@@ -414,13 +426,13 @@ static MODEL: std::sync::OnceLock<Mutex<Option<GTEBase>>> = std::sync::OnceLock:
 #[cfg(not(tarpaulin_include))]
 pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
   let mutex = MODEL.get_or_init(|| Mutex::new(None));
-  
+
   // Check if we need to initialize the model
   let needs_init = {
     let guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
     guard.is_none()
   };
-  
+
   // Initialize model if needed (outside of the lock to avoid holding across await)
   if needs_init {
     bentley::info!("Initializing embedding model...");
@@ -428,7 +440,7 @@ pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
     let mut guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
     *guard = Some(model);
   }
-  
+
   // Get embedding
   let mut guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
   let model = guard.as_mut().ok_or_else(|| anyhow!("Model not initialized"))?;
@@ -1182,16 +1194,16 @@ mod gte_base_tests {
   fn test_normalize_embedding_normal() -> Result<()> {
     let embedding = vec![3.0, 4.0, 0.0]; // magnitude = 5.0
     let result = GTEBase::normalize_embedding(embedding)?;
-    
+
     assert_eq!(result.len(), 3);
     assert!((result[0] - 0.6).abs() < f32::EPSILON); // 3/5
-    assert!((result[1] - 0.8).abs() < f32::EPSILON); // 4/5  
+    assert!((result[1] - 0.8).abs() < f32::EPSILON); // 4/5
     assert!((result[2] - 0.0).abs() < f32::EPSILON); // 0/5
-    
+
     // Check magnitude is now 1.0
     let magnitude: f32 = result.iter().map(|x| x * x).sum::<f32>().sqrt();
     assert!((magnitude - 1.0).abs() < f32::EPSILON);
-    
+
     Ok(())
   }
 
@@ -1200,17 +1212,17 @@ mod gte_base_tests {
   fn test_normalize_embedding_zero_vector() -> Result<()> {
     let embedding = vec![0.0, 0.0, 0.0];
     let result = GTEBase::normalize_embedding(embedding.clone())?;
-    
+
     assert_eq!(result, embedding); // Should be unchanged
     Ok(())
   }
 
   /// Test normalization with unit vector
-  #[test] 
+  #[test]
   fn test_normalize_embedding_unit_vector() -> Result<()> {
     let embedding = vec![1.0, 0.0, 0.0]; // Already unit length
     let result = GTEBase::normalize_embedding(embedding.clone())?;
-    
+
     assert_eq!(result, embedding); // Should be unchanged
     Ok(())
   }
@@ -1220,16 +1232,16 @@ mod gte_base_tests {
   fn test_normalize_embedding_large_values() -> Result<()> {
     let embedding = vec![1000.0, 2000.0]; // magnitude = sqrt(5000000) ≈ 2236
     let result = GTEBase::normalize_embedding(embedding)?;
-    
+
     assert_eq!(result.len(), 2);
-    
+
     // Check magnitude is now 1.0
     let magnitude: f32 = result.iter().map(|x| x * x).sum::<f32>().sqrt();
     assert!((magnitude - 1.0).abs() < f32::EPSILON);
-    
+
     // Check direction is preserved (ratio should be 1:2)
     assert!((result[1] / result[0] - 2.0).abs() < 0.001);
-    
+
     Ok(())
   }
 
@@ -1238,15 +1250,15 @@ mod gte_base_tests {
   fn test_normalize_embedding_negative_values() -> Result<()> {
     let embedding = vec![-3.0, 4.0]; // magnitude = 5.0
     let result = GTEBase::normalize_embedding(embedding)?;
-    
+
     assert_eq!(result.len(), 2);
     assert!((result[0] - (-0.6)).abs() < f32::EPSILON); // -3/5
-    assert!((result[1] - 0.8).abs() < f32::EPSILON);     //  4/5
-    
+    assert!((result[1] - 0.8).abs() < f32::EPSILON); //  4/5
+
     // Check magnitude is now 1.0
     let magnitude: f32 = result.iter().map(|x| x * x).sum::<f32>().sqrt();
     assert!((magnitude - 1.0).abs() < f32::EPSILON);
-    
+
     Ok(())
   }
 }

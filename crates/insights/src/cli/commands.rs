@@ -301,8 +301,9 @@ pub async fn search_insights(
   ensure_server_running().await?;
 
   let client = get_client();
-  let response =
-    client.search_insights(terms.to_vec(), topic, case_sensitive, overview_only, exact, semantic).await?;
+  let response = client
+    .search_insights(terms.to_vec(), topic, case_sensitive, overview_only, exact, semantic)
+    .await?;
 
   display_search_results(&response.results, terms, overview_only);
 

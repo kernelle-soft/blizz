@@ -19,9 +19,10 @@ use crate::server::{middleware::RequestContext, models::insight};
 pub async fn update_insight(
   Extension(context): Extension<RequestContext>,
   Json(request): Json<UpdateInsightRequest>,
-) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
+{
   let transaction_id = Uuid::new_v4();
-  
+
   let mut insight_data = load_existing_insight(&request, transaction_id)?;
   update_insight_with_embedding(&context, &mut insight_data, &request, transaction_id).await
 }
@@ -41,11 +42,11 @@ async fn update_insight_with_embedding(
   insight_data: &mut insight::Insight,
   request: &UpdateInsightRequest,
   transaction_id: Uuid,
-) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
-  
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
+{
   perform_insight_update(insight_data, request, transaction_id)?;
   attempt_embedding_update(context, insight_data).await;
-  
+
   Ok(ResponseJson(BaseResponse::success((), transaction_id)))
 }
 
@@ -75,7 +76,10 @@ async fn attempt_embedding_update(context: &RequestContext, insight: &insight::I
 async fn log_embedding_update_success(context: &RequestContext, insight: &insight::Insight) {
   context
     .log_success(
-      &format!("Successfully updated insight {}/{} with new embedding", insight.topic, insight.name),
+      &format!(
+        "Successfully updated insight {}/{} with new embedding",
+        insight.topic, insight.name
+      ),
       "insights-api",
     )
     .await;
@@ -84,10 +88,7 @@ async fn log_embedding_update_success(context: &RequestContext, insight: &insigh
 /// Log embedding update warning (non-fatal)
 async fn log_embedding_update_warning(context: &RequestContext, error: anyhow::Error) {
   context
-    .log_warn(
-      &format!("Insight updated but embedding update failed: {error}"),
-      "insights-api",
-    )
+    .log_warn(&format!("Insight updated but embedding update failed: {error}"), "insights-api")
     .await;
 }
 
@@ -108,7 +109,8 @@ fn create_insight_update_error(
   error: anyhow::Error,
   transaction_id: Uuid,
 ) -> (axum::http::StatusCode, ResponseJson<BaseResponse<()>>) {
-  let api_error = ApiError::new("insight_update_failed", &format!("Failed to update insight: {error}"));
+  let api_error =
+    ApiError::new("insight_update_failed", &format!("Failed to update insight: {error}"));
   (
     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
     ResponseJson(BaseResponse::<()>::error(vec![api_error], transaction_id)),
@@ -119,9 +121,10 @@ fn create_insight_update_error(
 pub async fn remove_insight(
   Extension(context): Extension<RequestContext>,
   Json(request): Json<RemoveInsightRequest>,
-) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
+{
   let transaction_id = Uuid::new_v4();
-  
+
   let insight_to_delete = load_insight_for_deletion(&request, transaction_id)?;
   delete_insight_with_embedding(&context, &insight_to_delete, &request, transaction_id).await
 }
@@ -141,11 +144,11 @@ async fn delete_insight_with_embedding(
   insight_to_delete: &insight::Insight,
   request: &RemoveInsightRequest,
   transaction_id: Uuid,
-) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
-  
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
+{
   perform_insight_deletion(insight_to_delete, transaction_id)?;
   attempt_embedding_deletion(context, request).await;
-  
+
   Ok(ResponseJson(BaseResponse::success((), transaction_id)))
 }
 
@@ -154,8 +157,7 @@ fn perform_insight_deletion(
   insight_to_delete: &insight::Insight,
   transaction_id: Uuid,
 ) -> Result<(), (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
-  insight::delete(insight_to_delete)
-    .map_err(|e| create_insight_removal_error(e, transaction_id))
+  insight::delete(insight_to_delete).map_err(|e| create_insight_removal_error(e, transaction_id))
 }
 
 /// Attempt to delete embedding (non-fatal if fails)
@@ -183,10 +185,7 @@ async fn log_embedding_deletion_success(context: &RequestContext, request: &Remo
 /// Log embedding deletion warning (non-fatal)
 async fn log_embedding_deletion_warning(context: &RequestContext, error: anyhow::Error) {
   context
-    .log_warn(
-      &format!("Insight deleted but embedding deletion failed: {error}"),
-      "insights-api",
-    )
+    .log_warn(&format!("Insight deleted but embedding deletion failed: {error}"), "insights-api")
     .await;
 }
 
@@ -195,7 +194,8 @@ fn create_insight_removal_error(
   error: anyhow::Error,
   transaction_id: Uuid,
 ) -> (axum::http::StatusCode, ResponseJson<BaseResponse<()>>) {
-  let api_error = ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {error}"));
+  let api_error =
+    ApiError::new("insight_remove_failed", &format!("Failed to remove insight: {error}"));
   (
     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
     ResponseJson(BaseResponse::<()>::error(vec![api_error], transaction_id)),
@@ -204,7 +204,8 @@ fn create_insight_removal_error(
 
 /// DELETE /insights/clear - Clear all insights
 pub async fn clear_insights(
-) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
+{
   let transaction_id = Uuid::new_v4();
 
   // TODO: Implement clear insights using existing logic
@@ -214,7 +215,8 @@ pub async fn clear_insights(
 /// DELETE /insights/index - Re-index all insights (delete existing index and rebuild)
 pub async fn reindex(
   Extension(context): Extension<RequestContext>,
-) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
+{
   let transaction_id = Uuid::new_v4();
 
   context.log_info("Starting insight re-indexing process", "insights-api").await;
@@ -240,27 +242,28 @@ async fn perform_reindexing(context: RequestContext) -> Result<()> {
 }
 
 /// Load all insights from filesystem for re-indexing
-async fn load_all_insights_for_reindexing(context: &RequestContext) -> Result<Vec<insight::Insight>> {
+async fn load_all_insights_for_reindexing(
+  context: &RequestContext,
+) -> Result<Vec<insight::Insight>> {
   context.log_info("Loading all insights for re-indexing", "insights-reindex").await;
-  
-  let all_insights = insight::get_insights(None)
-    .map_err(|e| {
-      // Log error but let caller handle the Result
-      tokio::spawn({
-        let context = context.clone();
-        let error_msg = format!("Failed to load insights: {e}");
-        async move {
-          context.log_error(&error_msg, "insights-reindex").await;
-        }
-      });
-      e
-    })?;
+
+  let all_insights = insight::get_insights(None).map_err(|e| {
+    // Log error but let caller handle the Result
+    tokio::spawn({
+      let context = context.clone();
+      let error_msg = format!("Failed to load insights: {e}");
+      async move {
+        context.log_error(&error_msg, "insights-reindex").await;
+      }
+    });
+    e
+  })?;
 
   let total_insights = all_insights.len();
   context
     .log_info(&format!("Found {total_insights} insights to re-index"), "insights-reindex")
     .await;
-    
+
   Ok(all_insights)
 }
 
@@ -270,7 +273,7 @@ async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
 
   context.lancedb.clear_all_embeddings().await?;
   context.log_info("Cleared existing embeddings from LanceDB", "insights-reindex").await;
-  
+
   Ok(())
 }
 
@@ -283,30 +286,32 @@ struct ReindexingStats {
 }
 
 /// Process all insights for embedding generation
-async fn process_insights_for_embedding(context: &RequestContext, insights: &[insight::Insight]) -> ReindexingStats {
-  let mut stats = ReindexingStats {
-    total: insights.len(),
-    ..Default::default()
-  };
-  
+async fn process_insights_for_embedding(
+  context: &RequestContext,
+  insights: &[insight::Insight],
+) -> ReindexingStats {
+  let mut stats = ReindexingStats { total: insights.len(), ..Default::default() };
+
   for (index, insight) in insights.iter().enumerate() {
     log_progress_if_needed(context, index, &stats).await;
-    
+
     match generate_and_store_embedding(context, insight).await {
       Ok(_) => stats.embedded += 1,
       Err(e) => {
         stats.errors += 1;
-        context.log_warn(
-          &format!("Failed to generate embedding for {}/{}: {}", insight.topic, insight.name, e),
-          "insights-reindex"
-        ).await;
+        context
+          .log_warn(
+            &format!("Failed to generate embedding for {}/{}: {}", insight.topic, insight.name, e),
+            "insights-reindex",
+          )
+          .await;
       }
     }
-    
+
     // Rate limiting to prevent overwhelming embedding service
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
   }
-  
+
   stats
 }
 
@@ -317,7 +322,10 @@ async fn log_progress_if_needed(context: &RequestContext, index: usize, stats: &
       .log_info(
         &format!(
           "Re-indexing progress: {}/{} (embedded: {}, errors: {})",
-          index + 1, stats.total, stats.embedded, stats.errors
+          index + 1,
+          stats.total,
+          stats.embedded,
+          stats.errors
         ),
         "insights-reindex",
       )
@@ -343,7 +351,8 @@ async fn generate_and_store_embedding(
   context: &RequestContext,
   insight: &insight::Insight,
 ) -> Result<()> {
-  let embedding_text = format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details);
+  let embedding_text =
+    format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details);
 
   // Generate embedding using the embedding service
   let embedding = crate::server::services::embeddings::create_embedding(&embedding_text)
@@ -388,9 +397,7 @@ async fn perform_vector_search(
   let threshold = Some(0.5); // with normalized cosine similarity, this captures "more similar than different"
 
   // Perform vector search in LanceDB
-  let similar_results = context.lancedb
-    .search_similar(&query_embedding, limit, threshold)
-    .await?;
+  let similar_results = context.lancedb.search_similar(&query_embedding, limit, threshold).await?;
 
   // Convert LanceDB results to SearchResultData format
   let mut search_results = Vec::new();
@@ -409,10 +416,12 @@ async fn perform_vector_search(
       }
       Err(e) => {
         // Log warning but continue with partial data
-        context.log_warn(
-          &format!("Failed to load full insight {}/{}: {}", result.topic, result.name, e),
-          "insights-search"
-        ).await;
+        context
+          .log_warn(
+            &format!("Failed to load full insight {}/{}: {}", result.topic, result.name, e),
+            "insights-search",
+          )
+          .await;
       }
     }
   }
@@ -422,8 +431,6 @@ async fn perform_vector_search(
 
   Ok(search_results)
 }
-
-
 
 /// GET /insights/list/topics - List all topics
 pub async fn list_topics() -> Result<
@@ -486,12 +493,13 @@ pub async fn list_insights() -> Result<
 pub async fn add_insight(
   Extension(context): Extension<RequestContext>,
   Json(request): Json<AddInsightRequest>,
-) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
+{
   let transaction_id = Uuid::new_v4();
-  
+
   log_insight_addition_start(&context, &request).await;
   let new_insight = create_insight_from_request(request);
-  
+
   save_insight_with_embedding(&context, &new_insight, transaction_id).await
 }
 
@@ -521,13 +529,13 @@ async fn save_insight_with_embedding(
   context: &RequestContext,
   new_insight: &insight::Insight,
   transaction_id: Uuid,
-) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
-  
+) -> Result<ResponseJson<BaseResponse<()>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
+{
   insight::save(new_insight)
     .map_err(|e| create_insight_save_error(context, new_insight, e, transaction_id))?;
-    
+
   attempt_embedding_generation(context, new_insight).await;
-  
+
   Ok(ResponseJson(BaseResponse::success((), transaction_id)))
 }
 
@@ -556,10 +564,7 @@ async fn log_embedding_success(context: &RequestContext, insight: &insight::Insi
 /// Log embedding generation warning (non-fatal)
 async fn log_embedding_warning(context: &RequestContext, error: anyhow::Error) {
   context
-    .log_warn(
-      &format!("Insight saved but embedding storage failed: {error}"),
-      "insights-api",
-    )
+    .log_warn(&format!("Insight saved but embedding storage failed: {error}"), "insights-api")
     .await;
 }
 
@@ -580,7 +585,7 @@ fn create_insight_save_error(
       context.log_error(&error_msg, "insights-api").await;
     }
   });
-  
+
   let api_error = ApiError::new("insight_add_failed", &format!("Failed to add insight: {error}"));
   (
     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
@@ -642,17 +647,20 @@ pub async fn get_insight(
 pub async fn search_insights(
   Extension(context): Extension<RequestContext>,
   Json(request): Json<SearchRequest>,
-) -> Result<ResponseJson<BaseResponse<SearchResponse>>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)>
-{
+) -> Result<
+  ResponseJson<BaseResponse<SearchResponse>>,
+  (axum::http::StatusCode, ResponseJson<BaseResponse<()>>),
+> {
   let transaction_id = Uuid::new_v4();
-  
+
   log_search_start(&context, &request).await;
   let search_options = build_search_options(&request);
-  
-  let mut all_results = perform_term_search(&context, &request, &search_options, transaction_id).await?;
-  
+
+  let mut all_results =
+    perform_term_search(&context, &request, &search_options, transaction_id).await?;
+
   let should_finalize = add_embedding_search_results(&context, &request, &mut all_results).await;
-  
+
   if should_finalize {
     Ok(ResponseJson(finalize_search_results(&context, &request, all_results, transaction_id).await))
   } else {
@@ -690,13 +698,10 @@ async fn perform_term_search(
   search_options: &crate::server::services::search::SearchOptions,
   transaction_id: Uuid,
 ) -> Result<Vec<SearchResultData>, (axum::http::StatusCode, ResponseJson<BaseResponse<()>>)> {
-  
   let search_results = crate::server::services::search::search(&request.terms, search_options)
     .map_err(|e| {
-      let error_response = create_search_error_response(
-        &format!("Term search failed: {e}"),
-        transaction_id
-      );
+      let error_response =
+        create_search_error_response(&format!("Term search failed: {e}"), transaction_id);
       tokio::spawn({
         let context = context.clone();
         let terms = request.terms.clone();
@@ -709,7 +714,10 @@ async fn perform_term_search(
     })?;
 
   context
-    .log_info(&format!("Term search found {} results for {:?}", search_results.len(), request.terms), "insights-api")
+    .log_info(
+      &format!("Term search found {} results for {:?}", search_results.len(), request.terms),
+      "insights-api",
+    )
     .await;
 
   let term_results = convert_search_results_to_api_format(search_results);
@@ -717,7 +725,9 @@ async fn perform_term_search(
 }
 
 /// Convert internal SearchResult to API SearchResultData format
-fn convert_search_results_to_api_format(search_results: Vec<crate::server::services::search::SearchResult>) -> Vec<SearchResultData> {
+fn convert_search_results_to_api_format(
+  search_results: Vec<crate::server::services::search::SearchResult>,
+) -> Vec<SearchResultData> {
   search_results
     .into_iter()
     .map(|result| SearchResultData {
@@ -736,7 +746,6 @@ async fn add_embedding_search_results(
   request: &SearchRequest,
   all_results: &mut Vec<SearchResultData>,
 ) -> bool {
-  
   // Skip embedding search if using exact or semantic-only modes
   if request.exact || request.semantic {
     return true;
@@ -747,7 +756,14 @@ async fn add_embedding_search_results(
     EmbeddingAvailability::Available => {
       if let Ok(embedding_results) = perform_vector_search(context, request).await {
         context
-          .log_info(&format!("Embedding search found {} results for {:?}", embedding_results.len(), request.terms), "insights-api")
+          .log_info(
+            &format!(
+              "Embedding search found {} results for {:?}",
+              embedding_results.len(),
+              request.terms
+            ),
+            "insights-api",
+          )
           .await;
         all_results.extend(embedding_results);
       } else {
@@ -769,24 +785,31 @@ async fn add_embedding_search_results(
 }
 
 /// Check if embeddings are available for search
-async fn check_embeddings_availability(context: &RequestContext, request: &SearchRequest) -> EmbeddingAvailability {
+async fn check_embeddings_availability(
+  context: &RequestContext,
+  request: &SearchRequest,
+) -> EmbeddingAvailability {
   match context.lancedb.has_embeddings().await {
     Ok(true) => {
       context
-        .log_info(&format!("Starting embedding search for {:?} (embeddings exist)", request.terms), "insights-api")
+        .log_info(
+          &format!("Starting embedding search for {:?} (embeddings exist)", request.terms),
+          "insights-api",
+        )
         .await;
       EmbeddingAvailability::Available
     }
     Ok(false) => {
       context
-        .log_info(&format!("Skipping embedding search for {:?} (no embeddings in database)", request.terms), "insights-api")
+        .log_info(
+          &format!("Skipping embedding search for {:?} (no embeddings in database)", request.terms),
+          "insights-api",
+        )
         .await;
       EmbeddingAvailability::Unavailable
     }
     Err(e) => {
-      context
-        .log_error(&format!("Failed to check for embeddings: {e}"), "insights-api")
-        .await;
+      context.log_error(&format!("Failed to check for embeddings: {e}"), "insights-api").await;
       EmbeddingAvailability::Error
     }
   }
@@ -806,7 +829,6 @@ async fn finalize_search_results(
   mut all_results: Vec<SearchResultData>,
   transaction_id: Uuid,
 ) -> BaseResponse<SearchResponse> {
-  
   // Sort and deduplicate results
   all_results.sort_by(|a, b| {
     b.score
