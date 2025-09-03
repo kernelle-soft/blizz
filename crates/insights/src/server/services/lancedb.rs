@@ -122,6 +122,13 @@ impl LanceDbService {
         Ok(())
     }
 
+    /// Check if any embeddings exist in the database
+    pub async fn has_embeddings(&self) -> Result<bool> {
+        let table = self.get_table().await?;
+        let count = table.count_rows(None).await?;
+        Ok(count > 0)
+    }
+
     /// Search for similar embeddings
     pub async fn search_similar(
         &self,
@@ -162,7 +169,7 @@ impl LanceDbService {
             let details_array = batch.column_by_name("details").unwrap().as_any().downcast_ref::<StringArray>().unwrap();
             
             // Distance might be in _distance column
-            let default_distance = 0.1;
+            let default_distance = 0.025;
             
             for i in 0..batch.num_rows() {
                 let distance = if let Some(distance_col) = batch.column_by_name("_distance") {
@@ -173,18 +180,34 @@ impl LanceDbService {
                     } else { default_distance }
                 } else { default_distance };
                 
+                // Convert Euclidean distance to similarity score (0-1 range)
+                // similarity = 1.0 / (1.0 + distance) gives exponential decay
+                let similarity = 1.0 / (1.0 + distance);
+
+                // Optional: Uncomment for debugging distance/similarity values
+                // bentley::info!(&format!("Euclidean distance: {:.3}, Similarity: {:.3}, Threshold: {:?}",
+                //     distance, similarity, threshold));
+
+                // Apply threshold filtering if specified
+                if let Some(thresh) = threshold {
+                    if similarity < thresh {
+                        bentley::info!(&format!("Skipping result: similarity {:.6} < threshold {:.6}", similarity, thresh));
+                        continue; // Skip results below threshold
+                    }
+                }
+
                 search_results.push(EmbeddingSearchResult {
                     id: id_array.value(i).to_string(),
                     topic: topic_array.value(i).to_string(),
                     name: name_array.value(i).to_string(),
                     overview: overview_array.value(i).to_string(),
                     details: details_array.value(i).to_string(),
-                    similarity: 1.0 - distance, // Convert distance to similarity
+                    similarity,
                 });
             }
         }
 
-        bentley::info!(&format!("Found {} similar embeddings", search_results.len()));
+        bentley::info!(&format!("Found {} similar embeddings (threshold: {:?})", search_results.len(), threshold));
         Ok(search_results)
     }
 

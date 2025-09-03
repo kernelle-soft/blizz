@@ -278,11 +278,7 @@ async fn perform_vector_search(
   let limit = 20; // TODO: Make this configurable
 
   // Set similarity threshold based on search mode
-  let threshold = if request.exact {
-    Some(0.9) // High threshold for exact matches
-  } else {
-    Some(0.7) // Lower threshold for semantic matches
-  };
+  let threshold = Some(0.02);
 
   // Perform vector search in LanceDB
   let similar_results = context.lancedb
@@ -523,6 +519,10 @@ pub async fn search_insights(
   // Always perform term-based search (exact or semantic)
   match crate::server::services::search::search(&request.terms, &search_options) {
     Ok(search_results) => {
+      context
+        .log_info(&format!("Term search found {} results for {:?}", search_results.len(), request.terms), "insights-api")
+        .await;
+
       // Convert SearchResult to SearchResultData format
       let term_results: Vec<SearchResultData> = search_results
         .into_iter()
@@ -550,8 +550,36 @@ pub async fn search_insights(
 
   // Add embedding search if using full mode (not exact and not semantic)
   if !request.exact && !request.semantic {
+    // Check if embeddings exist first
+    match context.lancedb.has_embeddings().await {
+      Ok(has_embeddings) => {
+        if has_embeddings {
+          context
+            .log_info(&format!("Starting embedding search for {:?} (embeddings exist)", request.terms), "insights-api")
+            .await;
+        } else {
+          context
+            .log_info(&format!("Skipping embedding search for {:?} (no embeddings in database)", request.terms), "insights-api")
+            .await;
+          // Skip the embedding search entirely
+          return Ok(ResponseJson(BaseResponse::success(
+            SearchResponse { count: all_results.len(), results: all_results },
+            transaction_id
+          )));
+        }
+      }
+      Err(e) => {
+        context
+          .log_error(&format!("Failed to check for embeddings: {}", e), "insights-api")
+          .await;
+      }
+    }
+
     match perform_vector_search(&context, &request).await {
       Ok(embedding_results) => {
+        context
+          .log_info(&format!("Embedding search found {} results for {:?}", embedding_results.len(), request.terms), "insights-api")
+          .await;
         all_results.extend(embedding_results);
       }
       Err(e) => {

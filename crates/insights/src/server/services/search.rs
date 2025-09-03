@@ -95,16 +95,6 @@ pub fn search(terms: &[String], options: &SearchOptions) -> Result<Vec<SearchRes
   Ok(results)
 }
 
-/// Check if semantic search feature can be used
-fn can_use_advanced_search(options: &SearchOptions) -> bool {
-  !options.exact
-}
-
-/// Check if full search (including embeddings) can be used
-fn can_use_full_search(options: &SearchOptions) -> bool {
-  !options.exact && !options.semantic
-}
-
 /// Search a topic for matches based on a search strategy
 fn search_topic(
   terms: &[String],
@@ -339,42 +329,6 @@ mod tests {
     assert!(options.overview_only);
     assert!(!options.exact);
     assert!(options.semantic);
-  }
-
-  #[test]
-  fn test_can_use_advanced_search() {
-    // Should use advanced search when exact is false
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: false };
-    assert!(can_use_advanced_search(&options));
-
-    // Should NOT use advanced search when exact is true
-    let options_exact =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
-    assert!(!can_use_advanced_search(&options_exact));
-  }
-
-  #[test]
-  fn test_can_use_full_search() {
-    // Should use full search when neither exact nor semantic is true
-    let options =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: false };
-    assert!(can_use_full_search(&options));
-
-    // Should NOT use full search when exact is true
-    let options_exact =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: false };
-    assert!(!can_use_full_search(&options_exact));
-
-    // Should NOT use full search when semantic is true
-    let options_semantic =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: false, semantic: true };
-    assert!(!can_use_full_search(&options_semantic));
-
-    // Should NOT use full search when both exact and semantic are true
-    let options_both =
-      SearchOptions { topic: None, case_sensitive: false, overview_only: false, exact: true, semantic: true };
-    assert!(!can_use_full_search(&options_both));
   }
 
   #[test]
