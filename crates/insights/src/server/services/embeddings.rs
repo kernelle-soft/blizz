@@ -155,10 +155,29 @@ impl GTEBase {
     let model_path =
       repo.get(MODEL_FILE).await.map_err(|e| anyhow!("Failed to download ONNX model: {}", e))?;
 
+    // Download config files to understand model architecture
+    Self::ensure_config_files(&repo).await?;
+
     // Check and download external data file if needed
     Self::ensure_external_data_file(&model_path, &repo).await?;
 
     Ok(ModelFiles { tokenizer_file, model_path })
+  }
+
+  async fn ensure_config_files(repo: &hf_hub::api::tokio::ApiRepo) -> Result<()> {
+    bentley::info!("Downloading model configuration files...");
+    
+    // Download essential config files
+    let config_files = ["config.json", "generation_config.json", "tokenizer_config.json"];
+    
+    for config_file in &config_files {
+      match repo.get(config_file).await {
+        Ok(_) => bentley::info!(&format!("Downloaded {}", config_file)),
+        Err(e) => bentley::warn!(&format!("Could not download {}: {}", config_file, e)),
+      }
+    }
+    
+    Ok(())
   }
 
   async fn ensure_external_data_file(model_path: &std::path::Path, repo: &hf_hub::api::tokio::ApiRepo) -> Result<()> {
@@ -288,7 +307,36 @@ impl GTEBase {
       bentley::verbose!("Added position_ids for Qwen3 model");
     }
 
+    // Add past_key_values for CausalLM models (empty for embedding tasks)
+    Self::add_past_key_values(&mut input, &model_input_names)?;
+
     Ok(input)
+  }
+
+  fn add_past_key_values(input: &mut HashMap<String, Value>, model_input_names: &[String]) -> Result<()> {
+    // Check if model expects past key values (common for CausalLM-based embedding models)
+    let past_key_names: Vec<&String> = model_input_names.iter()
+      .filter(|name| name.starts_with("past_key_values."))
+      .collect();
+
+    if !past_key_names.is_empty() {
+      bentley::verbose!(&format!("Adding {} empty past_key_values tensors for CausalLM", past_key_names.len()));
+      
+      for past_key_name in past_key_names {
+        let empty_tensor = Self::create_empty_past_key_value_tensor()?;
+        input.insert(past_key_name.clone(), empty_tensor);
+      }
+    }
+
+    Ok(())
+  }
+
+  fn create_empty_past_key_value_tensor() -> Result<Value> {
+    // Create empty tensor with shape [1, num_heads, 0, head_dim]
+    // For Qwen3: num_heads=8, head_dim=128 (from config)
+    use ndarray::Array4;
+    let empty_array: Array4<f32> = Array4::zeros((1, 8, 0, 128));
+    Ok(Value::from_array(empty_array)?.into())
   }
 
   fn to_tensor<T: Copy + Into<i64>>(values: &[T]) -> Result<Value> {
