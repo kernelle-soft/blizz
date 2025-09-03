@@ -157,7 +157,11 @@ fn extract_record_columns(batch: &RecordBatch) -> Result<RecordColumns<'_>> {
 }
 
 /// Display a single record's information
-fn display_single_record(columns: &RecordColumns<'_>, index: usize, record_count: usize) -> Result<()> {
+fn display_single_record(
+  columns: &RecordColumns<'_>,
+  index: usize,
+  record_count: usize,
+) -> Result<()> {
   println!("\n--- Record {record_count} ---");
   println!("  ID: {}", columns.id_array.value(index));
   println!("  Topic: {}", columns.topic_array.value(index));
