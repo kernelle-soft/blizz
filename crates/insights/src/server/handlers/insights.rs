@@ -746,42 +746,61 @@ async fn add_embedding_search_results(
   request: &SearchRequest,
   all_results: &mut Vec<SearchResultData>,
 ) -> bool {
-  // Skip embedding search if using exact or semantic-only modes
-  if request.exact || request.semantic {
+  if should_skip_embedding_search(request) {
     return true;
   }
 
-  // Check if embeddings exist and perform search
   match check_embeddings_availability(context, request).await {
     EmbeddingAvailability::Available => {
-      if let Ok(embedding_results) = perform_vector_search(context, request).await {
-        context
-          .log_info(
-            &format!(
-              "Embedding search found {} results for {:?}",
-              embedding_results.len(),
-              request.terms
-            ),
-            "insights-api",
-          )
-          .await;
-        all_results.extend(embedding_results);
-      } else {
-        context
-          .log_error(&format!("Embedding search failed for {:?}", request.terms), "insights-api")
-          .await;
-      }
+      execute_embedding_search(context, request, all_results).await;
       true
     }
-    EmbeddingAvailability::Unavailable => {
-      // No embeddings available - skip finalization and return results as-is
-      false
+    EmbeddingAvailability::Unavailable => false,
+    EmbeddingAvailability::Error => true,
+  }
+}
+
+/// Check if embedding search should be skipped
+fn should_skip_embedding_search(request: &SearchRequest) -> bool {
+  request.exact || request.semantic
+}
+
+/// Execute embedding search and handle results
+async fn execute_embedding_search(
+  context: &RequestContext,
+  request: &SearchRequest,
+  all_results: &mut Vec<SearchResultData>,
+) {
+  match perform_vector_search(context, request).await {
+    Ok(embedding_results) => {
+      log_embedding_search_success(context, &embedding_results, &request.terms).await;
+      all_results.extend(embedding_results);
     }
-    EmbeddingAvailability::Error => {
-      // Continue without embeddings on error
-      true
+    Err(_) => {
+      log_embedding_search_failure(context, &request.terms).await;
     }
   }
+}
+
+/// Log successful embedding search
+async fn log_embedding_search_success(
+  context: &RequestContext,
+  results: &[SearchResultData],
+  terms: &[String],
+) {
+  context
+    .log_info(
+      &format!("Embedding search found {} results for {:?}", results.len(), terms),
+      "insights-api",
+    )
+    .await;
+}
+
+/// Log embedding search failure
+async fn log_embedding_search_failure(context: &RequestContext, terms: &[String]) {
+  context
+    .log_error(&format!("Embedding search failed for {:?}", terms), "insights-api")
+    .await;
 }
 
 /// Check if embeddings are available for search
