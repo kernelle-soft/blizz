@@ -854,7 +854,13 @@ async fn finalize_search_results(
       .then_with(|| a.topic.cmp(&b.topic).then_with(|| a.name.cmp(&b.name)))
   });
 
-  all_results.dedup_by(|a, b| a.topic == b.topic && a.name == b.name);
+  // Deduplicate by keeping only the first occurrence of each (topic, name) pair
+  // Since we sorted by score descending, the first occurrence will be the highest scoring
+  let mut seen = std::collections::HashSet::new();
+  all_results.retain(|result| {
+    let key = (result.topic.clone(), result.name.clone());
+    seen.insert(key)
+  });
 
   context
     .log_success(
