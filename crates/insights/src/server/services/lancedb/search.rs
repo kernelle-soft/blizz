@@ -93,7 +93,7 @@ struct BatchColumnArrays<'a> {
 }
 
 /// Extract all column arrays from the result batch
-fn extract_column_arrays_from_batch(batch: &RecordBatch) -> Result<BatchColumnArrays> {
+fn extract_column_arrays_from_batch(batch: &RecordBatch) -> Result<BatchColumnArrays<'_>> {
   let id_array = extract_string_column(batch, "id")?;
   let topic_array = extract_string_column(batch, "topic")?;
   let name_array = extract_string_column(batch, "name")?;
@@ -166,7 +166,7 @@ fn passes_threshold_filter(similarity: f32, threshold: Option<f32>) -> bool {
 
 /// Create EmbeddingSearchResult from column arrays at specific row index
 fn create_search_result_from_arrays(
-  column_arrays: &BatchColumnArrays,
+  column_arrays: &BatchColumnArrays<'_>,
   row_index: usize,
   similarity: f32,
 ) -> EmbeddingSearchResult {
