@@ -69,6 +69,16 @@ runs:
       run: cargo install cargo-tarpaulin --locked
       shell: bash
 
+    - name: Install Protocol Buffers compiler (Linux)
+      if: ${{ runner.os == 'Linux' }}
+      run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      shell: bash
+
+    - name: Install Protocol Buffers compiler (macOS)
+      if: ${{ runner.os == 'macOS' }}
+      run: brew install protobuf
+      shell: bash
+
     - name: Bootstrap blizz
       if: ${{ inputs.skip-bootstrap != 'true' }}
       run: ./scripts/install.sh --non-interactive --from-source
