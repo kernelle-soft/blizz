@@ -94,6 +94,8 @@ rust-audit:
   - cargo audit --deny warnings --deny unmaintained
 rust-test:
   - cargo test --workspace --no-default-features
+rust-test-with-cache:
+  - cargo test --workspace  # Uses full features when cache available
 rust-coverage:
   - > 
     RUSTFLAGS='-C instrument-coverage' cargo tarpaulin 
@@ -104,5 +106,15 @@ rust-coverage:
     --jobs $(nproc) 
     --branch
     --config tarpaulin.toml
-    --no-default-features 
+    --no-default-features
+rust-coverage-with-cache:
+  - > 
+    RUSTFLAGS='-C instrument-coverage' cargo tarpaulin 
+    --workspace 
+    --timeout 300 
+    --out xml 
+    --output-dir coverage 
+    --jobs $(nproc) 
+    --branch
+    --config tarpaulin.toml 
 

@@ -35,7 +35,21 @@ runs:
         restore-keys: |
           ${{ runner.os }}-cargo-registry-
 
-    # Cache target directory
+    # Cache ONNX Runtime binaries (large ML dependencies)
+    - name: Cache ONNX Runtime binaries
+      uses: actions/cache@v4
+      with:
+        path: |
+          target/debug/libonnxruntime*.so
+          target/debug/deps/libonnxruntime*.so
+          target/release/libonnxruntime*.so  
+          target/release/deps/libonnxruntime*.so
+          ~/.cache/ort/
+        key: ${{ runner.os }}-onnx-runtime-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-onnx-runtime-
+
+    # Cache target directory (excluding ONNX binaries for separate management)
     - name: Cache Rust target directory
       uses: actions/cache@v4
       with:
