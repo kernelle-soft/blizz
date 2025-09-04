@@ -93,7 +93,7 @@ rust-build-clean:
 rust-audit:
   - cargo audit --deny warnings --deny unmaintained
 rust-test:
-  - cargo test --workspace
+  - cargo test --workspace --no-default-features
 rust-coverage:
   - > 
     RUSTFLAGS='-C instrument-coverage' cargo tarpaulin 
@@ -103,5 +103,6 @@ rust-coverage:
     --output-dir coverage 
     --jobs $(nproc) 
     --branch
-    --config tarpaulin.toml 
+    --config tarpaulin.toml
+    --no-default-features 
 

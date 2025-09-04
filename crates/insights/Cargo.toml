@@ -63,7 +63,6 @@ futures = "0.3"
 # Neural embeddings via ONNX (v2 API!) with hardware acceleration
 ort = { version = "2.0.0-rc.10", features = [
   "fetch-models",
-  "download-binaries", # Download GPU-enabled ONNX Runtime binaries
   "cuda",      # NVIDIA GPU support
   "coreml",    # macOS CoreML support
 ] }
@@ -87,7 +86,8 @@ name = "inspect_lancedb"
 path = "../../inspect_lancedb.rs"
 
 [features]
-default = []
+default = ["download-onnx-binaries"]
+download-onnx-binaries = ["ort/download-binaries"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
