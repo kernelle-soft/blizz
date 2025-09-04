@@ -34,13 +34,12 @@ tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 bentley = { workspace = true, features = ["daemon-logs", "schemars"] }
-cargo-tarpaulin.workspace = true
 
-serde_yaml = "0.9"
+serde_yaml.workspace = true
 
 # Async runtime for daemon IPC
-tokio = { version = "1.47", features = ["full"] }
-uuid = { version = "1.18", features = ["v4", "serde"] }
+tokio.workspace = true
+uuid.workspace = true
 
 # REST API dependencies
 axum = { version = "0.7", features = ["macros"] }
@@ -49,7 +48,7 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # HTTP client dependencies
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest.workspace = true
 once_cell = "1.17"
 
 # Vector database for embedding storage and similarity search  
@@ -58,7 +57,7 @@ lancedb = { version = "0.21.3", default-features = false }
 # Additional Arrow dependencies for LanceDB data conversion
 arrow = { version = "55", features = ["json"] }
 arrow-json = "55"
-futures = "0.3"
+futures.workspace = true
 
 # Neural embeddings via ONNX (v2 API!) with hardware acceleration
 ort = { version = "2.0.0-rc.10", default-features = false, features = [
@@ -71,7 +70,8 @@ ort = { version = "2.0.0-rc.10", default-features = false, features = [
 ndarray = { version = "0.16" }
 tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
 
-hf-hub = { version = "0.4", features = ["tokio"] }
+# HuggingFace model hub integration (minimized features for CI performance)
+hf-hub = { version = "0.4", default-features = false, features = ["tokio"] }
 safetensors = "0.6"
 
 [dev-dependencies]
@@ -81,7 +81,6 @@ predicates = "3.1"
 serial_test = "3.2"
 tempfile.workspace = true
 mockall.workspace = true
-cargo-tarpaulin.workspace = true
 
 [[bin]]
 name = "inspect_lancedb"

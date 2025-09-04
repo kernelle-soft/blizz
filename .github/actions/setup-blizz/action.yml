@@ -49,7 +49,21 @@ runs:
         restore-keys: |
           ${{ runner.os }}-onnx-runtime-
 
-    # Cache target directory (excluding ONNX binaries for separate management)
+    # Cache heavy ML/database dependencies separately for faster incremental builds
+    - name: Cache heavy dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          target/debug/deps/liblance*.rlib
+          target/debug/deps/libdatafusion*.rlib
+          target/debug/deps/libtantivy*.rlib
+          target/debug/deps/libtokenizers*.rlib
+          target/debug/deps/libhf_hub*.rlib
+        key: ${{ runner.os }}-heavy-deps-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-heavy-deps-
+
+    # Cache target directory (remaining artifacts)  
     - name: Cache Rust target directory
       uses: actions/cache@v4
       with:

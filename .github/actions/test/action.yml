@@ -28,21 +28,18 @@ runs:
       shell: bash
       run: blizz do test
 
-    # Coverage Case: Run tests with coverage reporting
-    - name: Run tests with coverage reporting (with cached binaries)
+    # Coverage Case: Run tests with coverage reporting  
+    - name: Run tests with coverage reporting (optimized compilation)
       if: inputs.report-coverage == 'true'
       shell: bash
+      env:
+        # Reduce parallel compilation to avoid memory pressure and timeouts
+        CARGO_BUILD_JOBS: 2
+        RUSTFLAGS: '-C codegen-units=1'
       run: |
-        # Try with cached binaries first, fall back to no-download mode if timeout
-        if ! timeout 600s blizz do coverage-with-cache; then
-          if [ $? -eq 124 ]; then
-            echo "⚠️ Cached approach timed out, falling back to no-download mode"
-            blizz do coverage
-          else
-            echo "❌ Coverage with cache failed with exit code $?"
-            exit $?
-          fi
-        fi
+        # Use no-download mode with reduced parallelism for reliability
+        echo "🔧 Building with reduced parallelism to prevent timeout..."
+        blizz do coverage
 
     - name: Upload Coverage Reports
       if: inputs.report-coverage == 'true'

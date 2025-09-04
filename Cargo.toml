@@ -42,3 +42,6 @@ regex = "1.11"
 octocrab = "0.44.1"
 mockall = "0.13"
 cargo-tarpaulin = "0.32"
+serde_yaml = "0.9"
+uuid = { version = "1.18", features = ["v4", "serde"] }
+futures = "0.3"
