@@ -85,6 +85,8 @@ rust-format-assert:
   - cargo fmt --all -- --check
 rust-build:
   - cargo build --release
+rust-build-full:
+  - cargo build --release --all-features  # Full ML features for production releases
 rust-clean:
   - cargo clean
 rust-build-clean:

@@ -12,6 +12,7 @@ env:
 jobs:
   test-macos:
     name: Unit Tests (Mac OS)
+    timeout-minutes: 90  # Extended timeout for heavy ML dependencies
     runs-on: macos-14
     if: "!contains(github.event.head_commit.message, '[validated]') && !contains(github.event.head_commit.body, '[validated]')"
 

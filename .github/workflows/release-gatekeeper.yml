@@ -204,6 +204,7 @@ jobs:
   build-binaries:
     name: Build Release Binaries
     needs: create-release
+    timeout-minutes: 90  # Extended timeout for heavy ML dependencies
     strategy:
       fail-fast: false
       matrix:
@@ -233,7 +234,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          key: release-full-features-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
       - name: Install system dependencies (Linux)
@@ -247,8 +248,12 @@ jobs:
         run: |
           brew install protobuf
 
-      - name: Build release binaries
-        run: cargo build --workspace --release --target ${{ matrix.target }}
+      - name: Build release binaries (with full ML features)
+        env:
+          # Reduce parallel compilation to avoid memory pressure
+          CARGO_BUILD_JOBS: 4
+          RUSTFLAGS: '-C codegen-units=1'
+        run: cargo build --workspace --release --target ${{ matrix.target }} --all-features
 
       - name: Prepare binary package
         shell: bash
