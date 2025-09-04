@@ -1,6 +1,8 @@
 //! Insights endpoint handlers
 
-use anyhow::{anyhow, Result};
+#[cfg(feature = "ml-features")]
+use anyhow::anyhow;
+use anyhow::Result;
 use axum::{
   extract::{Extension, Json},
   response::Json as ResponseJson,
@@ -180,6 +182,7 @@ async fn attempt_embedding_deletion(_context: &RequestContext, _request: &Remove
 }
 
 /// Log successful insight deletion with embedding
+#[cfg(feature = "ml-features")]
 async fn log_embedding_deletion_success(context: &RequestContext, request: &RemoveInsightRequest) {
   context
     .log_success(
@@ -190,6 +193,7 @@ async fn log_embedding_deletion_success(context: &RequestContext, request: &Remo
 }
 
 /// Log embedding deletion warning (non-fatal)
+#[cfg(feature = "ml-features")]
 async fn log_embedding_deletion_warning(context: &RequestContext, error: anyhow::Error) {
   context
     .log_warn(&format!("Insight deleted but embedding deletion failed: {error}"), "insights-api")
@@ -886,6 +890,7 @@ async fn check_embeddings_availability(
 }
 
 /// Embedding availability status
+#[allow(dead_code)] // Some variants only used with ml-features
 enum EmbeddingAvailability {
   Available,
   Unavailable,
