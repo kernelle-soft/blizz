@@ -161,6 +161,7 @@ fn perform_insight_deletion(
 }
 
 /// Attempt to delete embedding (non-fatal if fails)
+#[cfg(feature = "ml-features")]
 async fn attempt_embedding_deletion(context: &RequestContext, request: &RemoveInsightRequest) {
   match context.lancedb.delete_embedding(&request.topic, &request.name).await {
     Ok(_) => {
@@ -170,6 +171,12 @@ async fn attempt_embedding_deletion(context: &RequestContext, request: &RemoveIn
       log_embedding_deletion_warning(context, e).await;
     }
   }
+}
+
+/// Attempt to delete embedding (no-op without ml-features)
+#[cfg(not(feature = "ml-features"))]
+async fn attempt_embedding_deletion(_context: &RequestContext, _request: &RemoveInsightRequest) {
+  // No-op: embeddings not available without ml-features
 }
 
 /// Log successful insight deletion with embedding
@@ -268,12 +275,20 @@ async fn load_all_insights_for_reindexing(
 }
 
 /// Clear existing embeddings from LanceDB to start fresh
+#[cfg(feature = "ml-features")]
 async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
   context.log_info("Clearing existing LanceDB table", "insights-reindex").await;
 
   context.lancedb.clear_all_embeddings().await?;
   context.log_info("Cleared existing embeddings from LanceDB", "insights-reindex").await;
 
+  Ok(())
+}
+
+/// Clear existing embeddings (no-op without ml-features)
+#[cfg(not(feature = "ml-features"))]
+async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
+  context.log_info("Skipping embedding clearing (no ML features)", "insights-reindex").await;
   Ok(())
 }
 
@@ -347,6 +362,7 @@ async fn log_reindexing_completion(context: &RequestContext, stats: &ReindexingS
 }
 
 /// Generate embedding for an insight and store it in LanceDB
+#[cfg(feature = "ml-features")]
 async fn generate_and_store_embedding(
   context: &RequestContext,
   insight: &insight::Insight,
@@ -380,7 +396,18 @@ async fn generate_and_store_embedding(
   Ok(())
 }
 
+/// Generate embedding for an insight and store it in LanceDB (no-op without ml-features)
+#[cfg(not(feature = "ml-features"))]
+async fn generate_and_store_embedding(
+  _context: &RequestContext,
+  _insight: &insight::Insight,
+) -> Result<()> {
+  // No-op: ML features not available
+  Ok(())
+}
+
 /// Perform vector similarity search using LanceDB
+#[cfg(feature = "ml-features")]
 async fn perform_vector_search(
   context: &RequestContext,
   request: &SearchRequest,
@@ -430,6 +457,16 @@ async fn perform_vector_search(
   search_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
 
   Ok(search_results)
+}
+
+/// Perform vector similarity search using LanceDB (no-op without ml-features)
+#[cfg(not(feature = "ml-features"))]
+async fn perform_vector_search(
+  _context: &RequestContext,
+  _request: &SearchRequest,
+) -> Result<Vec<SearchResultData>> {
+  // No-op: ML features not available, return empty results
+  Ok(vec![])
 }
 
 /// GET /insights/list/topics - List all topics
@@ -802,6 +839,7 @@ async fn log_embedding_search_failure(context: &RequestContext, terms: &[String]
 }
 
 /// Check if embeddings are available for search
+#[cfg(feature = "ml-features")]
 async fn check_embeddings_availability(
   context: &RequestContext,
   request: &SearchRequest,
@@ -830,6 +868,21 @@ async fn check_embeddings_availability(
       EmbeddingAvailability::Error
     }
   }
+}
+
+/// Check if embeddings are available for search (no-op without ml-features)
+#[cfg(not(feature = "ml-features"))]
+async fn check_embeddings_availability(
+  context: &RequestContext,
+  request: &SearchRequest,
+) -> EmbeddingAvailability {
+  context
+    .log_info(
+      &format!("Skipping embedding search for {:?} (ML features not available)", request.terms),
+      "insights-api",
+    )
+    .await;
+  EmbeddingAvailability::Unavailable
 }
 
 /// Embedding availability status

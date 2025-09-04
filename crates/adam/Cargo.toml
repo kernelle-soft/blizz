@@ -12,7 +12,7 @@ name = "adam"
 path = "src/main.rs"
 
 [dependencies]
-insights = { path = "../insights" }
+insights = { path = "../insights", default-features = false }
 
 clap.workspace = true
 

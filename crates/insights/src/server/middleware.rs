@@ -14,6 +14,7 @@ use bentley::DaemonLogs;
 use std::sync::Arc;
 use uuid::Uuid;
 
+#[cfg(feature = "ml-features")]
 use crate::server::services::lancedb::LanceDbService;
 
 /// Request context containing logger and request metadata
@@ -29,12 +30,14 @@ pub struct RequestContext {
   pub headers: HeaderMap,
   /// Shared logger instance
   pub logger: Arc<DaemonLogs>,
-  /// LanceDB service instance
+  /// LanceDB service instance (only available with ml-features)
+  #[cfg(feature = "ml-features")]
   pub lancedb: Arc<LanceDbService>,
 }
 
 impl RequestContext {
-  /// Create a new request context
+  /// Create a new request context (with ML features)
+  #[cfg(feature = "ml-features")]
   pub fn new(
     method: Method,
     uri: Uri,
@@ -43,6 +46,12 @@ impl RequestContext {
     lancedb: Arc<LanceDbService>,
   ) -> Self {
     Self { request_id: Uuid::new_v4(), method, uri, headers, logger, lancedb }
+  }
+
+  /// Create a new request context (without ML features)  
+  #[cfg(not(feature = "ml-features"))]
+  pub fn new(method: Method, uri: Uri, headers: HeaderMap, logger: Arc<DaemonLogs>) -> Self {
+    Self { request_id: Uuid::new_v4(), method, uri, headers, logger }
   }
 
   /// Log an info message with request context
@@ -121,7 +130,8 @@ impl RequestContext {
 /// Global logger instance
 static GLOBAL_LOGGER: once_cell::sync::OnceCell<Arc<DaemonLogs>> = once_cell::sync::OnceCell::new();
 
-/// Global LanceDB service instance
+/// Global LanceDB service instance (only with ml-features)
+#[cfg(feature = "ml-features")]
 static GLOBAL_LANCEDB: once_cell::sync::OnceCell<Arc<LanceDbService>> =
   once_cell::sync::OnceCell::new();
 
@@ -130,7 +140,8 @@ pub fn init_global_logger(logger: Arc<DaemonLogs>) -> Result<(), Arc<DaemonLogs>
   GLOBAL_LOGGER.set(logger)
 }
 
-/// Initialize the global LanceDB service
+/// Initialize the global LanceDB service (only with ml-features)
+#[cfg(feature = "ml-features")]
 pub fn init_global_lancedb(lancedb: Arc<LanceDbService>) -> Result<(), Arc<LanceDbService>> {
   GLOBAL_LANCEDB.set(lancedb)
 }
@@ -140,7 +151,8 @@ pub fn get_global_logger() -> &'static Arc<DaemonLogs> {
   GLOBAL_LOGGER.get().expect("Global logger should be initialized before use")
 }
 
-/// Get the global LanceDB service instance
+/// Get the global LanceDB service instance (only with ml-features)
+#[cfg(feature = "ml-features")]
 pub fn get_global_lancedb() -> &'static Arc<LanceDbService> {
   GLOBAL_LANCEDB.get().expect("Global LanceDB service should be initialized before use")
 }
@@ -153,9 +165,19 @@ pub async fn request_context_middleware(request: Request, next: Next) -> Respons
   let uri = request.uri().clone();
   let headers = request.headers().clone();
 
-  let lancedb = get_global_lancedb().clone();
+  // Create context conditionally based on ML features availability
+  let context = {
+    #[cfg(feature = "ml-features")]
+    {
+      let lancedb = get_global_lancedb().clone();
+      RequestContext::new(method, uri, headers, logger, lancedb)
+    }
 
-  let context = RequestContext::new(method, uri, headers, logger, lancedb);
+    #[cfg(not(feature = "ml-features"))]
+    {
+      RequestContext::new(method, uri, headers, logger)
+    }
+  };
 
   // Log request start
   let start_time = std::time::Instant::now();

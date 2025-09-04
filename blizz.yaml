@@ -93,7 +93,7 @@ rust-build-clean:
 rust-audit:
   - cargo audit --deny warnings --deny unmaintained
 rust-test:
-  - cargo test --workspace --no-default-features
+  - cargo test --workspace --no-default-features --features ''
 rust-test-with-cache:
   - cargo test --workspace  # Uses full features when cache available
 rust-coverage:
@@ -107,6 +107,7 @@ rust-coverage:
     --branch
     --config tarpaulin.toml
     --no-default-features
+    --features ''
 rust-coverage-with-cache:
   - > 
     RUSTFLAGS='-C instrument-coverage' cargo tarpaulin 
