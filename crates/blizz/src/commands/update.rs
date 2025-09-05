@@ -390,7 +390,6 @@ async fn create_snapshot() -> Result<std::path::PathBuf> {
     "secrets",
     "keeper",
     "violet",
-    "adam",
   ];
   for binary in &binaries {
     let src = Path::new(&install_dir).join(binary);
@@ -568,7 +567,6 @@ async fn perform_rollback(snapshot_path: &Path) -> Result<()> {
       "secrets",
       "keeper",
       "violet",
-      "adam",
     ];
     for binary in &binaries {
       let backup_bin = bins_backup.join(binary);

@@ -11,8 +11,6 @@ branch = true
 forward = true
 
 exclude-files = [
-  "adam/*",
-
   # File-level excludes
   "*/tests/*",
   "*/examples/*",
