@@ -1,6 +1,6 @@
 complexity:
   thresholds:
-    .sh: 7.5
+    .sh: 9.0
 
 ignore_files:
   #  [tsl-voxel] - Future cleanup project

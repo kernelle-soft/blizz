@@ -85,6 +85,8 @@ rust-format-assert:
   - cargo fmt --all -- --check
 rust-build:
   - cargo build --release
+rust-build-full:
+  - cargo build --release --all-features  # Full ML features for production releases
 rust-clean:
   - cargo clean
 rust-build-clean:
@@ -93,8 +95,22 @@ rust-build-clean:
 rust-audit:
   - cargo audit --deny warnings --deny unmaintained
 rust-test:
-  - cargo test --workspace
+  - cargo test --workspace --no-default-features --features ''
+rust-test-with-cache:
+  - cargo test --workspace  # Uses full features when cache available
 rust-coverage:
+  - > 
+    RUSTFLAGS='-C instrument-coverage' cargo tarpaulin 
+    --workspace 
+    --timeout 300 
+    --out xml 
+    --output-dir coverage 
+    --jobs $(nproc) 
+    --branch
+    --config tarpaulin.toml
+    --no-default-features
+    --features ''
+rust-coverage-with-cache:
   - > 
     RUSTFLAGS='-C instrument-coverage' cargo tarpaulin 
     --workspace 

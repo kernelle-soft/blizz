@@ -27,7 +27,7 @@ serde.workspace = true
 serde_json.workspace = true
 
 # For daemon log storage  
-tokio = { version = "1.47", features = ["sync"], optional = true }
+tokio = { workspace = true, optional = true }
 
 # For JSON schema generation
 schemars = { version = "0.8", features = ["chrono"], optional = true }
@@ -35,7 +35,7 @@ schemars = { version = "0.8", features = ["chrono"], optional = true }
 [dev-dependencies]
 tempfile.workspace = true 
 # Additional tokio features needed for async tests
-tokio = { version = "1.47", features = ["test-util", "rt", "macros"] } 
+tokio-test.workspace = true 
 
 [features]
 default = []

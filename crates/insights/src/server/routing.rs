@@ -1,11 +1,13 @@
 //! Axum router configuration for all endpoints
 
 use axum::{
+  middleware,
   routing::{delete, get, post, put},
   Router,
 };
 
 use crate::server::handlers::{insights, logs, status};
+use crate::server::middleware::request_context_middleware;
 
 /// Create the main application router
 pub fn create_router() -> Router {
@@ -26,4 +28,5 @@ pub fn create_router() -> Router {
     .route("/insights/list/topics", get(insights::list_topics))
     .route("/insights/list/insights", get(insights::list_insights))
     .route("/insights/search", post(insights::search_insights))
+    .layer(middleware::from_fn(request_context_middleware))
 }

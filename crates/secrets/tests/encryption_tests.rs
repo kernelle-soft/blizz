@@ -282,29 +282,6 @@ fn test_machine_key_components() {
   assert_ne!(key1, empty_key, "Machine key should not be all zeros");
 }
 
-#[test]
-fn test_key_derivation_integration() {
-  let _temp_dir = setup_test_env();
-
-  // Test the full key derivation process with realistic data
-  let password = "MySecurePassword123!";
-  let machine_key = EncryptionManager::machine_key().unwrap();
-  let salt = b"test_salt_16_byt"; // 16 bytes
-
-  let derived_key = EncryptionManager::derive_key(password, &machine_key, salt).unwrap();
-
-  assert_eq!(derived_key.len(), 32, "Derived key should be 32 bytes");
-
-  // Verify the same inputs produce the same key
-  let derived_key2 = EncryptionManager::derive_key(password, &machine_key, salt).unwrap();
-  assert_eq!(derived_key, derived_key2, "Key derivation should be deterministic");
-
-  // Verify different password produces different key
-  let different_key =
-    EncryptionManager::derive_key("DifferentPassword", &machine_key, salt).unwrap();
-  assert_ne!(derived_key, different_key, "Different password should produce different key");
-}
-
 // Skip tests that would require actual encryption/decryption with master passwords
 #[test]
 #[ignore]

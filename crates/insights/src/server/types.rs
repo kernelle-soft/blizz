@@ -264,6 +264,10 @@ pub struct SearchRequest {
   /// Use exact term matching only
   #[serde(default)]
   pub exact: bool,
+
+  /// Use semantic search (term matching + jaccard similarity, no embedding)
+  #[serde(default)]
+  pub semantic: bool,
 }
 
 /// Search result data
@@ -450,6 +454,7 @@ mod tests {
       case_sensitive: false,
       overview_only: false,
       exact: false,
+      semantic: false,
     };
 
     // These should all be false by default due to #[serde(default)]

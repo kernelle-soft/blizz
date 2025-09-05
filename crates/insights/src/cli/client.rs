@@ -209,10 +209,11 @@ impl InsightsClient {
     case_sensitive: bool,
     overview_only: bool,
     exact: bool,
+    semantic: bool,
   ) -> Result<crate::server::types::SearchResponse> {
     use crate::server::types::SearchRequest;
 
-    let request = SearchRequest { terms, topic, case_sensitive, overview_only, exact };
+    let request = SearchRequest { terms, topic, case_sensitive, overview_only, exact, semantic };
     self.post_json("/insights/search", &request).await
   }
 

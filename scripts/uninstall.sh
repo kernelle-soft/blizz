@@ -99,7 +99,7 @@ cleanup_blizz_directory() {
 # Remove installed binaries
 remove_binaries() {
 	echo "🗑️  Removing binaries from $INSTALL_DIR..."
-	for tool in blizz insights insights_daemon install_insights_cuda_dependencies secrets keeper violet adam; do
+	for tool in blizz insights insights_daemon install_insights_cuda_dependencies secrets keeper violet; do
 		if [ -f "$INSTALL_DIR/$tool" ]; then
 			rm -f "$INSTALL_DIR/$tool"
 			echo "  Removed: $tool"

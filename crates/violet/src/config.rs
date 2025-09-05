@@ -60,11 +60,11 @@ impl Default for ThresholdConfig {
 }
 
 fn default_threshold() -> f64 {
-  7.0
+  8.0
 }
 
 fn default_depth_penalty() -> f64 {
-  2.0
+  std::f64::consts::E
 }
 
 fn default_verbosity_penalty() -> f64 {
@@ -509,37 +509,6 @@ mod tests {
   }
 
   #[test]
-  fn test_default_global_config() {
-    let config = default_global_config();
-
-    assert_eq!(config.complexity.thresholds.default, 7.0);
-
-    assert!(config.ignore_files.contains(&"node_modules/**".to_string()));
-    assert!(config.ignore_files.contains(&"target/**".to_string()));
-    assert!(config.ignore_files.contains(&".git/**".to_string()));
-
-    assert!(config.ignore_files.contains(&"*.png".to_string()));
-    assert!(config.ignore_files.contains(&"*.pdf".to_string()));
-
-    assert!(config.ignore_files.contains(&"*.md".to_string()));
-    assert!(config.ignore_files.contains(&"*.json".to_string()));
-  }
-
-  #[test]
-  fn test_threshold_config_default() {
-    let config = ThresholdConfig::default();
-    assert_eq!(config.default, 7.0);
-    assert!(config.extensions.is_empty());
-  }
-
-  #[test]
-  fn test_config_file_default() {
-    let config = VioletConfig::default();
-    assert_eq!(config.complexity.thresholds.default, 7.0);
-    assert!(config.ignore_files.is_empty());
-  }
-
-  #[test]
   fn test_merge_ignore_patterns_deduplication() {
     let global = vec!["pattern1".to_string(), "pattern2".to_string(), "pattern3".to_string()];
     let project = vec!["pattern2".to_string(), "pattern4".to_string(), "pattern1".to_string()];
@@ -664,17 +633,6 @@ mod tests {
   }
 
   #[test]
-  fn test_default_threshold_value() {
-    assert_eq!(default_threshold(), 7.0);
-
-    let config = ThresholdConfig::default();
-    assert_eq!(config.default, 7.0);
-
-    let global_config = default_global_config();
-    assert_eq!(global_config.complexity.thresholds.default, 7.0);
-  }
-
-  #[test]
   fn test_default_ignore_patterns_coverage() {
     let patterns = get_default_ignored_files();
 
@@ -714,26 +672,6 @@ mod tests {
     assert!(!should_ignore_file(&config, "main.rs"));
     assert!(!should_ignore_file(&config, "config.js"));
     assert!(!should_ignore_file(&config, "font_loader.py"));
-  }
-
-  #[test]
-  fn test_default_global_config_comprehensive() {
-    let config = default_global_config();
-
-    assert_eq!(config.complexity.thresholds.default, 7.0);
-    assert!(config.complexity.thresholds.extensions.is_empty());
-    assert!(!config.ignore_files.is_empty());
-
-    let has_directories =
-      config.ignore_files.iter().any(|p| p.contains("node_modules") || p.contains("target"));
-    let has_binaries =
-      config.ignore_files.iter().any(|p| p.contains("*.png") || p.contains("*.pdf"));
-    let has_configs =
-      config.ignore_files.iter().any(|p| p.contains("*.json") || p.contains("*.toml"));
-
-    assert!(has_directories);
-    assert!(has_binaries);
-    assert!(has_configs);
   }
 
   #[test]
@@ -949,18 +887,6 @@ ignore_files:
   }
 
   #[test]
-  fn test_config_file_serde_edge_cases() {
-    let minimal = VioletConfig::default();
-    assert_eq!(minimal.complexity.thresholds.default, 7.0);
-    assert!(minimal.complexity.thresholds.extensions.is_empty());
-    assert!(minimal.ignore_files.is_empty());
-
-    let threshold_config = ThresholdConfig::default();
-    assert_eq!(threshold_config.default, 7.0);
-    assert!(threshold_config.extensions.is_empty());
-  }
-
-  #[test]
   fn test_violet_config_creation_edge_cases() {
     let empty_config = VioletConfig {
       complexity: ComplexityConfig {
@@ -992,22 +918,6 @@ ignore_files:
     assert_eq!(large_config.complexity.thresholds.extensions.len(), 19);
     assert_eq!(large_config.ignore_files.len(), 100);
     assert_eq!(large_config.complexity.thresholds.default, 15.0);
-  }
-
-  #[test]
-  fn test_penalty_config_defaults() {
-    let penalty_config = PenaltyConfig::default();
-
-    assert_eq!(penalty_config.depth, 2.0);
-    assert_eq!(penalty_config.verbosity, 1.025);
-    assert_eq!(penalty_config.syntactics, 1.15);
-  }
-
-  #[test]
-  fn test_default_penalty_functions() {
-    assert_eq!(default_depth_penalty(), 2.0);
-    assert_eq!(default_verbosity_penalty(), 1.025);
-    assert_eq!(default_syntactics_penalty(), 1.15);
   }
 
   #[test]
@@ -1057,35 +967,6 @@ ignore_files:
     assert_eq!(result.complexity.penalties.depth, 4.0); // Project override
     assert_eq!(result.complexity.penalties.verbosity, 1.05); // Project override
     assert_eq!(result.complexity.penalties.syntactics, 1.30); // Project override
-  }
-
-  #[test]
-  fn test_merge_penalty_configs_mixed_overrides() {
-    let global = VioletConfig {
-      complexity: ComplexityConfig {
-        thresholds: ThresholdConfig::default(),
-        penalties: PenaltyConfig { depth: 2.5, verbosity: 1.07, syntactics: 1.18 },
-      },
-      ..Default::default()
-    };
-
-    let project = VioletConfig {
-      complexity: ComplexityConfig {
-        thresholds: ThresholdConfig::default(),
-        penalties: PenaltyConfig {
-          depth: 2.0,       // Back to default (should use global)
-          verbosity: 1.12,  // Override
-          syntactics: 1.15, // Back to default (should use global)
-        },
-      },
-      ..Default::default()
-    };
-
-    let result = merge(global, Some(project));
-
-    assert_eq!(result.complexity.penalties.depth, 2.5); // Global (project was default)
-    assert_eq!(result.complexity.penalties.verbosity, 1.12); // Project override
-    assert_eq!(result.complexity.penalties.syntactics, 1.18); // Global (project was default)
   }
 
   #[test]

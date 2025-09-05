@@ -204,6 +204,7 @@ jobs:
   build-binaries:
     name: Build Release Binaries
     needs: create-release
+    # Using default 6-hour timeout - issue is likely resource limits, not time
     strategy:
       fail-fast: false
       matrix:
@@ -233,17 +234,80 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          key: release-full-features-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           cache-on-failure: true
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install -y libssl-dev pkg-config
+          sudo apt install -y libssl-dev pkg-config protobuf-compiler
 
-      - name: Build release binaries
-        run: cargo build --workspace --release --target ${{ matrix.target }}
+      - name: Install system dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install protobuf
+
+      - name: Monitor system resources before build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          echo "🔍 System resources before build:"
+          echo "Memory:"
+          free -h
+          echo "Disk usage:"
+          df -h
+          echo "CPU info:"
+          nproc
+          cat /proc/cpuinfo | grep "model name" | head -1
+          echo "Load average:"
+          uptime
+
+      - name: Monitor system resources before build (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "🔍 System resources before build:"
+          echo "Memory:"
+          vm_stat | head -20
+          echo "Disk usage:"
+          df -h
+          echo "CPU info:"
+          sysctl -n hw.ncpu
+          sysctl -n machdep.cpu.brand_string
+          echo "Load average:"
+          uptime
+
+      - name: Build release binaries (with full ML features)
+        env:
+          # Reduce parallel compilation to avoid memory pressure
+          CARGO_BUILD_JOBS: 2  # Even more conservative
+          RUSTFLAGS: '-C codegen-units=1'
+        shell: bash
+        run: |
+          echo "🚀 Starting build with resource monitoring..."
+          
+          # Start background resource monitoring (OS-specific)
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            (while true; do
+              echo "$(date): Memory: $(free -h | grep Mem | awk '{print $3 "/" $2}')"
+              echo "$(date): Load: $(uptime | awk -F'load average:' '{print $2}')"
+              sleep 30
+            done) &
+          else
+            (while true; do
+              echo "$(date): Memory: $(vm_stat | grep 'Pages active' || echo 'N/A')"
+              echo "$(date): Load: $(uptime | awk -F'load average:' '{print $2}' || echo 'N/A')"
+              sleep 30
+            done) &
+          fi
+          MONITOR_PID=$!
+          
+          # Run the actual build
+          cargo build --workspace --release --target ${{ matrix.target }} --all-features
+          
+          # Stop monitoring
+          kill $MONITOR_PID 2>/dev/null || true
+          
+          echo "✅ Build completed successfully"
 
       - name: Prepare binary package
         shell: bash
@@ -262,7 +326,6 @@ jobs:
             "secrets"
             "keeper"
             "violet"
-            "adam"
           )
           
           # Copy binaries to dist directory
@@ -363,7 +426,7 @@ jobs:
             - **Linux x86_64** (`blizz-x86_64-unknown-linux-gnu.tar.gz`) - Compatible with Ubuntu, Debian, and most Linux distributions
             - **macOS ARM64** (`blizz-aarch64-apple-darwin.tar.gz`) - For Apple Silicon Macs
             
-            Each archive contains all Blizz binaries: `blizz`, `insights`, `secrets`, `keeper`, `violet`, `adam`, and support tools.
+            Each archive contains all Blizz binaries: `blizz`, `insights`, `secrets`, `keeper`, `violet`, and support tools.
             
             💡 **Tip**: The install script will automatically detect your platform and use these pre-built binaries for faster installation!
         env:

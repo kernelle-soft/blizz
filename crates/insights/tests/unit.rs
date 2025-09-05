@@ -388,6 +388,7 @@ mod insight_tests {
       case_sensitive: false,
       overview_only: false,
       exact: true, // Use exact search which doesn't require neural features
+      semantic: false,
     };
 
     let results = search::search(&["rust".to_string()], &search_options)?;
