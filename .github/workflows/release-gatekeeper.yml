@@ -204,12 +204,11 @@ jobs:
   build-binaries:
     name: Build Release Binaries
     needs: create-release
-    # Using default 6-hour timeout - issue is likely resource limits, not time
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-latest-8-core
             target: x86_64-unknown-linux-gnu
             artifact-name: blizz-linux-x86_64
             platform-name: "Linux x86_64"
@@ -248,12 +247,26 @@ jobs:
         run: |
           brew install protobuf
 
-      - name: Monitor system resources before build (Linux)
+      - name: Setup resources for release build (Linux)
         if: runner.os == 'Linux'
         run: |
-          echo "🔍 System resources before build:"
+          echo "🧹 Freeing up disk space for release build artifacts..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android  
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          
+          echo "🔄 Adding swap space for memory-intensive ML compilation..."
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          
+          echo "🔍 System resources on runner after setup:"
           echo "Memory:"
           free -h
+          echo "Swap:"
+          swapon --show
           echo "Disk usage:"
           df -h
           echo "CPU info:"
@@ -278,8 +291,8 @@ jobs:
 
       - name: Build release binaries (with full ML features)
         env:
-          # Reduce parallel compilation to avoid memory pressure
-          CARGO_BUILD_JOBS: 2  # Even more conservative
+          # Use more cores on Linux 8-core runner, conservative on macOS
+          CARGO_BUILD_JOBS: ${{ runner.os == 'Linux' && '4' || '2' }}
           RUSTFLAGS: '-C codegen-units=1'
         shell: bash
         run: |
@@ -289,7 +302,9 @@ jobs:
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             (while true; do
               echo "$(date): Memory: $(free -h | grep Mem | awk '{print $3 "/" $2}')"
+              echo "$(date): Swap: $(free -h | grep Swap | awk '{print $3 "/" $2}')"
               echo "$(date): Load: $(uptime | awk -F'load average:' '{print $2}')"
+              echo "$(date): Disk: $(df -h / | tail -1 | awk '{print $4 " available"}')"
               sleep 30
             done) &
           else
