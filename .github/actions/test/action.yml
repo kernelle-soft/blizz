@@ -29,6 +29,21 @@ runs:
       run: blizz do test
 
     # Coverage Case: Run tests with coverage reporting  
+    - name: Monitor system resources before coverage build
+      if: inputs.report-coverage == 'true'
+      shell: bash
+      run: |
+        echo "🔍 System resources before coverage build:"
+        echo "Memory:"
+        free -h
+        echo "Disk usage:"
+        df -h
+        echo "CPU info:"
+        nproc
+        cat /proc/cpuinfo | grep "model name" | head -1
+        echo "Load average:"
+        uptime
+    
     - name: Run tests with coverage reporting (optimized compilation)
       if: inputs.report-coverage == 'true'
       shell: bash
@@ -37,9 +52,24 @@ runs:
         CARGO_BUILD_JOBS: 2
         RUSTFLAGS: '-C codegen-units=1'
       run: |
-        # Use no-download mode with reduced parallelism for reliability
         echo "🔧 Building with reduced parallelism to prevent timeout..."
+        
+        # Start background resource monitoring
+        (while true; do
+          echo "$(date): Memory: $(free -h | grep Mem | awk '{print $3 "/" $2}')"
+          echo "$(date): Load: $(uptime | awk -F'load average:' '{print $2}')"
+          echo "$(date): Disk: $(df -h / | tail -1 | awk '{print $4 " available"}')"
+          sleep 30
+        done) &
+        MONITOR_PID=$!
+        
+        # Run the actual coverage build
         blizz do coverage
+        
+        # Stop monitoring
+        kill $MONITOR_PID 2>/dev/null || true
+        
+        echo "✅ Coverage build completed successfully"
 
     - name: Upload Coverage Reports
       if: inputs.report-coverage == 'true'
