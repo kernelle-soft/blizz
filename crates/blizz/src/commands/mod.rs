@@ -1,5 +1,6 @@
 pub mod add;
 pub mod r#do;
+pub mod insights;
 pub mod remove;
 pub mod retrieve;
 pub mod secrets;

@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{command, Parser, Subcommand};
 use commands::secrets::SecretsCommands;
+use commands::insights::InsightsCommands;
 use std::process;
 
 mod commands;
@@ -91,6 +92,11 @@ enum Commands {
     #[arg(long, global = true)]
     quiet: bool,
   },
+  /// Manage insights and knowledge base
+  Insights {
+    #[command(subcommand)]
+    command: InsightsCommands,
+  },
 }
 
 #[tokio::main]
@@ -125,6 +131,9 @@ async fn main() -> Result<()> {
     }
     Commands::Secrets { command, quiet: _ } => {
       commands::secrets::handle_secrets_command(command).await
+    }
+    Commands::Insights { command } => {
+      commands::insights::handle_insights_command(command).await
     }
   }
 }
