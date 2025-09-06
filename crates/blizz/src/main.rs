@@ -30,18 +30,6 @@ enum Commands {
     #[arg(default_value = ".")]
     dir: String,
   },
-  /// Store a credential or secret
-  Store {
-    /// The key to store the value under
-    key: String,
-    /// The value to store (will prompt if not provided)
-    value: Option<String>,
-  },
-  /// Retrieve a stored credential or secret
-  Retrieve {
-    /// The key to retrieve
-    key: String,
-  },
   /// Run a task from the tasks file
   Do {
     /// The task name to run
@@ -100,8 +88,6 @@ async fn main() -> Result<()> {
   match cli.command {
     Commands::Add { dir } => commands::add::execute(&dir).await,
     Commands::Remove { dir } => commands::remove::execute(&dir).await,
-    Commands::Store { key, value } => commands::store::execute(&key, value.as_deref()).await,
-    Commands::Retrieve { key } => commands::retrieve::execute(&key).await,
     Commands::Do { name, args, silent, file, color, no_color } => {
       execute_task(&name, &args, silent, file, color, no_color).await
     }
