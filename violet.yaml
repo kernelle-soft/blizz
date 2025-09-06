@@ -6,6 +6,9 @@ ignore_files:
   #  [tsl-voxel] - Future cleanup project
   - "crates/secrets/**"
   - "crates/blizz/**"
+  - "target/**"
+  - "*.toml"
+  - "*.yaml"
   - LICENSE
   - README.md
 

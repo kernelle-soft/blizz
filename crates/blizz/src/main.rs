@@ -18,14 +18,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-  /// Add Blizz rules and workflows to a directory
-  Add {
+  /// Link Blizz rules and workflows to a directory
+  Link {
     /// Target directory (defaults to current directory)
     #[arg(default_value = ".")]
     dir: String,
   },
-  /// Remove Blizz rules and workflows from a directory
-  Remove {
+  /// Unlink Blizz rules and workflows from a directory
+  Unlink {
     /// Target directory (defaults to current directory)
     #[arg(default_value = ".")]
     dir: String,
@@ -86,8 +86,8 @@ async fn main() -> Result<()> {
   let cli = Cli::parse();
 
   match cli.command {
-    Commands::Add { dir } => commands::add::execute(&dir).await,
-    Commands::Remove { dir } => commands::remove::execute(&dir).await,
+    Commands::Link { dir } => commands::link::execute(&dir).await,
+    Commands::Unlink { dir } => commands::unlink::execute(&dir).await,
     Commands::Do { name, args, silent, file, color, no_color } => {
       execute_task(&name, &args, silent, file, color, no_color).await
     }
