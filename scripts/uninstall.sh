@@ -84,7 +84,7 @@ remove_cursor_symlinks() {
 
 # Clean up the blizz directory
 cleanup_blizz_directory() {
-	echo "🗂️  Cleaning ~/.blizz directory..."
+	echo "Cleaning ~/.blizz directory..."
 	if [ -d "$BLIZZ_HOME" ]; then
 		# Clean up uninstaller files (but keep persistent data)
 		rm -f "$BLIZZ_HOME/uninstall.sh" 2>/dev/null || true
@@ -98,7 +98,7 @@ cleanup_blizz_directory() {
 
 # Remove installed binaries
 remove_binaries() {
-	echo "🗑️  Removing binaries from $INSTALL_DIR..."
+	echo "Removing binaries from $INSTALL_DIR..."
 	for tool in blizz insights insights_daemon install_insights_cuda_dependencies secrets keeper violet; do
 		if [ -f "$INSTALL_DIR/$tool" ]; then
 			rm -f "$INSTALL_DIR/$tool"
@@ -110,20 +110,20 @@ remove_binaries() {
 # Show cleanup completion message
 show_cleanup_completion() {
 	echo ""
-	echo "✅ Blizz cleanup completed!"
+	echo "Blizz cleanup completed!"
 	echo ""
 	echo "📝 Don't forget to:"
 	echo "1. Remove 'source ~/.blizz.source' from your shell configuration"
 	echo "2. Reload your shell to stop seeing the warning message"
 	echo ""
-	echo "Your insights and other customizations remain safely stored in ~/.blizz/persistent/"
+	echo "Your insights and other customizations are still stored in ~/.blizz/persistent/ for safe keeping"
 	echo ""
 	echo "👋 Goodbye!"
 }
 
 # Main uninstall function
 main() {
-	echo "🧹 Blizz Cleanup..."
+	echo "Uninstalling Blizz..."
 	echo ""
 	
 	setup_cleanup_configuration
