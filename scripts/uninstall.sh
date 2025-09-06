@@ -13,7 +13,7 @@ show_cleanup_usage() {
 	echo "Options:"
 	echo "  --help, -h          Show this help message"
 	echo ""
-	echo "Note: insights and credentials are preserved by default."
+	echo "Note: thoughts and credentials are preserved by default."
 }
 
 # Handle help and unknown options
@@ -99,7 +99,7 @@ cleanup_blizz_directory() {
 # Remove installed binaries
 remove_binaries() {
 	echo "Removing binaries from $INSTALL_DIR..."
-	for tool in blizz insights insights_daemon install_insights_cuda_dependencies secrets keeper violet; do
+	for tool in blizz thoughts thoughts_server install_thoughts_cuda_dependencies secrets keeper violet; do
 		if [ -f "$INSTALL_DIR/$tool" ]; then
 			rm -f "$INSTALL_DIR/$tool"
 			echo "  Removed: $tool"
@@ -116,7 +116,7 @@ show_cleanup_completion() {
 	echo "1. Remove 'source ~/.blizz.source' from your shell configuration"
 	echo "2. Reload your shell to stop seeing the warning message"
 	echo ""
-	echo "Your insights and other customizations are still stored in ~/.blizz/persistent/ for safe keeping"
+	echo "Your thoughts and other customizations are still stored in ~/.blizz/persistent/ for safe keeping"
 	echo ""
 	echo "👋 Goodbye!"
 }

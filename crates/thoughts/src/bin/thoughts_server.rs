@@ -8,11 +8,11 @@ use clap::Parser;
 use std::net::SocketAddr;
 use tracing::Level;
 
-use insights::server::startup::start_server;
+use thoughts::server::startup::start_server;
 
 #[derive(Parser)]
-#[command(name = "insights_server")]
-#[command(about = "Insights REST API Server")]
+#[command(name = "thoughts_server")]
+#[command(about = "Thoughts REST API Server")]
 #[command(version = concat!(env!("CARGO_PKG_VERSION"), ", courtesy of Blizz and Kernelle Software"))]
 struct Args {
   /// Server bind address  

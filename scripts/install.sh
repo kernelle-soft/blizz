@@ -268,8 +268,8 @@ setup_shell_integration() {
 configure_gpu_acceleration() {
 	echo "Configuring GPU acceleration dependencies..."
 	# Run CUDA dependency checker if the binary was installed
-	if command -v install_insights_cuda_dependencies >/dev/null 2>&1; then
-		install_insights_cuda_dependencies || echo "⚠️  GPU setup encountered issues - CPU inference will be used"
+	if command -v install_thoughts_cuda_dependencies >/dev/null 2>&1; then
+		install_thoughts_cuda_dependencies || echo "⚠️  GPU setup encountered issues - CPU inference will be used"
 	else
 		echo "⚠️  CUDA dependency checker not found - skipping GPU setup"
 	fi
@@ -309,7 +309,7 @@ show_success_message() {
 	echo ""
 	echo "3. Test the installation:"
 	echo "   blizz --help"
-	echo "   insights --help"
+	echo "   thoughts --help"
 	echo "   violet --help"
 	echo ""
 	echo "4. To uninstall later, run:"

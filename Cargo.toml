@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/bentley", 
-    "crates/insights",
+    "crates/bentley",
+    "crates/thoughts",
     "crates/blizz",
     "crates/secrets",
     "crates/violet"

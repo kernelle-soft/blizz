@@ -1,5 +1,5 @@
 [package]
-name = "insights"
+name = "thoughts"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,20 +8,20 @@ repository.workspace = true
 description = "Knowledge management and insight storage system"
 
 [lib]
-name = "insights"
+name = "thoughts"
 path = "src/lib.rs"
 
 [[bin]]
-name = "insights"
+name = "thoughts"
 path = "src/main.rs"
 
 [[bin]]
-name = "install_insights_cuda_dependencies"
-path = "src/bin/install_insights_cuda_dependencies.rs"
+name = "install_thoughts_cuda_dependencies"
+path = "src/bin/install_thoughts_cuda_dependencies.rs"
 
 [[bin]]
-name = "insights_server"
-path = "src/bin/insights_server.rs"
+name = "thoughts_server"
+path = "src/bin/thoughts_server.rs"
 
 [dependencies]
 clap.workspace = true

@@ -13,10 +13,10 @@ command = ["cargo", "install", "--path", "crates/violet", "--force"]
 need_stdout = false
 watch = ["crates/violet/"]
 
-[jobs.insights]
-command = ["cargo", "install", "--path", "crates/insights", "--force"]
+[jobs.thoughts]
+command = ["cargo", "install", "--path", "crates/thoughts", "--force"]
 need_stdout = false
-watch = ["crates/insights/"]
+watch = ["crates/thoughts/"]
 
 [jobs.secrets]
 command = ["cargo", "install", "--path", "crates/secrets", "--force"]
