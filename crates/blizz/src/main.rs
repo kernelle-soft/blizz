@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::{command, Parser, Subcommand};
+use commands::insights::InsightsCommands;
 use commands::secrets::SecretsCommands;
 use std::process;
 
@@ -7,9 +8,9 @@ mod commands;
 
 #[derive(Parser)]
 #[command(name = "blizz")]
-#[command(about = "It takes a village.
-
-Blizz is a tool for managing projects from a personal perspective, enabling you to work together with AI agents more effectively")]
+#[command(
+  about = "An AI toolset for ingesting and managing domain knowledge. Pull in project knowledge from anywhere your AI setup can see and use it to become a subject matter expert in the areas people count on you for."
+)]
 #[command(version)]
 struct Cli {
   #[command(subcommand)]
@@ -79,6 +80,11 @@ enum Commands {
     #[arg(long, global = true)]
     quiet: bool,
   },
+  /// Manage thoughts and knowledge base
+  Thoughts {
+    #[command(subcommand)]
+    command: InsightsCommands,
+  },
 }
 
 #[tokio::main]
@@ -112,6 +118,7 @@ async fn main() -> Result<()> {
     Commands::Secrets { command, quiet: _ } => {
       commands::secrets::handle_secrets_command(command).await
     }
+    Commands::Thoughts { command } => commands::insights::handle_insights_command(command).await,
   }
 }
 

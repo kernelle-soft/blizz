@@ -24,6 +24,7 @@ chrono.workspace = true
 secrets = { path = "../secrets" }
 rpassword = "7.0"
 bentley = { path = "../bentley" }
+insights = { path = "../insights" }
 
 [dev-dependencies]
 tempfile = "3.0"
