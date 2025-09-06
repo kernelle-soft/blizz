@@ -114,16 +114,16 @@ download_prebuilt_binaries() {
 	local download_url
 	local temp_dir
 	
-	echo "🔍 Detecting platform..."
+	echo "Detecting platform..."
 	platform_archive=$(detect_platform) || return 1
-	echo "✅ Detected platform archive: $platform_archive"
+	echo "Detected platform archive: $platform_archive"
 	
-	echo "🔍 Getting latest release version..."
+	echo "Getting latest release version..."
 	version=$(get_latest_version) || return 1
-	echo "✅ Latest version: $version"
+	echo "Latest version: $version"
 	
 	download_url="https://github.com/kernelle-soft/blizz/releases/download/$version/$platform_archive"
-	echo "📥 Downloading: $download_url"
+	echo "Downloading: $download_url"
 	
 	temp_dir=$(mktemp -d)
 	trap "rm -rf '$temp_dir'" EXIT
@@ -143,14 +143,14 @@ download_prebuilt_binaries() {
 		return 1
 	fi
 	
-	echo "📦 Extracting binaries to $INSTALL_DIR/bin..."
+	echo "Extracting binaries to $INSTALL_DIR/bin..."
 	mkdir -p "$INSTALL_DIR/bin"
 	tar -xzf "$temp_dir/$platform_archive" -C "$INSTALL_DIR/bin" || {
 		echo "❌ Failed to extract $platform_archive" >&2
 		return 1
 	}
 	
-	echo "✅ Pre-built binaries installed successfully"
+	echo "Pre-built binaries downdloaded"
 	return 0
 }
 
@@ -158,11 +158,11 @@ download_prebuilt_binaries() {
 
 # Build from source using cargo (minimal version for CI)
 build_from_source() {
-	echo "🔨 Building from source..."
+	echo "Building from source..."
 	
 	cd "$REPO_ROOT"
 	
-	echo "📦 Installing binaries from source..."
+	echo "Installing binaries from source..."
 	# Install all binary crates using cargo install --path
 	for crate_dir in crates/*/; do
 		if [ -d "$crate_dir" ]; then
@@ -177,20 +177,20 @@ build_from_source() {
 		fi
 	done
 	
-	echo "✅ Source build completed successfully"
+	echo "Source build completed successfully"
 }
 
 # Install binaries using pre-built binaries or source build
 install_binaries() {
 	if [ "$FORCE_SOURCE_BUILD" = true ]; then
-		echo "🔧 Building from source (requested via --from-source)"
+		echo "Building from source (requested via --from-source)"
 		build_from_source
 		return $?
 	fi
 	
-	echo "🚀 Installing pre-built binaries..."
+	echo "Installing pre-built binaries..."
 	if download_prebuilt_binaries; then
-		echo "✅ Pre-built binaries installed successfully"
+		echo "Pre-built binaries installed successfully"
 		return 0
 	else
 		echo "❌ Failed to install pre-built binaries"
@@ -216,7 +216,7 @@ setup_configuration() {
 
 # Create necessary directories
 create_directories() {
-	echo "📁 Creating directories..."
+	echo "Creating directories..."
 	mkdir -p "$BLIZZ_HOME/persistent/keeper"
 	mkdir -p "$BLIZZ_HOME/volatile"
 }
@@ -235,7 +235,7 @@ get_script_paths() {
 
 # Setup workflow configuration files
 setup_workflows() {
-	echo "📋 Setting up workflows..."
+	echo "Setting up workflows..."
 	# Copy .cursor rules to ~/.blizz/volatile/.cursor
 	if [ -d "$REPO_ROOT/.cursor" ]; then
 		cp -r "$REPO_ROOT/.cursor" "$BLIZZ_HOME/volatile/"
@@ -249,7 +249,7 @@ setup_workflows() {
 setup_shell_integration() {
 	# Copy blizz.source template to ~/.blizz/ only if it doesn't exist
 	if [ ! -f "$HOME/.blizz.source" ]; then
-		echo "🔗 Setting up shell source files..."
+		echo "Setting up shell source files..."
 		cp "$SCRIPT_DIR/templates/blizz.source.template" "$HOME/.blizz.source"
 	else
 		echo "~/.blizz.source already exists - keeping existing file"
@@ -266,7 +266,7 @@ setup_shell_integration() {
 
 # Configure GPU acceleration dependencies
 configure_gpu_acceleration() {
-	echo "🎯 Configuring GPU acceleration dependencies..."
+	echo "Configuring GPU acceleration dependencies..."
 	# Run CUDA dependency checker if the binary was installed
 	if command -v install_insights_cuda_dependencies >/dev/null 2>&1; then
 		install_insights_cuda_dependencies || echo "⚠️  GPU setup encountered issues - CPU inference will be used"
@@ -278,7 +278,7 @@ configure_gpu_acceleration() {
 
 # Setup uninstaller and related templates
 setup_uninstaller() {
-	echo "📝 Setting up uninstaller..."
+	echo "Setting up uninstaller..."
 	
 	# Copy uninstaller script to BLIZZ_HOME only if it doesn't exist
 	if [ ! -f "$BLIZZ_HOME/uninstall.sh" ]; then
@@ -299,7 +299,7 @@ setup_uninstaller() {
 
 # Show installation success message
 show_success_message() {
-	echo "✅ Blizz installed successfully!"
+	echo "Blizz installed successfully!"
 	echo ""
 	echo "📝 Next steps:"
 	echo "1. Add the following line to your shell configuration (~/.bashrc, ~/.zshrc, etc.):"
@@ -320,13 +320,13 @@ show_success_message() {
 
 # Main installation function
 main() {
-	echo "🚀 Installing Blizz..."
+	echo "Installing Blizz..."
 	
 	setup_configuration
 	create_directories
 	get_script_paths
 	
-	echo "🔨 Installing Blizz tools..."
+	echo "Installing Blizz tools..."
 	
 	# Install pre-built binaries
 	install_binaries || {
