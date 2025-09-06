@@ -1,6 +1,6 @@
-pub mod add;
+pub mod link;
 pub mod r#do;
-pub mod remove;
+pub mod unlink;
 pub mod secrets;
 pub mod update;
 pub mod version;
