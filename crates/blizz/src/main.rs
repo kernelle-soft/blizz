@@ -1,14 +1,16 @@
 use anyhow::Result;
 use clap::{command, Parser, Subcommand};
-use commands::secrets::SecretsCommands;
 use commands::insights::InsightsCommands;
+use commands::secrets::SecretsCommands;
 use std::process;
 
 mod commands;
 
 #[derive(Parser)]
 #[command(name = "blizz")]
-#[command(about = "An AI toolset for ingesting and managing domain knowledge. Pull in project knowledge from anywhere your AI setup can see and use it to become a subject matter expert in the areas people count on you for.")]
+#[command(
+  about = "An AI toolset for ingesting and managing domain knowledge. Pull in project knowledge from anywhere your AI setup can see and use it to become a subject matter expert in the areas people count on you for."
+)]
 #[command(version)]
 struct Cli {
   #[command(subcommand)]
@@ -130,9 +132,7 @@ async fn main() -> Result<()> {
     Commands::Secrets { command, quiet: _ } => {
       commands::secrets::handle_secrets_command(command).await
     }
-    Commands::Thoughts { command } => {
-      commands::insights::handle_insights_command(command).await
-    }
+    Commands::Thoughts { command } => commands::insights::handle_insights_command(command).await,
   }
 }
 
