@@ -105,11 +105,12 @@ rust-coverage:
     --timeout 300 
     --out xml 
     --output-dir coverage 
-    --jobs $(nproc) 
+    --jobs 4
     --branch
     --config tarpaulin.toml
     --no-default-features
     --features ''
+    --release
 rust-coverage-with-cache:
   - > 
     RUSTFLAGS='-C instrument-coverage' cargo tarpaulin 
@@ -117,7 +118,7 @@ rust-coverage-with-cache:
     --timeout 300 
     --out xml 
     --output-dir coverage 
-    --jobs $(nproc) 
+    --jobs 4
     --branch
     --config tarpaulin.toml 
 
