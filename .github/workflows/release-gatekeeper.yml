@@ -320,8 +320,8 @@ jobs:
           # Define binary names (without .exe extension)
           BINARIES=(
             "blizz"
-            "insights" 
-            "insights_embedding_daemon"
+            "insights"
+            "insights_server"
             "install_insights_cuda_dependencies"
             "secrets"
             "keeper"
