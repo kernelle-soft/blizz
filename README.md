@@ -10,13 +10,17 @@
 
 It's an artificial intelligence gold rush, and let's be honest, there are a heck of a lot of shovels piling up.
 
-Instead of building yet another shovel to throw on the pile, this repository is essentially a cohesive toolshed to actually take advantage of AI properly. This isn't vibe coding. It's an entire ecosystem designed to make integrating AI into real world development a practical reality.
+Most AI dev tools are either toys or are disruptive to real development workflows due to security concerns, speed concerns, and quality concerns.
 
-This suite provides semantically programmed agent rulesets that leverage a host of small, focused CLIs that are both human friendly and usable by reasoning models.
+Instead of building yet another useless shovel to throw on the pile, this repository is essentially a cohesive toolshed to actually take advantage of existing AI-aided development strategies. It's designed to synergize with tools like Cursor. This isn't vibe coding. Blizz is a _context engineering pipeline_--an entire ecosystem designed to make automatic code generation a reality for real world development.
 
-This toolshed's been designed and tested with strict standards to keep real-world development needs in mind, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts.
+This suite provides semantically programmed agent rulesets that leverage a host of small, focused context management CLIs designed for humans and machines.
 
-Most importantly, Blizz is designed to have effectively no footprint on existing repositories. Everything needed to supercharge AI to work with a repository lives either under a single folder at the project level that can be added to the project's `.gitignore`, or under `~/.blizz`, where it can be carried from project to project as needed.
+This toolshed's tested with strict standards to keep real-world development needs in mind, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts.
+
+Most importantly, Blizz is 100% local.
+
+It's designed to have effectively no footprint on existing repositories. Everything needed to supercharge AI to work with your codebase lives either under a single folder at the project level that can be added to the project's `.gitignore`, or under `~/.blizz`, where it can be carried from project to project as needed.
 
 ## Setup
 
