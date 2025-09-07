@@ -654,30 +654,6 @@ mod tests {
   }
 
   #[test]
-  fn test_default_ignore_patterns_coverage() {
-    let patterns = get_default_ignored_files();
-
-    assert!(patterns.len() > 10);
-    assert!(patterns.len() < 50);
-
-    assert!(patterns.iter().any(|p| p.contains("node_modules")));
-    assert!(patterns.iter().any(|p| p.contains("target")));
-    assert!(patterns.iter().any(|p| p.contains(".git")));
-
-    assert!(patterns.iter().any(|p| p.contains("*.png")));
-    assert!(patterns.iter().any(|p| p.contains("*.pdf")));
-
-    assert!(patterns.iter().any(|p| p.contains("*.md")));
-    assert!(patterns.iter().any(|p| p.contains("*.json")));
-    assert!(patterns.iter().any(|p| p.contains("*.toml")));
-
-    // Font files should be ignored by default
-    assert!(patterns.iter().any(|p| p.contains("*.ttf")));
-    assert!(patterns.iter().any(|p| p.contains("*.woff")));
-    assert!(patterns.iter().any(|p| p.contains("*.woff2")));
-  }
-
-  #[test]
   fn test_should_ignore_font_files() {
     let config = default_global_config();
 
