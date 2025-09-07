@@ -88,19 +88,29 @@ detect_platform() {
 # Get the latest release version from GitHub
 get_latest_version() {
 	local version
+	local json_response
 	
   latest_url="https://api.github.com/repos/kernelle-soft/blizz/releases/latest"
 	if command -v curl >/dev/null 2>&1; then
-		version=$(curl -s $latest_url | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+		json_response=$(curl -s $latest_url)
 	elif command -v wget >/dev/null 2>&1; then
-		version=$(wget -qO- $latest_url | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+		json_response=$(wget -qO- $latest_url)
 	else
 		echo "❌ Neither curl nor wget found. Cannot download pre-built binaries." >&2
 		return 1
 	fi
 	
+	if [ -z "$json_response" ]; then
+		echo "❌ Failed to fetch release data from GitHub API" >&2
+		return 1
+	fi
+	
+	# More robust parsing - look for tag_name as the first field and extract only the value
+	# This pattern ensures we only get the tag_name field value, not content from other fields
+	version=$(echo "$json_response" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | sed -E 's/.*"([^"]+)".*/\1/')
+	
 	if [ -z "$version" ]; then
-		echo "❌ Failed to get latest version from GitHub API" >&2
+		echo "❌ Failed to parse version from GitHub API response" >&2
 		return 1
 	fi
 	
