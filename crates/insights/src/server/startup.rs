@@ -11,7 +11,10 @@ use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use crate::server::{middleware::init_global_logger, routing::create_router};
 
 #[cfg(feature = "ml-features")]
-use crate::server::{middleware::init_global_lancedb, services::lancedb::LanceDbService};
+use crate::server::{
+  middleware::init_global_vector_db,
+  services::{lancedb::LanceDbVectorDatabase, vector_database::BoxedVectorDatabase},
+};
 
 /// Start the REST server
 #[cfg(not(tarpaulin_include))] // Skip coverage - server lifecycle and daemon logs initialization
@@ -24,21 +27,21 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
   init_global_logger(daemon_logs.clone())
     .map_err(|_| anyhow::anyhow!("Failed to initialize global logger"))?;
 
-  // Initialize LanceDB service (only with ml-features)
+  // Initialize vector database service (only with ml-features)
   #[cfg(feature = "ml-features")]
   {
     let lancedb_path = get_lancedb_data_path();
-    let lancedb_service = Arc::new(
-      LanceDbService::new(lancedb_path, "insights_embeddings")
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to initialize LanceDB: {}", e))?,
-    );
+    let lancedb_service = LanceDbVectorDatabase::new(lancedb_path, "insights_embeddings")
+      .await
+      .map_err(|e| anyhow::anyhow!("Failed to initialize vector database: {}", e))?;
+    
+    let vector_db_service = Arc::new(BoxedVectorDatabase::new(lancedb_service));
 
-    // Initialize global LanceDB service
-    init_global_lancedb(lancedb_service.clone())
-      .map_err(|_| anyhow::anyhow!("Failed to initialize global LanceDB service"))?;
+    // Initialize global vector database service
+    init_global_vector_db(vector_db_service)
+      .map_err(|_| anyhow::anyhow!("Failed to initialize global vector database service"))?;
 
-    daemon_logs.info("LanceDB service initialized successfully", "insights-server").await;
+    daemon_logs.info("Vector database service initialized successfully", "insights-server").await;
   }
 
   #[cfg(not(feature = "ml-features"))]

@@ -15,7 +15,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 #[cfg(feature = "ml-features")]
-use crate::server::services::lancedb::LanceDbService;
+use crate::server::services::vector_database::BoxedVectorDatabase;
 
 /// Request context containing logger and request metadata
 #[derive(Clone)]
@@ -30,9 +30,9 @@ pub struct RequestContext {
   pub headers: HeaderMap,
   /// Shared logger instance
   pub logger: Arc<DaemonLogs>,
-  /// LanceDB service instance (only available with ml-features)
+  /// Vector database service instance (only available with ml-features)
   #[cfg(feature = "ml-features")]
-  pub lancedb: Arc<LanceDbService>,
+  pub vector_db: Arc<BoxedVectorDatabase>,
 }
 
 impl RequestContext {
@@ -43,9 +43,9 @@ impl RequestContext {
     uri: Uri,
     headers: HeaderMap,
     logger: Arc<DaemonLogs>,
-    lancedb: Arc<LanceDbService>,
+    vector_db: Arc<BoxedVectorDatabase>,
   ) -> Self {
-    Self { request_id: Uuid::new_v4(), method, uri, headers, logger, lancedb }
+    Self { request_id: Uuid::new_v4(), method, uri, headers, logger, vector_db }
   }
 
   /// Create a new request context (without ML features)  
@@ -130,9 +130,9 @@ impl RequestContext {
 /// Global logger instance
 static GLOBAL_LOGGER: once_cell::sync::OnceCell<Arc<DaemonLogs>> = once_cell::sync::OnceCell::new();
 
-/// Global LanceDB service instance (only with ml-features)
+/// Global vector database service instance (only with ml-features)
 #[cfg(feature = "ml-features")]
-static GLOBAL_LANCEDB: once_cell::sync::OnceCell<Arc<LanceDbService>> =
+static GLOBAL_VECTOR_DB: once_cell::sync::OnceCell<Arc<BoxedVectorDatabase>> =
   once_cell::sync::OnceCell::new();
 
 /// Initialize the global logger
@@ -140,10 +140,10 @@ pub fn init_global_logger(logger: Arc<DaemonLogs>) -> Result<(), Arc<DaemonLogs>
   GLOBAL_LOGGER.set(logger)
 }
 
-/// Initialize the global LanceDB service (only with ml-features)
+/// Initialize the global vector database service (only with ml-features)
 #[cfg(feature = "ml-features")]
-pub fn init_global_lancedb(lancedb: Arc<LanceDbService>) -> Result<(), Arc<LanceDbService>> {
-  GLOBAL_LANCEDB.set(lancedb)
+pub fn init_global_vector_db(vector_db: Arc<BoxedVectorDatabase>) -> Result<(), Arc<BoxedVectorDatabase>> {
+  GLOBAL_VECTOR_DB.set(vector_db)
 }
 
 /// Get the global logger instance
@@ -151,10 +151,10 @@ pub fn get_global_logger() -> &'static Arc<DaemonLogs> {
   GLOBAL_LOGGER.get().expect("Global logger should be initialized before use")
 }
 
-/// Get the global LanceDB service instance (only with ml-features)
+/// Get the global vector database service instance (only with ml-features)
 #[cfg(feature = "ml-features")]
-pub fn get_global_lancedb() -> &'static Arc<LanceDbService> {
-  GLOBAL_LANCEDB.get().expect("Global LanceDB service should be initialized before use")
+pub fn get_global_vector_db() -> &'static Arc<BoxedVectorDatabase> {
+  GLOBAL_VECTOR_DB.get().expect("Global vector database service should be initialized before use")
 }
 
 /// Middleware to inject RequestContext into all requests
@@ -169,8 +169,8 @@ pub async fn request_context_middleware(request: Request, next: Next) -> Respons
   let context = {
     #[cfg(feature = "ml-features")]
     {
-      let lancedb = get_global_lancedb().clone();
-      RequestContext::new(method, uri, headers, logger, lancedb)
+      let vector_db = get_global_vector_db().clone();
+      RequestContext::new(method, uri, headers, logger, vector_db)
     }
 
     #[cfg(not(feature = "ml-features"))]

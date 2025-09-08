@@ -8,6 +8,7 @@ pub mod models;
 pub mod records;
 pub mod search;
 pub mod table_manager;
+pub mod vector_database;
 
 use anyhow::{anyhow, Result};
 use chrono::Utc;
@@ -20,6 +21,7 @@ use table_manager::TableManager;
 
 // Re-export commonly used types for external use
 pub use models::{EmbeddingSearchResult, InsightRecord};
+pub use vector_database::LanceDbVectorDatabase;
 
 /// LanceDB service for vector operations
 pub struct LanceDbService {

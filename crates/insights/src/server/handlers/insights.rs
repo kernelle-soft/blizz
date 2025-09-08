@@ -2,6 +2,8 @@
 
 #[cfg(feature = "ml-features")]
 use anyhow::anyhow;
+#[cfg(feature = "ml-features")]
+use crate::server::services::vector_database::VectorDatabase;
 use anyhow::Result;
 use axum::{
   extract::{Extension, Json},
@@ -165,7 +167,7 @@ fn perform_insight_deletion(
 /// Attempt to delete embedding (non-fatal if fails)
 #[cfg(feature = "ml-features")]
 async fn attempt_embedding_deletion(context: &RequestContext, request: &RemoveInsightRequest) {
-  match context.lancedb.delete_embedding(&request.topic, &request.name).await {
+  match context.vector_db.delete_embedding(&request.topic, &request.name).await {
     Ok(_) => {
       log_embedding_deletion_success(context, request).await;
     }
@@ -304,7 +306,7 @@ async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
     };
 
   // Completely recreate the database with the correct schema
-  context.lancedb.recreate_database_clean_slate(embedding_dimension).await?;
+  context.vector_db.recreate_database_clean_slate(embedding_dimension).await?;
   context.log_info("Clean slate database recreation completed", "insights-reindex").await;
 
   Ok(())
@@ -412,8 +414,8 @@ async fn generate_and_store_embedding(
     embedding_computed: Some(chrono::Utc::now()),
   };
 
-  // Store in LanceDB
-  context.lancedb.store_embedding(&insight_with_embedding).await?;
+  // Store in vector database
+  context.vector_db.store_embedding(&insight_with_embedding).await?;
 
   // Update the insight file with embedding metadata
   insight::save_existing(&insight_with_embedding)?;
@@ -448,10 +450,10 @@ async fn perform_vector_search(
   let limit = 1e12 as usize;
   let threshold = Some(0.55); // with normalized cosine similarity, this captures "more similar than different"
 
-  // Perform vector search in LanceDB
-  let similar_results = context.lancedb.search_similar(&query_embedding, limit, threshold).await?;
+  // Perform vector search
+  let similar_results = context.vector_db.search_similar(&query_embedding, limit, threshold).await?;
 
-  // Convert LanceDB results to SearchResultData format
+  // Convert vector search results to SearchResultData format
   let mut search_results = Vec::new();
 
   for result in similar_results {
@@ -869,7 +871,7 @@ async fn check_embeddings_availability(
   context: &RequestContext,
   request: &SearchRequest,
 ) -> EmbeddingAvailability {
-  match context.lancedb.has_embeddings().await {
+  match context.vector_db.has_embeddings().await {
     Ok(true) => {
       context
         .log_info(
