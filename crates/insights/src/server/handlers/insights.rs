@@ -438,7 +438,7 @@ async fn perform_vector_search(
     .map_err(|e| anyhow!("Failed to generate query embedding: {}", e))?;
 
   let limit = 1e12 as usize;
-  let threshold = Some(0.5); // with normalized cosine similarity, this captures "more similar than different"
+  let threshold = Some(0.55); // with normalized cosine similarity, this captures "more similar than different"
 
   // Perform vector search in LanceDB
   let similar_results = context.lancedb.search_similar(&query_embedding, limit, threshold).await?;
