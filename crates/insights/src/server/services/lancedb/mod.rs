@@ -138,12 +138,18 @@ fn extract_created_timestamp(insight: &insight::Insight) -> String {
 }
 
 /// Completely recreate the database directory for clean slate approach
-async fn recreate_database_directory(table_manager: &TableManager, embedding_dimension: usize) -> Result<()> {
+async fn recreate_database_directory(
+  table_manager: &TableManager,
+  embedding_dimension: usize,
+) -> Result<()> {
   // Delete the entire database directory to ensure clean schema
   let connection = &table_manager.connection;
   let db_path = get_database_path_from_connection(connection).await?;
-  
-  bentley::info!(&format!("Deleting database directory for clean slate recreation: {}", db_path.display()));
+
+  bentley::info!(&format!(
+    "Deleting database directory for clean slate recreation: {}",
+    db_path.display()
+  ));
   if db_path.exists() {
     std::fs::remove_dir_all(&db_path)?;
     bentley::info!("Database directory deleted successfully");
@@ -151,14 +157,18 @@ async fn recreate_database_directory(table_manager: &TableManager, embedding_dim
 
   // Update the global schema dimension for future table creation
   update_schema_dimension(embedding_dimension);
-  
-  bentley::info!(&format!("Database will be recreated with {} dimensions on next table creation", embedding_dimension));
+
+  bentley::info!(&format!(
+    "Database will be recreated with {embedding_dimension} dimensions on next table creation"
+  ));
   Ok(())
 }
 
 /// Extract database path from LanceDB connection
-async fn get_database_path_from_connection(connection: &lancedb::Connection) -> Result<std::path::PathBuf> {
-  // Use the connection's data directory path  
+async fn get_database_path_from_connection(
+  connection: &lancedb::Connection,
+) -> Result<std::path::PathBuf> {
+  // Use the connection's data directory path
   // LanceDB connections store the data directory internally
   let uri = connection.uri().to_string();
   Ok(std::path::PathBuf::from(uri))

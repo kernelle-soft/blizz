@@ -284,16 +284,24 @@ async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
   context.log_info("Starting clean slate database recreation", "insights-reindex").await;
 
   // Detect current embedding model dimension
-  let embedding_dimension = match crate::server::services::embeddings::detect_embedding_dimension().await {
-    Ok(dim) => {
-      context.log_info(&format!("Detected embedding model dimension: {}", dim), "insights-reindex").await;
-      dim
-    }
-    Err(e) => {
-      context.log_error(&format!("Failed to detect embedding dimension, using default 768: {}", e), "insights-reindex").await;
-      768 // Fallback to default
-    }
-  };
+  let embedding_dimension =
+    match crate::server::services::embeddings::detect_embedding_dimension().await {
+      Ok(dim) => {
+        context
+          .log_info(&format!("Detected embedding model dimension: {dim}"), "insights-reindex")
+          .await;
+        dim
+      }
+      Err(e) => {
+        context
+          .log_error(
+            &format!("Failed to detect embedding dimension, using default 768: {e}"),
+            "insights-reindex",
+          )
+          .await;
+        768 // Fallback to default
+      }
+    };
 
   // Completely recreate the database with the correct schema
   context.lancedb.recreate_database_clean_slate(embedding_dimension).await?;
