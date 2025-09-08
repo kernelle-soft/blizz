@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Check if all workflows succeeded
         id: check
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             // Get all workflows in the repository
