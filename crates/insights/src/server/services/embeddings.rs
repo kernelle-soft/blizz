@@ -415,6 +415,15 @@ impl EmbeddingModel {
 // Global singleton for the embedding model
 static MODEL: std::sync::OnceLock<Mutex<Option<EmbeddingModel>>> = std::sync::OnceLock::new();
 
+/// Detect the current embedding model's output dimension by creating a test embedding
+#[cfg(not(tarpaulin_include))]
+pub async fn detect_embedding_dimension() -> Result<usize> {
+  // Create a simple test embedding to determine the output dimension
+  let test_text = "test";
+  let test_embedding = create_embedding(test_text).await?;
+  Ok(test_embedding.len())
+}
+
 /// Public API function to create embeddings - initializes model on first use
 #[cfg(not(tarpaulin_include))]
 pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
