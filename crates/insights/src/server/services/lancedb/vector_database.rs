@@ -96,8 +96,8 @@ impl VectorDatabase for LanceDbVectorDatabase {
     self.service.clear_all_embeddings().await
   }
 
-  /// Recreate LanceDB with fresh schema
-  async fn recreate_database_clean_slate(&self, embedding_dimension: usize) -> Result<()> {
-    self.service.recreate_database_clean_slate(embedding_dimension).await
+  /// Reshape LanceDB with fresh schema
+  async fn reshape_database(&self, embedding_dimension: usize) -> Result<()> {
+    self.service.reshape_database(embedding_dimension).await
   }
 }

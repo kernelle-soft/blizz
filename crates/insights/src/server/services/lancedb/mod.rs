@@ -85,8 +85,8 @@ impl LanceDbService {
     execute_table_clear(&self.table_manager).await
   }
 
-  /// Completely recreate the database with fresh schema (clean slate approach)
-  pub async fn recreate_database_clean_slate(&self, embedding_dimension: usize) -> Result<()> {
+  /// Reshape the database with fresh schema (clean slate approach)
+  pub async fn reshape_database(&self, embedding_dimension: usize) -> Result<()> {
     recreate_database_directory(&self.table_manager, embedding_dimension).await
   }
 }

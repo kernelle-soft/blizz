@@ -55,8 +55,8 @@ pub trait VectorDatabase: Send + Sync {
   /// Clear all embeddings from the database
   async fn clear_all_embeddings(&self) -> Result<()>;
 
-  /// Recreate the database with fresh schema (clean slate approach)
-  async fn recreate_database_clean_slate(&self, embedding_dimension: usize) -> Result<()>;
+  /// Reshape the database with fresh schema (clean slate approach)
+  async fn reshape_database(&self, embedding_dimension: usize) -> Result<()>;
 }
 
 /// Type-erased wrapper for VectorDatabase implementations
@@ -103,7 +103,7 @@ impl VectorDatabase for BoxedVectorDatabase {
     self.0.clear_all_embeddings().await
   }
 
-  async fn recreate_database_clean_slate(&self, embedding_dimension: usize) -> Result<()> {
-    self.0.recreate_database_clean_slate(embedding_dimension).await
+  async fn reshape_database(&self, embedding_dimension: usize) -> Result<()> {
+    self.0.reshape_database(embedding_dimension).await
   }
 }

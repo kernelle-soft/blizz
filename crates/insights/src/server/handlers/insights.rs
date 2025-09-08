@@ -280,7 +280,7 @@ async fn load_all_insights_for_reindexing(
   Ok(all_insights)
 }
 
-/// Clear existing embeddings from LanceDB to start fresh with clean slate approach
+/// Clear existing embeddings from database to start fresh
 #[cfg(feature = "ml-features")]
 async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
   context.log_info("Starting clean slate database recreation", "insights-reindex").await;
@@ -305,9 +305,9 @@ async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
       }
     };
 
-  // Completely recreate the database with the correct schema
-  context.vector_db.recreate_database_clean_slate(embedding_dimension).await?;
-  context.log_info("Clean slate database recreation completed", "insights-reindex").await;
+  // Reshape the database with the correct schema
+  context.vector_db.reshape_database(embedding_dimension).await?;
+  context.log_info("Database reshape completed", "insights-reindex").await;
 
   Ok(())
 }
