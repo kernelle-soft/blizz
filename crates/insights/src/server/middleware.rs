@@ -142,7 +142,9 @@ pub fn init_global_logger(logger: Arc<DaemonLogs>) -> Result<(), Arc<DaemonLogs>
 
 /// Initialize the global vector database service (only with ml-features)
 #[cfg(feature = "ml-features")]
-pub fn init_global_vector_db(vector_db: Arc<BoxedVectorDatabase>) -> Result<(), Arc<BoxedVectorDatabase>> {
+pub fn init_global_vector_db(
+  vector_db: Arc<BoxedVectorDatabase>,
+) -> Result<(), Arc<BoxedVectorDatabase>> {
   GLOBAL_VECTOR_DB.set(vector_db)
 }
 

@@ -34,7 +34,7 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
     let lancedb_service = LanceDbVectorDatabase::new(lancedb_path, "insights_embeddings")
       .await
       .map_err(|e| anyhow::anyhow!("Failed to initialize vector database: {}", e))?;
-    
+
     let vector_db_service = Arc::new(BoxedVectorDatabase::new(lancedb_service));
 
     // Initialize global vector database service

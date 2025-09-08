@@ -1,9 +1,9 @@
 //! Insights endpoint handlers
 
 #[cfg(feature = "ml-features")]
-use anyhow::anyhow;
-#[cfg(feature = "ml-features")]
 use crate::server::services::vector_database::VectorDatabase;
+#[cfg(feature = "ml-features")]
+use anyhow::anyhow;
 use anyhow::Result;
 use axum::{
   extract::{Extension, Json},
@@ -451,7 +451,8 @@ async fn perform_vector_search(
   let threshold = Some(0.55); // with normalized cosine similarity, this captures "more similar than different"
 
   // Perform vector search
-  let similar_results = context.vector_db.search_similar(&query_embedding, limit, threshold).await?;
+  let similar_results =
+    context.vector_db.search_similar(&query_embedding, limit, threshold).await?;
 
   // Convert vector search results to SearchResultData format
   let mut search_results = Vec::new();
