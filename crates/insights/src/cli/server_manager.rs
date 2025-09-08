@@ -92,7 +92,10 @@ impl ServerManager {
   #[cfg(not(tarpaulin_include))] // Skip coverage - filesystem operations
   fn find_server_binary(&self) -> Result<String> {
     // First check if insights_server is available in PATH
-    if let Ok(output) = Command::new("which").arg("insights_server").output() {
+    if let Ok(output) = Command::new("which")
+      .arg("insights_server")
+      .output()
+    {
       if output.status.success() {
         let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !path.is_empty() {
@@ -113,9 +116,7 @@ impl ServerManager {
       }
     }
 
-    Err(anyhow!(
-      "insights_server binary not found. Please ensure it's installed or build it locally."
-    ))
+    Err(anyhow!("insights_server binary not found. Please ensure it's installed or build it locally."))
   }
 }
 
