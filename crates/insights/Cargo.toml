@@ -42,7 +42,7 @@ tokio.workspace = true
 uuid.workspace = true
 
 # REST API dependencies
-axum = { version = "0.7", features = ["macros"] }
+axum = { version = "0.8", features = ["macros"] }
 schemars = { version = "0.8", features = ["uuid1", "chrono"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
