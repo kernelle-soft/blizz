@@ -278,13 +278,34 @@ async fn load_all_insights_for_reindexing(
   Ok(all_insights)
 }
 
-/// Clear existing embeddings from LanceDB to start fresh
+/// Clear existing embeddings from LanceDB to start fresh with clean slate approach
 #[cfg(feature = "ml-features")]
 async fn clear_existing_embeddings(context: &RequestContext) -> Result<()> {
-  context.log_info("Clearing existing LanceDB table", "insights-reindex").await;
+  context.log_info("Starting clean slate database recreation", "insights-reindex").await;
 
-  context.lancedb.clear_all_embeddings().await?;
-  context.log_info("Cleared existing embeddings from LanceDB", "insights-reindex").await;
+  // Detect current embedding model dimension
+  let embedding_dimension =
+    match crate::server::services::embeddings::detect_embedding_dimension().await {
+      Ok(dim) => {
+        context
+          .log_info(&format!("Detected embedding model dimension: {dim}"), "insights-reindex")
+          .await;
+        dim
+      }
+      Err(e) => {
+        context
+          .log_error(
+            &format!("Failed to detect embedding dimension, using default 768: {e}"),
+            "insights-reindex",
+          )
+          .await;
+        768 // Fallback to default
+      }
+    };
+
+  // Completely recreate the database with the correct schema
+  context.lancedb.recreate_database_clean_slate(embedding_dimension).await?;
+  context.log_info("Clean slate database recreation completed", "insights-reindex").await;
 
   Ok(())
 }
@@ -425,7 +446,7 @@ async fn perform_vector_search(
     .map_err(|e| anyhow!("Failed to generate query embedding: {}", e))?;
 
   let limit = 1e12 as usize;
-  let threshold = Some(0.5); // with normalized cosine similarity, this captures "more similar than different"
+  let threshold = Some(0.55); // with normalized cosine similarity, this captures "more similar than different"
 
   // Perform vector search in LanceDB
   let similar_results = context.lancedb.search_similar(&query_embedding, limit, threshold).await?;

@@ -9,7 +9,7 @@ use super::records::records_to_arrow_batch;
 
 /// Table manager for LanceDB operations
 pub struct TableManager {
-  connection: Connection,
+  pub connection: Connection,
   table_name: String,
 }
 

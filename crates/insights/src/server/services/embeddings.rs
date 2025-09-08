@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokenizers::Tokenizer;
 
-const MODEL_NAME: &str = "onnx-community/Qwen3-Embedding-0.6B-ONNX";
+const MODEL_NAME: &str = "onnx-community/embeddinggemma-300m-ONNX";
 const TOKENIZER_FILE: &str = "tokenizer.json";
 const MODEL_FILE: &str = "onnx/model.onnx";
 
@@ -99,7 +99,7 @@ impl TextTokenizer for Tokenizer {
 
 impl TokenizerOutput for tokenizers::Encoding {}
 
-pub struct GTEBase {
+pub struct EmbeddingModel {
   session: Session,
   tokenizer: Tokenizer,
 }
@@ -111,7 +111,7 @@ struct ModelFiles {
 
 // Public API
 #[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for cross-platform loading/unloading
-impl GTEBase {
+impl EmbeddingModel {
   /// Load the GTE-Base model from HuggingFace
   pub async fn load() -> Result<Self> {
     bentley::info!("loading model...");
@@ -137,7 +137,7 @@ impl GTEBase {
 // violet ignore chunk - this is about as simple and flat as it's going to get without breaking this into
 // singlet implementation blocks.
 #[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for cross-platform loading/unloading
-impl GTEBase {
+impl EmbeddingModel {
   async fn download_model() -> Result<ModelFiles> {
     let api = Api::new().map_err(|e| anyhow!("HF API initialization failed: {}", e))?;
 
@@ -212,7 +212,7 @@ impl GTEBase {
 
 // Hardware detection
 #[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for xplat
-impl GTEBase {
+impl EmbeddingModel {
   fn get_execution_providers() -> Vec<ExecutionProviderDispatch> {
     let mut providers = Vec::new();
 
@@ -246,7 +246,7 @@ impl GTEBase {
 
 // violet ignore chunk - this is about as simple and flat as it's going to get without being terse.
 // Embedding processing
-impl GTEBase {
+impl EmbeddingModel {
   /// Testable tokenization logic
   fn tokenize(text: &str, tokenizer: &dyn TextTokenizer) -> Result<Box<dyn TokenizerOutput>> {
     let tokens = tokenizer.encode_text(text, true)?;
@@ -413,7 +413,16 @@ impl GTEBase {
 }
 
 // Global singleton for the embedding model
-static MODEL: std::sync::OnceLock<Mutex<Option<GTEBase>>> = std::sync::OnceLock::new();
+static MODEL: std::sync::OnceLock<Mutex<Option<EmbeddingModel>>> = std::sync::OnceLock::new();
+
+/// Detect the current embedding model's output dimension by creating a test embedding
+#[cfg(not(tarpaulin_include))]
+pub async fn detect_embedding_dimension() -> Result<usize> {
+  // Create a simple test embedding to determine the output dimension
+  let test_text = "test";
+  let test_embedding = create_embedding(test_text).await?;
+  Ok(test_embedding.len())
+}
 
 /// Public API function to create embeddings - initializes model on first use
 #[cfg(not(tarpaulin_include))]
@@ -429,7 +438,7 @@ pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
   // Initialize model if needed (outside of the lock to avoid holding across await)
   if needs_init {
     bentley::info!("Initializing embedding model...");
-    let model = GTEBase::load().await?;
+    let model = EmbeddingModel::load().await?;
     let mut guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
     *guard = Some(model);
   }
@@ -547,7 +556,7 @@ mod gte_base_tests {
       ],
     };
 
-    let result = GTEBase::prepare(&tokens, &session)?;
+    let result = EmbeddingModel::prepare(&tokens, &session)?;
 
     // Should contain all three tensors
     assert_eq!(result.len(), 3);
@@ -575,7 +584,7 @@ mod gte_base_tests {
       ],
     };
 
-    let result = GTEBase::prepare(&tokens, &session)?;
+    let result = EmbeddingModel::prepare(&tokens, &session)?;
 
     // Should contain only two tensors
     assert_eq!(result.len(), 2);
@@ -599,7 +608,7 @@ mod gte_base_tests {
       input_names: vec!["input_ids".to_string(), "attention_mask".to_string()],
     };
 
-    let result = GTEBase::prepare(&tokens, &session)?;
+    let result = EmbeddingModel::prepare(&tokens, &session)?;
 
     assert_eq!(result.len(), 2);
     assert!(result.contains_key("input_ids"));
@@ -617,7 +626,7 @@ mod gte_base_tests {
       input_names: vec!["input_ids".to_string(), "attention_mask".to_string()],
     };
 
-    let result = GTEBase::prepare(&tokens, &session)?;
+    let result = EmbeddingModel::prepare(&tokens, &session)?;
 
     assert_eq!(result.len(), 2);
     assert!(result.contains_key("input_ids"));
@@ -643,7 +652,7 @@ mod gte_base_tests {
       ],
     };
 
-    let result = GTEBase::prepare(&tokens, &session)?;
+    let result = EmbeddingModel::prepare(&tokens, &session)?;
 
     assert_eq!(result.len(), 3);
     assert!(result.contains_key("input_ids"));
@@ -670,7 +679,7 @@ mod gte_base_tests {
       ],
     };
 
-    let result = GTEBase::prepare(&tokens, &session)?;
+    let result = EmbeddingModel::prepare(&tokens, &session)?;
 
     // Should not include token_type_ids since "token_type_ids" not in input names
     assert_eq!(result.len(), 2);
@@ -685,9 +694,9 @@ mod gte_base_tests {
   #[test]
   fn test_validate_sequence_length_within_limit() -> Result<()> {
     // Test at various valid lengths
-    assert!(GTEBase::validate_sequence_length(1).is_ok());
-    assert!(GTEBase::validate_sequence_length(100).is_ok());
-    assert!(GTEBase::validate_sequence_length(511).is_ok()); // Exactly at limit
+    assert!(EmbeddingModel::validate_sequence_length(1).is_ok());
+    assert!(EmbeddingModel::validate_sequence_length(100).is_ok());
+    assert!(EmbeddingModel::validate_sequence_length(511).is_ok()); // Exactly at limit
 
     Ok(())
   }
@@ -695,11 +704,11 @@ mod gte_base_tests {
   #[test]
   fn test_validate_sequence_length_exceeds_limit() {
     // Test over the limit - should succeed due to temporary workaround
-    let result = GTEBase::validate_sequence_length(512);
+    let result = EmbeddingModel::validate_sequence_length(512);
     assert!(result.is_ok());
 
     // Test well over the limit - should also succeed due to temporary workaround
-    let result = GTEBase::validate_sequence_length(1000);
+    let result = EmbeddingModel::validate_sequence_length(1000);
     assert!(result.is_ok());
   }
 
@@ -711,7 +720,7 @@ mod gte_base_tests {
       token_ids: vec![101, 7592, 2256, 102], // [CLS] hello world [SEP]
     };
 
-    let result = GTEBase::tokenize("hello world", &tokenizer)?;
+    let result = EmbeddingModel::tokenize("hello world", &tokenizer)?;
 
     assert_eq!(result.get_ids().len(), 4);
     assert_eq!(result.get_ids(), &[101, 7592, 2256, 102]);
@@ -726,7 +735,7 @@ mod gte_base_tests {
   fn test_tokenize_tokenization_failure() {
     let tokenizer = MockTextTokenizer { should_fail: true, token_ids: vec![] };
 
-    let result = GTEBase::tokenize("any text", &tokenizer);
+    let result = EmbeddingModel::tokenize("any text", &tokenizer);
 
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
@@ -741,7 +750,7 @@ mod gte_base_tests {
       token_ids: vec![1; 511], // Exactly 511 tokens (the limit)
     };
 
-    let result = GTEBase::tokenize("long text", &tokenizer)?;
+    let result = EmbeddingModel::tokenize("long text", &tokenizer)?;
 
     assert_eq!(result.get_ids().len(), 511);
 
@@ -756,7 +765,7 @@ mod gte_base_tests {
       token_ids: vec![1; 512], // 512 tokens - exceeds limit of 511
     };
 
-    let result = GTEBase::tokenize("very long text", &tokenizer);
+    let result = EmbeddingModel::tokenize("very long text", &tokenizer);
 
     // Should succeed due to temporary workaround
     assert!(result.is_ok());
@@ -771,7 +780,7 @@ mod gte_base_tests {
       token_ids: vec![101, 102], // Just [CLS] [SEP]
     };
 
-    let result = GTEBase::tokenize("", &tokenizer)?;
+    let result = EmbeddingModel::tokenize("", &tokenizer)?;
 
     assert_eq!(result.get_ids().len(), 2); // Should have special tokens
     assert_eq!(result.get_ids(), &[101, 102]);
@@ -787,7 +796,7 @@ mod gte_base_tests {
       token_ids: vec![101, 1037, 102], // [CLS] a [SEP]
     };
 
-    let result = GTEBase::tokenize("a", &tokenizer)?;
+    let result = EmbeddingModel::tokenize("a", &tokenizer)?;
 
     assert_eq!(result.get_ids().len(), 3);
     assert_eq!(result.get_ids(), &[101, 1037, 102]);
@@ -803,7 +812,7 @@ mod gte_base_tests {
       token_ids: vec![1; 1000], // Way over limit
     };
 
-    let result = GTEBase::tokenize("extremely long text", &tokenizer);
+    let result = EmbeddingModel::tokenize("extremely long text", &tokenizer);
 
     // Should succeed due to temporary workaround
     assert!(result.is_ok());
@@ -835,7 +844,7 @@ mod gte_base_tests {
     );
 
     let output = MockTensorExtractor { tensors };
-    let result = GTEBase::extract_embedding(&output)?;
+    let result = EmbeddingModel::extract_embedding(&output)?;
 
     assert_eq!(result.len(), 3);
     assert_eq!(result[0], 2.5); // mean of [1.0, 4.0]
@@ -858,7 +867,7 @@ mod gte_base_tests {
     );
 
     let output = MockTensorExtractor { tensors };
-    let result = GTEBase::extract_embedding(&output)?;
+    let result = EmbeddingModel::extract_embedding(&output)?;
 
     assert_eq!(result, vec![10.0, 20.0]); // no averaging needed for single token
 
@@ -885,7 +894,7 @@ mod gte_base_tests {
     );
 
     let output = MockTensorExtractor { tensors };
-    let result = GTEBase::extract_embedding(&output)?;
+    let result = EmbeddingModel::extract_embedding(&output)?;
 
     assert_eq!(result, vec![100.0, 200.0]); // Used last_hidden_state
 
@@ -898,7 +907,7 @@ mod gte_base_tests {
     let tensors = HashMap::new(); // empty - no tensors
     let output = MockTensorExtractor { tensors };
 
-    let result = GTEBase::extract_embedding(&output);
+    let result = EmbeddingModel::extract_embedding(&output);
 
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
@@ -925,7 +934,7 @@ mod gte_base_tests {
     );
 
     let output = MockTensorExtractor { tensors };
-    let result = GTEBase::extract_embedding(&output)?;
+    let result = EmbeddingModel::extract_embedding(&output)?;
 
     assert_eq!(result.len(), 3);
     assert_eq!(result[0], 5.5); // mean of [1.0, 4.0, 7.0, 10.0]
@@ -947,7 +956,7 @@ mod gte_base_tests {
     // Expected mean: [2.5, 3.5, 4.5]
     let data = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 3);
     assert_eq!(result[0], 2.5);
@@ -966,7 +975,7 @@ mod gte_base_tests {
     // Data for 1 token with 4 hidden dimensions
     let data = vec![10.0f32, 20.0, 30.0, 40.0];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 4);
     assert_eq!(result[0], 10.0);
@@ -990,7 +999,7 @@ mod gte_base_tests {
     // Expected mean: [3.0, 4.0]
     let data = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 2);
     assert_eq!(result[0], 3.0);
@@ -1011,7 +1020,7 @@ mod gte_base_tests {
     // Expected mean: [1.0, -1.0]
     let data = vec![-1.0f32, 2.0, 3.0, -4.0];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 2);
     assert_eq!(result[0], 1.0);
@@ -1029,7 +1038,7 @@ mod gte_base_tests {
     // Data with all zeros
     let data = vec![0.0f32; 6];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 3);
     assert_eq!(result[0], 0.0);
@@ -1049,7 +1058,7 @@ mod gte_base_tests {
     // Expected mean: [0.0]
     let data = vec![-5.0f32, 0.0, 5.0];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 1);
     assert_eq!(result[0], 0.0);
@@ -1065,7 +1074,7 @@ mod gte_base_tests {
     let data = vec![];
 
     // This should either return an error or handle the division by zero gracefully
-    let result = GTEBase::mean_pool((&shape, &data));
+    let result = EmbeddingModel::mean_pool((&shape, &data));
 
     // The current implementation will cause division by zero
     // This test documents the current behavior and should be updated if the function is fixed
@@ -1090,7 +1099,7 @@ mod gte_base_tests {
     let shape = vec![1i64, 2i64, 0i64];
     let data = vec![];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     // Should return empty vector
     assert_eq!(result.len(), 0);
@@ -1108,7 +1117,7 @@ mod gte_base_tests {
     // Expected mean: [2.0]
     let data = vec![1.0f32, 2.0, 3.0];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 1);
     assert_eq!(result[0], 2.0);
@@ -1129,7 +1138,7 @@ mod gte_base_tests {
     // Expected mean: [1.0, 1.0]
     let data = vec![1.0f32, 1.0, 1.0, 1.0, 1.0, 1.0];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 2);
     assert!((result[0] - 1.0).abs() < f32::EPSILON);
@@ -1147,7 +1156,7 @@ mod gte_base_tests {
     // Data with large values
     let data = vec![1000.0f32, 2000.0, 3000.0, 4000.0];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 2);
     assert_eq!(result[0], 2000.0);
@@ -1165,7 +1174,7 @@ mod gte_base_tests {
     // Data with very small values
     let data = vec![0.001f32, 0.002, 0.003, 0.004];
 
-    let result = GTEBase::mean_pool((&shape, &data))?;
+    let result = EmbeddingModel::mean_pool((&shape, &data))?;
 
     assert_eq!(result.len(), 2);
     assert!((result[0] - 0.002).abs() < f32::EPSILON);
@@ -1178,7 +1187,7 @@ mod gte_base_tests {
   #[test]
   fn test_normalize_embedding_normal() -> Result<()> {
     let embedding = vec![3.0, 4.0, 0.0]; // magnitude = 5.0
-    let result = GTEBase::normalize_embedding(embedding)?;
+    let result = EmbeddingModel::normalize_embedding(embedding)?;
 
     assert_eq!(result.len(), 3);
     assert!((result[0] - 0.6).abs() < f32::EPSILON); // 3/5
@@ -1196,7 +1205,7 @@ mod gte_base_tests {
   #[test]
   fn test_normalize_embedding_zero_vector() -> Result<()> {
     let embedding = vec![0.0, 0.0, 0.0];
-    let result = GTEBase::normalize_embedding(embedding.clone())?;
+    let result = EmbeddingModel::normalize_embedding(embedding.clone())?;
 
     assert_eq!(result, embedding); // Should be unchanged
     Ok(())
@@ -1206,7 +1215,7 @@ mod gte_base_tests {
   #[test]
   fn test_normalize_embedding_unit_vector() -> Result<()> {
     let embedding = vec![1.0, 0.0, 0.0]; // Already unit length
-    let result = GTEBase::normalize_embedding(embedding.clone())?;
+    let result = EmbeddingModel::normalize_embedding(embedding.clone())?;
 
     assert_eq!(result, embedding); // Should be unchanged
     Ok(())
@@ -1216,7 +1225,7 @@ mod gte_base_tests {
   #[test]
   fn test_normalize_embedding_large_values() -> Result<()> {
     let embedding = vec![1000.0, 2000.0]; // magnitude = sqrt(5000000) ≈ 2236
-    let result = GTEBase::normalize_embedding(embedding)?;
+    let result = EmbeddingModel::normalize_embedding(embedding)?;
 
     assert_eq!(result.len(), 2);
 
@@ -1234,7 +1243,7 @@ mod gte_base_tests {
   #[test]
   fn test_normalize_embedding_negative_values() -> Result<()> {
     let embedding = vec![-3.0, 4.0]; // magnitude = 5.0
-    let result = GTEBase::normalize_embedding(embedding)?;
+    let result = EmbeddingModel::normalize_embedding(embedding)?;
 
     assert_eq!(result.len(), 2);
     assert!((result[0] - (-0.6)).abs() < f32::EPSILON); // -3/5

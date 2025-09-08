@@ -6,6 +6,7 @@ use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
 use std::sync::Arc;
 
+use super::get_schema_dimension;
 use super::models::InsightRecord;
 
 /// Convert InsightRecord to Arrow RecordBatch
@@ -29,6 +30,7 @@ fn validate_records_not_empty(records: &[InsightRecord]) -> Result<()> {
 
 /// Create the Arrow schema for InsightRecord
 fn create_insight_record_schema() -> Arc<Schema> {
+  let embedding_dimension = get_schema_dimension();
   Arc::new(Schema::new(vec![
     Field::new("id", DataType::Utf8, false),
     Field::new("topic", DataType::Utf8, false),
@@ -37,7 +39,10 @@ fn create_insight_record_schema() -> Arc<Schema> {
     Field::new("details", DataType::Utf8, false),
     Field::new(
       "embedding",
-      DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), 1024),
+      DataType::FixedSizeList(
+        Arc::new(Field::new("item", DataType::Float32, true)),
+        embedding_dimension as i32,
+      ),
       false,
     ),
     Field::new("created_at", DataType::Utf8, false),
@@ -84,8 +89,11 @@ fn create_embedding_array_from_records(
 ) -> arrow::array::FixedSizeListArray {
   use arrow::array::FixedSizeListBuilder;
 
-  let mut embedding_builder =
-    FixedSizeListBuilder::new(Float32Array::builder(1024 * records.len()), 1024);
+  let embedding_dimension = get_schema_dimension();
+  let mut embedding_builder = FixedSizeListBuilder::new(
+    Float32Array::builder(embedding_dimension * records.len()),
+    embedding_dimension as i32,
+  );
 
   for record in records {
     append_embedding_to_builder(&mut embedding_builder, &record.embedding);

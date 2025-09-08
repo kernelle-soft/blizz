@@ -91,20 +91,31 @@ impl ServerManager {
   /// Find the insights_server binary
   #[cfg(not(tarpaulin_include))] // Skip coverage - filesystem operations
   fn find_server_binary(&self) -> Result<String> {
-    // Check reasonable locations in order of preference
-    let paths_to_try = [
-      "insights_server",                // In PATH (installed)
+    // First check if insights_server is available in PATH
+    if let Ok(output) = Command::new("which").arg("insights_server").output() {
+      if output.status.success() {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path.is_empty() {
+          return Ok(path);
+        }
+      }
+    }
+
+    // Check local build locations as fallback
+    let local_paths_to_try = [
       "target/release/insights_server", // Local release build (preferred)
       "target/debug/insights_server",   // Local debug build (fallback)
     ];
 
-    for path in &paths_to_try {
+    for path in &local_paths_to_try {
       if std::fs::metadata(path).is_ok() {
         return Ok(path.to_string());
       }
     }
 
-    Err(anyhow!("insights_server binary not found."))
+    Err(anyhow!(
+      "insights_server binary not found. Please ensure it's installed or build it locally."
+    ))
   }
 }
 
