@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokenizers::Tokenizer;
 
-const MODEL_NAME: &str = "onnx-community/Qwen3-Embedding-0.6B-ONNX";
+const MODEL_NAME: &str = "onnx-community/embeddinggemma-300m-ONNX";
 const TOKENIZER_FILE: &str = "tokenizer.json";
 const MODEL_FILE: &str = "onnx/model.onnx";
 

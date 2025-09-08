@@ -37,7 +37,7 @@ fn create_insight_record_schema() -> Arc<Schema> {
     Field::new("details", DataType::Utf8, false),
     Field::new(
       "embedding",
-      DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), 1024),
+      DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), 768),
       false,
     ),
     Field::new("created_at", DataType::Utf8, false),
@@ -85,7 +85,7 @@ fn create_embedding_array_from_records(
   use arrow::array::FixedSizeListBuilder;
 
   let mut embedding_builder =
-    FixedSizeListBuilder::new(Float32Array::builder(1024 * records.len()), 1024);
+    FixedSizeListBuilder::new(Float32Array::builder(768 * records.len()), 768);
 
   for record in records {
     append_embedding_to_builder(&mut embedding_builder, &record.embedding);
