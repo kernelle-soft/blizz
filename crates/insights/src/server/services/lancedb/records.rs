@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use super::get_schema_dimension;
 use super::models::InsightRecord;
+use super::get_schema_dimension;
 
 /// Convert InsightRecord to Arrow RecordBatch
 pub fn records_to_arrow_batch(records: Vec<InsightRecord>) -> Result<RecordBatch> {
