@@ -3548,6 +3548,7 @@ dependencies = [
  "arrow-json",
  "assert_cmd",
  "assert_fs",
+ "async-trait",
  "axum",
  "bentley",
  "chrono",

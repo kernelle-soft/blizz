@@ -50,6 +50,7 @@ tower-http = { version = "0.5", features = ["cors", "trace"] }
 # HTTP client dependencies
 reqwest.workspace = true
 once_cell = "1.17"
+async-trait = "0.1"
 
 # Heavy ML dependencies - optional for CI performance
 lancedb = { version = "0.22.0", default-features = false, optional = true }
