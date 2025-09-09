@@ -1,7 +1,7 @@
 //! Insights endpoint handlers
 
 #[cfg(feature = "ml-features")]
-use crate::server::services::vector_database::VectorDatabase;
+use crate::server::services::vector_database::{VectorDatabase, VectorSearchResult};
 #[cfg(feature = "ml-features")]
 use anyhow::anyhow;
 use anyhow::Result;
@@ -500,25 +500,26 @@ async fn rerank_results(
   reranked_results
 }
 
+// violet ignore chunk - just a bit long because of the object constructors
 /// Rerank a single candidate result
 #[cfg(feature = "ml-features")]
 async fn score_single_result(
   context: &RequestContext,
   query_text: &str,
-  result: crate::server::services::vector_database::VectorSearchResult,
+  result: VectorSearchResult,
 ) -> Option<SearchResultData> {
   match insight::load(&result.topic, &result.name) {
     Ok(_full_insight) => {
       let doc_text =
         format!("{} {} {} {}", result.topic, result.name, result.overview, result.details);
-      let rerank_score = compute_relevance_score(query_text, &doc_text, &result).await;
+      let score = compute_relevance_score(query_text, &doc_text, &result).await;
 
       Some(SearchResultData {
         topic: result.topic,
         name: result.name,
         overview: result.overview,
         details: result.details,
-        score: rerank_score,
+        score,
       })
     }
     Err(e) => {
