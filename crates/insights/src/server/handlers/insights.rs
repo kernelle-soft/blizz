@@ -394,13 +394,20 @@ async fn generate_and_store_embedding(
   context: &RequestContext,
   insight: &insight::Insight,
 ) -> Result<()> {
-  let embedding_text =
-    format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details);
+  // Create document content and title for proper EmbeddingGemma formatting
+  let document_title = format!("{}/{}", insight.topic, insight.name);
+  let document_content = format!("{} {}", insight.overview, insight.details);
 
-  // Generate embedding using the embedding service
-  let embedding = crate::server::services::embeddings::create_embedding(&embedding_text)
+  // Generate embedding using proper document format for EmbeddingGemma
+  let embedding = crate::server::services::embeddings::create_document_embedding(
+    &document_content, 
+    Some(&document_title)
+  )
     .await
-    .map_err(|e| anyhow!("Failed to generate embedding: {}", e))?;
+    .map_err(|e| anyhow!("Failed to generate document embedding: {}", e))?;
+
+  // Store the properly formatted text that was actually embedded
+  let formatted_embedding_text = format!("title: {} | text: {}", document_title, document_content);
 
   // Create insight with embedding data
   let insight_with_embedding = insight::Insight {
@@ -408,9 +415,9 @@ async fn generate_and_store_embedding(
     name: insight.name.clone(),
     overview: insight.overview.clone(),
     details: insight.details.clone(),
-    embedding_version: Some("gte-base-en-v1.5".to_string()),
+    embedding_version: Some("embeddinggemma-300m".to_string()),
     embedding: Some(embedding.clone()),
-    embedding_text: Some(embedding_text),
+    embedding_text: Some(formatted_embedding_text),
     embedding_computed: Some(chrono::Utc::now()),
   };
 
@@ -433,7 +440,7 @@ async fn generate_and_store_embedding(
   Ok(())
 }
 
-/// Perform vector similarity search using LanceDB
+/// Perform vector similarity search with reranking using LanceDB
 #[cfg(feature = "ml-features")]
 async fn perform_vector_search(
   context: &RequestContext,
@@ -442,31 +449,70 @@ async fn perform_vector_search(
   // Create search query text from terms
   let query_text = request.terms.join(" ");
 
-  // Generate embedding for the search query
-  let query_embedding = crate::server::services::embeddings::create_embedding(&query_text)
+  // Generate embedding for the search query using proper EmbeddingGemma query format
+  let query_embedding = crate::server::services::embeddings::create_query_embedding(&query_text)
     .await
     .map_err(|e| anyhow!("Failed to generate query embedding: {}", e))?;
 
-  let limit = 1e12 as usize;
-  let threshold = Some(0.55); // with normalized cosine similarity, this captures "more similar than different"
+  // Step 1: Retrieve initial candidates with more permissive settings
+  let initial_limit = get_rerank_initial_limit(); // Configurable top-k for initial retrieval
+  let initial_threshold = Some(get_rerank_initial_threshold()); // More permissive threshold for candidate retrieval
 
-  // Perform vector search
-  let similar_results =
-    context.vector_db.search_similar(&query_embedding, limit, threshold).await?;
+  bentley::info!(&format!(
+    "Retrieving {} initial candidates for reranking with threshold {:?}",
+    initial_limit, initial_threshold
+  ));
 
-  // Convert vector search results to SearchResultData format
-  let mut search_results = Vec::new();
+  // Perform initial vector search to get candidates
+  let similar_results = context.vector_db
+    .search_similar(&query_embedding, initial_limit, initial_threshold)
+    .await?;
+
+  if similar_results.is_empty() {
+    bentley::info!("No initial candidates found for reranking");
+    return Ok(vec![]);
+  }
+
+  bentley::info!(&format!("Found {} candidates for reranking", similar_results.len()));
+
+  // Step 2: Rerank using cross-encoding
+  let mut reranked_results = Vec::new();
 
   for result in similar_results {
-    // Load the full insight to get complete details
+    // Load the full insight to get complete details for reranking
     match insight::load(&result.topic, &result.name) {
       Ok(_full_insight) => {
-        search_results.push(SearchResultData {
+        // Create document text for reranking (combining all relevant fields)
+        let doc_text = format!("{} {} {} {}", 
+          result.topic, result.name, result.overview, result.details);
+
+        // Use cross-encoding reranking
+        let rerank_score = match crate::server::services::embeddings::create_reranking_score(
+          &query_text, &doc_text
+        ).await {
+          Ok(score) => {
+            bentley::verbose!(&format!(
+              "Reranked {}/{}: original={:.4}, reranked={:.4}",
+              result.topic, result.name, result.similarity, score
+            ));
+            score
+          }
+          Err(e) => {
+            // Fallback to original score if reranking fails
+            bentley::warn!(&format!(
+              "Reranking failed for {}/{}: {}, using original score",
+              result.topic, result.name, e
+            ));
+            result.similarity
+          }
+        };
+
+        reranked_results.push(SearchResultData {
           topic: result.topic,
           name: result.name,
           overview: result.overview,
           details: result.details,
-          score: result.similarity,
+          score: rerank_score,
         });
       }
       Err(e) => {
@@ -481,10 +527,18 @@ async fn perform_vector_search(
     }
   }
 
-  // Sort by similarity score (highest first)
-  search_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+  // Step 3: Sort by reranking scores and take final top-k
+  reranked_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
 
-  Ok(search_results)
+  let final_limit = get_rerank_final_limit(); // Configurable final top-k
+  reranked_results.truncate(final_limit);
+
+  bentley::info!(&format!(
+    "Reranking complete: returning {} final results", 
+    reranked_results.len()
+  ));
+
+  Ok(reranked_results)
 }
 
 /// Perform vector similarity search using LanceDB (no-op without ml-features)
@@ -965,4 +1019,34 @@ fn create_search_error_response(
     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
     ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
   )
+}
+
+/// Get the configured initial limit for reranking candidate retrieval
+/// Default: 128 candidates
+/// Environment: INSIGHTS_RERANK_INITIAL_LIMIT
+fn get_rerank_initial_limit() -> usize {
+  std::env::var("INSIGHTS_RERANK_INITIAL_LIMIT")
+    .ok()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(128)
+}
+
+/// Get the configured initial threshold for reranking candidate retrieval
+/// Default: 0.3 (more permissive than final search)
+/// Environment: INSIGHTS_RERANK_INITIAL_THRESHOLD  
+fn get_rerank_initial_threshold() -> f32 {
+  std::env::var("INSIGHTS_RERANK_INITIAL_THRESHOLD")
+    .ok()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(0.3)
+}
+
+/// Get the configured final limit for reranking results
+/// Default: 8 final results after reranking
+/// Environment: INSIGHTS_RERANK_FINAL_LIMIT
+fn get_rerank_final_limit() -> usize {
+  std::env::var("INSIGHTS_RERANK_FINAL_LIMIT")
+    .ok()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(8)
 }
