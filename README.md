@@ -2,21 +2,24 @@
 ![Linux](https://github.com/kernelle-soft/blizz/actions/workflows/linux.yml/badge.svg?branch=dev)
 ![Mac OS](https://github.com/kernelle-soft/blizz/actions/workflows/macos.yml/badge.svg?branch=dev)
 
-**A Rust-powered, investigation-to-merge AI development toolshed**
+**Blizz: The AI development toolshed**
 
-It's an artificial intelligence gold rush, and let's be honest, there are a heck of a lot of shovels piling up.
+It's an artificial intelligence gold rush, and let's be honest, there are a hell of a lot of shovels piling up.
 
-Most AI dev tools are either toys or are disruptive to real development workflows due to security concerns, speed concerns, and quality concerns.
+Most AI dev tools are either toys or are impractical for real development workflows due to security concerns, lack of performance, and low quality. They aren't designed to account for the practical realities of day-to-day development, like factoring in multiple sources of internal information or the need to track evolving design decisions.
 
-Instead of building yet another useless shovel to throw on the pile, this repository is essentially a cohesive toolshed to actually take advantage of existing AI-aided development strategies. It's designed to synergize with tools like Cursor. This isn't vibe coding. Blizz is a _context engineering pipeline_--an entire ecosystem designed to make automatic code generation a reality for real world development.
+So, instead of building yet another shovel to throw on the pile, this repository is a cohesive collection of tools, AI-centric and not, that synergize together to make existing AI-aided development strategies more practical for everyday work.
 
-This suite provides semantically programmed agent rulesets that leverage a host of small, focused context management CLIs designed for humans and machines.
+The core design philosophy of this toolset is to make our tools ***nomadic***: something the developer can take with them from project to project, codebase to codebase, and team to team without leaving a footprint.
 
-This toolshed's tested with strict standards to keep real-world development needs in mind, and has been architected to work effectively with AI-powered IDEs like Cursor for both hobby and enterprise development contexts.
+The result is that blizz really isn't about vibe coding. It's a _personalizable development toolset_ that's meant to be adaptable to you and your workflows--an entire ecosystem designed to make automatic code generation a reality for the kind of development you want to do. It includes:
+- A 100% local RAG search engine and knowledge base that grows with you and your areas of ownership
+- A configurable, language agnostic tool for analyzing code legibility and recommending fixes
+- A tool for securely storing and accessing secrets for MCP token authentication
+- A linking tool for bringing your custom rules from repo to repo
+- A task runner capable of defining, parameterizing, and composing tasks together
+- Semantically programmed agent behaviors, rulesets, and modern best practices for coding style, including rules to enable whatever model you're running to use the other tools above.
 
-Most importantly, Blizz is 100% local.
-
-It's designed to have effectively no footprint on existing repositories. Everything needed to supercharge AI to work with your codebase lives either under a single folder at the project level that can be added to the project's `.gitignore`, or under `~/.blizz`, where it can be carried from project to project as needed.
 
 ## Setup
 
