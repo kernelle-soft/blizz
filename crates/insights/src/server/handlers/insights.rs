@@ -400,14 +400,14 @@ async fn generate_and_store_embedding(
 
   // Generate embedding using proper document format for EmbeddingGemma
   let embedding = crate::server::services::embeddings::create_document_embedding(
-    &document_content, 
-    Some(&document_title)
+    &document_content,
+    Some(&document_title),
   )
-    .await
-    .map_err(|e| anyhow!("Failed to generate document embedding: {}", e))?;
+  .await
+  .map_err(|e| anyhow!("Failed to generate document embedding: {}", e))?;
 
   // Store the properly formatted text that was actually embedded
-  let formatted_embedding_text = format!("title: {} | text: {}", document_title, document_content);
+  let formatted_embedding_text = format!("title: {document_title} | text: {document_content}");
 
   // Create insight with embedding data
   let insight_with_embedding = insight::Insight {
@@ -459,14 +459,12 @@ async fn perform_vector_search(
   let initial_threshold = Some(get_rerank_initial_threshold()); // More permissive threshold for candidate retrieval
 
   bentley::info!(&format!(
-    "Retrieving {} initial candidates for reranking with threshold {:?}",
-    initial_limit, initial_threshold
+    "Retrieving {initial_limit} initial candidates for reranking with threshold {initial_threshold:?}"
   ));
 
   // Perform initial vector search to get candidates
-  let similar_results = context.vector_db
-    .search_similar(&query_embedding, initial_limit, initial_threshold)
-    .await?;
+  let similar_results =
+    context.vector_db.search_similar(&query_embedding, initial_limit, initial_threshold).await?;
 
   if similar_results.is_empty() {
     bentley::info!("No initial candidates found for reranking");
@@ -483,29 +481,30 @@ async fn perform_vector_search(
     match insight::load(&result.topic, &result.name) {
       Ok(_full_insight) => {
         // Create document text for reranking (combining all relevant fields)
-        let doc_text = format!("{} {} {} {}", 
-          result.topic, result.name, result.overview, result.details);
+        let doc_text =
+          format!("{} {} {} {}", result.topic, result.name, result.overview, result.details);
 
         // Use cross-encoding reranking
-        let rerank_score = match crate::server::services::embeddings::create_reranking_score(
-          &query_text, &doc_text
-        ).await {
-          Ok(score) => {
-            bentley::verbose!(&format!(
-              "Reranked {}/{}: original={:.4}, reranked={:.4}",
-              result.topic, result.name, result.similarity, score
-            ));
-            score
-          }
-          Err(e) => {
-            // Fallback to original score if reranking fails
-            bentley::warn!(&format!(
-              "Reranking failed for {}/{}: {}, using original score",
-              result.topic, result.name, e
-            ));
-            result.similarity
-          }
-        };
+        let rerank_score =
+          match crate::server::services::embeddings::create_reranking_score(&query_text, &doc_text)
+            .await
+          {
+            Ok(score) => {
+              bentley::verbose!(&format!(
+                "Reranked {}/{}: original={:.4}, reranked={:.4}",
+                result.topic, result.name, result.similarity, score
+              ));
+              score
+            }
+            Err(e) => {
+              // Fallback to original score if reranking fails
+              bentley::warn!(&format!(
+                "Reranking failed for {}/{}: {}, using original score",
+                result.topic, result.name, e
+              ));
+              result.similarity
+            }
+          };
 
         reranked_results.push(SearchResultData {
           topic: result.topic,
@@ -528,13 +527,14 @@ async fn perform_vector_search(
   }
 
   // Step 3: Sort by reranking scores and take final top-k
-  reranked_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+  reranked_results
+    .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
 
   let final_limit = get_rerank_final_limit(); // Configurable final top-k
   reranked_results.truncate(final_limit);
 
   bentley::info!(&format!(
-    "Reranking complete: returning {} final results", 
+    "Reranking complete: returning {} final results",
     reranked_results.len()
   ));
 
@@ -1025,10 +1025,7 @@ fn create_search_error_response(
 /// Default: 128 candidates
 /// Environment: INSIGHTS_RERANK_INITIAL_LIMIT
 fn get_rerank_initial_limit() -> usize {
-  std::env::var("INSIGHTS_RERANK_INITIAL_LIMIT")
-    .ok()
-    .and_then(|s| s.parse().ok())
-    .unwrap_or(128)
+  std::env::var("INSIGHTS_RERANK_INITIAL_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(128)
 }
 
 /// Get the configured initial threshold for reranking candidate retrieval
@@ -1045,8 +1042,5 @@ fn get_rerank_initial_threshold() -> f32 {
 /// Default: 8 final results after reranking
 /// Environment: INSIGHTS_RERANK_FINAL_LIMIT
 fn get_rerank_final_limit() -> usize {
-  std::env::var("INSIGHTS_RERANK_FINAL_LIMIT")
-    .ok()
-    .and_then(|s| s.parse().ok())
-    .unwrap_or(8)
+  std::env::var("INSIGHTS_RERANK_FINAL_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(8)
 }
