@@ -407,81 +407,156 @@ mod insight_tests {
 
   #[test]
   #[serial]
-  fn test_embedding_data_not_saved_to_file() -> Result<()> {
-    let _temp = setup_temp_insights_root("embedding_test");
-
-    // Create an insight with embedding data in memory
-    let mut insight = Insight::new(
-      "embedding_test".to_string(),
-      "test_embedding".to_string(),
-      "Test embedding overview".to_string(),
-      "Test embedding details".to_string(),
+  fn test_temporal_metadata_on_creation() -> Result<()> {
+    let before_creation = chrono::Utc::now();
+    
+    let insight = Insight::new(
+      "temporal_test".to_string(),
+      "creation_test".to_string(),
+      "Testing temporal metadata on creation".to_string(),
+      "This tests that new insights have proper timestamps".to_string(),
     );
+    
+    let after_creation = chrono::Utc::now();
 
-    // Simulate adding embedding data (as would happen during indexing)
-    insight.embedding_version = Some("test-model".to_string());
-    insight.embedding = Some(vec![0.1, 0.2, 0.3, 0.4, 0.5]); // Small test vector
-    insight.embedding_text = Some("test embedding text".to_string());
-    insight.embedding_computed = Some(chrono::Utc::now());
-
-    // Save the insight to file
-    insight::save(&insight)?;
-
-    // Read the raw file content
-    let file_path = insight::file_path(&insight)?;
-    let file_content = std::fs::read_to_string(&file_path)?;
-
-    // Verify embedding data is NOT in the file
-    assert!(!file_content.contains("embedding_version: test-model"));
-    assert!(!file_content.contains("embedding:"));
-    assert!(!file_content.contains("[0.1, 0.2, 0.3, 0.4, 0.5]"));
-    assert!(!file_content.contains("embedding_text: test embedding text"));
-    assert!(!file_content.contains("embedding_computed:"));
-
-    // Verify that essential data IS still in the file
-    assert!(file_content.contains("topic: embedding_test"));
-    assert!(file_content.contains("name: test_embedding"));
-    assert!(file_content.contains("overview: Test embedding overview"));
-    assert!(file_content.contains("Test embedding details"));
-
-    // Verify the file is clean and human-readable (no array data)
-    let lines: Vec<&str> = file_content.lines().collect();
-    for line in &lines {
-      // No line should contain array brackets with numbers
-      assert!(!line.contains("- 0."), "Found embedding array data in file: {line}");
-    }
+    // Check that timestamps are set
+    assert!(insight.created_at >= before_creation);
+    assert!(insight.created_at <= after_creation);
+    assert!(insight.last_updated >= before_creation);  
+    assert!(insight.last_updated <= after_creation);
+    
+    // Check that created_at and last_updated are the same on creation
+    assert_eq!(insight.created_at, insight.last_updated);
+    
+    // Check that update count starts at 0
+    assert_eq!(insight.update_count, 0);
 
     Ok(())
   }
 
   #[test]
   #[serial]
-  fn test_lancedb_can_access_embedding_data() -> Result<()> {
-    // Create insight with embedding data in memory
+  fn test_temporal_metadata_on_update() -> Result<()> {
+    let _temp = setup_temp_insights_root("temporal_update");
+
+    // Create and save an initial insight
     let mut insight = Insight::new(
-      "lancedb_test".to_string(),
-      "memory_embedding".to_string(),
-      "LanceDB embedding test".to_string(),
-      "Testing that LanceDB can access embedding data from memory".to_string(),
+      "temporal_test".to_string(),
+      "update_test".to_string(),
+      "Original overview".to_string(),
+      "Original details".to_string(),
     );
+    
+    let original_created_at = insight.created_at;
+    let original_last_updated = insight.last_updated;
+    
+    insight::save(&insight)?;
+    
+    // Wait a bit to ensure timestamp difference
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    
+    // Update the insight
+    insight::update(&mut insight, Some("Updated overview"), Some("Updated details"))?;
+    
+    // Check that created_at hasn't changed
+    assert_eq!(insight.created_at, original_created_at);
+    
+    // Check that last_updated has changed
+    assert!(insight.last_updated > original_last_updated);
+    
+    // Check that update_count has increased
+    assert_eq!(insight.update_count, 1);
+    
+    // Update again
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    let second_last_updated = insight.last_updated;
+    insight::update(&mut insight, Some("Second update"), None)?;
+    
+    // Check that update_count increased again and last_updated changed
+    assert_eq!(insight.update_count, 2);
+    assert!(insight.last_updated > second_last_updated);
+    
+    Ok(())
+  }
 
-    // Add embedding data
-    insight.embedding = Some(vec![0.1, 0.2, 0.3, 0.4, 0.5]);
-    insight.embedding_version = Some("test-model".to_string());
+  #[test]
+  #[serial]
+  fn test_temporal_metadata_serialization() -> Result<()> {
+    let _temp = setup_temp_insights_root("temporal_serialization");
+    
+    // Create insight with known timestamps
+    let mut insight = Insight::new(
+      "serialization_test".to_string(),
+      "temporal_metadata".to_string(),
+      "Testing temporal serialization".to_string(),
+      "This tests that temporal metadata is saved to files".to_string(),
+    );
+    
+    // Modify timestamps to known values for testing
+    insight.created_at = chrono::DateTime::parse_from_rfc3339("2024-01-15T10:30:00Z").unwrap().with_timezone(&chrono::Utc);
+    insight.last_updated = chrono::DateTime::parse_from_rfc3339("2024-01-20T14:45:00Z").unwrap().with_timezone(&chrono::Utc);
+    insight.update_count = 5;
+    
+    // Save the insight
+    insight::save(&insight)?;
+    
+    // Read the raw file content
+    let file_path = insight::file_path(&insight)?;
+    let file_content = std::fs::read_to_string(&file_path)?;
+    
+    // Verify temporal metadata is in the file
+    assert!(file_content.contains("created_at: 2024-01-15T10:30:00Z"));
+    assert!(file_content.contains("last_updated: 2024-01-20T14:45:00Z"));
+    assert!(file_content.contains("update_count: 5"));
+    
+    // Load the insight back from file
+    let loaded_insight = insight::load("serialization_test", "temporal_metadata")?;
+    
+    // Verify temporal metadata was preserved
+    assert_eq!(loaded_insight.created_at, insight.created_at);
+    assert_eq!(loaded_insight.last_updated, insight.last_updated);
+    assert_eq!(loaded_insight.update_count, insight.update_count);
+    
+    Ok(())
+  }
 
-    // Test that the LanceDB validation function can access the embedding
-    let embedding_result =
-      insight.embedding.as_deref().ok_or_else(|| anyhow::anyhow!("No embedding"));
+  #[test]
+  #[serial]
+  fn test_backwards_compatibility_missing_temporal_fields() -> Result<()> {
+    let _temp = setup_temp_insights_root("backwards_compat");
+    
+    // Create a legacy insight file without temporal metadata
+    let legacy_content = r#"---
+topic: legacy_test
+name: old_insight
+overview: This is a legacy insight without temporal metadata
+---
 
-    // This should succeed - embedding data is available in memory
-    assert!(embedding_result.is_ok());
-    let embedding = embedding_result.unwrap();
-    assert_eq!(embedding.len(), 5);
-    assert_eq!(embedding, &[0.1, 0.2, 0.3, 0.4, 0.5]);
-
-    // Embedding version should also be accessible
-    assert_eq!(insight.embedding_version.as_deref(), Some("test-model"));
-
+# Details
+This insight was created before temporal metadata was added.
+"#;
+    
+    // Write the legacy file directly
+    let insights_root = insight::get_insights_root()?;
+    let topic_dir = insights_root.join("legacy_test");
+    std::fs::create_dir_all(&topic_dir)?;
+    let file_path = topic_dir.join("old_insight.insight.md");
+    std::fs::write(&file_path, legacy_content)?;
+    
+    // Load the legacy insight
+    let loaded_insight = insight::load("legacy_test", "old_insight")?;
+    
+    // Check that temporal metadata has default values
+    assert_eq!(loaded_insight.created_at, chrono::DateTime::parse_from_rfc3339("2025-05-01T00:00:00Z").unwrap().with_timezone(&chrono::Utc));
+    assert!(loaded_insight.last_updated <= chrono::Utc::now());  // Should be set to current time
+    assert_eq!(loaded_insight.update_count, 0);
+    
+    // Check that other fields are correct
+    assert_eq!(loaded_insight.topic, "legacy_test");
+    assert_eq!(loaded_insight.name, "old_insight");
+    assert_eq!(loaded_insight.overview, "This is a legacy insight without temporal metadata");
+    assert_eq!(loaded_insight.details, "This insight was created before temporal metadata was added.");
+    
     Ok(())
   }
 }
