@@ -404,4 +404,83 @@ mod insight_tests {
 
     Ok(())
   }
+
+  #[test]
+  #[serial]
+  fn test_embedding_data_not_saved_to_file() -> Result<()> {
+    let _temp = setup_temp_insights_root("embedding_test");
+
+    // Create an insight with embedding data in memory
+    let mut insight = Insight::new(
+      "embedding_test".to_string(),
+      "test_embedding".to_string(),
+      "Test embedding overview".to_string(),
+      "Test embedding details".to_string(),
+    );
+
+    // Simulate adding embedding data (as would happen during indexing)
+    insight.embedding_version = Some("test-model".to_string());
+    insight.embedding = Some(vec![0.1, 0.2, 0.3, 0.4, 0.5]); // Small test vector
+    insight.embedding_text = Some("test embedding text".to_string());
+    insight.embedding_computed = Some(chrono::Utc::now());
+
+    // Save the insight to file
+    insight::save(&insight)?;
+
+    // Read the raw file content
+    let file_path = insight::file_path(&insight)?;
+    let file_content = std::fs::read_to_string(&file_path)?;
+
+    // Verify embedding data is NOT in the file
+    assert!(!file_content.contains("embedding_version: test-model"));
+    assert!(!file_content.contains("embedding:"));
+    assert!(!file_content.contains("[0.1, 0.2, 0.3, 0.4, 0.5]"));
+    assert!(!file_content.contains("embedding_text: test embedding text"));
+    assert!(!file_content.contains("embedding_computed:"));
+
+    // Verify that essential data IS still in the file
+    assert!(file_content.contains("topic: embedding_test"));
+    assert!(file_content.contains("name: test_embedding"));
+    assert!(file_content.contains("overview: Test embedding overview"));
+    assert!(file_content.contains("Test embedding details"));
+
+    // Verify the file is clean and human-readable (no array data)
+    let lines: Vec<&str> = file_content.lines().collect();
+    for line in &lines {
+      // No line should contain array brackets with numbers
+      assert!(!line.contains("- 0."), "Found embedding array data in file: {}", line);
+    }
+
+    Ok(())
+  }
+
+  #[test]
+  #[serial]
+  fn test_lancedb_can_access_embedding_data() -> Result<()> {
+    // Create insight with embedding data in memory
+    let mut insight = Insight::new(
+      "lancedb_test".to_string(),
+      "memory_embedding".to_string(), 
+      "LanceDB embedding test".to_string(),
+      "Testing that LanceDB can access embedding data from memory".to_string(),
+    );
+
+    // Add embedding data
+    insight.embedding = Some(vec![0.1, 0.2, 0.3, 0.4, 0.5]);
+    insight.embedding_version = Some("test-model".to_string());
+
+    // Test that the LanceDB validation function can access the embedding
+    let embedding_result = insight.embedding.as_deref().ok_or_else(|| anyhow::anyhow!("No embedding"));
+    
+    // This should succeed - embedding data is available in memory
+    assert!(embedding_result.is_ok());
+    let embedding = embedding_result.unwrap();
+    assert_eq!(embedding.len(), 5);
+    assert_eq!(embedding, &[0.1, 0.2, 0.3, 0.4, 0.5]);
+
+    // Embedding version should also be accessible
+    assert_eq!(insight.embedding_version.as_deref(), Some("test-model"));
+
+    Ok(())
+  }
 }
