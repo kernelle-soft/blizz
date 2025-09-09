@@ -448,7 +448,7 @@ mod insight_tests {
     let lines: Vec<&str> = file_content.lines().collect();
     for line in &lines {
       // No line should contain array brackets with numbers
-      assert!(!line.contains("- 0."), "Found embedding array data in file: {}", line);
+      assert!(!line.contains("- 0."), "Found embedding array data in file: {line}");
     }
 
     Ok(())
@@ -460,7 +460,7 @@ mod insight_tests {
     // Create insight with embedding data in memory
     let mut insight = Insight::new(
       "lancedb_test".to_string(),
-      "memory_embedding".to_string(), 
+      "memory_embedding".to_string(),
       "LanceDB embedding test".to_string(),
       "Testing that LanceDB can access embedding data from memory".to_string(),
     );
@@ -470,8 +470,9 @@ mod insight_tests {
     insight.embedding_version = Some("test-model".to_string());
 
     // Test that the LanceDB validation function can access the embedding
-    let embedding_result = insight.embedding.as_deref().ok_or_else(|| anyhow::anyhow!("No embedding"));
-    
+    let embedding_result =
+      insight.embedding.as_deref().ok_or_else(|| anyhow::anyhow!("No embedding"));
+
     // This should succeed - embedding data is available in memory
     assert!(embedding_result.is_ok());
     let embedding = embedding_result.unwrap();
