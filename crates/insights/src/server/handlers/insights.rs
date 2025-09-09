@@ -1,7 +1,7 @@
 //! Insights endpoint handlers
 
 #[cfg(feature = "ml-features")]
-use crate::server::services::vector_database::VectorDatabase;
+use crate::server::services::vector_database::{VectorDatabase, VectorSearchResult};
 #[cfg(feature = "ml-features")]
 use anyhow::anyhow;
 use anyhow::Result;
@@ -394,13 +394,20 @@ async fn generate_and_store_embedding(
   context: &RequestContext,
   insight: &insight::Insight,
 ) -> Result<()> {
-  let embedding_text =
-    format!("{} {} {} {}", insight.topic, insight.name, insight.overview, insight.details);
+  // Create document content and title for proper EmbeddingGemma formatting
+  let document_title = format!("{}/{}", insight.topic, insight.name);
+  let document_content = format!("{} {}", insight.overview, insight.details);
 
-  // Generate embedding using the embedding service
-  let embedding = crate::server::services::embeddings::create_embedding(&embedding_text)
-    .await
-    .map_err(|e| anyhow!("Failed to generate embedding: {}", e))?;
+  // Generate embedding using proper document format for EmbeddingGemma
+  let embedding = crate::server::services::embeddings::create_document_embedding(
+    &document_content,
+    Some(&document_title),
+  )
+  .await
+  .map_err(|e| anyhow!("Failed to generate document embedding: {}", e))?;
+
+  // Store the properly formatted text that was actually embedded
+  let formatted_embedding_text = format!("title: {document_title} | text: {document_content}");
 
   // Create insight with embedding data
   let insight_with_embedding = insight::Insight {
@@ -408,9 +415,9 @@ async fn generate_and_store_embedding(
     name: insight.name.clone(),
     overview: insight.overview.clone(),
     details: insight.details.clone(),
-    embedding_version: Some("gte-base-en-v1.5".to_string()),
+    embedding_version: Some("embeddinggemma-300m".to_string()),
     embedding: Some(embedding.clone()),
-    embedding_text: Some(embedding_text),
+    embedding_text: Some(formatted_embedding_text),
     embedding_computed: Some(chrono::Utc::now()),
   };
 
@@ -433,58 +440,135 @@ async fn generate_and_store_embedding(
   Ok(())
 }
 
-/// Perform vector similarity search using LanceDB
+/// Perform vector similarity search with reranking using LanceDB
 #[cfg(feature = "ml-features")]
 async fn perform_vector_search(
   context: &RequestContext,
   request: &SearchRequest,
 ) -> Result<Vec<SearchResultData>> {
-  // Create search query text from terms
   let query_text = request.terms.join(" ");
 
-  // Generate embedding for the search query
-  let query_embedding = crate::server::services::embeddings::create_embedding(&query_text)
+  let query_embedding = embed_query(&query_text).await?;
+  let similar_results = initial_search(context, &query_embedding).await?;
+  let reranked_results = rerank_results(context, &query_text, similar_results).await;
+  let final_results = limit_results(reranked_results);
+
+  Ok(final_results)
+}
+
+/// Generate query embedding with proper error handling
+#[cfg(feature = "ml-features")]
+async fn embed_query(query_text: &str) -> Result<Vec<f32>> {
+  crate::server::services::embeddings::create_query_embedding(query_text)
     .await
-    .map_err(|e| anyhow!("Failed to generate query embedding: {}", e))?;
+    .map_err(|e| anyhow!("Failed to generate query embedding: {}", e))
+}
 
-  let limit = 1e12 as usize;
-  let threshold = Some(0.55); // with normalized cosine similarity, this captures "more similar than different"
+/// Retrieve initial candidates using permissive settings
+#[cfg(feature = "ml-features")]
+async fn initial_search(
+  context: &RequestContext,
+  query_embedding: &[f32],
+) -> Result<Vec<crate::server::services::vector_database::VectorSearchResult>> {
+  let initial_limit = get_initial_search_limit();
+  let initial_threshold = Some(get_initial_search_threshold());
+  let results =
+    context.vector_db.search_similar(query_embedding, initial_limit, initial_threshold).await?;
 
-  // Perform vector search
-  let similar_results =
-    context.vector_db.search_similar(&query_embedding, limit, threshold).await?;
+  if results.is_empty() {
+    return Ok(vec![]);
+  }
 
-  // Convert vector search results to SearchResultData format
-  let mut search_results = Vec::new();
+  Ok(results)
+}
+
+/// Rerank search candidates using semantic similarity
+#[cfg(feature = "ml-features")]
+async fn rerank_results(
+  context: &RequestContext,
+  query_text: &str,
+  similar_results: Vec<crate::server::services::vector_database::VectorSearchResult>,
+) -> Vec<SearchResultData> {
+  let mut reranked_results = Vec::new();
 
   for result in similar_results {
-    // Load the full insight to get complete details
-    match insight::load(&result.topic, &result.name) {
-      Ok(_full_insight) => {
-        search_results.push(SearchResultData {
-          topic: result.topic,
-          name: result.name,
-          overview: result.overview,
-          details: result.details,
-          score: result.similarity,
-        });
-      }
-      Err(e) => {
-        // Log warning but continue with partial data
-        context
-          .log_warn(
-            &format!("Failed to load full insight {}/{}: {}", result.topic, result.name, e),
-            "insights-search",
-          )
-          .await;
-      }
+    if let Some(search_result) = score_single_result(context, query_text, result).await {
+      reranked_results.push(search_result);
     }
   }
 
-  // Sort by similarity score (highest first)
-  search_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+  reranked_results
+}
 
-  Ok(search_results)
+// violet ignore chunk - just a bit long because of the object constructors
+/// Rerank a single candidate result
+#[cfg(feature = "ml-features")]
+async fn score_single_result(
+  context: &RequestContext,
+  query_text: &str,
+  result: VectorSearchResult,
+) -> Option<SearchResultData> {
+  match insight::load(&result.topic, &result.name) {
+    Ok(_full_insight) => {
+      let doc_text =
+        format!("{} {} {} {}", result.topic, result.name, result.overview, result.details);
+      let score = compute_relevance_score(query_text, &doc_text, &result).await;
+
+      Some(SearchResultData {
+        topic: result.topic,
+        name: result.name,
+        overview: result.overview,
+        details: result.details,
+        score,
+      })
+    }
+    Err(e) => {
+      tokio::spawn({
+        let context = context.clone();
+        let topic = result.topic.clone();
+        let name = result.name.clone();
+        async move {
+          context
+            .log_warn(
+              &format!("Failed to load full insight {topic}/{name}: {e}"),
+              "insights-search",
+            )
+            .await;
+        }
+      });
+      None
+    }
+  }
+}
+
+/// Compute reranking score with fallback
+#[cfg(feature = "ml-features")]
+async fn compute_relevance_score(
+  query_text: &str,
+  doc_text: &str,
+  result: &crate::server::services::vector_database::VectorSearchResult,
+) -> f32 {
+  match crate::server::services::embeddings::score_relevance(query_text, doc_text).await {
+    Ok(score) => score,
+    Err(e) => {
+      bentley::warn!(&format!(
+        "Reranking failed for {}/{}: {}, using original score",
+        result.topic, result.name, e
+      ));
+      result.similarity
+    }
+  }
+}
+
+/// Sort and limit reranked search results
+#[cfg(feature = "ml-features")]
+fn limit_results(mut reranked_results: Vec<SearchResultData>) -> Vec<SearchResultData> {
+  reranked_results
+    .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+
+  let final_limit = get_rerank_limit();
+  reranked_results.truncate(final_limit);
+  reranked_results
 }
 
 /// Perform vector similarity search using LanceDB (no-op without ml-features)
@@ -965,4 +1049,31 @@ fn create_search_error_response(
     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
     ResponseJson(BaseResponse::<()>::error(vec![error], transaction_id)),
   )
+}
+
+/// Get the configured initial limit for reranking candidate retrieval
+/// Default: 128 candidates
+/// Environment: INSIGHTS_RERANK_INITIAL_LIMIT
+#[cfg(feature = "ml-features")]
+fn get_initial_search_limit() -> usize {
+  std::env::var("INSIGHTS_RERANK_INITIAL_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(128)
+}
+
+/// Get the configured initial threshold for reranking candidate retrieval
+/// Default: 0.3 (more permissive than final search)
+/// Environment: INSIGHTS_RERANK_INITIAL_THRESHOLD  
+#[cfg(feature = "ml-features")]
+fn get_initial_search_threshold() -> f32 {
+  std::env::var("INSIGHTS_RERANK_INITIAL_THRESHOLD")
+    .ok()
+    .and_then(|s| s.parse().ok())
+    .unwrap_or(0.3)
+}
+
+/// Get the configured final limit for reranking results
+/// Default: 8 final results after reranking
+/// Environment: INSIGHTS_RERANK_FINAL_LIMIT
+#[cfg(feature = "ml-features")]
+fn get_rerank_limit() -> usize {
+  std::env::var("INSIGHTS_RERANK_FINAL_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(8)
 }

@@ -424,8 +424,56 @@ pub async fn detect_embedding_dimension() -> Result<usize> {
 }
 
 /// Public API function to create embeddings - initializes model on first use
+///
+/// This is a generic function that accepts raw text. For better performance with EmbeddingGemma,
+/// consider using the task-specific functions like `create_query_embedding` or `create_document_embedding`.
 #[cfg(not(tarpaulin_include))]
 pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
+  create_embedding_with_prompt(text).await
+}
+
+/// Create embeddings optimized for search queries using EmbeddingGemma prompt format
+/// Uses format: "task: search result | query: {content}"
+#[cfg(not(tarpaulin_include))]
+pub async fn create_query_embedding(query: &str) -> Result<Vec<f32>> {
+  let formatted_query = format!("task: search result | query: {query}");
+  bentley::verbose!(&format!(
+    "Creating query embedding with EmbeddingGemma format: '{}'",
+    formatted_query.chars().take(100).collect::<String>()
+  ));
+  create_embedding_with_prompt(&formatted_query).await
+}
+
+/// Create embeddings optimized for documents using EmbeddingGemma prompt format
+/// Uses format: "title: {title | "none"} | text: {content}"
+#[cfg(not(tarpaulin_include))]
+pub async fn create_document_embedding(content: &str, title: Option<&str>) -> Result<Vec<f32>> {
+  let title_part = title.unwrap_or("none");
+  let formatted_doc = format!("title: {title_part} | text: {content}");
+  bentley::verbose!(&format!(
+    "Creating document embedding with EmbeddingGemma format: title='{}', content_length={}",
+    title_part,
+    content.len()
+  ));
+  create_embedding_with_prompt(&formatted_doc).await
+}
+
+/// Create embeddings optimized for semantic similarity using EmbeddingGemma prompt format
+/// Uses format: "task: sentence similarity | query: {content}"
+/// This is specifically designed for similarity assessment, not retrieval tasks.
+#[cfg(not(tarpaulin_include))]
+pub async fn create_semantic_similarity_embedding(content: &str) -> Result<Vec<f32>> {
+  let formatted_content = format!("task: sentence similarity | query: {content}");
+  bentley::verbose!(&format!(
+    "Creating semantic similarity embedding with EmbeddingGemma format, content_length={}",
+    content.len()
+  ));
+  create_embedding_with_prompt(&formatted_content).await
+}
+
+/// Internal function to create embeddings with proper model initialization
+#[cfg(not(tarpaulin_include))]
+async fn create_embedding_with_prompt(formatted_text: &str) -> Result<Vec<f32>> {
   let mutex = MODEL.get_or_init(|| Mutex::new(None));
 
   // Check if we need to initialize the model
@@ -445,7 +493,91 @@ pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
   // Get embedding
   let mut guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
   let model = guard.as_mut().ok_or_else(|| anyhow!("Model not initialized"))?;
-  model.embed(text)
+  model.embed(formatted_text)
+}
+
+/// Generate a reranking relevance score using EmbeddingGemma semantic similarity task
+///
+/// This function uses the "Semantic Similarity" task which is specifically optimized
+/// for assessing text similarity (not retrieval). Both query and document get the
+/// same semantic similarity formatting for optimal similarity comparison.
+#[cfg(not(tarpaulin_include))]
+pub async fn score_relevance(query: &str, document: &str) -> Result<f32> {
+  bentley::verbose!(&format!(
+    "Reranking with semantic similarity task: query='{}', doc_length={}",
+    query.chars().take(50).collect::<String>(),
+    document.len()
+  ));
+
+  // Use semantic similarity task for both query and document
+  // This is specifically designed for similarity assessment, not retrieval
+  let query_embedding = create_semantic_similarity_embedding(query).await?;
+  let doc_embedding = create_semantic_similarity_embedding(document).await?;
+
+  // Calculate cosine similarity between semantic similarity embeddings
+  let similarity = cosine_similarity(&query_embedding, &doc_embedding);
+
+  bentley::verbose!(&format!("Semantic similarity reranking score: {similarity:.4}"));
+
+  Ok(similarity)
+}
+
+/// Calculate cosine similarity between two embedding vectors
+///
+/// Returns a value between -1 and 1, where:
+/// - 1 = identical direction (high similarity)
+/// - 0 = orthogonal (no similarity)  
+/// - -1 = opposite direction (negative similarity)
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+  if a.len() != b.len() {
+    bentley::warn!(&format!("Embedding dimension mismatch: {} vs {}", a.len(), b.len()));
+    return 0.0;
+  }
+
+  if a.is_empty() {
+    return 0.0;
+  }
+
+  // Calculate dot product
+  let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+
+  // Calculate magnitudes
+  let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+  let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+  // Avoid division by zero
+  if norm_a == 0.0 || norm_b == 0.0 {
+    return 0.0;
+  }
+
+  // Return normalized cosine similarity, clamped to [0,1] for relevance scoring
+  let similarity = dot_product / (norm_a * norm_b);
+
+  // Convert from [-1,1] to [0,1] range for relevance scores
+  // This ensures negative similarity (opposite direction) becomes low relevance
+  ((similarity + 1.0) / 2.0).clamp(0.0, 1.0)
+}
+
+/// No-op functions when ML features are not available
+#[cfg(not(feature = "ml-features"))]
+pub async fn create_query_embedding(_query: &str) -> Result<Vec<f32>> {
+  Err(anyhow!("ML features not available"))
+}
+
+#[cfg(not(feature = "ml-features"))]
+pub async fn create_document_embedding(_content: &str, _title: Option<&str>) -> Result<Vec<f32>> {
+  Err(anyhow!("ML features not available"))
+}
+
+#[cfg(not(feature = "ml-features"))]
+pub async fn create_semantic_similarity_embedding(_content: &str) -> Result<Vec<f32>> {
+  Err(anyhow!("ML features not available"))
+}
+
+#[cfg(not(feature = "ml-features"))]
+pub async fn create_reranking_score(_query: &str, _document: &str) -> Result<f32> {
+  // Return neutral score when ML features not available
+  Ok(0.5)
 }
 
 #[cfg(test)]
@@ -536,6 +668,55 @@ mod gte_base_tests {
     fn input_names(&self) -> Vec<String> {
       self.input_names.clone()
     }
+  }
+
+  /// Test cosine similarity calculation
+  #[test]
+  fn test_cosine_similarity() {
+    // Test identical vectors (should return 1.0 after normalization)
+    let vec_a = vec![1.0, 2.0, 3.0];
+    let vec_b = vec![1.0, 2.0, 3.0];
+    let similarity = cosine_similarity(&vec_a, &vec_b);
+    assert!((similarity - 1.0).abs() < 0.001, "Identical vectors should have similarity 1.0");
+
+    // Test orthogonal vectors (should return 0.5 after [0,1] normalization)
+    let vec_c = vec![1.0, 0.0];
+    let vec_d = vec![0.0, 1.0];
+    let orthogonal_sim = cosine_similarity(&vec_c, &vec_d);
+    assert!((orthogonal_sim - 0.5).abs() < 0.001, "Orthogonal vectors should have similarity 0.5");
+
+    // Test opposite vectors (should return 0.0 after [0,1] normalization)
+    let vec_e = vec![1.0, 2.0, 3.0];
+    let vec_f = vec![-1.0, -2.0, -3.0];
+    let opposite_sim = cosine_similarity(&vec_e, &vec_f);
+    assert!(opposite_sim < 0.001, "Opposite vectors should have similarity near 0.0");
+
+    // Test zero vectors (should return 0.0)
+    let zero_vec = vec![0.0, 0.0, 0.0];
+    let normal_vec = vec![1.0, 2.0, 3.0];
+    let zero_sim = cosine_similarity(&zero_vec, &normal_vec);
+    assert_eq!(zero_sim, 0.0, "Zero vector should have similarity 0.0");
+
+    // Test empty vectors (should return 0.0)
+    let empty_vec: Vec<f32> = vec![];
+    let empty_sim = cosine_similarity(&empty_vec, &empty_vec);
+    assert_eq!(empty_sim, 0.0, "Empty vectors should have similarity 0.0");
+
+    // Test dimension mismatch (should return 0.0)
+    let vec_2d = vec![1.0, 2.0];
+    let vec_3d = vec![1.0, 2.0, 3.0];
+    let mismatch_sim = cosine_similarity(&vec_2d, &vec_3d);
+    assert_eq!(mismatch_sim, 0.0, "Dimension mismatch should return 0.0");
+
+    // Test that similar vectors have higher similarity than dissimilar ones
+    let similar_a = vec![1.0, 2.0, 3.0];
+    let similar_b = vec![1.1, 2.1, 2.9]; // Close to similar_a
+    let different_c = vec![10.0, -5.0, 0.1]; // Different from similar_a
+
+    let similar_score = cosine_similarity(&similar_a, &similar_b);
+    let different_score = cosine_similarity(&similar_a, &different_c);
+
+    assert!(similar_score > different_score, "Similar vectors should have higher similarity");
   }
 
   /// Test prepare_from with token_type_ids expected by model
