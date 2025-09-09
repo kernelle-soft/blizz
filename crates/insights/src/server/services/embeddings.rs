@@ -502,7 +502,7 @@ async fn create_embedding_with_prompt(formatted_text: &str) -> Result<Vec<f32>> 
 /// for assessing text similarity (not retrieval). Both query and document get the
 /// same semantic similarity formatting for optimal similarity comparison.
 #[cfg(not(tarpaulin_include))]
-pub async fn create_reranking_score(query: &str, document: &str) -> Result<f32> {
+pub async fn score_relevance(query: &str, document: &str) -> Result<f32> {
   bentley::verbose!(&format!(
     "Reranking with semantic similarity task: query='{}', doc_length={}",
     query.chars().take(50).collect::<String>(),
