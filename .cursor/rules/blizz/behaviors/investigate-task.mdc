@@ -31,8 +31,8 @@ This workflow is designed to gather insights in preparation to tackle a task fro
 - The project and or workspace. Feel free to look through the current state of the project.
 
 ## Disallowed Actions
-- Make code changes yet. This is purely investigation.
-- Change git branches. There's a decent likelihood they're being actively worked on. Assume you're being parallelized with other instances of AI agents doing their work.
+- Don't make code changes yet. This task is purely for investigation.
+- Don't change branches. There's a decent likelihood they're being actively worked on. Assume you're being parallelized with other instances of AI agents doing their work.
 
 ## Algorithm
 1. Pull information on the task from the input url and try to understand its goal.

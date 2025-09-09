@@ -1,11 +1,11 @@
 ---
-description: 
+description: Rating the confidence of feature implementation
 globs: 
 alwaysApply: false
 ---
 ## Algorithm
 1. Give a heuristic confidence rating (0-100%) based on the following factors:
-- How you feel about implementing this feature or fixing this issue in *one shot*, then submitting an MR for review by a very picky, very experienced reviewer
+- How you feel about implementing this feature or fixing this issue in *one shot*, then submitting an branch for code review by a very picky, very experienced reviewer
 - How much information is available from all sources
 - The state of other elements related to the task (e.g., if it's part of a larger project, then factor in the state of the whole project)
 - If there's info you think you're missing, or if you feel like you can't know what you don't know yet, that should factor in. You should also report those confidence gaps.

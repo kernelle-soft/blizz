@@ -16,7 +16,7 @@ Good unit tests have these essential attributes:
 ### **Observational**: Tests use code. They don't modify it.
 - Tests use the code they put under test
 - Good tests don't modify code with special "test" branches or conditions
-- Note: good _code_ is generally easy to test
+- Note: good code is generally easy to test
 
 ### **Singular**: Test one specific case
 - Focus on single, well-defined behavior
@@ -42,7 +42,7 @@ Good unit tests have these essential attributes:
 
 ### **Reliable**: Consistent results
 - Eliminate flaky tests that randomly pass/fail
-- Mock randomness and external factors
+- Mock out randomness and external factors
 
 ### **Strategic Redundancy**: Overlapping coverage helps
 - Multiple tests can validate the same functionality from different angles
