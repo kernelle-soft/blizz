@@ -409,25 +409,25 @@ mod insight_tests {
   #[serial]
   fn test_temporal_metadata_on_creation() -> Result<()> {
     let before_creation = chrono::Utc::now();
-    
+
     let insight = Insight::new(
       "temporal_test".to_string(),
       "creation_test".to_string(),
       "Testing temporal metadata on creation".to_string(),
       "This tests that new insights have proper timestamps".to_string(),
     );
-    
+
     let after_creation = chrono::Utc::now();
 
     // Check that timestamps are set
     assert!(insight.created_at >= before_creation);
     assert!(insight.created_at <= after_creation);
-    assert!(insight.last_updated >= before_creation);  
+    assert!(insight.last_updated >= before_creation);
     assert!(insight.last_updated <= after_creation);
-    
+
     // Check that created_at and last_updated are the same on creation
     assert_eq!(insight.created_at, insight.last_updated);
-    
+
     // Check that update count starts at 0
     assert_eq!(insight.update_count, 0);
 
@@ -446,36 +446,36 @@ mod insight_tests {
       "Original overview".to_string(),
       "Original details".to_string(),
     );
-    
+
     let original_created_at = insight.created_at;
     let original_last_updated = insight.last_updated;
-    
+
     insight::save(&insight)?;
-    
+
     // Wait a bit to ensure timestamp difference
     std::thread::sleep(std::time::Duration::from_millis(10));
-    
+
     // Update the insight
     insight::update(&mut insight, Some("Updated overview"), Some("Updated details"))?;
-    
+
     // Check that created_at hasn't changed
     assert_eq!(insight.created_at, original_created_at);
-    
+
     // Check that last_updated has changed
     assert!(insight.last_updated > original_last_updated);
-    
+
     // Check that update_count has increased
     assert_eq!(insight.update_count, 1);
-    
+
     // Update again
     std::thread::sleep(std::time::Duration::from_millis(10));
     let second_last_updated = insight.last_updated;
     insight::update(&mut insight, Some("Second update"), None)?;
-    
+
     // Check that update_count increased again and last_updated changed
     assert_eq!(insight.update_count, 2);
     assert!(insight.last_updated > second_last_updated);
-    
+
     Ok(())
   }
 
@@ -483,7 +483,7 @@ mod insight_tests {
   #[serial]
   fn test_temporal_metadata_serialization() -> Result<()> {
     let _temp = setup_temp_insights_root("temporal_serialization");
-    
+
     // Create insight with known timestamps
     let mut insight = Insight::new(
       "serialization_test".to_string(),
@@ -491,32 +491,36 @@ mod insight_tests {
       "Testing temporal serialization".to_string(),
       "This tests that temporal metadata is saved to files".to_string(),
     );
-    
+
     // Modify timestamps to known values for testing
-    insight.created_at = chrono::DateTime::parse_from_rfc3339("2024-01-15T10:30:00Z").unwrap().with_timezone(&chrono::Utc);
-    insight.last_updated = chrono::DateTime::parse_from_rfc3339("2024-01-20T14:45:00Z").unwrap().with_timezone(&chrono::Utc);
+    insight.created_at = chrono::DateTime::parse_from_rfc3339("2024-01-15T10:30:00Z")
+      .unwrap()
+      .with_timezone(&chrono::Utc);
+    insight.last_updated = chrono::DateTime::parse_from_rfc3339("2024-01-20T14:45:00Z")
+      .unwrap()
+      .with_timezone(&chrono::Utc);
     insight.update_count = 5;
-    
+
     // Save the insight
     insight::save(&insight)?;
-    
+
     // Read the raw file content
     let file_path = insight::file_path(&insight)?;
     let file_content = std::fs::read_to_string(&file_path)?;
-    
+
     // Verify temporal metadata is in the file
     assert!(file_content.contains("created_at: 2024-01-15T10:30:00Z"));
     assert!(file_content.contains("last_updated: 2024-01-20T14:45:00Z"));
     assert!(file_content.contains("update_count: 5"));
-    
+
     // Load the insight back from file
     let loaded_insight = insight::load("serialization_test", "temporal_metadata")?;
-    
+
     // Verify temporal metadata was preserved
     assert_eq!(loaded_insight.created_at, insight.created_at);
     assert_eq!(loaded_insight.last_updated, insight.last_updated);
     assert_eq!(loaded_insight.update_count, insight.update_count);
-    
+
     Ok(())
   }
 
@@ -524,7 +528,7 @@ mod insight_tests {
   #[serial]
   fn test_backwards_compatibility_missing_temporal_fields() -> Result<()> {
     let _temp = setup_temp_insights_root("backwards_compat");
-    
+
     // Create a legacy insight file without temporal metadata
     let legacy_content = r#"---
 topic: legacy_test
@@ -535,28 +539,36 @@ overview: This is a legacy insight without temporal metadata
 # Details
 This insight was created before temporal metadata was added.
 "#;
-    
+
     // Write the legacy file directly
     let insights_root = insight::get_insights_root()?;
     let topic_dir = insights_root.join("legacy_test");
     std::fs::create_dir_all(&topic_dir)?;
     let file_path = topic_dir.join("old_insight.insight.md");
     std::fs::write(&file_path, legacy_content)?;
-    
+
     // Load the legacy insight
     let loaded_insight = insight::load("legacy_test", "old_insight")?;
-    
+
     // Check that temporal metadata has default values
-    assert_eq!(loaded_insight.created_at, chrono::DateTime::parse_from_rfc3339("2025-05-01T00:00:00Z").unwrap().with_timezone(&chrono::Utc));
-    assert!(loaded_insight.last_updated <= chrono::Utc::now());  // Should be set to current time
+    assert_eq!(
+      loaded_insight.created_at,
+      chrono::DateTime::parse_from_rfc3339("2025-05-01T00:00:00Z")
+        .unwrap()
+        .with_timezone(&chrono::Utc)
+    );
+    assert!(loaded_insight.last_updated <= chrono::Utc::now()); // Should be set to current time
     assert_eq!(loaded_insight.update_count, 0);
-    
+
     // Check that other fields are correct
     assert_eq!(loaded_insight.topic, "legacy_test");
     assert_eq!(loaded_insight.name, "old_insight");
     assert_eq!(loaded_insight.overview, "This is a legacy insight without temporal metadata");
-    assert_eq!(loaded_insight.details, "This insight was created before temporal metadata was added.");
-    
+    assert_eq!(
+      loaded_insight.details,
+      "This insight was created before temporal metadata was added."
+    );
+
     Ok(())
   }
 }

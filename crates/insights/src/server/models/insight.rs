@@ -30,7 +30,7 @@ pub struct InsightMetaData {
   #[serde(default)]
   pub name: String,
   pub overview: String,
-  
+
   // Temporal metadata - always included in files
   #[serde(default = "default_created_at")]
   pub created_at: DateTime<Utc>,
@@ -38,7 +38,7 @@ pub struct InsightMetaData {
   pub last_updated: DateTime<Utc>,
   #[serde(default)]
   pub update_count: u32,
-  
+
   // Embedding metadata - excluded from files (set to None in write_to_file)
   #[serde(skip_serializing_if = "Option::is_none")]
   pub embedding_version: Option<String>,
@@ -456,7 +456,7 @@ fn check_insight_exists(path: &std::path::Path, topic: &str, name: &str) -> Resu
 
 fn parse_insight_from_content(topic: &str, name: &str, content: &str) -> Result<Insight> {
   let (fm, details) = parse_insight_with_metadata(content)?;
-  
+
   Ok(Insight {
     // Use topic and name from frontmatter to preserve original case.
     // Fall back to parameters for backward compatibility.
