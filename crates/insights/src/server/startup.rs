@@ -93,7 +93,7 @@ fn get_lancedb_data_path() -> std::path::PathBuf {
   dirs::home_dir()
     .unwrap_or_else(|| std::path::Path::new("/tmp").to_path_buf())
     .join(".blizz")
-    .join("persistent")
+    .join("volatile")
     .join("insights")
     .join("lancedb")
 }
