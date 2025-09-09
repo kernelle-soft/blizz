@@ -75,11 +75,6 @@ serial_test = "3.2"
 tempfile.workspace = true
 mockall.workspace = true
 
-[[bin]]
-name = "inspect_lancedb"
-path = "../../inspect_lancedb.rs"
-required-features = ["ml-features"]
-
 [features]
 default = ["ml-features", "download-onnx-binaries"] 
 ml-features = [
