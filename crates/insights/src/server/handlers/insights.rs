@@ -1054,6 +1054,7 @@ fn create_search_error_response(
 /// Get the configured initial limit for reranking candidate retrieval
 /// Default: 128 candidates
 /// Environment: INSIGHTS_RERANK_INITIAL_LIMIT
+#[cfg(feature = "ml-features")]
 fn get_initial_search_limit() -> usize {
   std::env::var("INSIGHTS_RERANK_INITIAL_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(128)
 }
@@ -1061,6 +1062,7 @@ fn get_initial_search_limit() -> usize {
 /// Get the configured initial threshold for reranking candidate retrieval
 /// Default: 0.3 (more permissive than final search)
 /// Environment: INSIGHTS_RERANK_INITIAL_THRESHOLD  
+#[cfg(feature = "ml-features")]
 fn get_initial_search_threshold() -> f32 {
   std::env::var("INSIGHTS_RERANK_INITIAL_THRESHOLD")
     .ok()
@@ -1071,6 +1073,7 @@ fn get_initial_search_threshold() -> f32 {
 /// Get the configured final limit for reranking results
 /// Default: 8 final results after reranking
 /// Environment: INSIGHTS_RERANK_FINAL_LIMIT
+#[cfg(feature = "ml-features")]
 fn get_rerank_limit() -> usize {
   std::env::var("INSIGHTS_RERANK_FINAL_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(8)
 }
