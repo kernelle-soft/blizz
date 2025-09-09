@@ -555,7 +555,7 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 
   // Convert from [-1,1] to [0,1] range for relevance scores
   // This ensures negative similarity (opposite direction) becomes low relevance
-  ((similarity + 1.0) / 2.0).max(0.0).min(1.0)
+  ((similarity + 1.0) / 2.0).clamp(0.0, 1.0)
 }
 
 /// No-op functions when ML features are not available
