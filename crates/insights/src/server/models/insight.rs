@@ -88,10 +88,12 @@ fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
     topic: insight.topic.clone(),
     name: insight.name.clone(),
     overview: insight.overview.clone(),
-    embedding_version: insight.embedding_version.clone(),
-    embedding: insight.embedding.clone(),
-    embedding_text: insight.embedding_text.clone(),
-    embedding_computed: insight.embedding_computed,
+    // Don't serialize embedding data to files - keep files human-readable
+    // Embeddings are stored in LanceDB for search operations
+    embedding_version: None,
+    embedding: None,
+    embedding_text: None,
+    embedding_computed: None,
   };
 
   let yaml_content = serde_yaml::to_string(&frontmatter)?;
