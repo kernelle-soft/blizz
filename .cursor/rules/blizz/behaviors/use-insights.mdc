@@ -16,10 +16,26 @@ When solving problems or starting a new conversation:
 
 2. Make multiple calls to insights to gather information as you find out more from the insights you pick up from previous calls.
 
-3. As the conversation continues, feel free to `insights add` insights you pick up on either from conversation or investigation.
+3. As the conversation continues, please use `insights add` to add insights you pick up on either from conversation or investigation.
+
+4. At the end of your work, summarize what was done with one last insight.
 
 ## Important
+Only store insights that meet most of these criteria:
+1. likely to apply to future situations
+2. not basic knowledge found in documentation
+3. specific to this codebase/workflow/domain
+4. provides clear guidance for future use
+5. focused on one specific point or pattern
+
 If you discover contradicting information from results of `insights`:
 1.  STOP and take the time to point it out to the user
 2.  Search for the real answer using available tools, MCPs and resources (including the system timestamps for when the insights were last created/updated).
-3.  Update the bad information.
+3.  Update the bad information with `insights update`
+
+## Focus areas for automatic capture
+- **Problem-solution patterns** that could recur
+- **Configuration patterns** that work well
+- **Workflow optimizations** that improve efficiency
+- **Integration patterns** between tools/systems
+- **Niche Discoveries** about oddities of a repository
