@@ -442,7 +442,7 @@ async fn generate_and_store_embedding(
 
 /// Perform vector similarity search with reranking using LanceDB
 #[cfg(feature = "ml-features")]
-async fn search(
+async fn perform_vector_search(
   context: &RequestContext,
   request: &SearchRequest,
 ) -> Result<Vec<SearchResultData>> {
@@ -920,7 +920,7 @@ async fn execute_embedding_search(
   request: &SearchRequest,
   all_results: &mut Vec<SearchResultData>,
 ) {
-  match search(context, request).await {
+  match perform_vector_search(context, request).await {
     Ok(embedding_results) => {
       log_embedding_search_success(context, &embedding_results, &request.terms).await;
       all_results.extend(embedding_results);
