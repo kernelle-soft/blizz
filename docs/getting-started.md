@@ -1,12 +1,16 @@
 # Getting Started with Blizz
 
-This guide will take you from zero to productive with Blizz in about 10 minutes.
+This guide will help you get up and started with blizz's AI development toolset.
+
+After you've gotten comfortable with the tools and how they work together with your agentic IDE, give your AIDE a few sessions to gather insights and begin establishing your areas of expertise, projects, and other context. 
+
+Alternatively, to start seeing the advantages more quickly, spend a few chat sessions pulling in local insights from the web, internal wikis, or your project management system to seed your RAG search with information about what you're working on.
 
 ## System Requirements
 
-- **OS**: Linux (x86_64) or macOS (ARM64)
-- **Memory**: 4GB RAM minimum, 8GB recommended for embedding models
-- **Storage**: 2GB free space for models and data
+- **OS**: Linux (x86_64) or macOS (ARM64) 
+- **Memory**: 8GB RAM recommended for embedding models
+- **Storage**: ~6GB free space for models and data
 - **Network**: Internet connection for initial model download
 
 ## Installation
@@ -14,228 +18,283 @@ This guide will take you from zero to productive with Blizz in about 10 minutes.
 ### Quick Install
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kernelle-soft/blizz/refs/heads/dev/scripts/install.sh | sh
-```
-
-### Manual Shell Setup
-Add to your `~/.bashrc`, `~/.zshrc`, or equivalent:
-```bash
 source ~/.blizz.source
 ```
 
-Then reload your shell:
+### Verifying your Installation
 ```bash
-source ~/.bashrc  # or ~/.zshrc
+blizz --version 
+insights --version 
+violet --version
+secrets --version
 ```
 
-### Verify Installation
+## Linking Blizz to Repositories
+
+### 1. Link AI Agent Rulesets to Your Project
 ```bash
-blizz --help
-insights --help
-violet --help
-secrets --help
-```
-
-## First Workflow: Knowledge Management
-
-### 1. Add Your First Insight
-```bash
-insights add "projects" "blizz-setup" "Successfully installed Blizz" "Completed the installation process and verified all tools are working. The local RAG system is now ready for capturing development knowledge."
-```
-
-### 2. Test Search
-```bash
-# Exact search
-insights search "setup"
-
-# Semantic search (finds related concepts)
-insights search "installation" --semantic
-```
-
-### 3. Explore Your Knowledge Base
-```bash
-# List all topics
-insights topics
-
-# List insights in a topic
-insights list projects
-
-# Get a specific insight
-insights get projects blizz-setup
-```
-
-## Second Workflow: Code Quality
-
-### 1. Analyze Code Legibility
-```bash
-# Check current directory
-violet .
-
-# Check specific files with details
-violet src/main.rs
-
-# Only show violations
-violet --quiet .
-```
-
-### 2. Capture Code Quality Insights
-```bash
-insights add "code-quality" "violet-first-run" "Analyzed codebase with Violet" "Ran Violet on the project and found X violations. The tool provides specific feedback about code legibility and complexity. Key issues: [list main findings]"
-```
-
-## Third Workflow: Task Automation
-
-### 1. Explore Available Tasks
-```bash
-blizz tasks
-```
-
-### 2. Run Common Tasks
-```bash
-# Run tests
-blizz do test
-
-# Format code
-blizz do format
-
-# Run quality checks
-blizz do checks
-```
-
-### 3. Create Custom Tasks
-Edit `blizz.yaml` in your project root:
-```yaml
-my-workflow:
-  - blizz do format
-  - blizz do test
-  - violet --quiet .
-
-deploy-prep:
-  - do: checks
-  - insights add "deployment" "$(date +%Y-%m-%d)-deploy" "Deployment checkpoint" "All checks passed, ready for deployment"
-```
-
-## Fourth Workflow: Secrets Management
-
-### 1. Store Your First Secret
-```bash
-secrets store anthropic api_key
-# Enter your API key when prompted
-```
-
-### 2. Read Secrets
-```bash
-secrets read anthropic api_key
-```
-
-### 3. List All Secrets
-```bash
-secrets list
-```
-
-## Building Your Knowledge Base
-
-### Effective Insight Organization
-
-**Good insight topics:**
-- `projects` - Project-specific learnings
-- `debugging` - Problem-solving patterns
-- `architecture` - Design decisions and patterns
-- `tools` - Tool configurations and workflows
-- `team` - Team processes and standards
-
-**Writing effective insights:**
-```bash
-# Good: Specific, actionable
-insights add "debugging" "memory-leak-pattern" "Found memory leak in event listeners" "React components were not cleaning up event listeners in useEffect. Solution: always return cleanup function from useEffect hooks that add listeners."
-
-# Avoid: Too vague
-insights add "general" "stuff" "Some things I learned" "Today was interesting..."
-```
-
-### Search Strategies
-
-```bash
-# Exact search - finds literal matches
-insights search "memory leak" --exact
-
-# Semantic search - finds related concepts
-insights search "performance issues" --semantic
-
-# Topic-specific search
-insights search "debugging patterns" --topic debugging
-
-# Overview-only search (faster)
-insights search "architecture" --overview-only
-```
-
-## Integrating with Your Workflow
-
-### 1. Link Blizz to New Projects
-```bash
-cd /path/to/new-project
+cd /path/to/your/project
 blizz link
 ```
-This copies your Blizz rules and workflows to the new project.
 
-### 2. Capture Development Sessions
-```bash
-# At start of work session
-insights add "daily" "$(date +%Y-%m-%d)-session" "Working on feature X" "Goals: [list goals]. Starting context: [current state]"
+**What this does:**
+- Creates `.cursor/blizz/` folder with AI agent rulesets and tools
+- Sets up local RAG system for persistent AI memory and automatic insight generation
+- Configures AI-actionable code quality analysis
+- Establishes secure credential access for MCPs
 
-# At end of session
-insights add "daily" "$(date +%Y-%m-%d)-results" "Completed work on feature X" "Accomplished: [list completions]. Key learnings: [insights]. Next steps: [list next steps]"
+
+### 2. Customized Rules
+
+Open your project and notice the folder `.cursor/rules/blizz/`. Under that folder, there's another subfolder called `personal`
+
+Try adding a rule `my-first-rule.mdc` of your own there:
+
+```md
+---
+description: Greet me
+globs:
+alwaysApply: true
+---
+
+At the beginning of every single new chat session, greet me with "Hello, World!" before doing anything else.
 ```
 
-### 3. Code Review Workflow
-```bash
-# Before code review
-violet --quiet . && echo "Code quality check passed"
+Test out the rule in a new chat session.
 
-# Capture review insights
-insights add "code-review" "feature-x-review" "Code review findings" "Reviewer feedback: [key points]. Changes made: [list changes]. Patterns to remember: [extract patterns]"
+Once you've verified your rule is working, try using `blizz link` on another project, then opening that. Note that `my-first-rule.mdc` has carried over!
+
+
+### 3. Configure MCP Credentials (Optional but Recommended)
+```bash
+# Store credentials securely for AI agent MCP access
+secrets store anthropic api_key      # For Claude MCP integration
+secrets store github access_token    # For GitHub MCP integration
+secrets store openai api_key         # For OpenAI MCP integration
+secrets store jira api_key           # For JIRA tickets
+
+# etc
+```
+
+[TODO] add details on hooking up MCPs and/or shell files that use the secrets tool to manage secrets.
+
+## How Your Agent Will Use These Tools
+
+### Persistent Memory (Insights)
+At the beginning of most sessions, most thinking models will make calls out to the `insights` system to pull in relevant information from previous discussions.
+
+As the discussion goes on, discoveries and key insights you or the model deem important will automatically be saved by adding new insights
+
+```bash
+# (You can also add insights manually, but agents do this automatically)
+insights add "architecture" "auth-system" "User auth flow" "Using JWT tokens with refresh rotation, stored in httpOnly cookies. Main auth middleware in src/auth/middleware.ts"
+```
+
+In the above example, the next time you ask about authentication days, weeks, or months down the road, your AI agent remembers these specific decisions and implementation details from your codebase and why those decisions were made, along with any other insights relating to authentication.
+
+```bash
+# AI agent searches its memory for relevant context
+insights search "authentication"
+```
+
+### Code Quality Analysis (Violet)
+
+As the agent generates code, you may notice it making calls to `violet` from time to time:
+
+```bash
+violet src/components/UserForm.tsx
+```
+
+This is to analyze how readable its own code is.
+
+Your agent can then use the feedback provided by the tool to refactor its own code automatically for better readability.
+
+The agent will perform checks like this automatically from time to time if it feels its own code is getting unwieldy. However, there's nothing stopping you from running the tool yourself project-wide and having your agent automatically clean it up and organize it for legibility and reusability.
+
+### The Task Runner
+Handle "works on my machine" problems:
+
+**Project-level config** (`blizz.yaml` at repo root):
+```yaml
+# Team standard tasks
+test:
+  - cargo test --workspace
+  - npm test
+  
+deploy:
+  - blizz do test
+  - docker build -t app:latest .
+```
+
+**Personal config** (`.cursor/blizz/blizz.yaml`):
+```yaml
+# Your personal environment quirks
+test:
+  - export RUST_BACKTRACE=1  # You like verbose errors
+  - cargo test --workspace
+  - npm test
+  
+my-setup:
+  - docker stop old-postgres || true  # Your Docker conflicts
+  - export NODE_OPTIONS="--max-old-space-size=8192"  # Your machine needs more memory
+```
+
+**The Magic:** AI agent knows both team standards AND your personal workarounds.
+
+## Real-World AI-Assisted Workflows
+
+### 1. Context-Aware Development Sessions
+
+**Start a development session:**
+```bash
+# AI agent can run this automatically when you start work
+blizz do my-setup  # Your personal environment setup
+```
+
+**During development:** Your AI agent remembers:
+- Previous architectural decisions (stored in insights)
+- Code quality patterns (from violet analysis)
+- Your personal workflow preferences (from configs)
+- Organizational context (from MCP integrations)
+
+### 2. AI-Enhanced Code Review
+
+```bash
+# AI agent runs quality analysis
+violet --quiet . || echo "Quality issues found - see AI agent for specific suggestions"
+
+# AI agent captures and remembers review patterns
+# (This happens automatically based on your conversations)
+```
+
+### 3. Organizational Knowledge Integration
+
+**With MCPs configured, your AI agent can:**
+- Reference similar solutions from other repositories (GitHub MCP)
+- Remember past incidents and solutions (Jira/Linear MCP)
+- Understand team decisions from documentation (Confluence/Notion MCP)
+- Recall team discussions and context (Slack MCP)
+
+## Understanding the File System
+
+### Insights Are Just Markdown Files
+```bash
+# Your AI agent's memory is stored as readable files
+ls ~/.blizz/persistent/insights/
+
+# You can inspect, backup, or modify with standard tools
+grep -r "authentication" ~/.blizz/persistent/insights/
+git init ~/.blizz/persistent/insights/  # Version control AI memory
+```
+
+### Team Collaboration
+```bash
+# Teams can share AI knowledge via git
+cd ~/.blizz/persistent/insights/
+git clone git@company.com:team/shared-insights.git team/
+
+# Now your AI agent has both personal and team context
+```
+
+## Advanced Configuration
+
+### Personal vs Team Config Layers
+
+**Team violet config** (project root `violet.yaml`):
+```yaml
+# Team code quality standards
+penalties:
+  depth: 1.2
+  verbosity: 1.1
+  syntactics: 1.3
+```
+
+**Personal violet config** (`.cursor/blizz/violet.yaml`):
+```yaml
+# Your personal preferences (merges with team config)
+ignore_patterns:
+  - "legacy/*"  # You're not responsible for fixing legacy code
+penalties:
+  verbosity: 1.0  # You prefer more verbose code
+```
+
+### MCP Integration Examples
+
+**GitHub MCP** - AI agent learns from other repositories:
+```bash
+# AI agent can reference solutions from your other projects
+# "I see you solved similar caching issues in the billing-service repo..."
+```
+
+**Jira MCP** - AI agent remembers past incidents:
+```bash
+# AI agent recalls incident context
+# "This error is similar to PROD-1847 from last month. The solution was..."
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### AI Agent Not Finding Context
+```bash
+# Rebuild AI agent's memory index
+insights index
 
-**"insights command not found"**
-- Make sure you ran `source ~/.blizz.source`
-- Verify installation completed without errors
+# Check if insights server is running
+insights logs
+```
 
-**Embedding model download fails**
-- Check internet connection
-- Ensure you have sufficient disk space (2GB)
-- Try restarting the insights server: `pkill insights_server`
+### Configuration Issues
+```bash
+# Check that rulesets are properly linked
+ls -la .cursor/blizz/
 
-**Searches return no results**
-- Run `insights index` to rebuild embeddings
-- Verify insights exist: `insights list`
-- Try exact search first: `insights search "term" --exact`
+# Verify configs are loading
+blizz tasks  # Should show both team and personal tasks
+```
 
-**Secrets won't decrypt**
-- Verify you're entering the correct master password
-- Check that the keeper daemon is running: `secrets agent status`
+### MCP Credential Issues
+```bash
+# Check credential storage
+secrets list
 
-### Getting Help
+# Test credential access
+secrets read github access_token
+```
 
-1. **Check logs**: `insights logs` for insights issues
-2. **Search existing insights**: `insights search "error message"`
-3. **File an issue**: [GitHub Issues](https://github.com/kernelle-soft/blizz/issues)
-4. **Join discussion**: [GitHub Discussions](https://github.com/kernelle-soft/blizz/discussions)
+## What Happens Next
+
+Once setup is complete:
+
+1. **Your AI agent builds context** - Every conversation adds to its memory
+2. **Code quality improves** - AI suggestions become specific to your codebase  
+3. **Workflows become consistent** - AI agent learns your preferences and team patterns
+4. **Knowledge compounds** - Organizational context grows through MCP integrations
+
+## Validation Checklist
+
+✅ **Installation complete** - All commands work
+✅ **Project linked** - `.cursor/blizz/` folder exists
+✅ **AI memory active** - Insights server running
+✅ **Code analysis working** - Violet provides specific output
+✅ **Credentials configured** - MCPs can access external systems
+✅ **Configs layered** - Personal + team settings merge correctly
 
 ## Next Steps
 
-- [**Examples**](./examples.md) - See real-world workflows
-- [**Alpha Guide**](./alpha.md) - Understand current limitations
-- [**Enterprise**](./enterprise.md) - Learn about team features
+- **[Real-World Examples](./examples.md)** - See AI-assisted development workflows
+- **[Team Collaboration](./team-collaboration.md)** - Share AI knowledge via git
+- **[Organizational Knowledge](./organizational-knowledge.md)** - Enterprise MCP integration
+- **[Alpha Guide](./alpha.md)** - Current limitations and feedback
 
 ## Alpha Feedback
 
-We're actively improving the user experience. Please share:
+Help us improve the AI-assisted development experience:
 
 ```bash
-insights add "alpha-feedback" "experience-$(date +%Y-%m-%d)" "My Blizz alpha experience" "Setup experience: [rate 1-10, describe issues]. Most useful feature: [describe]. Biggest pain point: [describe]. Would recommend to colleague: [yes/no, why]"
+# Your AI agent can help collect this feedback
+insights add "alpha-feedback" "setup-experience-$(date +%Y-%m-%d)" "Blizz setup experience" "Setup time: X minutes. Blockers: [list]. AI agent effectiveness: [rating]. Most valuable feature: [describe]. Improvement suggestions: [list]"
 ```
 
-Or [join the discussion](https://github.com/kernelle-soft/blizz/discussions) to share feedback directly.
+---
+
+*The goal isn't to replace your development workflow - it's to give your AI assistant the tools and memory to actually understand and enhance it.*
