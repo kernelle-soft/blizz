@@ -477,9 +477,93 @@ async fn initial_search(
   Ok(results)
 }
 
-/// Rerank search candidates using semantic similarity
+/// Rerank search candidates using semantic similarity with batch processing for better performance
 #[cfg(feature = "ml-features")]
 async fn rerank_results(
+  context: &RequestContext,
+  query_text: &str,
+  similar_results: Vec<crate::server::services::vector_database::VectorSearchResult>,
+) -> Vec<SearchResultData> {
+  if similar_results.is_empty() {
+    return Vec::new();
+  }
+
+  // Try batch processing first for optimal performance
+  match batch_rerank_results(context, query_text, &similar_results).await {
+    Ok(results) => results,
+    Err(e) => {
+      bentley::warn!(&format!("Batch reranking failed: {}, falling back to individual scoring", e));
+      // Fallback to individual scoring if batch processing fails
+      individual_rerank_results(context, query_text, similar_results).await
+    }
+  }
+}
+
+/// Batch rerank results for optimal performance - reduces model calls from 2N to N+1
+#[cfg(feature = "ml-features")]
+async fn batch_rerank_results(
+  context: &RequestContext,
+  query_text: &str,
+  similar_results: &[crate::server::services::vector_database::VectorSearchResult],
+) -> Result<Vec<SearchResultData>> {
+  // Pre-validate all insights exist and prepare documents for batch processing
+  let mut valid_results = Vec::new();
+  let mut documents = Vec::new();
+
+  for result in similar_results {
+    // Validate insight exists before processing
+    match insight::load(&result.topic, &result.name) {
+      Ok(_full_insight) => {
+        let doc_text = format!("{} {} {} {}", result.topic, result.name, result.overview, result.details);
+        documents.push(doc_text);
+        valid_results.push(result);
+      }
+      Err(e) => {
+        tokio::spawn({
+          let context = context.clone();
+          let topic = result.topic.clone();
+          let name = result.name.clone();
+          async move {
+            context
+              .log_warn(
+                &format!("Failed to load full insight {topic}/{name}: {e}"),
+                "insights-search",
+              )
+              .await;
+          }
+        });
+      }
+    }
+  }
+
+  if valid_results.is_empty() {
+    return Ok(Vec::new());
+  }
+
+  // Convert to string references for batch processing
+  let document_refs: Vec<&str> = documents.iter().map(|s| s.as_str()).collect();
+
+  // Use batch scoring for much better performance
+  let scores = crate::server::services::embeddings::batch_score_relevance(query_text, &document_refs).await?;
+
+  // Create results with batch-computed scores
+  let mut reranked_results = Vec::new();
+  for (result, score) in valid_results.into_iter().zip(scores.into_iter()) {
+    reranked_results.push(SearchResultData {
+      topic: result.topic.clone(),
+      name: result.name.clone(),
+      overview: result.overview.clone(),
+      details: result.details.clone(),
+      score,
+    });
+  }
+
+  Ok(reranked_results)
+}
+
+/// Individual reranking fallback - original implementation for when batch processing fails
+#[cfg(feature = "ml-features")]
+async fn individual_rerank_results(
   context: &RequestContext,
   query_text: &str,
   similar_results: Vec<crate::server::services::vector_database::VectorSearchResult>,

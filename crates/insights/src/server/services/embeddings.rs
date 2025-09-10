@@ -522,6 +522,51 @@ pub async fn score_relevance(query: &str, document: &str) -> Result<f32> {
   Ok(similarity)
 }
 
+/// Batch score multiple documents against a single query - much more efficient than individual calls
+///
+/// This function generates the query embedding once and reuses it for all documents,
+/// reducing the number of model calls from 2N to N+1 (where N is the number of documents).
+#[cfg(not(tarpaulin_include))]
+pub async fn batch_score_relevance(query: &str, documents: &[&str]) -> Result<Vec<f32>> {
+  if documents.is_empty() {
+    return Ok(Vec::new());
+  }
+
+  bentley::verbose!(&format!(
+    "Batch reranking {} documents against query: '{}'",
+    documents.len(),
+    query.chars().take(50).collect::<String>()
+  ));
+
+  // Generate query embedding ONCE and reuse for all documents
+  let query_embedding = create_semantic_similarity_embedding(query).await?;
+
+  // Generate document embeddings efficiently
+  let mut document_embeddings = Vec::new();
+  for document in documents {
+    let doc_embedding = create_semantic_similarity_embedding(document).await?;
+    document_embeddings.push(doc_embedding);
+  }
+
+  // Calculate cosine similarities efficiently in batch
+  let similarities = batch_cosine_similarity(&query_embedding, &document_embeddings);
+
+  bentley::verbose!(&format!(
+    "Batch reranking completed, average score: {:.4}",
+    similarities.iter().sum::<f32>() / similarities.len() as f32
+  ));
+
+  Ok(similarities)
+}
+
+/// Calculate cosine similarities between one query embedding and multiple document embeddings
+fn batch_cosine_similarity(query_embedding: &[f32], document_embeddings: &[Vec<f32>]) -> Vec<f32> {
+  document_embeddings
+    .iter()
+    .map(|doc_embedding| cosine_similarity(query_embedding, doc_embedding))
+    .collect()
+}
+
 /// Calculate cosine similarity between two embedding vectors
 ///
 /// Returns a value between -1 and 1, where:
@@ -578,6 +623,58 @@ pub async fn create_semantic_similarity_embedding(_content: &str) -> Result<Vec<
 pub async fn create_reranking_score(_query: &str, _document: &str) -> Result<f32> {
   // Return neutral score when ML features not available
   Ok(0.5)
+}
+
+#[cfg(test)]
+mod batch_scoring_tests {
+  use super::*;
+
+  #[test]
+  fn test_batch_cosine_similarity() {
+    // Test batch cosine similarity calculation
+    let query_embedding = vec![1.0, 0.0, 0.0];
+    let doc_embeddings = vec![
+      vec![1.0, 0.0, 0.0],  // Same direction - high similarity
+      vec![0.0, 1.0, 0.0],  // Orthogonal - medium similarity  
+      vec![-1.0, 0.0, 0.0], // Opposite direction - low similarity
+    ];
+
+    let similarities = batch_cosine_similarity(&query_embedding, &doc_embeddings);
+
+    assert_eq!(similarities.len(), 3);
+    
+    // First document: identical vectors should have similarity near 1.0
+    assert!((similarities[0] - 1.0).abs() < 0.01);
+    
+    // Second document: orthogonal vectors should have similarity near 0.5 (normalized to [0,1])
+    assert!((similarities[1] - 0.5).abs() < 0.01);
+    
+    // Third document: opposite vectors should have similarity near 0.0
+    assert!((similarities[2] - 0.0).abs() < 0.01);
+  }
+
+  #[test]
+  fn test_batch_cosine_similarity_empty() {
+    let query_embedding = vec![1.0, 0.0, 0.0];
+    let doc_embeddings: Vec<Vec<f32>> = vec![];
+
+    let similarities = batch_cosine_similarity(&query_embedding, &doc_embeddings);
+    
+    assert_eq!(similarities.len(), 0);
+  }
+
+  #[test]
+  fn test_batch_cosine_similarity_dimension_mismatch() {
+    let query_embedding = vec![1.0, 0.0];
+    let doc_embeddings = vec![
+      vec![1.0, 0.0, 0.0],  // 3 dimensions vs 2 dimensions
+    ];
+
+    let similarities = batch_cosine_similarity(&query_embedding, &doc_embeddings);
+    
+    assert_eq!(similarities.len(), 1);
+    assert_eq!(similarities[0], 0.0);  // Should return 0.0 for mismatch
+  }
 }
 
 #[cfg(test)]
