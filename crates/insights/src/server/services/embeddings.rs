@@ -3,6 +3,7 @@ use hf_hub::api::tokio::Api;
 use ndarray::Array2;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::Instant;
 use tokenizers::Tokenizer;
 
 const MODEL_NAME: &str = "onnx-community/embeddinggemma-300m-ONNX";
@@ -503,21 +504,38 @@ async fn create_embedding_with_prompt(formatted_text: &str) -> Result<Vec<f32>> 
 /// same semantic similarity formatting for optimal similarity comparison.
 #[cfg(not(tarpaulin_include))]
 pub async fn score_relevance(query: &str, document: &str) -> Result<f32> {
+  let individual_start = Instant::now();
+  
   bentley::verbose!(&format!(
-    "Reranking with semantic similarity task: query='{}', doc_length={}",
+    "Individual reranking with semantic similarity task: query='{}', doc_length={}",
     query.chars().take(50).collect::<String>(),
     document.len()
   ));
 
   // Use semantic similarity task for both query and document
   // This is specifically designed for similarity assessment, not retrieval
+  let query_embedding_start = Instant::now();
   let query_embedding = create_semantic_similarity_embedding(query).await?;
+  let query_duration = query_embedding_start.elapsed();
+
+  let doc_embedding_start = Instant::now();
   let doc_embedding = create_semantic_similarity_embedding(document).await?;
+  let doc_duration = doc_embedding_start.elapsed();
 
-  // Calculate cosine similarity between semantic similarity embeddings
+  let similarity_start = Instant::now();
   let similarity = cosine_similarity(&query_embedding, &doc_embedding);
+  let similarity_duration = similarity_start.elapsed();
 
-  bentley::verbose!(&format!("Semantic similarity reranking score: {similarity:.4}"));
+  let total_duration = individual_start.elapsed();
+
+  bentley::verbose!(&format!(
+    "Individual reranking: {:.2}ms total ({:.2}ms query, {:.2}ms doc, {:.2}ms similarity), score: {:.4}",
+    total_duration.as_secs_f64() * 1000.0,
+    query_duration.as_secs_f64() * 1000.0,
+    doc_duration.as_secs_f64() * 1000.0,
+    similarity_duration.as_secs_f64() * 1000.0,
+    similarity
+  ));
 
   Ok(similarity)
 }
@@ -532,28 +550,60 @@ pub async fn batch_score_relevance(query: &str, documents: &[&str]) -> Result<Ve
     return Ok(Vec::new());
   }
 
+  let batch_start = Instant::now();
+  let doc_count = documents.len();
+
   bentley::verbose!(&format!(
-    "Batch reranking {} documents against query: '{}'",
-    documents.len(),
+    "Starting batch reranking of {} documents against query: '{}'",
+    doc_count,
     query.chars().take(50).collect::<String>()
   ));
 
   // Generate query embedding ONCE and reuse for all documents
+  let query_embedding_start = Instant::now();
   let query_embedding = create_semantic_similarity_embedding(query).await?;
-
-  // Generate document embeddings efficiently
-  let mut document_embeddings = Vec::new();
-  for document in documents {
-    let doc_embedding = create_semantic_similarity_embedding(document).await?;
-    document_embeddings.push(doc_embedding);
-  }
-
-  // Calculate cosine similarities efficiently in batch
-  let similarities = batch_cosine_similarity(&query_embedding, &document_embeddings);
+  let query_embedding_duration = query_embedding_start.elapsed();
 
   bentley::verbose!(&format!(
-    "Batch reranking completed, average score: {:.4}",
-    similarities.iter().sum::<f32>() / similarities.len() as f32
+    "Query embedding generated in {:.2}ms",
+    query_embedding_duration.as_secs_f64() * 1000.0
+  ));
+
+  // Generate document embeddings efficiently
+  let doc_embeddings_start = Instant::now();
+  let mut document_embeddings = Vec::new();
+  for (i, document) in documents.iter().enumerate() {
+    let doc_start = Instant::now();
+    let doc_embedding = create_semantic_similarity_embedding(document).await?;
+    let doc_duration = doc_start.elapsed();
+    
+    bentley::verbose!(&format!(
+      "Document {}/{} embedding generated in {:.2}ms",
+      i + 1,
+      doc_count,
+      doc_duration.as_secs_f64() * 1000.0
+    ));
+    
+    document_embeddings.push(doc_embedding);
+  }
+  let doc_embeddings_duration = doc_embeddings_start.elapsed();
+
+  // Calculate cosine similarities efficiently in batch
+  let similarity_start = Instant::now();
+  let similarities = batch_cosine_similarity(&query_embedding, &document_embeddings);
+  let similarity_duration = similarity_start.elapsed();
+
+  let total_duration = batch_start.elapsed();
+  let avg_score = similarities.iter().sum::<f32>() / similarities.len() as f32;
+
+  bentley::info!(&format!(
+    "Batch reranking performance: {:.2}ms total ({:.2}ms query, {:.2}ms docs [{:.2}ms/doc], {:.2}ms similarity), avg score: {:.4}",
+    total_duration.as_secs_f64() * 1000.0,
+    query_embedding_duration.as_secs_f64() * 1000.0,
+    doc_embeddings_duration.as_secs_f64() * 1000.0,
+    (doc_embeddings_duration.as_secs_f64() * 1000.0) / doc_count as f64,
+    similarity_duration.as_secs_f64() * 1000.0,
+    avg_score
   ));
 
   Ok(similarities)

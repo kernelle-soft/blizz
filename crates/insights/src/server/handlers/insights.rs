@@ -10,6 +10,7 @@ use axum::{
   response::Json as ResponseJson,
 };
 use chrono::Utc;
+use std::time::Instant;
 use uuid::Uuid;
 
 use crate::server::types::{
@@ -488,13 +489,41 @@ async fn rerank_results(
     return Vec::new();
   }
 
+  let rerank_start = Instant::now();
+  let result_count = similar_results.len();
+
   // Try batch processing first for optimal performance
   match batch_rerank_results(context, query_text, &similar_results).await {
-    Ok(results) => results,
+    Ok(results) => {
+      let rerank_duration = rerank_start.elapsed();
+      bentley::info!(&format!(
+        "Batch reranking completed: {:.2}ms for {} documents ({:.2}ms/doc)",
+        rerank_duration.as_secs_f64() * 1000.0,
+        result_count,
+        (rerank_duration.as_secs_f64() * 1000.0) / result_count as f64
+      ));
+      results
+    },
     Err(e) => {
-      bentley::warn!(&format!("Batch reranking failed: {}, falling back to individual scoring", e));
-      // Fallback to individual scoring if batch processing fails
-      individual_rerank_results(context, query_text, similar_results).await
+      let batch_duration = rerank_start.elapsed();
+      bentley::warn!(&format!(
+        "Batch reranking failed after {:.2}ms: {}, falling back to individual scoring", 
+        batch_duration.as_secs_f64() * 1000.0,
+        e
+      ));
+      
+      let individual_start = Instant::now();
+      let results = individual_rerank_results(context, query_text, similar_results).await;
+      let individual_duration = individual_start.elapsed();
+      
+      bentley::info!(&format!(
+        "Individual reranking completed: {:.2}ms for {} documents ({:.2}ms/doc)",
+        individual_duration.as_secs_f64() * 1000.0,
+        result_count,
+        (individual_duration.as_secs_f64() * 1000.0) / result_count as f64
+      ));
+      
+      results
     }
   }
 }
@@ -870,21 +899,61 @@ pub async fn search_insights(
   ResponseJson<BaseResponse<SearchResponse>>,
   (axum::http::StatusCode, ResponseJson<BaseResponse<()>>),
 > {
+  let search_start = Instant::now();
   let transaction_id = Uuid::new_v4();
 
   log_search_start(&context, &request).await;
   let search_options = build_search_options(&request);
 
+  let term_search_start = Instant::now();
   let mut all_results =
     perform_term_search(&context, &request, &search_options, transaction_id).await?;
+  let term_search_duration = term_search_start.elapsed();
 
+  bentley::verbose!(&format!(
+    "Term search completed in {:.2}ms, found {} results",
+    term_search_duration.as_secs_f64() * 1000.0,
+    all_results.len()
+  ));
+
+  let embedding_search_start = Instant::now();
   let should_finalize = add_embedding_search_results(&context, &request, &mut all_results).await;
+  let embedding_search_duration = embedding_search_start.elapsed();
 
   if should_finalize {
-    Ok(ResponseJson(finalize_search_results(&context, &request, all_results, transaction_id).await))
+    bentley::verbose!(&format!(
+      "Vector search completed in {:.2}ms",
+      embedding_search_duration.as_secs_f64() * 1000.0
+    ));
+    
+    let finalize_start = Instant::now();
+    let response = finalize_search_results(&context, &request, all_results, transaction_id).await;
+    let finalize_duration = finalize_start.elapsed();
+    let final_count = response.data.count;
+    
+    let total_duration = search_start.elapsed();
+    bentley::info!(&format!(
+      "Search completed: {:.2}ms total (term: {:.2}ms, vector: {:.2}ms, finalize: {:.2}ms), {} final results",
+      total_duration.as_secs_f64() * 1000.0,
+      term_search_duration.as_secs_f64() * 1000.0,
+      embedding_search_duration.as_secs_f64() * 1000.0,
+      finalize_duration.as_secs_f64() * 1000.0,
+      final_count
+    ));
+    
+    Ok(ResponseJson(response))
   } else {
     // No embeddings available - return results as-is
+    let total_duration = search_start.elapsed();
     let response_data = SearchResponse { count: all_results.len(), results: all_results };
+    
+    bentley::info!(&format!(
+      "Search completed (no embeddings): {:.2}ms total (term: {:.2}ms), {} results",
+      total_duration.as_secs_f64() * 1000.0,
+      term_search_duration.as_secs_f64() * 1000.0,
+      response_data.count
+    ));
+    
     Ok(ResponseJson(BaseResponse::success(response_data, transaction_id)))
   }
 }
