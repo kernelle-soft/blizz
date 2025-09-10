@@ -21,11 +21,29 @@ The result is that blizz really isn't about vibe coding. It's a _personalizable 
 - Semantically programmed agent behaviors, rulesets, and modern best practices for coding style, including rules to enable whatever model you're running to use the other tools above.
 
 
-## Setup
+## 🚀 Quick Start
 
+**[📚 Complete Documentation →](https://kernelle-soft.github.io/blizz/)**
+
+**Installation (30 seconds):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/kernelle-soft/blizz/refs/heads/dev/scripts/install.sh | sh
+source ~/.blizz.source
 ```
+
+**First Steps (2 minutes):**
+```bash
+# Add your first insight
+insights add "learning" "first-insight" "Getting started with Blizz" "This is my first insight using the Blizz knowledge management system"
+
+# Search your knowledge base
+insights search "getting started"
+
+# Test the installation
+blizz --help && insights --help && violet --help
+```
+
+**[📖 Full Getting Started Guide →](https://kernelle-soft.github.io/blizz/getting-started.html)**
 
 ## Development
 
@@ -55,3 +73,19 @@ From there, bacon will spin up the rust equivalent of a development server to wa
 1. Follow the code quality standards enforced by Violet and more universal tools like Rust's built in linting and compile checks. Warnings are treated as errors unless given an explicit exception (helps with AI-driven development).
 2. Use Bentley for all logging output of your code that you intend to ship.
 3. Shoot me a PR whenever.
+
+## 📚 Documentation
+
+- **[Getting Started](https://kernelle-soft.github.io/blizz/getting-started.html)** - Complete setup and first workflows
+- **[Examples](https://kernelle-soft.github.io/blizz/examples.html)** - Real-world usage patterns  
+- **[Alpha Guide](https://kernelle-soft.github.io/blizz/alpha.html)** - Current status and how to provide feedback
+
+## 💬 Community & Support
+
+- **[GitHub Discussions](https://github.com/kernelle-soft/blizz/discussions)** - Questions, ideas, and showcase
+- **[GitHub Issues](https://github.com/kernelle-soft/blizz/issues)** - Bug reports and feature requests
+- **Enterprise inquiries**: [jeff@kernelle.co](mailto:jeff@kernelle.co)
+
+---
+
+**Status: Open Alpha** - [Join the alpha](https://github.com/kernelle-soft/blizz/discussions) and help shape the future of AI development tooling.

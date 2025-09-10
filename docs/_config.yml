@@ -1,0 +1,32 @@
+# GitHub Pages configuration
+title: "Blizz Documentation"
+description: "The AI development toolshed - comprehensive documentation"
+baseurl: ""
+url: "https://kernelle-soft.github.io"
+
+# Theme
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Navigation
+header_pages:
+  - getting-started.md
+  - examples.md
+  - team-collaboration.md
+  - organizational-knowledge.md
+  - alpha.md
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  syntax_highlighter: rouge
+  syntax_highlighter_opts:
+    css_class: 'highlight'
+
+# Show excerpts
+show_excerpts: true
+
+# Enable GitHub metadata
+repository: kernelle-soft/blizz
