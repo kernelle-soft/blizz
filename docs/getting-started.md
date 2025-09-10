@@ -1,17 +1,45 @@
+<style>
+  .note h3 {
+    margin: 0;
+    margin-bottom: 6px;
+  }
+
+  .note span {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .note span:last-of-type {
+    margin-bottom: 0;
+  }
+
+  .note {
+    background-color: #ffff0011;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 4px; 
+  }
+</style>
+
 # Getting Started with Blizz
 
 This guide will help you get up and started with blizz's AI development toolset.
 
+<div class="note">
+<h3>
+Note
+</h3>
+<span>
 After you've gotten comfortable with the tools and how they work together with your agentic IDE, give your AIDE a few sessions to gather insights and begin establishing your areas of expertise, projects, and other context. 
-
-Alternatively, to start seeing the advantages more quickly, spend a few chat sessions pulling in local insights from the web, internal wikis, or your project management system to seed your RAG search with information about what you're working on.
+</span>
+<span>Alternatively, to start seeing the advantages more quickly, spend a few chat sessions pulling in local insights from the web, internal wikis, or your project management system to seed your RAG search with information about what you're working on.</span>
+</div>
 
 ## System Requirements
 
 - **OS**: Linux (x86_64) or macOS (ARM64) 
-- **Memory**: 8GB RAM recommended for embedding models
-- **Storage**: ~6GB free space for models and data
-- **Network**: Internet connection for initial model download
+- **Memory**: 16GB RAM or 8GB VRAM to have enough headroom for embedding models in addition to typical development work
+- **Storage**: ~2GB free space for models and data
 
 ## Installation
 
@@ -21,6 +49,10 @@ curl -fsSL https://raw.githubusercontent.com/kernelle-soft/blizz/refs/heads/dev/
 source ~/.blizz.source
 ```
 
+If you would like to help with the development of this tool and have your crash reports and usage statistics sent to us automatically, say `yes` when asked about telemetry. Note that this is the only online component to the toolset.
+
+See [here](/TODO/) for more information about what our telemetry logs look like.
+
 ### Verifying your Installation
 ```bash
 blizz --version 
@@ -29,29 +61,24 @@ violet --version
 secrets --version
 ```
 
-### (Linux only) Setting up CUDA dependencies
-If you would like our embedding and reranking model to run on a GPU to speed up insights searching, we've provided a setuptool that automatically detects and installs the needed NVIDIA dependencies to make this possible.
-
-Apple users don't need to do this. GPU acceleration should come out of the box. It's also worth noting that the insights system is designed to run with acceptable times even when not using GPU acceleration.
-
 ## Linking Blizz to Repositories
 
-### 1. Link AI Agent Rulesets to Your Project
+### 1. Linking the agentic rules to your project
 ```bash
 cd /path/to/your/project
 blizz link
 ```
 
 **What this does:**
-- Creates `.cursor/blizz/` folder with AI agent rulesets and tools
-- Sets up local RAG system for persistent AI memory and automatic insight generation
-- Configures AI-actionable code quality analysis
+- If needed, creates a `.cursor/` folder in your repository and links Blizz's AI agent rules and workflows
+- Adds rules for automatic usage of the insights system for persistent AI memory and automatic insight generation
+- Adds rules AI-actionable code quality analysis
 - Establishes secure credential access for MCPs
 
 
 ### 2. Customized Rules
 
-Open your project and notice the folder `.cursor/rules/blizz/`. Under that folder, there's another subfolder called `personal`
+Open your project and notice the folder `.cursor/rules/blizz/`. Under that folder, there's another subfolder called `personal` [TODO]
 
 Try adding a rule `my-first-rule.mdc` of your own there:
 
@@ -102,92 +129,97 @@ In the above example, the next time you ask about authentication days, weeks, or
 insights search "authentication"
 ```
 
-### Code Quality Analysis (Violet)
+### Automatic Code Readability Improvements (Violet)
 
-As the agent generates code, you may notice it making calls to `violet` from time to time:
+As the agent generates code, you may notice it making calls to `violet` from time to time and making adjustments.
+
+To get a better idea of what it's doing, run `violet` on _that_ part of your code. You know the one.
 
 ```bash
-violet src/components/UserForm.tsx
+violet src/path/to/messy/code.tsx
 ```
 
-This is to analyze how readable its own code is.
+Violet (the Versatile, Intuitive, and Objective Legibility Evaluation Tool) is designed to analyze how readable your code is and provide insights as to what issues it has.
 
-Your agent can then use the feedback provided by the tool to refactor its own code automatically for better readability.
+Your agent can now use the feedback provided by violet to refactor its own code automatically for better readability.
 
-The agent will perform checks like this automatically from time to time if it feels its own code is getting unwieldy. However, there's nothing stopping you from running the tool yourself project-wide and having your agent automatically clean it up and organize it for legibility and reusability.
+The agent will perform checks like this automatically from time to time if it feels its own code is getting unwieldy. However, there's nothing stopping you from running the tool yourself on certain parts of your project (or even project-wide) and having your agent automatically clean up issues and organize your code for legibility and reusability.
 
 ### The Task Runner
-Handle "works on my machine" problems:
 
-**Project-level config** (`blizz.yaml` at repo root):
+Blizz comes with a task runner out of the box that's designed to work within project-defined tasks.
+
+**Project-level tasks** (`blizz.yaml` at repo root):
 ```yaml
-# Team standard tasks
+# ./blizz.yaml: Project task file
+
 test:
   - cargo test --workspace
   - npm test
-  
+  - yarn test-coverage
+  - etc
+
+setup:
+  - yarn install
+  - yarn tsc
+  - ./scripts/get-messages.sh
+
 deploy:
   - blizz do test
   - docker build -t app:latest .
+
+# etc...
 ```
 
-**Personal config** (`.cursor/blizz/blizz.yaml`):
+**Personal project tasks** (`.cursor/blizz.yaml`):
 ```yaml
-# Your personal environment quirks
+# .cursor/blizz.yaml: Your personal task file
+
+# You can override project level tasks
 test:
   - export RUST_BACKTRACE=1  # You like verbose errors
   - cargo test --workspace
   - npm test
-  
+  - yarn test-coverage
+  - etc
+
+# You can also add additional tasks on top of the project level tasks and hook into them
 my-setup:
-  - docker stop old-postgres || true  # Your Docker conflicts
-  - export NODE_OPTIONS="--max-old-space-size=8192"  # Your machine needs more memory
+  - docker stop old-postgres || true
+  - export NODE_OPTIONS="--max-old-space-size=8192"
+  - do: setup # invokes project "setup" task
 ```
 
-**The Magic:** AI agent knows both team standards AND your personal workarounds.
+### Secrets
 
-## Real-World AI-Assisted Workflows
+<div class="note">
+<h3>
+Note
+</h3>
+<span>
+If you're just dipping your toes into MCP servers or Password managers, see [here](/TODO: find a trustworthy external link/) for a useful guide on MCPs, and read [here](/TODO: find a trustworthy external link/) for the benefits of using a password manager for access tokens and API keys.
+</span>
+</div>
 
-### 1. Context-Aware Development Sessions
+If you're running MCPs and would like to extract your access tokens and API keys into a specialized local vault, follow the instructions below.
 
-**Start a development session:**
-```bash
-# AI agent can run this automatically when you start work
-blizz do my-setup  # Your personal environment setup
-```
+When the `secrets` CLI is useful:
 
-**During development:** Your AI agent remembers:
-- Previous architectural decisions (stored in insights)
-- Code quality patterns (from violet analysis)
-- Your personal workflow preferences (from configs)
-- Organizational context (from MCP integrations)
+- When your current setup uses vaults like the 1password or dashlane CLIs, which require a separate system authentication for every MCP server spinning up.
+- When you want to pull plain text keys out of your configs for a better experience rotating them down the line.
+- When you want to configure and run an MCP server from a separate shell script to clean up your `mcp.json`
 
-### 2. AI-Enhanced Code Review
+[TODO] finish up this section
 
-```bash
-# AI agent runs quality analysis
-violet --quiet . || echo "Quality issues found - see AI agent for specific suggestions"
 
-# AI agent captures and remembers review patterns
-# (This happens automatically based on your conversations)
-```
-
-### 3. Organizational Knowledge Integration
-
-**With MCPs configured, your AI agent can:**
-- Reference similar solutions from other repositories (GitHub MCP)
-- Remember past incidents and solutions (Jira/Linear MCP)
-- Understand team decisions from documentation (Confluence/Notion MCP)
-- Recall team discussions and context (Slack MCP)
-
-## Understanding the File System
+## Understanding the Insights System
 
 ### Insights Are Just Markdown Files
 ```bash
 # Your AI agent's memory is stored as readable files
 ls ~/.blizz/persistent/insights/
 
-# You can inspect, backup, or modify with standard tools
+# If desired, you can inspect, backup, or modify with standard tools
 grep -r "authentication" ~/.blizz/persistent/insights/
 git init ~/.blizz/persistent/insights/  # Version control AI memory
 ```
@@ -196,7 +228,7 @@ git init ~/.blizz/persistent/insights/  # Version control AI memory
 ```bash
 # Teams can share AI knowledge via git
 cd ~/.blizz/persistent/insights/
-git clone git@company.com:team/shared-insights.git team/
+git clone git@company.com:team/shared-insights.git .
 
 # Now your AI agent has both personal and team context
 ```
@@ -227,14 +259,51 @@ penalties:
 
 **GitHub MCP** - AI agent learns from other repositories:
 ```bash
-# AI agent can reference solutions from your other projects
-# "I see you solved similar caching issues in the billing-service repo..."
+# First, store your GitHub token securely
+secrets store github access_token
+
+# Method 1: Direct embedding (simplest)
+{
+  "mcpServers": {
+    "github": {
+      "command": "bash",
+      "args": ["-c", "GITHUB_PERSONAL_ACCESS_TOKEN=$(secrets read github access_token) npx -y @modelcontextprotocol/server-github"]
+    }
+  }
+}
+
+# Method 2: Wrapper script (for complex setups)
+echo '#!/bin/bash
+export GITHUB_PERSONAL_ACCESS_TOKEN=$(secrets read github access_token)
+npx -y @modelcontextprotocol/server-github' > ~/.blizz/github-mcp.sh
+chmod +x ~/.blizz/github-mcp.sh
 ```
 
 **Jira MCP** - AI agent remembers past incidents:
 ```bash
-# AI agent recalls incident context
-# "This error is similar to PROD-1847 from last month. The solution was..."
+# First, store your Jira credentials securely
+secrets store jira email
+secrets store jira api_token
+
+# Method 1: Direct embedding (simplest)
+{
+  "mcpServers": {
+    "jira": {
+      "command": "bash",
+      "args": ["-c", "JIRA_EMAIL=$(secrets read jira email) JIRA_API_TOKEN=$(secrets read jira api_token) JIRA_INSTANCE_URL=https://yourcompany.atlassian.net npx -y @modelcontextprotocol/server-jira"]
+    }
+  }
+}
+
+# Method 2: Wrapper script (for complex setups)
+cat > ~/.blizz/jira-mcp.sh << 'EOF'
+#!/bin/bash
+export JIRA_EMAIL=$(secrets read jira email)
+export JIRA_API_TOKEN=$(secrets read jira api_token)
+export JIRA_INSTANCE_URL="https://yourcompany.atlassian.net"
+npx -y @modelcontextprotocol/server-jira
+EOF
+chmod +x ~/.blizz/jira-mcp.sh
 ```
 
 ## Troubleshooting
