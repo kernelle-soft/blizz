@@ -29,6 +29,11 @@ violet --version
 secrets --version
 ```
 
+### (Linux only) Setting up CUDA dependencies
+If you would like our embedding and reranking model to run on a GPU to speed up insights searching, we've provided a setuptool that automatically detects and installs the needed NVIDIA dependencies to make this possible.
+
+Apple users don't need to do this. GPU acceleration should come out of the box. It's also worth noting that the insights system is designed to run with acceptable times even when not using GPU acceleration.
+
 ## Linking Blizz to Repositories
 
 ### 1. Link AI Agent Rulesets to Your Project
