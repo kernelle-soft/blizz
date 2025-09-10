@@ -409,17 +409,12 @@ async fn generate_and_store_embedding(
   // Store the properly formatted text that was actually embedded
   let formatted_embedding_text = format!("title: {document_title} | text: {document_content}");
 
-  // Create insight with embedding data
-  let insight_with_embedding = insight::Insight {
-    topic: insight.topic.clone(),
-    name: insight.name.clone(),
-    overview: insight.overview.clone(),
-    details: insight.details.clone(),
-    embedding_version: Some("embeddinggemma-300m".to_string()),
-    embedding: Some(embedding.clone()),
-    embedding_text: Some(formatted_embedding_text),
-    embedding_computed: Some(chrono::Utc::now()),
-  };
+  // Create insight with embedding data, preserving existing temporal metadata
+  let mut insight_with_embedding = insight.clone();
+  insight_with_embedding.embedding_version = Some("embeddinggemma-300m".to_string());
+  insight_with_embedding.embedding = Some(embedding.clone());
+  insight_with_embedding.embedding_text = Some(formatted_embedding_text);
+  insight_with_embedding.embedding_computed = Some(chrono::Utc::now());
 
   // Store in vector database
   context.vector_db.store_embedding(&insight_with_embedding).await?;
@@ -661,16 +656,7 @@ async fn log_insight_addition_start(context: &RequestContext, request: &AddInsig
 
 /// Create a new insight from the API request
 fn create_insight_from_request(request: AddInsightRequest) -> insight::Insight {
-  insight::Insight {
-    topic: request.topic,
-    name: request.name,
-    overview: request.overview,
-    details: request.details,
-    embedding_version: None,
-    embedding: None,
-    embedding_text: None,
-    embedding_computed: None,
-  }
+  insight::Insight::new(request.topic, request.name, request.overview, request.details)
 }
 
 /// Save insight and attempt to generate embedding

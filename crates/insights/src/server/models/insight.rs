@@ -5,6 +5,17 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+// Default values for backwards compatibility with existing insight files
+fn default_created_at() -> DateTime<Utc> {
+  // For existing insights, use a reasonable fallback date
+  DateTime::parse_from_rfc3339("2025-05-01T00:00:00Z").unwrap().with_timezone(&Utc)
+}
+
+fn default_last_updated() -> DateTime<Utc> {
+  // For existing insights, use current time as last_updated
+  Utc::now()
+}
+
 // Frontmatter parsing constants
 const FRONTMATTER_START: &str = "---\n";
 const FRONTMATTER_END: &str = "\n---\n";
@@ -19,6 +30,16 @@ pub struct InsightMetaData {
   #[serde(default)]
   pub name: String,
   pub overview: String,
+
+  // Temporal metadata - always included in files
+  #[serde(default = "default_created_at")]
+  pub created_at: DateTime<Utc>,
+  #[serde(default = "default_last_updated")]
+  pub last_updated: DateTime<Utc>,
+  #[serde(default)]
+  pub update_count: u32,
+
+  // Embedding metadata - excluded from files (set to None in write_to_file)
   #[serde(skip_serializing_if = "Option::is_none")]
   pub embedding_version: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -36,6 +57,11 @@ pub struct Insight {
   pub overview: String,
   pub details: String,
 
+  // Temporal metadata
+  pub created_at: DateTime<Utc>,
+  pub last_updated: DateTime<Utc>,
+  pub update_count: u32,
+
   // Embedding metadata (None if not computed yet)
   pub embedding_version: Option<String>,
   pub embedding: Option<Vec<f32>>,
@@ -45,11 +71,15 @@ pub struct Insight {
 
 impl Insight {
   pub fn new(topic: String, name: String, overview: String, details: String) -> Self {
+    let now = Utc::now();
     Self {
       topic,
       name,
       overview,
       details,
+      created_at: now,
+      last_updated: now,
+      update_count: 0,
       embedding_version: None,
       embedding: None,
       embedding_text: None,
@@ -88,6 +118,10 @@ fn write_to_file(insight: &Insight, file_path: &PathBuf) -> Result<()> {
     topic: insight.topic.clone(),
     name: insight.name.clone(),
     overview: insight.overview.clone(),
+    // Include temporal metadata in files - useful for filtering and UX
+    created_at: insight.created_at,
+    last_updated: insight.last_updated,
+    update_count: insight.update_count,
     // Don't serialize embedding data to files - keep files human-readable
     // Embeddings are stored in LanceDB for search operations
     embedding_version: None,
@@ -138,6 +172,10 @@ pub fn update(
   if new_overview.is_none() && new_details.is_none() {
     return Err(anyhow!("At least one of overview or details must be provided"));
   }
+
+  // Update temporal metadata
+  insight.last_updated = Utc::now();
+  insight.update_count += 1;
 
   let existing_file_path = make_insight_path(&insight.topic, &insight.name)?;
   if !existing_file_path.exists() {
@@ -247,6 +285,9 @@ fn parse_legacy_format_no_frontmatter(content: &str) -> (InsightMetaData, String
     topic: "".to_string(),
     name: "".to_string(),
     overview,
+    created_at: default_created_at(),
+    last_updated: default_last_updated(),
+    update_count: 0,
     embedding_version: None,
     embedding: None,
     embedding_text: None,
@@ -264,6 +305,9 @@ fn parse_legacy_format(frontmatter_section: &str, body: &str) -> (InsightMetaDat
     topic: "".to_string(),
     name: "".to_string(),
     overview,
+    created_at: default_created_at(),
+    last_updated: default_last_updated(),
+    update_count: 0,
     embedding_version: None,
     embedding: None,
     embedding_text: None,
@@ -412,6 +456,7 @@ fn check_insight_exists(path: &std::path::Path, topic: &str, name: &str) -> Resu
 
 fn parse_insight_from_content(topic: &str, name: &str, content: &str) -> Result<Insight> {
   let (fm, details) = parse_insight_with_metadata(content)?;
+
   Ok(Insight {
     // Use topic and name from frontmatter to preserve original case.
     // Fall back to parameters for backward compatibility.
@@ -419,6 +464,10 @@ fn parse_insight_from_content(topic: &str, name: &str, content: &str) -> Result<
     name: if !fm.name.is_empty() { fm.name } else { name.to_string() },
     overview: fm.overview,
     details,
+    // Handle temporal metadata with backwards compatibility
+    created_at: fm.created_at,
+    last_updated: fm.last_updated,
+    update_count: fm.update_count,
     embedding_version: fm.embedding_version,
     embedding: fm.embedding,
     embedding_text: fm.embedding_text,
