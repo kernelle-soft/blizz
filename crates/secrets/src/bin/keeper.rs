@@ -144,12 +144,18 @@ thread_local! {
 mod tests {
   use super::*;
 
-  use assert_cmd::cargo::CommandCargoExt;
   use assert_cmd::Command;
-  use predicates::prelude::*;
   use rexpect::session::spawn_command;
   use std::process::Command as StdCommand;
   use tempfile::TempDir;
+
+  /// Convert assert_cmd::Command to std::process::Command for use with rexpect
+  fn to_std_command(assert_cmd: &Command) -> StdCommand {
+    let mut std_cmd = StdCommand::new(assert_cmd.get_program());
+    std_cmd.args(assert_cmd.get_args());
+    std_cmd.envs(assert_cmd.get_envs().filter_map(|(k, v)| v.map(|v| (k, v))));
+    std_cmd
+  }
 
   fn with_temp_env<F, R>(f: F) -> R
   where
@@ -193,10 +199,10 @@ mod tests {
       let test_password = "valid_password_123";
 
       // First, create a vault interactively using rexpect
-      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
       cmd.env("BLIZZ_HOME", temp_dir.path());
 
-      let mut session = spawn_command(cmd, Some(5000)).unwrap();
+      let mut session = spawn_command(to_std_command(&cmd), Some(5000)).unwrap();
 
       session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
       session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
@@ -218,7 +224,7 @@ mod tests {
           .timeout(std::time::Duration::from_secs(2))
           .assert()
           .failure()
-          .stderr(predicate::str::contains(ERROR_PASSWORD_EMPTY));
+          .stderr(predicates::str::contains(ERROR_PASSWORD_EMPTY));
       });
 
       // Test that whitespace-only SECRETS_AUTH is rejected
@@ -229,7 +235,7 @@ mod tests {
           .timeout(std::time::Duration::from_secs(2))
           .assert()
           .failure()
-          .stderr(predicate::str::contains(ERROR_PASSWORD_EMPTY));
+          .stderr(predicates::str::contains(ERROR_PASSWORD_EMPTY));
       });
     });
   }
@@ -266,10 +272,10 @@ mod tests {
       let test_password = "strong_test_password_123";
 
       // Test successful vault creation with matching passwords
-      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
       cmd.env("BLIZZ_HOME", temp_dir.path());
 
-      let mut session = spawn_command(cmd, Some(5000)).unwrap();
+      let mut session = spawn_command(to_std_command(&cmd), Some(5000)).unwrap();
 
       session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
       session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
@@ -288,10 +294,10 @@ mod tests {
       assert!(vault_path.exists(), "Vault file should exist after creation");
 
       // Test password mismatch during vault creation
-      let mut cmd2 = StdCommand::cargo_bin("keeper").unwrap();
+      let mut cmd2 = Command::cargo_bin("keeper").unwrap();
       cmd2.env("BLIZZ_HOME", temp_dir.path().join("mismatch_test"));
 
-      let mut session2 = spawn_command(cmd2, Some(5000)).unwrap();
+      let mut session2 = spawn_command(to_std_command(&cmd2), Some(5000)).unwrap();
 
       session2.exp_string("no vault found").unwrap();
       session2.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
@@ -314,10 +320,10 @@ mod tests {
       assert!(!keeper_dir.exists(), "Keeper directory should not exist initially");
 
       // Create vault - should create parent directories
-      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
       cmd.env("BLIZZ_HOME", temp_dir.path());
 
-      let mut session = spawn_command(cmd, Some(5000)).unwrap();
+      let mut session = spawn_command(to_std_command(&cmd), Some(5000)).unwrap();
 
       session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
       session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
@@ -348,10 +354,10 @@ mod tests {
       let test_password = "ipc_test_password_123";
 
       // First, create a vault with a known password
-      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
       cmd.env("BLIZZ_HOME", temp_dir.path());
 
-      let mut session = spawn_command(cmd, Some(5000)).unwrap();
+      let mut session = spawn_command(to_std_command(&cmd), Some(5000)).unwrap();
 
       session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
       session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
@@ -434,10 +440,10 @@ mod tests {
       let test_password = "invalid_request_test_123";
 
       // Create a vault and start daemon
-      let mut cmd = StdCommand::cargo_bin("keeper").unwrap();
+      let mut cmd = Command::cargo_bin("keeper").unwrap();
       cmd.env("BLIZZ_HOME", temp_dir.path());
 
-      let mut session = spawn_command(cmd, Some(5000)).unwrap();
+      let mut session = spawn_command(to_std_command(&cmd), Some(5000)).unwrap();
 
       session.exp_string(PROMPT_NO_VAULT_FOUND).unwrap();
       session.exp_string(PROMPT_ENTER_NEW_PASSWORD).unwrap();
