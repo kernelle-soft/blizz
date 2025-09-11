@@ -339,6 +339,14 @@ jobs:
             fi
           done
           
+          # Copy .cursor directory to dist
+          if [ -d ".cursor" ]; then
+            cp -r ".cursor" dist/
+            echo "✅ Packaged: .cursor directory"
+          else
+            echo "⚠️  .cursor directory not found"
+          fi
+          
           # Verify we have at least some binaries
           BINARY_COUNT=$(ls -1 dist/ | wc -l)
           if [ "$BINARY_COUNT" -eq 0 ]; then
@@ -346,7 +354,7 @@ jobs:
             exit 1
           fi
           
-          echo "📋 Packaged $BINARY_COUNT binaries"
+          echo "📋 Packaged $BINARY_COUNT binaries and .cursor directory"
           ls -la dist/
 
       - name: Create release archive
@@ -426,7 +434,7 @@ jobs:
             - **Linux x86_64** (`blizz-x86_64-unknown-linux-gnu.tar.gz`) - Compatible with Ubuntu, Debian, and most Linux distributions
             - **macOS ARM64** (`blizz-aarch64-apple-darwin.tar.gz`) - For Apple Silicon Macs
             
-            Each archive contains all Blizz binaries: `blizz`, `insights`, `secrets`, `keeper`, `violet`, and support tools.
+            Each archive contains all Blizz binaries: `blizz`, `insights`, `secrets`, `keeper`, `violet`, and support tools, plus the `.cursor` directory with configuration files and workspace rules.
             
             💡 **Tip**: The install script will automatically detect your platform and use these pre-built binaries for faster installation!
         env:

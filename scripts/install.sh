@@ -247,8 +247,11 @@ get_script_paths() {
 setup_workflows() {
 	echo "Setting up workflows..."
 	# Copy .cursor rules to ~/.blizz/volatile/.cursor
+	# Check both source repository location and pre-built binary location
 	if [ -d "$REPO_ROOT/.cursor" ]; then
 		cp -r "$REPO_ROOT/.cursor" "$BLIZZ_HOME/volatile/"
+	elif [ -d "$INSTALL_DIR/bin/.cursor" ]; then
+		cp -r "$INSTALL_DIR/bin/.cursor" "$BLIZZ_HOME/volatile/"
 	else
 		echo "⚠️  No .cursor directory found - workflows will not be available"
 	fi
