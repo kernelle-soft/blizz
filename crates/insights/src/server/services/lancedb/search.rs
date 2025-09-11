@@ -19,7 +19,8 @@ pub async fn search_similar_embeddings(
   let mut results_stream = create_search_query(table, query_embedding, limit, threshold).await?;
   let search_results = process_all_batches(&mut results_stream, threshold).await?;
 
-  bentley::info!(&format!(
+  // Only log search results at verbose level to reduce noise
+  bentley::verbose!(&format!(
     "Found {} similar embeddings (threshold: {:?})",
     search_results.len(),
     threshold
@@ -37,7 +38,7 @@ async fn create_search_query<'a>(
   let query = table.vector_search(query_embedding)?.column("embedding").limit(limit);
 
   if let Some(thresh) = threshold {
-    bentley::info!(&format!("Threshold {thresh} specified but skipping where clause"));
+    bentley::verbose!(&format!("Threshold {thresh} specified but skipping where clause"));
   }
 
   query.execute().await.map_err(|e| anyhow!("Vector search failed: {}", e))

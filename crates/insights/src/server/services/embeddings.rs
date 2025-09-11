@@ -124,7 +124,10 @@ impl EmbeddingModel {
 
   /// Generate embeddings for a single text
   pub fn embed(&mut self, text: &str) -> Result<Vec<f32>> {
-    bentley::info!(&format!("Embedding text: '{}' ({} chars)", text, text.len()));
+    // Reduced verbosity: only log for very long texts or at verbose level
+    if text.len() > 500 {
+      bentley::info!(&format!("Embedding text: {} chars", text.len()));
+    }
     let tokens = Self::tokenize(text, &self.tokenizer)?;
     let input = Self::prepare(tokens.as_ref(), &self.session)?;
     let output = self.session.run(input)?;
@@ -252,7 +255,10 @@ impl EmbeddingModel {
     let tokens = tokenizer.encode_text(text, true)?;
 
     let token_count = tokens.get_ids().len();
-    bentley::info!(&format!("Tokenized '{text}' into {token_count} tokens"));
+    // Only log tokenization details at verbose level
+    if token_count > 100 {
+      bentley::verbose!(&format!("Tokenized {} chars into {token_count} tokens", text.len()));
+    }
     Self::validate_sequence_length(token_count)?;
 
     Ok(tokens)
@@ -297,13 +303,10 @@ impl EmbeddingModel {
 
     if model_input_names.contains(&"token_type_ids".to_string()) {
       input.insert("token_type_ids".to_string(), token_type_ids_tensor);
-    } else {
-      bentley::verbose!("Model doesn't expect token_type_ids, skipping");
     }
 
     if model_input_names.contains(&"position_ids".to_string()) {
       input.insert("position_ids".to_string(), position_ids_tensor);
-      bentley::verbose!("Added position_ids for Qwen3 model");
     }
 
     // Add past_key_values for CausalLM models (empty for embedding tasks)
@@ -437,10 +440,8 @@ pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
 #[cfg(not(tarpaulin_include))]
 pub async fn create_query_embedding(query: &str) -> Result<Vec<f32>> {
   let formatted_query = format!("task: search result | query: {query}");
-  bentley::verbose!(&format!(
-    "Creating query embedding with EmbeddingGemma format: '{}'",
-    formatted_query.chars().take(100).collect::<String>()
-  ));
+  // Reduced verbosity: only log at verbose level and with less detail
+  // bentley::verbose!("Creating query embedding");
   create_embedding_with_prompt(&formatted_query).await
 }
 
@@ -450,11 +451,8 @@ pub async fn create_query_embedding(query: &str) -> Result<Vec<f32>> {
 pub async fn create_document_embedding(content: &str, title: Option<&str>) -> Result<Vec<f32>> {
   let title_part = title.unwrap_or("none");
   let formatted_doc = format!("title: {title_part} | text: {content}");
-  bentley::verbose!(&format!(
-    "Creating document embedding with EmbeddingGemma format: title='{}', content_length={}",
-    title_part,
-    content.len()
-  ));
+  // Reduced verbosity: only log at verbose level
+  // bentley::verbose!("Creating document embedding");
   create_embedding_with_prompt(&formatted_doc).await
 }
 
@@ -464,10 +462,8 @@ pub async fn create_document_embedding(content: &str, title: Option<&str>) -> Re
 #[cfg(not(tarpaulin_include))]
 pub async fn create_semantic_similarity_embedding(content: &str) -> Result<Vec<f32>> {
   let formatted_content = format!("task: sentence similarity | query: {content}");
-  bentley::verbose!(&format!(
-    "Creating semantic similarity embedding with EmbeddingGemma format, content_length={}",
-    content.len()
-  ));
+  // Reduced verbosity: only log at verbose level
+  // bentley::verbose!("Creating semantic similarity embedding");
   create_embedding_with_prompt(&formatted_content).await
 }
 
@@ -503,11 +499,8 @@ async fn create_embedding_with_prompt(formatted_text: &str) -> Result<Vec<f32>> 
 /// same semantic similarity formatting for optimal similarity comparison.
 #[cfg(not(tarpaulin_include))]
 pub async fn score_relevance(query: &str, document: &str) -> Result<f32> {
-  bentley::verbose!(&format!(
-    "Reranking with semantic similarity task: query='{}', doc_length={}",
-    query.chars().take(50).collect::<String>(),
-    document.len()
-  ));
+  // Reduced verbosity for reranking
+  // bentley::verbose!("Reranking with semantic similarity task");
 
   // Use semantic similarity task for both query and document
   // This is specifically designed for similarity assessment, not retrieval
@@ -517,7 +510,10 @@ pub async fn score_relevance(query: &str, document: &str) -> Result<f32> {
   // Calculate cosine similarity between semantic similarity embeddings
   let similarity = cosine_similarity(&query_embedding, &doc_embedding);
 
-  bentley::verbose!(&format!("Semantic similarity reranking score: {similarity:.4}"));
+  // Only log scores at verbose level and for significant scores
+  if similarity > 0.7 {
+    bentley::verbose!(&format!("High similarity score: {similarity:.3}"));
+  }
 
   Ok(similarity)
 }

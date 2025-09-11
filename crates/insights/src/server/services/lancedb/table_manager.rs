@@ -97,21 +97,20 @@ fn create_insight_id(topic: &str, name: &str) -> String {
 }
 
 /// Log table creation
-fn log_table_creation(table_name: &str, record: &InsightRecord) {
-  bentley::info!(&format!(
-    "Created table '{}' with first embedding for {}/{}",
-    table_name, record.topic, record.name
-  ));
+fn log_table_creation(table_name: &str, _record: &InsightRecord) {
+  // Only log table creation at info level
+  bentley::info!(&format!("Created table '{table_name}'"));
 }
 
 /// Log record stored
 fn log_record_stored(record: &InsightRecord) {
-  bentley::info!(&format!("Stored embedding for {}/{}", record.topic, record.name));
+  // Reduce verbosity for individual embedding storage
+  bentley::verbose!(&format!("Stored embedding for {}/{}", record.topic, record.name));
 }
 
 /// Log embedding deleted
 fn log_embedding_deleted(topic: &str, name: &str) {
-  bentley::info!(&format!("Deleted embedding for {topic}/{name}"));
+  bentley::verbose!(&format!("Deleted embedding for {topic}/{name}"));
 }
 
 /// Check if table exists in the connection
