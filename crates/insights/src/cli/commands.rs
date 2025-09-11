@@ -104,22 +104,22 @@ pub async fn count_insights() -> Result<()> {
 
   let client = get_client();
   let insights_response = client.list_insights(Vec::new()).await?;
-  
+
   // Count unique topics
   use std::collections::HashSet;
   let mut unique_topics: HashSet<String> = HashSet::new();
   let insights = insights_response.insights;
-  
+
   for insight in &insights {
     unique_topics.insert(insight.topic.clone());
   }
-  
+
   let topic_count = unique_topics.len();
   let insight_count = insights.len();
-  
+
   println!("Topics: {}", topic_count.to_string().yellow());
   println!("Insights: {}", insight_count.to_string().yellow());
-  
+
   Ok(())
 }
 
