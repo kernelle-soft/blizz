@@ -79,6 +79,8 @@ enum Command {
   },
   /// List all available topics
   Topics,
+  /// Show count of topics and insights
+  Count,
   /// Recompute embeddings for all insights
   Index {
     /// Force recompute even for insights that already have embeddings
@@ -119,6 +121,7 @@ async fn handle(command: Command) -> Result<()> {
     }
     Command::Delete { id, force } => commands::delete_insight(&id.topic, &id.name, force).await,
     Command::Topics => commands::list_topics().await,
+    Command::Count => commands::count_insights().await,
     Command::Index { force } => commands::index_insights(force).await,
     Command::Logs { limit, level } => commands::logs(limit, &level).await,
   }

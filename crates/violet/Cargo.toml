@@ -17,7 +17,6 @@ colored.workspace = true
 serde = { workspace = true }
 serde_yaml.workspace = true
 anyhow.workspace = true
-dirs.workspace = true
 glob = "0.3"
 regex = "1.10"
 [dev-dependencies]
