@@ -133,7 +133,7 @@ impl EmbeddingModel {
   }
 
   /// Generate embeddings for multiple texts in a single batch inference
-  /// Supports up to 2048 texts for maximum throughput
+  /// Supports up to 2048 texts for maximum throughput, with automatic chunking for large tensors
   pub fn embed_batch(&mut self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
     if texts.is_empty() {
       return Ok(vec![]);
@@ -142,6 +142,22 @@ impl EmbeddingModel {
     const MAX_BATCH_SIZE: usize = 2048;
     if texts.len() > MAX_BATCH_SIZE {
       return Err(anyhow!("Batch size {} exceeds maximum of {}", texts.len(), MAX_BATCH_SIZE));
+    }
+
+    // Check if we should split into smaller chunks due to tensor size
+    let chunk_size = Self::calculate_optimal_chunk_size(texts.len());
+    if chunk_size < texts.len() {
+      bentley::warn!(&format!(
+        "Large tensor detected, splitting batch of {} into chunks of {}",
+        texts.len(), chunk_size
+      ));
+      
+      let mut all_embeddings = Vec::new();
+      for chunk in texts.chunks(chunk_size) {
+        let chunk_embeddings = self.embed_batch(chunk)?;
+        all_embeddings.extend(chunk_embeddings);
+      }
+      return Ok(all_embeddings);
     }
 
     bentley::info!(&format!("Batch embedding {} texts", texts.len()));
@@ -154,10 +170,14 @@ impl EmbeddingModel {
     let all_tokens = all_tokens?;
 
     // Prepare batch tensors
+    bentley::info!("Starting batch tensor preparation");
     let input = Self::prepare_batch(&all_tokens, &self.session)?;
+    bentley::info!("Batch tensor preparation complete");
     
     // Run inference
+    bentley::info!("Starting model inference");
     let output = self.session.run(input)?;
+    bentley::info!("Model inference complete");
     
     // Extract and normalize all embeddings
     let raw_embeddings = Self::extract_batch_embeddings(&output, texts.len())?;
@@ -169,6 +189,20 @@ impl EmbeddingModel {
       .collect();
 
     normalized_embeddings
+  }
+
+  /// Calculate optimal chunk size to prevent excessive memory usage
+  fn calculate_optimal_chunk_size(batch_size: usize) -> usize {
+    const MAX_SEQUENCE_CAP: usize = 2048; // EmbeddingGemma-300M's context limit
+    const MAX_TENSOR_ELEMENTS: usize = 2_000_000; // ~2M elements max for larger context
+    
+    let max_batch_for_full_seq = MAX_TENSOR_ELEMENTS / MAX_SEQUENCE_CAP;
+    
+    if batch_size <= max_batch_for_full_seq {
+      batch_size // Use full batch
+    } else {
+      max_batch_for_full_seq.max(1) // Split into smaller chunks
+    }
   }
 }
 
@@ -299,14 +333,12 @@ impl EmbeddingModel {
 
   /// Validate token sequence length - extracted for easy testing
   fn validate_sequence_length(token_count: usize) -> Result<()> {
-    const MAX_SEQUENCE_LENGTH: usize = 511; // GTE-Base limit is 512
+    const MAX_SEQUENCE_LENGTH: usize = 2048; // EmbeddingGemma-300M limit is 2048
 
     if token_count > MAX_SEQUENCE_LENGTH {
       bentley::warn!(&format!(
-        "Tokenizer bug detected: {token_count} tokens for what should be short text. This suggests a tokenizer malfunction. Temporarily allowing to proceed."
+        "Sequence length {token_count} exceeds EmbeddingGemma-300M limit of {MAX_SEQUENCE_LENGTH}. Sequence will be truncated."
       ));
-      // TEMPORARY WORKAROUND: Allow processing to continue instead of failing
-      // TODO: Fix the underlying tokenizer bug that's causing all text to tokenize to exactly 512 tokens
     }
 
     Ok(())
@@ -358,17 +390,44 @@ impl EmbeddingModel {
   ) -> Result<std::collections::HashMap<String, Value>> {
     let batch_size = all_tokens.len();
     
-    // Find the maximum sequence length for padding
+    // Find the maximum sequence length for padding, but cap it to prevent excessive padding
+    const MAX_SEQUENCE_CAP: usize = 2048; // EmbeddingGemma-300M's context limit
+    
     let max_seq_len = all_tokens
       .iter()
       .map(|tokens| tokens.get_ids().len())
       .max()
-      .unwrap_or(0);
+      .unwrap_or(0)
+      .min(MAX_SEQUENCE_CAP); // Cap to reasonable limit
+      
+    // Warn about truncated sequences
+    let truncated_count = all_tokens
+      .iter()
+      .filter(|tokens| tokens.get_ids().len() > max_seq_len)
+      .count();
+    
+    if truncated_count > 0 {
+      bentley::warn!(&format!(
+        "Truncating {} sequences from max length {} to {}",
+        truncated_count,
+        all_tokens.iter().map(|t| t.get_ids().len()).max().unwrap_or(0),
+        max_seq_len
+      ));
+    }
 
-    bentley::verbose!(&format!(
+    bentley::info!(&format!(
       "Preparing batch tensors: batch_size={}, max_seq_len={}", 
       batch_size, max_seq_len
     ));
+
+    // Check for excessive padding that could cause performance issues
+    let total_elements = batch_size * max_seq_len;
+    if total_elements > 100_000 {
+      bentley::warn!(&format!(
+        "Large tensor detected: batch_size={} × max_seq_len={} = {} elements. This may cause performance issues.",
+        batch_size, max_seq_len, total_elements
+      ));
+    }
 
     // Create padded batch tensors
     let input_ids_tensor = Self::to_tensor_batch(
@@ -389,10 +448,13 @@ impl EmbeddingModel {
       max_seq_len,
     )?;
 
-    // Generate position IDs for each sequence: [0, 1, 2, ..., seq_len-1]
+    // Generate position IDs for each sequence: [0, 1, 2, ..., seq_len-1], capped at max_seq_len
     let position_ids_batch: Vec<Vec<u32>> = all_tokens
       .iter()
-      .map(|tokens| (0..tokens.get_ids().len() as u32).collect())
+      .map(|tokens| {
+        let seq_len = tokens.get_ids().len().min(max_seq_len);
+        (0..seq_len as u32).collect()
+      })
       .collect();
     
     let position_ids_tensor = Self::to_tensor_batch(
@@ -472,13 +534,16 @@ impl EmbeddingModel {
     let mut flat_data = Vec::with_capacity(batch_size * max_seq_len);
     
     for sequence in batch_values {
-      // Add the actual sequence values
-      for &val in *sequence {
-        flat_data.push(val.into());
+      // Truncate or pad sequence to max_seq_len
+      let seq_len = sequence.len().min(max_seq_len);
+      
+      // Add the actual sequence values (truncated if necessary)
+      for i in 0..seq_len {
+        flat_data.push(sequence[i].into());
       }
       
-      // Pad with zeros to max_seq_len
-      while flat_data.len() % max_seq_len != 0 {
+      // Pad with zeros if sequence is shorter than max_seq_len
+      for _ in seq_len..max_seq_len {
         flat_data.push(0i64);
       }
     }
