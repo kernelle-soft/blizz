@@ -68,12 +68,8 @@ hf-hub = { version = "0.4", default-features = false, features = ["tokio"], opti
 safetensors = { version = "0.6", optional = true }
 
 [dev-dependencies]
-assert_cmd = "2.0"
-assert_fs = "1.1"
-predicates = "3.1"
 serial_test = "3.2"
 tempfile.workspace = true
-mockall.workspace = true
 
 [features]
 default = ["ml-features", "download-onnx-binaries"] 
