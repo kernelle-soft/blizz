@@ -6,7 +6,7 @@
 use anyhow::Result;
 use clap::Parser;
 use std::net::SocketAddr;
-use tracing::Level;
+use tracing_subscriber::{filter::EnvFilter, fmt, prelude::*};
 
 use insights::server::startup::start_server;
 
@@ -28,12 +28,19 @@ struct Args {
 async fn main() -> Result<()> {
   let args = Args::parse();
 
-  // Initialize logging
-  if args.verbose {
-    tracing_subscriber::fmt::init();
+  // Initialize logging with reduced verbosity for Lance and other noisy libraries
+  let filter = if args.verbose {
+    // Verbose mode: info for most, but reduced for noisy libraries
+    EnvFilter::new("info,lance=warn,lance_datafusion=warn,datafusion=warn")
   } else {
-    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
-  }
+    // Normal mode: info for insights, warn for everything else
+    EnvFilter::new("insights=info,lance=error,lance_datafusion=error,datafusion=error,warn")
+  };
+
+  tracing_subscriber::registry()
+    .with(fmt::layer())
+    .with(filter)
+    .init();
 
   bentley::info!(&format!("Starting Insights REST Server v{}", env!("CARGO_PKG_VERSION")));
   bentley::info!(&format!("Binding to address: {}", args.bind));

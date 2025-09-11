@@ -19,12 +19,10 @@ pub async fn search_similar_embeddings(
   let mut results_stream = create_search_query(table, query_embedding, limit, threshold).await?;
   let search_results = process_all_batches(&mut results_stream, threshold).await?;
 
-  // Only log search results at verbose level to reduce noise
-  bentley::verbose!(&format!(
-    "Found {} similar embeddings (threshold: {:?})",
-    search_results.len(),
-    threshold
-  ));
+  // Only log search results for debugging purposes
+  if search_results.is_empty() {
+    bentley::verbose!("No similar embeddings found");
+  }
   Ok(search_results)
 }
 
@@ -33,13 +31,11 @@ async fn create_search_query<'a>(
   table: &'a Table,
   query_embedding: &[f32],
   limit: usize,
-  threshold: Option<f32>,
+  _threshold: Option<f32>,
 ) -> Result<impl futures::stream::Stream<Item = Result<RecordBatch, lancedb::Error>> + 'a> {
   let query = table.vector_search(query_embedding)?.column("embedding").limit(limit);
 
-  if let Some(thresh) = threshold {
-    bentley::verbose!(&format!("Threshold {thresh} specified but skipping where clause"));
-  }
+  // Skip verbose threshold logging to reduce noise
 
   query.execute().await.map_err(|e| anyhow!("Vector search failed: {}", e))
 }
@@ -152,14 +148,7 @@ fn convert_distance_to_similarity(distance: f32) -> f32 {
 /// Check if similarity passes the threshold filter
 fn passes_threshold_filter(similarity: f32, threshold: Option<f32>) -> bool {
   if let Some(thresh) = threshold {
-    if similarity < thresh {
-      bentley::info!(&format!(
-        "Skipping result: similarity {similarity:.6} < threshold {thresh:.6}"
-      ));
-      false
-    } else {
-      true
-    }
+    similarity >= thresh
   } else {
     true
   }

@@ -124,10 +124,6 @@ impl EmbeddingModel {
 
   /// Generate embeddings for a single text
   pub fn embed(&mut self, text: &str) -> Result<Vec<f32>> {
-    // Reduced verbosity: only log for very long texts or at verbose level
-    if text.len() > 500 {
-      bentley::info!(&format!("Embedding text: {} chars", text.len()));
-    }
     let tokens = Self::tokenize(text, &self.tokenizer)?;
     let input = Self::prepare(tokens.as_ref(), &self.session)?;
     let output = self.session.run(input)?;
@@ -255,10 +251,6 @@ impl EmbeddingModel {
     let tokens = tokenizer.encode_text(text, true)?;
 
     let token_count = tokens.get_ids().len();
-    // Only log tokenization details at verbose level
-    if token_count > 100 {
-      bentley::verbose!(&format!("Tokenized {} chars into {token_count} tokens", text.len()));
-    }
     Self::validate_sequence_length(token_count)?;
 
     Ok(tokens)
@@ -408,9 +400,6 @@ impl EmbeddingModel {
       *value /= magnitude;
     }
 
-    bentley::verbose!(&format!(
-      "Normalized embedding from magnitude {magnitude:.6} to unit length"
-    ));
     Ok(embedding)
   }
 }
@@ -509,11 +498,6 @@ pub async fn score_relevance(query: &str, document: &str) -> Result<f32> {
 
   // Calculate cosine similarity between semantic similarity embeddings
   let similarity = cosine_similarity(&query_embedding, &doc_embedding);
-
-  // Only log scores at verbose level and for significant scores
-  if similarity > 0.7 {
-    bentley::verbose!(&format!("High similarity score: {similarity:.3}"));
-  }
 
   Ok(similarity)
 }
@@ -756,7 +740,6 @@ mod gte_base_tests {
       input_names: vec![
         "input_ids".to_string(),
         "attention_mask".to_string(),
-        // No token_type_ids - model doesn't expect it
       ],
     };
 
