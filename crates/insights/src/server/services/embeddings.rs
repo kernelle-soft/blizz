@@ -737,10 +737,7 @@ mod gte_base_tests {
     };
 
     let session = MockSessionInputs {
-      input_names: vec![
-        "input_ids".to_string(),
-        "attention_mask".to_string(),
-      ],
+      input_names: vec!["input_ids".to_string(), "attention_mask".to_string()],
     };
 
     let result = EmbeddingModel::prepare(&tokens, &session)?;

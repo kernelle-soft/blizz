@@ -37,10 +37,7 @@ async fn main() -> Result<()> {
     EnvFilter::new("insights=info,lance=error,lance_datafusion=error,datafusion=error,warn")
   };
 
-  tracing_subscriber::registry()
-    .with(fmt::layer())
-    .with(filter)
-    .init();
+  tracing_subscriber::registry().with(fmt::layer()).with(filter).init();
 
   bentley::info!(&format!("Starting Insights REST Server v{}", env!("CARGO_PKG_VERSION")));
   bentley::info!(&format!("Binding to address: {}", args.bind));
