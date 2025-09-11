@@ -1,7 +1,7 @@
 //! Insights endpoint handlers
 
 #[cfg(feature = "ml-features")]
-use crate::server::services::vector_database::{VectorDatabase, VectorSearchResult};
+use crate::server::services::vector_database::VectorDatabase;
 #[cfg(feature = "ml-features")]
 use anyhow::anyhow;
 use anyhow::Result;
@@ -327,53 +327,154 @@ struct ReindexingStats {
   total: usize,
 }
 
-/// Process all insights for embedding generation
+/// Process all insights for embedding generation using batch processing (up to 2048 at once)
 async fn process_insights_for_embedding(
   context: &RequestContext,
   insights: &[insight::Insight],
 ) -> ReindexingStats {
   let mut stats = ReindexingStats { total: insights.len(), ..Default::default() };
+  const BATCH_SIZE: usize = 2048;
 
-  for (index, insight) in insights.iter().enumerate() {
-    log_progress_if_needed(context, index, &stats).await;
+  context
+    .log_info(
+      &format!("Processing {} insights in batches of {}", insights.len(), BATCH_SIZE),
+      "insights-reindex",
+    )
+    .await;
 
-    match generate_and_store_embedding(context, insight).await {
-      Ok(_) => stats.embedded += 1,
+  // Process insights in batches
+  for (batch_start, batch) in insights.chunks(BATCH_SIZE).enumerate() {
+    let batch_num = batch_start + 1;
+    let total_batches = (insights.len() + BATCH_SIZE - 1) / BATCH_SIZE;
+
+    context
+      .log_info(
+        &format!("Processing batch {}/{} ({} insights)", batch_num, total_batches, batch.len()),
+        "insights-reindex",
+      )
+      .await;
+
+    match process_insight_batch(context, batch).await {
+      Ok(batch_stats) => {
+        stats.embedded += batch_stats.embedded;
+        stats.errors += batch_stats.errors;
+      }
       Err(e) => {
-        stats.errors += 1;
         context
-          .log_warn(
-            &format!("Failed to generate embedding for {}/{}: {}", insight.topic, insight.name, e),
+          .log_error(
+            &format!("Failed to process batch {}: {}", batch_num, e),
             "insights-reindex",
           )
           .await;
+        stats.errors += batch.len(); // Mark entire batch as failed
       }
     }
 
-    // Rate limiting to prevent overwhelming embedding service
-    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-  }
-
-  stats
-}
-
-/// Log progress periodically during processing
-async fn log_progress_if_needed(context: &RequestContext, index: usize, stats: &ReindexingStats) {
-  if (index + 1) % 10 == 0 || index == stats.total - 1 {
+    // Log progress after each batch
     context
       .log_info(
         &format!(
-          "Re-indexing progress: {}/{} (embedded: {}, errors: {})",
-          index + 1,
-          stats.total,
-          stats.embedded,
-          stats.errors
+          "Completed batch {}/{}: embedded: {}, errors: {}, total progress: {}/{}",
+          batch_num, total_batches, stats.embedded, stats.errors,
+          stats.embedded + stats.errors, stats.total
         ),
         "insights-reindex",
       )
       .await;
   }
+
+  stats
 }
+
+/// Process a batch of insights for embedding generation
+#[cfg(feature = "ml-features")]
+async fn process_insight_batch(
+  context: &RequestContext,
+  batch: &[insight::Insight],
+) -> Result<ReindexingStats> {
+  let mut stats = ReindexingStats { total: batch.len(), ..Default::default() };
+
+  // Prepare batch data for embedding
+  let documents: Vec<(String, Option<String>)> = batch
+    .iter()
+    .map(|insight| {
+      let document_title = format!("{}/{}", insight.topic, insight.name);
+      let document_content = format!("{} {}", insight.overview, insight.details);
+      (document_content, Some(document_title))
+    })
+    .collect();
+
+  context
+    .log_info(
+      &format!("Generating batch embeddings for {} insights", batch.len()),
+      "insights-reindex",
+    )
+    .await;
+
+  // Generate embeddings in a single batch inference
+  let embeddings = crate::server::services::embeddings::create_document_embeddings_batch(&documents)
+    .await
+    .map_err(|e| anyhow!("Failed to generate batch embeddings: {}", e))?;
+
+  context
+    .log_info("Storing embeddings and updating insight files", "insights-reindex")
+    .await;
+
+  // Store each embedding individually (LanceDB operations need to be individual)
+  for (insight, embedding) in batch.iter().zip(embeddings.iter()) {
+    match store_insight_embedding(context, insight, embedding).await {
+      Ok(_) => stats.embedded += 1,
+      Err(e) => {
+        stats.errors += 1;
+        context
+          .log_warn(
+            &format!("Failed to store embedding for {}/{}: {}", insight.topic, insight.name, e),
+            "insights-reindex",
+          )
+          .await;
+      }
+    }
+  }
+
+  Ok(stats)
+}
+
+/// Process a batch of insights (no-op without ml-features)
+#[cfg(not(feature = "ml-features"))]
+async fn process_insight_batch(
+  _context: &RequestContext,
+  batch: &[insight::Insight],
+) -> Result<ReindexingStats> {
+  Ok(ReindexingStats { total: batch.len(), embedded: batch.len(), errors: 0 })
+}
+
+/// Store individual insight with its pre-computed embedding
+#[cfg(feature = "ml-features")]
+async fn store_insight_embedding(
+  context: &RequestContext,
+  insight: &insight::Insight,
+  embedding: &[f32],
+) -> Result<()> {
+  let document_title = format!("{}/{}", insight.topic, insight.name);
+  let document_content = format!("{} {}", insight.overview, insight.details);
+  let formatted_embedding_text = format!("title: {document_title} | text: {document_content}");
+
+  // Create insight with embedding data, preserving existing temporal metadata
+  let mut insight_with_embedding = insight.clone();
+  insight_with_embedding.embedding_version = Some("embeddinggemma-300m".to_string());
+  insight_with_embedding.embedding = Some(embedding.to_vec());
+  insight_with_embedding.embedding_text = Some(formatted_embedding_text);
+  insight_with_embedding.embedding_computed = Some(chrono::Utc::now());
+
+  // Store in vector database
+  context.vector_db.store_embedding(&insight_with_embedding).await?;
+
+  // Update the insight file with embedding metadata
+  insight::save_existing(&insight_with_embedding)?;
+
+  Ok(())
+}
+
 
 /// Log final completion statistics
 async fn log_reindexing_completion(context: &RequestContext, stats: &ReindexingStats) {
@@ -388,41 +489,20 @@ async fn log_reindexing_completion(context: &RequestContext, stats: &ReindexingS
     .await;
 }
 
-/// Generate embedding for an insight and store it in LanceDB
+/// Generate embedding for a single insight using batch processing for consistency
 #[cfg(feature = "ml-features")]
 async fn generate_and_store_embedding(
   context: &RequestContext,
   insight: &insight::Insight,
 ) -> Result<()> {
-  // Create document content and title for proper EmbeddingGemma formatting
-  let document_title = format!("{}/{}", insight.topic, insight.name);
-  let document_content = format!("{} {}", insight.overview, insight.details);
-
-  // Generate embedding using proper document format for EmbeddingGemma
-  let embedding = crate::server::services::embeddings::create_document_embedding(
-    &document_content,
-    Some(&document_title),
-  )
-  .await
-  .map_err(|e| anyhow!("Failed to generate document embedding: {}", e))?;
-
-  // Store the properly formatted text that was actually embedded
-  let formatted_embedding_text = format!("title: {document_title} | text: {document_content}");
-
-  // Create insight with embedding data, preserving existing temporal metadata
-  let mut insight_with_embedding = insight.clone();
-  insight_with_embedding.embedding_version = Some("embeddinggemma-300m".to_string());
-  insight_with_embedding.embedding = Some(embedding.clone());
-  insight_with_embedding.embedding_text = Some(formatted_embedding_text);
-  insight_with_embedding.embedding_computed = Some(chrono::Utc::now());
-
-  // Store in vector database
-  context.vector_db.store_embedding(&insight_with_embedding).await?;
-
-  // Update the insight file with embedding metadata
-  insight::save_existing(&insight_with_embedding)?;
-
-  Ok(())
+  // Use batch processing even for single insights for consistent performance characteristics
+  let batch_stats = process_insight_batch(context, &[insight.clone()]).await?;
+  
+  if batch_stats.errors > 0 {
+    Err(anyhow!("Failed to generate embedding for single insight"))
+  } else {
+    Ok(())
+  }
 }
 
 /// Generate embedding for an insight and store it in LanceDB (no-op without ml-features)
@@ -477,80 +557,88 @@ async fn initial_search(
   Ok(results)
 }
 
-/// Rerank search candidates using semantic similarity
+/// Rerank search candidates using batch semantic similarity processing
 #[cfg(feature = "ml-features")]
 async fn rerank_results(
   context: &RequestContext,
   query_text: &str,
   similar_results: Vec<crate::server::services::vector_database::VectorSearchResult>,
 ) -> Vec<SearchResultData> {
-  let mut reranked_results = Vec::new();
+  if similar_results.is_empty() {
+    return vec![];
+  }
+
+  bentley::info!(&format!("Batch reranking {} candidates", similar_results.len()));
+
+  // Prepare all document texts for batch processing
+  let mut valid_results = Vec::new();
+  let mut doc_texts = Vec::new();
 
   for result in similar_results {
-    if let Some(search_result) = score_single_result(context, query_text, result).await {
-      reranked_results.push(search_result);
+    match insight::load(&result.topic, &result.name) {
+      Ok(_full_insight) => {
+        let doc_text = format!("{} {} {} {}", result.topic, result.name, result.overview, result.details);
+        doc_texts.push(doc_text);
+        valid_results.push(result);
+      }
+      Err(e) => {
+        tokio::spawn({
+          let context = context.clone();
+          let topic = result.topic.clone();
+          let name = result.name.clone();
+          async move {
+            context
+              .log_warn(
+                &format!("Failed to load full insight {topic}/{name}: {e}"),
+                "insights-search",
+              )
+              .await;
+          }
+        });
+      }
     }
   }
 
-  reranked_results
-}
-
-// violet ignore chunk - just a bit long because of the object constructors
-/// Rerank a single candidate result
-#[cfg(feature = "ml-features")]
-async fn score_single_result(
-  context: &RequestContext,
-  query_text: &str,
-  result: VectorSearchResult,
-) -> Option<SearchResultData> {
-  match insight::load(&result.topic, &result.name) {
-    Ok(_full_insight) => {
-      let doc_text =
-        format!("{} {} {} {}", result.topic, result.name, result.overview, result.details);
-      let score = compute_relevance_score(query_text, &doc_text, &result).await;
-
-      Some(SearchResultData {
-        topic: result.topic,
-        name: result.name,
-        overview: result.overview,
-        details: result.details,
-        score,
-      })
-    }
-    Err(e) => {
-      tokio::spawn({
-        let context = context.clone();
-        let topic = result.topic.clone();
-        let name = result.name.clone();
-        async move {
-          context
-            .log_warn(
-              &format!("Failed to load full insight {topic}/{name}: {e}"),
-              "insights-search",
-            )
-            .await;
-        }
-      });
-      None
-    }
+  if doc_texts.is_empty() {
+    return vec![];
   }
-}
 
-/// Compute reranking score with fallback
-#[cfg(feature = "ml-features")]
-async fn compute_relevance_score(
-  query_text: &str,
-  doc_text: &str,
-  result: &crate::server::services::vector_database::VectorSearchResult,
-) -> f32 {
-  match crate::server::services::embeddings::score_relevance(query_text, doc_text).await {
-    Ok(score) => score,
+  // Perform batch reranking
+  let doc_text_refs: Vec<&str> = doc_texts.iter().map(|s| s.as_str()).collect();
+  match crate::server::services::embeddings::score_relevance_batch(query_text, &doc_text_refs).await {
+    Ok(scores) => {
+      // Combine results with their scores
+      valid_results
+        .into_iter()
+        .zip(scores.into_iter())
+        .map(|(result, score)| SearchResultData {
+          topic: result.topic,
+          name: result.name,
+          overview: result.overview,
+          details: result.details,
+          score,
+        })
+        .collect()
+    }
     Err(e) => {
-      bentley::warn!(&format!(
-        "Reranking failed for {}/{}: {}, using original score",
-        result.topic, result.name, e
-      ));
-      result.similarity
+      context
+        .log_warn(
+          &format!("Batch reranking failed, falling back to original scores: {}", e),
+          "insights-search",
+        )
+        .await;
+
+      // Fallback to original similarity scores
+      valid_results
+        .into_iter()
+        .map(|result| SearchResultData {
+          topic: result.topic,
+          name: result.name,
+          overview: result.overview,
+          details: result.details,
+          score: result.similarity,
+        })
+        .collect()
     }
   }
 }

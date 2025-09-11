@@ -131,6 +131,45 @@ impl EmbeddingModel {
     let raw_embedding = Self::extract_embedding(&output)?;
     Self::normalize_embedding(raw_embedding)
   }
+
+  /// Generate embeddings for multiple texts in a single batch inference
+  /// Supports up to 2048 texts for maximum throughput
+  pub fn embed_batch(&mut self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+    if texts.is_empty() {
+      return Ok(vec![]);
+    }
+
+    const MAX_BATCH_SIZE: usize = 2048;
+    if texts.len() > MAX_BATCH_SIZE {
+      return Err(anyhow!("Batch size {} exceeds maximum of {}", texts.len(), MAX_BATCH_SIZE));
+    }
+
+    bentley::info!(&format!("Batch embedding {} texts", texts.len()));
+
+    // Tokenize all texts
+    let all_tokens: Result<Vec<_>> = texts
+      .iter()
+      .map(|text| Self::tokenize(text, &self.tokenizer))
+      .collect();
+    let all_tokens = all_tokens?;
+
+    // Prepare batch tensors
+    let input = Self::prepare_batch(&all_tokens, &self.session)?;
+    
+    // Run inference
+    let output = self.session.run(input)?;
+    
+    // Extract and normalize all embeddings
+    let raw_embeddings = Self::extract_batch_embeddings(&output, texts.len())?;
+    
+    // Normalize each embedding in the batch
+    let normalized_embeddings: Result<Vec<_>> = raw_embeddings
+      .into_iter()
+      .map(Self::normalize_embedding)
+      .collect();
+
+    normalized_embeddings
+  }
 }
 
 // Model initialization
@@ -312,6 +351,81 @@ impl EmbeddingModel {
     Ok(input)
   }
 
+  /// Prepare batch tensors for multiple tokenized texts
+  fn prepare_batch(
+    all_tokens: &[Box<dyn TokenizerOutput>],
+    session: &dyn SessionInputs,
+  ) -> Result<std::collections::HashMap<String, Value>> {
+    let batch_size = all_tokens.len();
+    
+    // Find the maximum sequence length for padding
+    let max_seq_len = all_tokens
+      .iter()
+      .map(|tokens| tokens.get_ids().len())
+      .max()
+      .unwrap_or(0);
+
+    bentley::verbose!(&format!(
+      "Preparing batch tensors: batch_size={}, max_seq_len={}", 
+      batch_size, max_seq_len
+    ));
+
+    // Create padded batch tensors
+    let input_ids_tensor = Self::to_tensor_batch(
+      all_tokens.iter().map(|t| t.get_ids()).collect::<Vec<_>>().as_slice(),
+      batch_size,
+      max_seq_len,
+    )?;
+
+    let attention_mask_tensor = Self::to_tensor_batch(
+      all_tokens.iter().map(|t| t.get_attention_mask()).collect::<Vec<_>>().as_slice(),
+      batch_size,
+      max_seq_len,
+    )?;
+
+    let token_type_ids_tensor = Self::to_tensor_batch(
+      all_tokens.iter().map(|t| t.get_type_ids()).collect::<Vec<_>>().as_slice(),
+      batch_size,
+      max_seq_len,
+    )?;
+
+    // Generate position IDs for each sequence: [0, 1, 2, ..., seq_len-1]
+    let position_ids_batch: Vec<Vec<u32>> = all_tokens
+      .iter()
+      .map(|tokens| (0..tokens.get_ids().len() as u32).collect())
+      .collect();
+    
+    let position_ids_tensor = Self::to_tensor_batch(
+      position_ids_batch.iter().map(|v| v.as_slice()).collect::<Vec<_>>().as_slice(),
+      batch_size,
+      max_seq_len,
+    )?;
+
+    // Create input based on what the model expects
+    let mut input = HashMap::new();
+    input.insert("input_ids".to_string(), input_ids_tensor);
+    input.insert("attention_mask".to_string(), attention_mask_tensor);
+
+    // Get model input names to determine what the model expects
+    let model_input_names = session.input_names();
+
+    if model_input_names.contains(&"token_type_ids".to_string()) {
+      input.insert("token_type_ids".to_string(), token_type_ids_tensor);
+    } else {
+      bentley::verbose!("Model doesn't expect token_type_ids, skipping");
+    }
+
+    if model_input_names.contains(&"position_ids".to_string()) {
+      input.insert("position_ids".to_string(), position_ids_tensor);
+      bentley::verbose!("Added position_ids for batch processing");
+    }
+
+    // Add past_key_values for CausalLM models (empty for embedding tasks)
+    Self::add_batch_past_key_values(&mut input, &model_input_names, batch_size)?;
+
+    Ok(input)
+  }
+
   fn add_past_key_values(
     input: &mut HashMap<String, Value>,
     model_input_names: &[String],
@@ -350,8 +464,65 @@ impl EmbeddingModel {
     Ok(tensor)
   }
 
+  fn to_tensor_batch<T: Copy + Into<i64>>(
+    batch_values: &[&[T]], 
+    batch_size: usize, 
+    max_seq_len: usize
+  ) -> Result<Value> {
+    let mut flat_data = Vec::with_capacity(batch_size * max_seq_len);
+    
+    for sequence in batch_values {
+      // Add the actual sequence values
+      for &val in *sequence {
+        flat_data.push(val.into());
+      }
+      
+      // Pad with zeros to max_seq_len
+      while flat_data.len() % max_seq_len != 0 {
+        flat_data.push(0i64);
+      }
+    }
+    
+    let array: Array2<i64> = Array2::from_shape_vec((batch_size, max_seq_len), flat_data)?;
+    let tensor: Value = Value::from_array(array)?.into();
+    Ok(tensor)
+  }
+
   fn to_i64<T: Copy + Into<i64>>(values: &[T]) -> Vec<i64> {
     values.iter().map(|&x| x.into()).collect()
+  }
+
+  fn add_batch_past_key_values(
+    input: &mut HashMap<String, Value>,
+    model_input_names: &[String],
+    batch_size: usize,
+  ) -> Result<()> {
+    // Check if model expects past key values (common for CausalLM-based embedding models)
+    let past_key_names: Vec<&String> =
+      model_input_names.iter().filter(|name| name.starts_with("past_key_values.")).collect();
+
+    if !past_key_names.is_empty() {
+      bentley::verbose!(&format!(
+        "Adding {} empty past_key_values tensors for CausalLM batch (batch_size={})",
+        past_key_names.len(),
+        batch_size
+      ));
+
+      for past_key_name in past_key_names {
+        let empty_tensor = Self::create_empty_batch_past_key_value_tensor(batch_size)?;
+        input.insert(past_key_name.clone(), empty_tensor);
+      }
+    }
+
+    Ok(())
+  }
+
+  fn create_empty_batch_past_key_value_tensor(batch_size: usize) -> Result<Value> {
+    // Create empty tensor with shape [batch_size, num_heads, 0, head_dim]
+    // For Qwen3: num_heads=8, head_dim=128 (from config)
+    use ndarray::Array4;
+    let empty_array: Array4<f32> = Array4::zeros((batch_size, 8, 0, 128));
+    Ok(Value::from_array(empty_array)?.into())
   }
 
   /// Testable tensor extraction logic
@@ -364,6 +535,18 @@ impl EmbeddingModel {
     let (shape, data) = tensor.extract_f32_data()?;
 
     Self::mean_pool((shape, data))
+  }
+
+  /// Extract embeddings from batch output tensor
+  fn extract_batch_embeddings(output: &dyn EmbeddingOutput, batch_size: usize) -> Result<Vec<Vec<f32>>> {
+    let tensor = output
+      .get_tensor("last_hidden_state")
+      .or_else(|| output.get_tensor("0"))
+      .ok_or_else(|| anyhow!("No output found from model - expected 'last_hidden_state' or '0'"))?;
+
+    let (shape, data) = tensor.extract_f32_data()?;
+
+    Self::mean_pool_batch((shape, data), batch_size)
   }
 
   /// Perform mean pooling over sequence dimension for sentence embeddings
@@ -387,6 +570,39 @@ impl EmbeddingModel {
     }
 
     Ok(embedding)
+  }
+
+  /// Perform mean pooling over batch of sequences for sentence embeddings
+  pub fn mean_pool_batch(embedding: (&[i64], &[f32]), batch_size: usize) -> Result<Vec<Vec<f32>>> {
+    let (shape, data) = embedding;
+
+    let seq_length = shape[1] as usize;
+    let hidden_size = shape[2] as usize;
+
+    let mut batch_embeddings = Vec::with_capacity(batch_size);
+
+    for batch_idx in 0..batch_size {
+      let mut sequence_embedding = vec![0.0f32; hidden_size];
+      
+      // Calculate mean pooling for this sequence in the batch
+      for token_idx in 0..seq_length {
+        let data_start = (batch_idx * seq_length * hidden_size) + (token_idx * hidden_size);
+        let data_end = data_start + hidden_size;
+        
+        for (i, &value) in data[data_start..data_end].iter().enumerate() {
+          sequence_embedding[i] += value;
+        }
+      }
+
+      // Average over sequence length
+      for value in sequence_embedding.iter_mut() {
+        *value /= seq_length as f32;
+      }
+
+      batch_embeddings.push(sequence_embedding);
+    }
+
+    Ok(batch_embeddings)
   }
 
   /// Normalize embedding vector to unit length for consistent similarity comparisons
@@ -432,6 +648,43 @@ pub async fn create_embedding(text: &str) -> Result<Vec<f32>> {
   create_embedding_with_prompt(text).await
 }
 
+/// Create embeddings for multiple texts in a single batch inference (up to 2048 texts)
+/// 
+/// This provides massive performance improvements over sequential processing by utilizing
+/// the model's full batch processing capability.
+#[cfg(not(tarpaulin_include))]
+pub async fn create_embeddings_batch(texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+  if texts.is_empty() {
+    return Ok(vec![]);
+  }
+
+  const MAX_BATCH_SIZE: usize = 2048;
+  if texts.len() > MAX_BATCH_SIZE {
+    return Err(anyhow!("Batch size {} exceeds maximum of {}", texts.len(), MAX_BATCH_SIZE));
+  }
+
+  let mutex = MODEL.get_or_init(|| Mutex::new(None));
+
+  // Check if we need to initialize the model
+  let needs_init = {
+    let guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
+    guard.is_none()
+  };
+
+  // Initialize model if needed (outside of the lock to avoid holding across await)
+  if needs_init {
+    bentley::info!("Initializing embedding model...");
+    let model = EmbeddingModel::load().await?;
+    let mut guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
+    *guard = Some(model);
+  }
+
+  // Get batch embeddings
+  let mut guard = mutex.lock().map_err(|_| anyhow!("Failed to lock model mutex"))?;
+  let model = guard.as_mut().ok_or_else(|| anyhow!("Model not initialized"))?;
+  model.embed_batch(texts)
+}
+
 /// Create embeddings optimized for search queries using EmbeddingGemma prompt format
 /// Uses format: "task: search result | query: {content}"
 #[cfg(not(tarpaulin_include))]
@@ -456,6 +709,30 @@ pub async fn create_document_embedding(content: &str, title: Option<&str>) -> Re
     content.len()
   ));
   create_embedding_with_prompt(&formatted_doc).await
+}
+
+/// Create document embeddings for multiple documents in a single batch (up to 2048)
+/// Uses format: "title: {title | "none"} | text: {content}" for each document
+#[cfg(not(tarpaulin_include))]
+pub async fn create_document_embeddings_batch(
+  documents: &[(String, Option<String>)]
+) -> Result<Vec<Vec<f32>>> {
+  let formatted_docs: Vec<String> = documents
+    .iter()
+    .map(|(content, title)| {
+      let title_part = title.as_deref().unwrap_or("none");
+      format!("title: {title_part} | text: {content}")
+    })
+    .collect();
+
+  let formatted_refs: Vec<&str> = formatted_docs.iter().map(|s| s.as_str()).collect();
+
+  bentley::verbose!(&format!(
+    "Creating batch document embeddings for {} documents with EmbeddingGemma format",
+    documents.len()
+  ));
+  
+  create_embeddings_batch(&formatted_refs).await
 }
 
 /// Create embeddings optimized for semantic similarity using EmbeddingGemma prompt format
@@ -520,6 +797,50 @@ pub async fn score_relevance(query: &str, document: &str) -> Result<f32> {
   bentley::verbose!(&format!("Semantic similarity reranking score: {similarity:.4}"));
 
   Ok(similarity)
+}
+
+/// Generate reranking relevance scores for multiple documents in a single batch
+/// 
+/// This provides massive performance improvement over sequential processing by 
+/// processing all candidates in one inference call.
+#[cfg(not(tarpaulin_include))]
+pub async fn score_relevance_batch(query: &str, documents: &[&str]) -> Result<Vec<f32>> {
+  if documents.is_empty() {
+    return Ok(vec![]);
+  }
+
+  bentley::verbose!(&format!(
+    "Batch reranking with semantic similarity task: query='{}', {} documents",
+    query.chars().take(50).collect::<String>(),
+    documents.len()
+  ));
+
+  // Generate query embedding once
+  let query_embedding = create_semantic_similarity_embedding(query).await?;
+
+  // Generate all document embeddings in a single batch
+  let document_embeddings = {
+    let formatted_docs: Vec<String> = documents
+      .iter()
+      .map(|doc| format!("task: sentence similarity | query: {}", doc))
+      .collect();
+    
+    let formatted_refs: Vec<&str> = formatted_docs.iter().map(|s| s.as_str()).collect();
+    create_embeddings_batch(&formatted_refs).await?
+  };
+
+  // Calculate cosine similarities for all documents
+  let similarities: Vec<f32> = document_embeddings
+    .iter()
+    .map(|doc_embedding| cosine_similarity(&query_embedding, doc_embedding))
+    .collect();
+
+  bentley::verbose!(&format!(
+    "Batch reranking completed: {} scores generated",
+    similarities.len()
+  ));
+
+  Ok(similarities)
 }
 
 /// Calculate cosine similarity between two embedding vectors
