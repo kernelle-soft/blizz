@@ -99,12 +99,36 @@ runs:
 
     - name: Install Protocol Buffers compiler (Linux)
       if: ${{ runner.os == 'Linux' }}
-      run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      run: |
+        echo "Installing protobuf compiler via apt..."
+        sudo apt-get update && sudo apt-get install -y protobuf-compiler
+        
+        echo "Verifying protoc installation..."
+        which protoc
+        protoc --version
+        
+        # Set PROTOC environment variable for build
+        echo "PROTOC=$(which protoc)" >> $GITHUB_ENV
       shell: bash
 
     - name: Install Protocol Buffers compiler (macOS)
       if: ${{ runner.os == 'macOS' }}
-      run: brew install protobuf
+      run: |
+        echo "Installing protobuf via Homebrew..."
+        brew update
+        brew install protobuf
+        
+        echo "Verifying protoc installation..."
+        which protoc
+        protoc --version
+        
+        # Set PROTOC environment variable for build
+        echo "PROTOC=$(which protoc)" >> $GITHUB_ENV
+        
+        # Add protoc to PATH if needed
+        PROTOC_DIR=$(dirname $(which protoc))
+        echo "PROTOC directory: $PROTOC_DIR"
+        echo "$PROTOC_DIR" >> $GITHUB_PATH
       shell: bash
 
     - name: Bootstrap blizz
