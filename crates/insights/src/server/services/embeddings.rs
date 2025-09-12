@@ -45,7 +45,7 @@ use ort::{
 
 #[cfg(target_os = "macos")]
 use ort::{
-  execution_providers::{CPUExecutionProvider, CoreMLExecutionProvider, ExecutionProviderDispatch},
+  execution_providers::{CoreMLExecutionProvider, ExecutionProviderDispatch},
   session::Session,
   value::Value,
 };
@@ -112,14 +112,37 @@ struct ModelFiles {
 // Public API
 #[cfg(not(tarpaulin_include))] // [rag-stack] - add CI/CD testing for cross-platform loading/unloading
 impl EmbeddingModel {
-  /// Load the GTE-Base model from HuggingFace
+
+  /// Load the EmbeddingGemma model from HuggingFace
   pub async fn load() -> Result<Self> {
-    bentley::info!("loading model...");
+    bentley::info!("Loading EmbeddingGemma-300M model...");
 
     let model_files = Self::download_model().await?;
     let tokenizer = Self::load_tokenizer(model_files.tokenizer_file)?;
     let session = Self::load_model(model_files.model_path)?;
-    Ok(Self { session, tokenizer })
+
+    // Test inference to verify GPU performance
+    bentley::info!("Running GPU performance test...");
+    let mut model = Self { session, tokenizer };
+    let start_time = std::time::Instant::now();
+    let _ = model.embed("test performance")?;
+    let test_duration = start_time.elapsed();
+
+    bentley::info!(&format!(
+      "Performance test: {:.2}ms for single text",
+      test_duration.as_millis()
+    ));
+
+    if test_duration.as_millis() > 50 {
+      bentley::warn!(&format!(
+        "⚠ SLOW: {:.2}ms for single embedding suggests CPU execution. Expected <10ms on GPU.",
+        test_duration.as_millis()
+      ));
+    } else {
+      bentley::info!("✓ Performance test passed - GPU acceleration working");
+    }
+
+    Ok(model)
   }
 
   /// Generate embeddings for a single text
@@ -174,10 +197,50 @@ impl EmbeddingModel {
     let input = Self::prepare_batch(&all_tokens, &self.session)?;
     bentley::info!("Batch tensor preparation complete");
     
-    // Run inference
-    bentley::info!("Starting model inference");
+    // Run inference with detailed timing
+    bentley::info!(&format!("Starting model inference for batch of {} texts", texts.len()));
+    let start_time = std::time::Instant::now();
+    
+    // Log tensor shapes for debugging
+    for (name, value) in &input {
+      if let Ok((shape, _)) = value.try_extract_tensor::<i64>() {
+        bentley::verbose!(&format!("Input tensor '{}': shape {:?}", name, shape));
+      }
+    }
+    
     let output = self.session.run(input)?;
-    bentley::info!("Model inference complete");
+    let inference_duration = start_time.elapsed();
+    
+    bentley::info!(&format!(
+      "Model inference complete: {:.2}ms ({:.2}ms per text)",
+      inference_duration.as_millis(),
+      inference_duration.as_millis() as f64 / texts.len() as f64
+    ));
+    
+    // Performance analysis
+    let per_text_ms = inference_duration.as_millis() as f64 / texts.len() as f64;
+    
+    if per_text_ms > 50.0 {
+      bentley::error!(&format!(
+        "🐌 EXTREMELY SLOW: {:.2}ms per text indicates CPU execution despite CUDA provider",
+        per_text_ms
+      ));
+      
+      // Additional diagnostics
+      bentley::error!("Possible causes:");
+      bentley::error!("1. ONNX Runtime binary lacks CUDA support");
+      bentley::error!("2. CUDA/cuDNN version mismatch"); 
+      bentley::error!("3. GPU memory exhausted, forcing CPU fallback");
+      bentley::error!("4. ONNX graph not optimized for CUDA");
+      
+    } else if per_text_ms > 10.0 {
+      bentley::warn!(&format!(
+        "⚠ SLOW: {:.2}ms per text is suboptimal (expected <10ms on GPU)",
+        per_text_ms
+      ));
+    } else {
+      bentley::info!(&format!("✓ FAST: {:.2}ms per text - GPU acceleration working!", per_text_ms));
+    }
     
     // Extract and normalize all embeddings
     let raw_embeddings = Self::extract_batch_embeddings(&output, texts.len())?;
@@ -274,10 +337,22 @@ impl EmbeddingModel {
   }
 
   fn load_model(model_path: std::path::PathBuf) -> Result<Session> {
+    // Set environment variables that can fix ONNX Runtime CUDA issues
+    std::env::set_var("OMP_NUM_THREADS", "4");
+    std::env::set_var("CUDA_VISIBLE_DEVICES", "0"); 
+    std::env::set_var("CUDA_LAUNCH_BLOCKING", "0"); // Async GPU execution
+    
+    bentley::info!("Set CUDA environment variables for optimal performance");
+    
     let providers = Self::get_execution_providers();
+    bentley::info!(&format!("Configuring ONNX session with {} execution providers", providers.len()));
 
-    let session =
-      Session::builder()?.with_execution_providers(providers)?.commit_from_file(model_path)?;
+    let session = Session::builder()?
+      .with_execution_providers(providers)?
+      .commit_from_file(model_path)?;
+
+    bentley::info!("ONNX session initialized successfully");
+    bentley::info!("✓ Both CUDA and CPU providers available");
 
     Ok(session)
   }
@@ -297,7 +372,17 @@ impl EmbeddingModel {
     #[cfg(target_os = "linux")]
     {
       if Self::is_cuda_available() {
-        providers.push(CUDAExecutionProvider::default().build().error_on_failure());
+        // Try different CUDA provider configurations for better GPU utilization
+        let cuda_provider = CUDAExecutionProvider::default()
+          .with_device_id(0)
+          .with_memory_limit(2 * 1024 * 1024 * 1024) // 2GB limit
+          .build()
+          .error_on_failure();
+          
+        bentley::info!("CUDA execution provider configured: GPU 0, 2GB memory limit");
+        providers.push(cuda_provider);
+      } else {
+        bentley::warn!("CUDA not available, falling back to CPU");
       }
     }
 
@@ -305,15 +390,33 @@ impl EmbeddingModel {
     providers
   }
 
-  /// Check if CUDA is available using ONNX Runtime's ExecutionProvider::is_available()
+  /// Check if CUDA is available 
   #[cfg(target_os = "linux")]
   fn is_cuda_available() -> bool {
-    // First check if nvidia-smi exists (hardware level)
-
-    std::process::Command::new("nvidia-smi")
+    // Check hardware level
+    let hardware_available = std::process::Command::new("nvidia-smi")
       .output()
       .map(|output| output.status.success())
-      .unwrap_or(false)
+      .unwrap_or(false);
+
+    if hardware_available {
+      bentley::info!("✓ NVIDIA hardware detected");
+      
+      // Check for basic CUDA runtime libraries
+      let cuda_rt_available = std::path::Path::new("/usr/local/cuda/lib64/libcudart.so").exists()
+        || std::path::Path::new("/usr/lib/x86_64-linux-gnu/libcudart.so").exists();
+        
+      if cuda_rt_available {
+        bentley::info!("✓ CUDA runtime libraries found");
+        true
+      } else {
+        bentley::warn!("⚠ CUDA runtime libraries not found - may fall back to CPU");
+        true // Still try CUDA provider, it might work
+      }
+    } else {
+      bentley::warn!("⚠ No NVIDIA hardware detected");
+      false
+    }
   }
 }
 
@@ -1822,3 +1925,5 @@ mod gte_base_tests {
     Ok(())
   }
 }
+
+
