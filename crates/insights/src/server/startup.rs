@@ -8,7 +8,10 @@ use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
-use crate::server::{middleware::init_global_logger, routing::create_router};
+use crate::server::{
+  middleware::{self, init_global_logger},
+  routing::create_router,
+};
 
 #[cfg(feature = "ml-features")]
 use crate::server::{
@@ -23,9 +26,16 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
   let logs_path = get_server_logs_path();
   let daemon_logs = Arc::new(DaemonLogs::new(&logs_path)?);
 
-  // Initialize global logger
+  // Initialize global logger with Info level (less verbose than before)
   init_global_logger(daemon_logs.clone())
     .map_err(|_| anyhow::anyhow!("Failed to initialize global logger"))?;
+
+  // Set log level to Info by default (can be overridden via env var)
+  let log_level = std::env::var("INSIGHTS_LOG_LEVEL")
+    .map(|s| middleware::LogLevel::parse(&s))
+    .unwrap_or(middleware::LogLevel::Info);
+
+  middleware::set_log_level(log_level);
 
   // Initialize vector database service (only with ml-features)
   #[cfg(feature = "ml-features")]
@@ -61,7 +71,6 @@ pub async fn start_server(addr: SocketAddr) -> Result<()> {
   // Create listener
   let listener = TcpListener::bind(addr).await?;
   daemon_logs.info(&format!("Server listening on {addr}"), "insights-server").await;
-  bentley::info!(&format!("Server listening on {addr}"));
 
   // Start serving
   match serve(listener, app).await {

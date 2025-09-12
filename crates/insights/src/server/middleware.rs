@@ -108,36 +108,118 @@ impl RequestContext {
     }
   }
 
-  /// Log request start
+  /// Log request start (only at verbose level to reduce noise)
   pub async fn log_request_start(&self) {
-    self.log_with_context("Request started", "info", "http-request", None, None).await;
+    // Only log request starts at verbose level to reduce console noise
+    // self.log_with_context("Request started", "verbose", "http-request", None, None).await;
   }
 
-  /// Log request completion with status
+  /// Log request completion with status (only for errors or slow requests)
   pub async fn log_request_complete(&self, status_code: u16, duration_ms: f64) {
-    self
-      .log_with_context(
-        "Request completed",
-        "info",
-        "http-request",
-        Some(status_code),
-        Some(duration_ms),
-      )
-      .await;
+    // Only log completed requests if they're errors or slow (> 1000ms)
+    if status_code >= 400 || duration_ms > 1000.0 {
+      self
+        .log_with_context(
+          &format!("Request completed: {} ({}ms)", status_code, duration_ms as u32),
+          "info",
+          "http-request",
+          Some(status_code),
+          Some(duration_ms),
+        )
+        .await;
+    } else {
+      // Only log successful fast requests at verbose level
+      // self.log_with_context("Request completed", "verbose", "http-request", Some(status_code), Some(duration_ms)).await;
+    }
+  }
+}
+
+/// Log levels for filtering
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LogLevel {
+  Error = 0,
+  Warn = 1,
+  Info = 2,
+  Success = 3,
+  Verbose = 4,
+  Debug = 5,
+}
+
+impl LogLevel {
+  pub fn parse(s: &str) -> Self {
+    match s.to_lowercase().as_str() {
+      "error" => LogLevel::Error,
+      "warn" => LogLevel::Warn,
+      "info" => LogLevel::Info,
+      "success" | "sccs" => LogLevel::Success,
+      "verbose" | "verb" => LogLevel::Verbose,
+      "debug" => LogLevel::Debug,
+      _ => LogLevel::Info,
+    }
+  }
+
+  pub fn as_str(&self) -> &'static str {
+    match self {
+      LogLevel::Error => "error",
+      LogLevel::Warn => "warn",
+      LogLevel::Info => "info",
+      LogLevel::Success => "success",
+      LogLevel::Verbose => "verbose",
+      LogLevel::Debug => "debug",
+    }
   }
 }
 
 /// Global logger instance
 static GLOBAL_LOGGER: once_cell::sync::OnceCell<Arc<DaemonLogs>> = once_cell::sync::OnceCell::new();
 
+/// Global log level (defaults to Info to reduce verbosity)
+static GLOBAL_LOG_LEVEL: once_cell::sync::OnceCell<LogLevel> = once_cell::sync::OnceCell::new();
+
 /// Global vector database service instance (only with ml-features)
 #[cfg(feature = "ml-features")]
 static GLOBAL_VECTOR_DB: once_cell::sync::OnceCell<Arc<BoxedVectorDatabase>> =
   once_cell::sync::OnceCell::new();
 
-/// Initialize the global logger
+/// Initialize the global logger and log level
 pub fn init_global_logger(logger: Arc<DaemonLogs>) -> Result<(), Arc<DaemonLogs>> {
+  // Set default log level to Info (less verbose than before)
+  let _ = GLOBAL_LOG_LEVEL.set(LogLevel::Info);
   GLOBAL_LOGGER.set(logger)
+}
+
+/// Set the global log level
+pub fn set_log_level(level: LogLevel) {
+  let _ = GLOBAL_LOG_LEVEL.set(level);
+}
+
+/// Check if a log level should be output based on current global level
+pub fn should_log(level: LogLevel) -> bool {
+  let current_level = GLOBAL_LOG_LEVEL.get().copied().unwrap_or(LogLevel::Info);
+  level <= current_level
+}
+
+/// Centralized logging function that goes to both console and file
+pub async fn log_to_both(level: LogLevel, message: &str, component: &str) {
+  // Only log if level is enabled
+  if !should_log(level) {
+    return;
+  }
+
+  // Log to console using bentley
+  match level {
+    LogLevel::Error => bentley::error(message),
+    LogLevel::Warn => bentley::warn(message),
+    LogLevel::Info => bentley::info(message),
+    LogLevel::Success => bentley::success(message),
+    LogLevel::Verbose => bentley::verbose(message),
+    LogLevel::Debug => bentley::debug(message),
+  }
+
+  // Also log to file if we have a global logger
+  if let Some(logger) = GLOBAL_LOGGER.get() {
+    let _ = logger.add_log(level.as_str(), message, component).await;
+  }
 }
 
 /// Initialize the global vector database service (only with ml-features)
@@ -198,4 +280,20 @@ pub async fn request_context_middleware(request: Request, next: Next) -> Respons
   context.log_request_complete(response.status().as_u16(), duration_ms).await;
 
   response
+}
+/// Convenient async logging functions that write to both console and file
+pub async fn server_info(message: &str, component: &str) {
+  log_to_both(LogLevel::Info, message, component).await;
+}
+
+pub async fn server_verbose(message: &str, component: &str) {
+  log_to_both(LogLevel::Verbose, message, component).await;
+}
+
+pub async fn server_warn(message: &str, component: &str) {
+  log_to_both(LogLevel::Warn, message, component).await;
+}
+
+pub async fn server_error(message: &str, component: &str) {
+  log_to_both(LogLevel::Error, message, component).await;
 }
