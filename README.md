@@ -18,7 +18,7 @@ The result is that blizz really isn't about vibe coding. It's a _personal contex
 - A tool for securely storing and accessing secrets for MCP token authentication
 - A linking tool for bringing your custom rules from repo to repo
 - A task runner capable of defining, parameterizing, and composing tasks together
-- Semantically programmed agent behaviors, rulesets, and modern best practices for coding style, including rules to enable whatever model you're running to use the other tools above.
+- Semantically programmed agent behaviors, rulesets, and modern best practices for coding style, including rules for your AIDE to automatically use the other tools above.
 
 
 ## Setup
