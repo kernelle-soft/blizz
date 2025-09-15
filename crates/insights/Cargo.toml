@@ -45,7 +45,7 @@ uuid.workspace = true
 axum = { version = "0.8", features = ["macros"] }
 schemars = { version = "0.8", features = ["uuid1", "chrono"] }
 tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
 
 # HTTP client dependencies
 reqwest.workspace = true
