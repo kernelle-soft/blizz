@@ -55,7 +55,7 @@ async-trait = "0.1"
 # Heavy ML dependencies - optional for CI performance
 lancedb = { version = "0.22.0", default-features = false, optional = true }
 arrow = { version = "55", features = ["json"], optional = true }
-arrow-json = { version = "55", optional = true }
+arrow-json = { version = "56", optional = true }
 futures.workspace = true
 
 # Neural embeddings - optional for CI performance  
